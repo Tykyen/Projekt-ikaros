@@ -6,5 +6,6 @@ export interface IChatMessageRepository {
   countAfter(channelId: string, messageId: string): Promise<number>;
   save(data: Partial<ChatMessage>): Promise<ChatMessage>;
   update(id: string, data: Partial<ChatMessage>): Promise<ChatMessage | null>;
+  softDeleteByChannelId(channelId: string): Promise<void>;
   softDeleteByWorldId(worldId: string): Promise<void>;
 }

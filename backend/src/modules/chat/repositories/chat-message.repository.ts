@@ -39,6 +39,12 @@ export class MongoChatMessageRepository
       .exec();
   }
 
+  async softDeleteByChannelId(channelId: string): Promise<void> {
+    await this.model
+      .updateMany({ channelId }, { $set: { isDeleted: true, content: null } })
+      .exec();
+  }
+
   async softDeleteByWorldId(worldId: string): Promise<void> {
     await this.model
       .updateMany({ worldId }, { $set: { isDeleted: true, content: null } })

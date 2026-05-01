@@ -8,7 +8,7 @@ export class ChannelReadStatusSchemaClass {
   @Prop({ required: true }) userId: string;
   @Prop({ required: true }) channelId: string;
   @Prop({ type: String, default: null }) lastReadMessageId: string | null;
-  @Prop() lastReadAt?: Date;
+  @Prop({ required: true }) lastReadAt: Date;
 }
 
 export const ChannelReadStatusSchema = SchemaFactory.createForClass(ChannelReadStatusSchemaClass);

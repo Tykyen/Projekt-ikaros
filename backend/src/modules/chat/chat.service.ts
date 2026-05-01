@@ -96,6 +96,7 @@ export class ChatService {
     }
     const channels = await this.channelRepo.findByGroupId(groupId);
     for (const ch of channels) {
+      await this.messageRepo.softDeleteByChannelId(ch.id);
       await this.channelRepo.delete(ch.id);
     }
     await this.groupRepo.delete(groupId);
@@ -144,6 +145,7 @@ export class ChatService {
     if (!(await this.canManageChat(requester, channel.worldId))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
+    await this.messageRepo.softDeleteByChannelId(channelId);
     await this.channelRepo.delete(channelId);
     this.eventEmitter.emit('chat.channel.deleted', { worldId: channel.worldId, channelId, groupId: channel.groupId });
     return { message: 'Kanál smazán' };

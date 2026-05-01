@@ -29,7 +29,7 @@ describe('ChatService', () => {
   };
   const mockMessageRepo = {
     findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
-    save: jest.fn(), update: jest.fn(), softDeleteByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
   };
   const mockReadRepo = {
     findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
