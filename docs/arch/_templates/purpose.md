@@ -4,7 +4,8 @@
 
 ## Odpovědnosti
 
-(Bullet list — co patří do této komponenty.)
+- (Co patří do této komponenty — např. validace vstupu, persistence, orchestrace.)
+- (Další odpovědnost.)
 
 ## Mimo rozsah
 

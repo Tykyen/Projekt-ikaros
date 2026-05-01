@@ -7,21 +7,22 @@
 
 ### Vstup
 
-(Popis request body nebo query parametrů.)
+(Popis request body nebo query parametrů. Použij skutečné příkladové hodnoty.)
 
 ```json
 {
-  "pole": "typ"
+  "email": "user@example.com"
 }
 ```
 
 ### Výstup
 
-(Popis response body při úspěchu.)
+(Popis response body při úspěchu. Použij skutečné příkladové hodnoty.)
 
 ```json
 {
-  "pole": "typ"
+  "id": "uuid",
+  "email": "user@example.com"
 }
 ```
 
