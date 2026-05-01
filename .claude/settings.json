@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "*",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(pkill -f \"nest start\")",
+      "Bash(pkill -f \"node.*nest\")",
+      "PowerShell($lockFile = \"C:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.git\\\\index.lock\"; $handle = [System.IO.File]::Open\\($lockFile, 'Open', 'ReadWrite', 'None'\\); $handle.Close\\(\\); $handle.Dispose\\(\\))"
+    ],
+    "additionalDirectories": [
+      "C:\\Matrix\\ProjektIkaros\\Projekt-ikaros\\.git"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true
+  }
+}

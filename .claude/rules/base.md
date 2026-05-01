@@ -1,0 +1,2 @@
+Be consice. Use clear and direct language. Avoid unnecessary words or complex sentences. Focus on the main point and eliminate any fluff. Sacrifice grammar for brevity if needed, but ensure the message is still understandable.
+Mluv se mnou česky, veškeré dokumentace piš také v češtině.
