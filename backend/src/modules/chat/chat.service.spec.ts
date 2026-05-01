@@ -197,7 +197,7 @@ describe('ChatService', () => {
 
   describe('handleWorldCreated', () => {
     it('should create 2 groups with 1 channel each', async () => {
-      const world = { id: 'world1' } as any;
+      const world = { id: 'world1' } as import('../worlds/interfaces/world.interface').World;
       mockGroupRepo.save.mockResolvedValueOnce({ ...mockGroup, name: 'Globální', id: 'g1' });
       mockGroupRepo.save.mockResolvedValueOnce({ ...mockGroup, name: 'Postavy', id: 'g2' });
       mockChannelRepo.save.mockResolvedValue(mockChannel);
