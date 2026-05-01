@@ -98,6 +98,7 @@ export class ChatService {
     for (const ch of channels) {
       await this.messageRepo.softDeleteByChannelId(ch.id);
       await this.channelRepo.delete(ch.id);
+      this.eventEmitter.emit('chat.channel.deleted', { worldId: group.worldId, channelId: ch.id, groupId });
     }
     await this.groupRepo.delete(groupId);
     this.eventEmitter.emit('chat.group.deleted', { worldId: group.worldId, groupId });
