@@ -130,4 +130,82 @@ describe('ChatService', () => {
       expect(result).toBe(true);
     });
   });
+
+  describe('sendMessage', () => {
+    it('should save message and emit event', async () => {
+      mockChannelRepo.findById.mockResolvedValue(mockChannel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+      mockMembershipRepo.findByWorldId.mockResolvedValue([mockPJMembership]);
+      const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'ahoj', isEdited: false, isDeleted: false, createdAt: new Date(), updatedAt: new Date() };
+      mockMessageRepo.save.mockResolvedValue(mockMsg);
+      mockChannelRepo.update.mockResolvedValue({ ...mockChannel, lastMessageAt: mockMsg.createdAt });
+      const result = await service.sendMessage('ch1', { content: 'ahoj' }, mockPJ);
+      expect(result.content).toBe('ahoj');
+      expect(mockMessageRepo.save).toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenException when no channel access', async () => {
+      mockChannelRepo.findById.mockResolvedValue(mockChannel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(service.sendMessage('ch1', { content: 'x' }, { id: 'stranger', role: UserRole.Hrac }))
+        .rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('editMessage', () => {
+    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'original', isEdited: false, isDeleted: false, createdAt: new Date(), updatedAt: new Date() };
+
+    it('should allow author to edit own message', async () => {
+      mockMessageRepo.findById.mockResolvedValue(mockMsg);
+      mockMessageRepo.update.mockResolvedValue({ ...mockMsg, content: 'edited', isEdited: true });
+      const result = await service.editMessage('msg1', { content: 'edited' }, mockPJ);
+      expect(result.isEdited).toBe(true);
+      expect(result.content).toBe('edited');
+    });
+
+    it('should throw ForbiddenException for non-author without manage permission', async () => {
+      mockMessageRepo.findById.mockResolvedValue(mockMsg);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+      await expect(service.editMessage('msg1', { content: 'hack' }, { id: 'user2', role: UserRole.Hrac }))
+        .rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow PJ to edit any message', async () => {
+      mockMessageRepo.findById.mockResolvedValue(mockMsg);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+      mockMessageRepo.update.mockResolvedValue({ ...mockMsg, content: 'pj edit', isEdited: true });
+      const result = await service.editMessage('msg1', { content: 'pj edit' }, { id: 'user3', role: UserRole.Hrac });
+      expect(result.content).toBe('pj edit');
+    });
+  });
+
+  describe('deleteMessage', () => {
+    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'text', isEdited: false, isDeleted: false, createdAt: new Date(), updatedAt: new Date() };
+
+    it('should soft-delete message (content=null, isDeleted=true)', async () => {
+      mockMessageRepo.findById.mockResolvedValue(mockMsg);
+      mockMessageRepo.update.mockResolvedValue({ ...mockMsg, content: null, isDeleted: true });
+      await service.deleteMessage('msg1', mockPJ);
+      expect(mockMessageRepo.update).toHaveBeenCalledWith('msg1', { isDeleted: true, content: null });
+    });
+
+    it('should throw NotFoundException for missing message', async () => {
+      mockMessageRepo.findById.mockResolvedValue(null);
+      await expect(service.deleteMessage('unknown', mockPJ)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('handleWorldCreated', () => {
+    it('should create 2 groups with 1 channel each', async () => {
+      const world = { id: 'world1' } as any;
+      mockGroupRepo.save.mockResolvedValueOnce({ ...mockGroup, name: 'Globální', id: 'g1' });
+      mockGroupRepo.save.mockResolvedValueOnce({ ...mockGroup, name: 'Postavy', id: 'g2' });
+      mockChannelRepo.save.mockResolvedValue(mockChannel);
+      await service.handleWorldCreated(world);
+      expect(mockGroupRepo.save).toHaveBeenCalledTimes(2);
+      expect(mockChannelRepo.save).toHaveBeenCalledTimes(2);
+      expect(mockGroupRepo.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Globální' }));
+      expect(mockGroupRepo.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Postavy' }));
+    });
+  });
 });
