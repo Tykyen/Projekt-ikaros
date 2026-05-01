@@ -6,6 +6,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { GatewaysModule } from './gateways/gateways.module';
 import { WorldsModule } from './modules/worlds/worlds.module';
+import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
   imports: [
@@ -17,5 +18,6 @@ import { WorldsModule } from './modules/worlds/worlds.module';
     GatewaysModule,
   ],
   controllers: [AppController],
+  providers: [MatrixWorldSeed],
 })
 export class AppModule {}
