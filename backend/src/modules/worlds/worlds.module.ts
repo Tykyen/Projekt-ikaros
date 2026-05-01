@@ -8,6 +8,7 @@ import { MongoWorldMembershipRepository } from './repositories/world-membership.
 import { MongoWorldSettingsRepository } from './repositories/world-settings.repository';
 import { WorldsService } from './worlds.service';
 import { WorldsController } from './worlds.controller';
+import { WorldsGateway } from './worlds.gateway';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WorldsController } from './worlds.controller';
     { provide: 'IWorldsRepository', useClass: MongoWorldsRepository },
     { provide: 'IWorldMembershipRepository', useClass: MongoWorldMembershipRepository },
     { provide: 'IWorldSettingsRepository', useClass: MongoWorldSettingsRepository },
+    WorldsGateway,
   ],
   exports: [WorldsService, 'IWorldsRepository', 'IWorldMembershipRepository'],
 })
