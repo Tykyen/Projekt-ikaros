@@ -64,7 +64,7 @@ Popis datových struktur a schémat se kterými komponenta pracuje.
 Definice rozhraní komponenty — endpointy nebo jiné vstupní/výstupní body.
 
 **Patří sem:** metoda, cesta, vstup, výstup, chybové HTTP kódy.
-**Nepatří sem:** interní implementace, datové modely (odkaz na `data-models.md`).
+**Nepatří sem:** interní implementace, datové modely — ty patří do `data-models.md`.
 
 ### `errors.md`
 Katalog chybových stavů které komponenta může vrátit nebo se kterými pracuje.
@@ -88,7 +88,7 @@ Testovací scénáře — co se musí testovat, ne jak.
 Pokyny specificky pro AI agenta pracujícího na komponentě.
 
 **Patří sem:** co udělat před zahájením, omezení, závislosti, doporučený postup, časté chyby.
-**Nepatří sem:** obsah který patří do jiných souborů.
+**Nepatří sem:** API definice, datové modely, obecné bezpečnostní principy — ty patří do svých souborů.
 
 ---
 
@@ -97,7 +97,7 @@ Pokyny specificky pro AI agenta pracujícího na komponentě.
 1. Vytvoř složku `docs/arch/<modul>/<komponenta>/`
 2. Zkopíruj šablony ze `docs/arch/_templates/` které jsou relevantní
 3. Vyplň zkopírované soubory — odstraň komentáře v závorkách, nahraď je skutečným obsahem
-4. Aktualizuj `index.md` — uveď pouze soubory které jsi vyplnil
+4. Aktualizuj `index.md` — zachovej pouze řádky souborů které jsi vyplnil, ostatní smaž
 
 ---
 
@@ -107,5 +107,5 @@ Před zahájením práce na komponentě agent vždy nejprve přečte její speci
 
 1. Agent dostane cestu ke složce komponenty
 2. Agent přečte `index.md` — zjistí jaké soubory existují a co každý obsahuje
-3. Agent přečte všechny relevantní soubory specifikace
+3. Agent přečte soubory relevantní pro jeho úkol — pokud si není jistý, přečte vše
 4. Teprve po prostudování specifikace začne agent pracovat na komponentě
