@@ -30,6 +30,7 @@ describe('ChatService', () => {
   const mockMessageRepo = {
     findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
     save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
+    addReaction: jest.fn(), removeReaction: jest.fn(),
   };
   const mockReadRepo = {
     findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
@@ -136,7 +137,7 @@ describe('ChatService', () => {
       mockChannelRepo.findById.mockResolvedValue(mockChannel);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
       mockMembershipRepo.findByWorldId.mockResolvedValue([mockPJMembership]);
-      const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'ahoj', isEdited: false, isDeleted: false, createdAt: new Date(), updatedAt: new Date() };
+      const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'ahoj', isEdited: false, isDeleted: false, reactions: {}, createdAt: new Date(), updatedAt: new Date() };
       mockMessageRepo.save.mockResolvedValue(mockMsg);
       mockChannelRepo.update.mockResolvedValue({ ...mockChannel, lastMessageAt: mockMsg.createdAt });
       const result = await service.sendMessage('ch1', { content: 'ahoj' }, mockPJ);
@@ -153,7 +154,7 @@ describe('ChatService', () => {
   });
 
   describe('editMessage', () => {
-    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'original', isEdited: false, isDeleted: false, createdAt: new Date(), updatedAt: new Date() };
+    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'original', isEdited: false, isDeleted: false, reactions: {}, createdAt: new Date(), updatedAt: new Date() };
 
     it('should allow author to edit own message', async () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
@@ -180,7 +181,7 @@ describe('ChatService', () => {
   });
 
   describe('deleteMessage', () => {
-    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'text', isEdited: false, isDeleted: false, createdAt: new Date(), updatedAt: new Date() };
+    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'text', isEdited: false, isDeleted: false, reactions: {}, createdAt: new Date(), updatedAt: new Date() };
 
     it('should soft-delete message (content=null, isDeleted=true)', async () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
@@ -232,6 +233,19 @@ describe('ChatService', () => {
       expect(mockChannelRepo.save).toHaveBeenCalledTimes(2);
       expect(mockGroupRepo.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Globální' }));
       expect(mockGroupRepo.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Postavy' }));
+    });
+  });
+
+  describe('ChatMessage interface — reactions field', () => {
+    it('mockMsg should have reactions field (type check)', () => {
+      const msg: import('./interfaces/chat-message.interface').ChatMessage = {
+        id: 'msg1', channelId: 'ch1', worldId: 'world1',
+        senderId: 'user1', senderName: 'Elara',
+        content: 'text', isEdited: false, isDeleted: false,
+        reactions: { '👍': ['user2'] },
+        createdAt: new Date(), updatedAt: new Date(),
+      };
+      expect(msg.reactions['👍']).toContain('user2');
     });
   });
 });
