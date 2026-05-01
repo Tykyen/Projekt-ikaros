@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { GatewaysModule } from './gateways/gateways.module';
+import { WorldsModule } from './modules/worlds/worlds.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { GatewaysModule } from './gateways/gateways.module';
     EventEmitterModule.forRoot(),
     DatabaseModule,
     AuthModule,
+    WorldsModule,
     GatewaysModule,
   ],
   controllers: [AppController],
