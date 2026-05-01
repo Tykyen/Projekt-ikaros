@@ -95,7 +95,7 @@ Pokyny specificky pro AI agenta pracujícího na komponentě.
 ## Jak vytvořit specifikaci nové komponenty
 
 1. Vytvoř složku `docs/arch/<modul>/<komponenta>/`
-2. Zkopíruj šablony ze `docs/arch/_templates/` které jsou relevantní
+2. Zkopíruj `index.md` a ostatní relevantní šablony ze `docs/arch/_templates/`
 3. Vyplň zkopírované soubory — odstraň komentáře v závorkách, nahraď je skutečným obsahem
 4. Aktualizuj `index.md` — zachovej pouze řádky souborů které jsi vyplnil, ostatní smaž
 
