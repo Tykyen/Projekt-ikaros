@@ -37,6 +37,11 @@ export class WorldsController {
     return this.worldsService.findMyWorlds(user.id);
   }
 
+  @Get('slug/:slug')
+  findBySlug(@Param('slug') slug: string) {
+    return this.worldsService.findBySlug(slug);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.worldsService.findById(id);
@@ -73,6 +78,15 @@ export class WorldsController {
   @Get(':id/members')
   getMembers(@Param('id') id: string) {
     return this.worldsService.getMembers(id);
+  }
+
+  @Delete(':worldId/members/:membershipId')
+  @UseGuards(JwtAuthGuard)
+  leave(
+    @Param('membershipId') membershipId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.leave(membershipId, user);
   }
 
   @Get(':worldId/settings')

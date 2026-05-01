@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IWorldsRepository } from './interfaces/worlds-repository.interface';
@@ -112,13 +113,20 @@ export class WorldsService {
     }
 
     const role = world.accessMode === 'public' ? WorldRole.Hrac : WorldRole.Pending;
-    const membership = await this.membershipRepo.save({
-      userId,
-      worldId,
-      role,
-      joinedAt: new Date(),
-      akj: 0,
-    });
+    let membership: WorldMembership;
+    try {
+      membership = await this.membershipRepo.save({
+        userId,
+        worldId,
+        role,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+    } catch (err: unknown) {
+      const code = (err as { code?: number })?.code;
+      if (code === 11000) throw new ConflictException('Již jsi členem tohoto světa');
+      throw err;
+    }
 
     this.eventEmitter.emit('world.membership.changed', { worldId, membership });
     return membership;
@@ -181,11 +189,31 @@ export class WorldsService {
     return updated;
   }
 
-  async softDelete(id: string, requester: RequestUser): Promise<void> {
+  async softDelete(id: string, requester: RequestUser): Promise<{ message: string }> {
     const world = await this.findById(id);
     if (!this.canManageWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
     await this.worldsRepo.update(id, { isActive: false });
     this.eventEmitter.emit('world.deleted', { worldId: id });
+    return { message: 'Svět byl smazán' };
+  }
+
+  async leave(membershipId: string, requester: RequestUser): Promise<{ message: string }> {
+    const membership = await this.membershipRepo.findById(membershipId);
+    if (!membership) throw new NotFoundException('Membership nenalezeno');
+
+    const world = await this.findById(membership.worldId);
+
+    if (membership.userId !== requester.id) {
+      if (!this.canManageWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
+    }
+
+    if (membership.userId === requester.id && world.ownerId === requester.id) {
+      throw new BadRequestException('Vlastník nemůže opustit svůj svět');
+    }
+
+    await this.membershipRepo.delete(membershipId);
+    this.eventEmitter.emit('world.membership.changed', { worldId: membership.worldId, membership: null });
+    return { message: 'Opustil jsi svět' };
   }
 
   private canManageWorld(requester: RequestUser, world: World, membership?: WorldMembership): boolean {

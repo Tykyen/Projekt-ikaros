@@ -1,8 +1,9 @@
-import { Controller, Get, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Body, UseGuards, ForbiddenException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { UserRole } from './interfaces/user.interface';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -20,7 +21,14 @@ export class UsersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @CurrentUser() requester: { id: string; role: UserRole },
+  ) {
+    if (requester.id !== id && requester.role > UserRole.Admin) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
     return this.usersService.update(id, dto);
   }
 }

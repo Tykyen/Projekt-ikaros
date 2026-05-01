@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsIn } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsIn, Min, Max } from 'class-validator';
 import { WorldRole } from '../interfaces/world-membership.interface';
 
 export class UpdateMemberRoleDto {
@@ -10,7 +10,7 @@ export class UpdateMemberGroupDto {
 }
 
 export class UpdateMemberAkjDto {
-  @IsNumber() akj: number;
+  @IsNumber() @Min(0) @Max(999999) akj: number;
 }
 
 export class UpdateMemberCharacterDto {

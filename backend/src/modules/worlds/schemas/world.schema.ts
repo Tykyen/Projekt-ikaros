@@ -23,3 +23,5 @@ export class WorldSchemaClass {
 }
 
 export const WorldSchema = SchemaFactory.createForClass(WorldSchemaClass);
+WorldSchema.index({ ownerId: 1 });
+WorldSchema.index({ isActive: 1 });

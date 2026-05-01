@@ -4,7 +4,7 @@ import { Server } from 'socket.io';
 import type { World } from './interfaces/world.interface';
 import type { WorldMembership } from './interfaces/world-membership.interface';
 
-@WebSocketGateway({ cors: { origin: '*' } })
+@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' } })
 export class WorldsGateway {
   @WebSocketServer() server: Server;
 

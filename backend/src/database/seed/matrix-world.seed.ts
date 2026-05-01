@@ -23,7 +23,7 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
       await this.worldsRepo.save({
         name: 'Matrix',
         slug: 'matrix',
-        ownerId: '',
+        ownerId: process.env.SUPERADMIN_ID ?? 'system',
         isActive: true,
         accessMode: 'private',
         system: 'matrix',
