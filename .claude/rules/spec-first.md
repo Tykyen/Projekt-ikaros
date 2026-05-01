@@ -1,0 +1,1 @@
+Před jakoukoli implementací komponenty bezpodmínečně aktivuj skill `spec-driven-development`.
