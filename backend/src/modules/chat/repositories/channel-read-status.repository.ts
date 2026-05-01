@@ -31,10 +31,11 @@ export class MongoChannelReadStatusRepository implements IChannelReadStatusRepos
       )
       .lean()
       .exec();
+    if (!doc) throw new Error('upsert failed to return document');
     return this.toEntity(doc as unknown as Record<string, unknown>);
   }
 
-  private toEntity(doc: Record<string, unknown>): ChannelReadStatus {
+  protected toEntity(doc: Record<string, unknown>): ChannelReadStatus {
     return {
       id: String(doc._id),
       userId: doc.userId as string,
