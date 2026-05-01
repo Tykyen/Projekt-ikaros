@@ -165,7 +165,7 @@ export class ChatService {
     }
     return this.messageRepo.findByChannelId(channelId, {
       before: opts.before,
-      limit: Math.min(opts.limit ?? 50, 100),
+      limit: Math.min(Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50, 100),
     });
   }
 

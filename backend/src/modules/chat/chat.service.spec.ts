@@ -195,6 +195,32 @@ describe('ChatService', () => {
     });
   });
 
+  describe('getMessages limit validation', () => {
+    it('should clamp NaN limit to default 50', async () => {
+      mockChannelRepo.findById.mockResolvedValue(mockChannel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+      mockMessageRepo.findByChannelId.mockResolvedValue([]);
+      await service.getMessages('ch1', 'user2', { limit: NaN });
+      expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith('ch1', { before: undefined, limit: 50 });
+    });
+
+    it('should clamp limit=0 to default 50', async () => {
+      mockChannelRepo.findById.mockResolvedValue(mockChannel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+      mockMessageRepo.findByChannelId.mockResolvedValue([]);
+      await service.getMessages('ch1', 'user2', { limit: 0 });
+      expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith('ch1', { before: undefined, limit: 50 });
+    });
+
+    it('should clamp limit=200 to max 100', async () => {
+      mockChannelRepo.findById.mockResolvedValue(mockChannel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+      mockMessageRepo.findByChannelId.mockResolvedValue([]);
+      await service.getMessages('ch1', 'user2', { limit: 200 });
+      expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith('ch1', { before: undefined, limit: 100 });
+    });
+  });
+
   describe('handleWorldCreated', () => {
     it('should create 2 groups with 1 channel each', async () => {
       const world = { id: 'world1' } as import('../worlds/interfaces/world.interface').World;
