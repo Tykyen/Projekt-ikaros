@@ -51,6 +51,32 @@ export class MongoChatMessageRepository
       .exec();
   }
 
+  async addReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null> {
+    if (!Types.ObjectId.isValid(messageId)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(
+        messageId,
+        { $addToSet: { [`reactions.${emoji}`]: userId } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
+  async removeReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null> {
+    if (!Types.ObjectId.isValid(messageId)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(
+        messageId,
+        { $pull: { [`reactions.${emoji}`]: userId } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
   protected toEntity(doc: Record<string, unknown>): ChatMessage {
     return {
       id: String(doc._id),

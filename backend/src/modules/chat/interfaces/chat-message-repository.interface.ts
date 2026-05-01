@@ -8,4 +8,6 @@ export interface IChatMessageRepository {
   update(id: string, data: Partial<ChatMessage>): Promise<ChatMessage | null>;
   softDeleteByChannelId(channelId: string): Promise<void>;
   softDeleteByWorldId(worldId: string): Promise<void>;
+  addReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null>;
+  removeReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null>;
 }
