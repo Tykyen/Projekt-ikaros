@@ -12,9 +12,15 @@ import type { IWorldSettingsRepository } from './interfaces/world-settings-repos
 import { World } from './interfaces/world.interface';
 import { WorldMembership, WorldRole } from './interfaces/world-membership.interface';
 import { WorldSettings } from './interfaces/world-settings.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 import { CreateWorldDto } from './dto/create-world.dto';
 import { UpdateWorldDto } from './dto/update-world.dto';
 import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
+
+export interface RequestUser {
+  id: string;
+  role: UserRole;
+}
 
 @Injectable()
 export class WorldsService {
@@ -43,12 +49,13 @@ export class WorldsService {
 
   async findMyWorlds(userId: string): Promise<{ world: World; membership: WorldMembership }[]> {
     const memberships = await this.membershipRepo.findByUserId(userId);
-    const result: { world: World; membership: WorldMembership }[] = [];
-    for (const m of memberships) {
-      const world = await this.worldsRepo.findById(m.worldId);
-      if (world) result.push({ world, membership: m });
-    }
-    return result;
+    if (memberships.length === 0) return [];
+    const worldIds = memberships.map((m) => m.worldId);
+    const worlds = await this.worldsRepo.findByIds(worldIds);
+    const worldMap = new Map(worlds.map((w) => [w.id, w]));
+    return memberships
+      .map((m) => ({ world: worldMap.get(m.worldId)!, membership: m }))
+      .filter((r) => r.world != null);
   }
 
   async create(dto: CreateWorldDto, ownerId: string): Promise<World> {
@@ -80,9 +87,12 @@ export class WorldsService {
     return world;
   }
 
-  async update(id: string, dto: UpdateWorldDto, userId: string): Promise<World> {
+  async update(id: string, dto: UpdateWorldDto, requester: RequestUser): Promise<World> {
     const world = await this.findById(id);
-    if (world.ownerId !== userId) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, id);
+    if (!this.canManageWorld(requester, world, membership ?? undefined)) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
 
     const updated = await this.worldsRepo.update(id, dto);
     if (!updated) throw new NotFoundException('Svět nenalezen');
@@ -122,18 +132,23 @@ export class WorldsService {
     return this.settingsRepo.findByWorldId(worldId);
   }
 
-  async updateSettings(worldId: string, dto: UpdateWorldSettingsDto): Promise<WorldSettings> {
+  async updateSettings(worldId: string, dto: UpdateWorldSettingsDto, requester: RequestUser): Promise<WorldSettings> {
+    const world = await this.findById(worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, worldId);
+    if (!this.canManageWorld(requester, world, membership ?? undefined)) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
     const settings = await this.settingsRepo.upsert(worldId, dto);
     this.eventEmitter.emit('world.settings.updated', { worldId, settings });
     return settings;
   }
 
-  async updateMemberRole(membershipId: string, role: WorldRole, requesterId: string): Promise<WorldMembership> {
+  async updateMemberRole(membershipId: string, role: WorldRole, requester: RequestUser): Promise<WorldMembership> {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership) throw new NotFoundException('Membership nenalezeno');
 
     const world = await this.findById(membership.worldId);
-    if (world.ownerId !== requesterId) throw new ForbiddenException('Nedostatečná oprávnění');
+    if (!this.canManageWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
 
     const updated = await this.membershipRepo.update(membershipId, { role });
     if (!updated) throw new NotFoundException('Membership nenalezeno');
@@ -142,23 +157,42 @@ export class WorldsService {
     return updated;
   }
 
-  async updateMemberGroup(membershipId: string, group: string | undefined): Promise<WorldMembership> {
+  async updateMemberGroup(membershipId: string, group: string | undefined, requester: RequestUser): Promise<WorldMembership> {
+    const membership = await this.membershipRepo.findById(membershipId);
+    if (!membership) throw new NotFoundException('Membership nenalezeno');
+
+    const world = await this.findById(membership.worldId);
+    if (!this.canManageWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
+
     const updated = await this.membershipRepo.update(membershipId, { group });
     if (!updated) throw new NotFoundException('Membership nenalezeno');
     return updated;
   }
 
-  async updateMemberAkj(membershipId: string, akj: number): Promise<WorldMembership> {
+  async updateMemberAkj(membershipId: string, akj: number, requester: RequestUser): Promise<WorldMembership> {
+    const membership = await this.membershipRepo.findById(membershipId);
+    if (!membership) throw new NotFoundException('Membership nenalezeno');
+
+    const world = await this.findById(membership.worldId);
+    if (!this.canManageWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
+
     const updated = await this.membershipRepo.update(membershipId, { akj });
     if (!updated) throw new NotFoundException('Membership nenalezeno');
     return updated;
   }
 
-  async softDelete(id: string, userId: string): Promise<void> {
+  async softDelete(id: string, requester: RequestUser): Promise<void> {
     const world = await this.findById(id);
-    if (world.ownerId !== userId) throw new ForbiddenException('Nedostatečná oprávnění');
+    if (!this.canManageWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
     await this.worldsRepo.update(id, { isActive: false });
     this.eventEmitter.emit('world.deleted', { worldId: id });
+  }
+
+  private canManageWorld(requester: RequestUser, world: World, membership?: WorldMembership): boolean {
+    if (requester.id === world.ownerId) return true;
+    if (requester.role <= UserRole.Admin) return true;
+    if (membership && membership.role >= WorldRole.PomocnyPJ) return true;
+    return false;
   }
 
   private getCurrenciesForGenre(genre?: string): WorldSettings['currencies'] {

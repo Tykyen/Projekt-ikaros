@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { WorldSchemaClass } from '../schemas/world.schema';
 import { World } from '../interfaces/world.interface';
@@ -16,6 +16,13 @@ export class MongoWorldsRepository
     model: Model<WorldSchemaClass>,
   ) {
     super(model as never);
+  }
+
+  async findByIds(ids: string[]): Promise<World[]> {
+    const validIds = ids.filter((id) => Types.ObjectId.isValid(id)).map((id) => new Types.ObjectId(id));
+    if (validIds.length === 0) return [];
+    const docs = await this.model.find({ _id: { $in: validIds }, isActive: true }).lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
   }
 
   async findBySlug(slug: string): Promise<World | null> {

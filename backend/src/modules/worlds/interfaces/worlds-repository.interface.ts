@@ -2,6 +2,7 @@ import { World } from './world.interface';
 
 export interface IWorldsRepository {
   findById(id: string): Promise<World | null>;
+  findByIds(ids: string[]): Promise<World[]>;
   findBySlug(slug: string): Promise<World | null>;
   findAll(): Promise<World[]>;
   findByOwnerId(ownerId: string): Promise<World[]>;

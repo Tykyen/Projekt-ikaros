@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { WorldsService } from './worlds.service';
+import type { RequestUser } from './worlds.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateWorldDto } from './dto/create-world.dto';
@@ -52,15 +53,15 @@ export class WorldsController {
   update(
     @Param('id') id: string,
     @Body() dto: UpdateWorldDto,
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.worldsService.update(id, dto, user.id);
+    return this.worldsService.update(id, dto, user);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id') id: string, @CurrentUser() user: { id: string }) {
-    return this.worldsService.softDelete(id, user.id);
+  remove(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.worldsService.softDelete(id, user);
   }
 
   @Post(':id/join')
@@ -84,8 +85,9 @@ export class WorldsController {
   updateSettings(
     @Param('worldId') worldId: string,
     @Body() dto: UpdateWorldSettingsDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.worldsService.updateSettings(worldId, dto);
+    return this.worldsService.updateSettings(worldId, dto, user);
   }
 
   @Patch(':worldId/members/:membershipId/role')
@@ -93,9 +95,9 @@ export class WorldsController {
   updateMemberRole(
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberRoleDto,
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.worldsService.updateMemberRole(membershipId, dto.role, user.id);
+    return this.worldsService.updateMemberRole(membershipId, dto.role, user);
   }
 
   @Patch(':worldId/members/:membershipId/group')
@@ -103,8 +105,9 @@ export class WorldsController {
   updateMemberGroup(
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberGroupDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.worldsService.updateMemberGroup(membershipId, dto.group);
+    return this.worldsService.updateMemberGroup(membershipId, dto.group, user);
   }
 
   @Patch(':worldId/members/:membershipId/akj')
@@ -112,7 +115,8 @@ export class WorldsController {
   updateMemberAkj(
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberAkjDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.worldsService.updateMemberAkj(membershipId, dto.akj);
+    return this.worldsService.updateMemberAkj(membershipId, dto.akj, user);
   }
 }

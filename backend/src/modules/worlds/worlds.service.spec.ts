@@ -3,6 +3,9 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldsService } from './worlds.service';
 import { WorldRole } from './interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
+
+const mockRequester = { id: 'user1', role: UserRole.Hrac };
 
 const mockWorld = {
   id: 'world1',
@@ -25,6 +28,7 @@ describe('WorldsService', () => {
   const mockWorldsRepo = {
     findAll: jest.fn(),
     findById: jest.fn(),
+    findByIds: jest.fn(),
     findBySlug: jest.fn(),
     findByOwnerId: jest.fn(),
     save: jest.fn(),
@@ -105,6 +109,46 @@ describe('WorldsService', () => {
     it('should throw NotFoundException for unknown world', async () => {
       mockWorldsRepo.findById.mockResolvedValue(null);
       await expect(service.findById('unknown')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update', () => {
+    it('should allow owner to update', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockWorldsRepo.update.mockResolvedValue({ ...mockWorld, name: 'Updated' });
+      const result = await service.update('world1', { name: 'Updated' }, mockRequester);
+      expect(result.name).toBe('Updated');
+    });
+
+    it('should allow Admin to update any world', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ ...mockWorld, ownerId: 'other' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockWorldsRepo.update.mockResolvedValue({ ...mockWorld, name: 'Updated' });
+      const adminUser = { id: 'admin1', role: UserRole.Admin };
+      const result = await service.update('world1', { name: 'Updated' }, adminUser);
+      expect(result.name).toBe('Updated');
+    });
+
+    it('should throw ForbiddenException for non-owner without sufficient role', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ ...mockWorld, ownerId: 'other' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(service.update('world1', {}, mockRequester)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('findMyWorlds', () => {
+    it('should use findByIds to avoid N+1', async () => {
+      const memberships = [
+        { id: 'm1', worldId: 'world1', userId: 'user1', role: WorldRole.Hrac, joinedAt: new Date(), akj: 0 },
+        { id: 'm2', worldId: 'world2', userId: 'user1', role: WorldRole.Hrac, joinedAt: new Date(), akj: 0 },
+      ];
+      mockMembershipRepo.findByUserId.mockResolvedValue(memberships);
+      mockWorldsRepo.findByIds.mockResolvedValue([mockWorld, { ...mockWorld, id: 'world2' }]);
+      const result = await service.findMyWorlds('user1');
+      expect(mockWorldsRepo.findByIds).toHaveBeenCalledWith(['world1', 'world2']);
+      expect(mockWorldsRepo.findById).not.toHaveBeenCalled();
+      expect(result).toHaveLength(2);
     });
   });
 });
