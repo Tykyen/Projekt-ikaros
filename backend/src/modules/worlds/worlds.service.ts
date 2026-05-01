@@ -55,8 +55,8 @@ export class WorldsService {
     const worlds = await this.worldsRepo.findByIds(worldIds);
     const worldMap = new Map(worlds.map((w) => [w.id, w]));
     return memberships
-      .map((m) => ({ world: worldMap.get(m.worldId)!, membership: m }))
-      .filter((r) => r.world != null);
+      .map((m) => ({ world: worldMap.get(m.worldId), membership: m }))
+      .filter((r): r is { world: World; membership: WorldMembership } => r.world != null);
   }
 
   async create(dto: CreateWorldDto, ownerId: string): Promise<World> {
@@ -212,7 +212,7 @@ export class WorldsService {
     }
 
     await this.membershipRepo.delete(membershipId);
-    this.eventEmitter.emit('world.membership.changed', { worldId: membership.worldId, membership: null });
+    this.eventEmitter.emit('world.membership.removed', { worldId: membership.worldId, membershipId });
     return { message: 'Opustil jsi svět' };
   }
 

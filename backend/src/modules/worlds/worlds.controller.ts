@@ -90,6 +90,7 @@ export class WorldsController {
   }
 
   @Get(':worldId/settings')
+  @UseGuards(JwtAuthGuard)
   getSettings(@Param('worldId') worldId: string) {
     return this.worldsService.getSettings(worldId);
   }

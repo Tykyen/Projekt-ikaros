@@ -16,7 +16,13 @@ export class UsersController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() requester: { id: string; role: UserRole },
+  ) {
+    if (requester.id !== id && requester.role > UserRole.Admin) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
     return this.usersService.findById(id);
   }
 

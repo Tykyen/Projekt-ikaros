@@ -22,4 +22,9 @@ export class WorldsGateway {
   handleMembershipChanged(payload: { worldId: string; membership: WorldMembership }) {
     this.server.to(`world:${payload.worldId}`).emit('world:membership:changed', payload.membership);
   }
+
+  @OnEvent('world.membership.removed')
+  handleMembershipRemoved(payload: { worldId: string; membershipId: string }) {
+    this.server.to(`world:${payload.worldId}`).emit('world:membership:removed', payload.membershipId);
+  }
 }
