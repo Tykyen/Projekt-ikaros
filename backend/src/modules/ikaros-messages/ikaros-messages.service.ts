@@ -1,5 +1,5 @@
 import {
-  Injectable, Inject, NotFoundException, ForbiddenException, ConflictException,
+  Injectable, Inject, NotFoundException, ForbiddenException, ConflictException, Logger,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IIkarosMessagesRepository } from './interfaces/ikaros-messages-repository.interface';
@@ -20,6 +20,8 @@ interface JoinRequestedPayload {
 
 @Injectable()
 export class IkarosMessagesService {
+  private readonly logger = new Logger(IkarosMessagesService.name);
+
   constructor(
     @Inject('IIkarosMessagesRepository') private readonly msgRepo: IIkarosMessagesRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
@@ -145,37 +147,41 @@ export class IkarosMessagesService {
 
   @OnEvent('world.join.requested')
   async handleJoinRequest(payload: JoinRequestedPayload): Promise<void> {
-    const memberships = await this.membershipRepo.findByWorldId(payload.worldId);
-    const pjs = memberships.filter(
-      (m) => m.role === WorldRole.PJ || m.role === WorldRole.PomocnyPJ,
-    );
-    await Promise.all(
-      pjs.map((pj) =>
-        this.msgRepo.save({
-          senderId: payload.requesterId,
-          senderName: payload.requesterName,
-          recipientId: pj.userId,
-          recipientName: '',
-          subject: `Žádost o vstup do světa ${payload.worldName}`,
-          body: `Uživatel ${payload.requesterName} žádá o vstup do světa ${payload.worldName}.`,
-          sentAtUtc: new Date(),
-          isRead: false,
-          deletedBySender: false,
-          deletedByRecipient: false,
-          actionType: 'world_join_request',
-          actionWorldId: payload.worldId,
-          actionUserId: payload.requesterId,
-          actionResolved: false,
-        }).then((msg) => {
-          this.eventEmitter.emit('ikaros.message.created', {
+    try {
+      const memberships = await this.membershipRepo.findByWorldId(payload.worldId);
+      const pjs = memberships.filter(
+        (m) => m.role === WorldRole.PJ || m.role === WorldRole.PomocnyPJ,
+      );
+      await Promise.all(
+        pjs.map((pj) =>
+          this.msgRepo.save({
+            senderId: payload.requesterId,
+            senderName: payload.requesterName,
             recipientId: pj.userId,
-            messageId: msg.id,
-            subject: msg.subject,
-            senderName: msg.senderName,
-            actionType: msg.actionType,
-          });
-        }),
-      ),
-    );
+            recipientName: '',
+            subject: `Žádost o vstup do světa ${payload.worldName}`,
+            body: `Uživatel ${payload.requesterName} žádá o vstup do světa ${payload.worldName}.`,
+            sentAtUtc: new Date(),
+            isRead: false,
+            deletedBySender: false,
+            deletedByRecipient: false,
+            actionType: 'world_join_request',
+            actionWorldId: payload.worldId,
+            actionUserId: payload.requesterId,
+            actionResolved: false,
+          }).then((msg) => {
+            this.eventEmitter.emit('ikaros.message.created', {
+              recipientId: pj.userId,
+              messageId: msg.id,
+              subject: msg.subject,
+              senderName: msg.senderName,
+              actionType: msg.actionType,
+            });
+          }),
+        ),
+      );
+    } catch (err) {
+      this.logger.error(`handleJoinRequest failed for world ${payload.worldId}`, err);
+    }
   }
 }

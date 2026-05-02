@@ -1,5 +1,5 @@
 import {
-  Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException,
+  Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException, Logger,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IChatGroupRepository } from './interfaces/chat-group-repository.interface';
@@ -23,6 +23,8 @@ import type { World } from '../worlds/interfaces/world.interface';
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     @Inject('IChatGroupRepository') private readonly groupRepo: IChatGroupRepository,
     @Inject('IChatChannelRepository') private readonly channelRepo: IChatChannelRepository,
@@ -335,16 +337,20 @@ export class ChatService {
 
   @OnEvent('world.created')
   async handleWorldCreated(world: World): Promise<void> {
-    const group1 = await this.groupRepo.save({ worldId: world.id, name: 'Globální', order: 0 });
-    await this.channelRepo.save({
-      groupId: group1.id, worldId: world.id, name: 'obecný',
-      accessMode: 'all', allowedRoles: [], allowedMemberIds: [], order: 0, isDeleted: false,
-    });
-    const group2 = await this.groupRepo.save({ worldId: world.id, name: 'Postavy', order: 1 });
-    await this.channelRepo.save({
-      groupId: group2.id, worldId: world.id, name: 'hráči',
-      accessMode: 'all', allowedRoles: [], allowedMemberIds: [], order: 0, isDeleted: false,
-    });
+    try {
+      const group1 = await this.groupRepo.save({ worldId: world.id, name: 'Globální', order: 0 });
+      await this.channelRepo.save({
+        groupId: group1.id, worldId: world.id, name: 'obecný',
+        accessMode: 'all', allowedRoles: [], allowedMemberIds: [], order: 0, isDeleted: false,
+      });
+      const group2 = await this.groupRepo.save({ worldId: world.id, name: 'Postavy', order: 1 });
+      await this.channelRepo.save({
+        groupId: group2.id, worldId: world.id, name: 'hráči',
+        accessMode: 'all', allowedRoles: [], allowedMemberIds: [], order: 0, isDeleted: false,
+      });
+    } catch (err) {
+      this.logger.error(`handleWorldCreated failed for world ${world.id}`, err);
+    }
   }
 
   async findChannelForUpload(channelId: string, userId: string): Promise<ChatChannel> {
@@ -356,7 +362,11 @@ export class ChatService {
 
   @OnEvent('world.deleted')
   async handleWorldDeleted(payload: { worldId: string }): Promise<void> {
-    await this.channelRepo.softDeleteByWorldId(payload.worldId);
-    await this.messageRepo.softDeleteByWorldId(payload.worldId);
+    try {
+      await this.channelRepo.softDeleteByWorldId(payload.worldId);
+      await this.messageRepo.softDeleteByWorldId(payload.worldId);
+    } catch (err) {
+      this.logger.error(`handleWorldDeleted failed for world ${payload.worldId}`, err);
+    }
   }
 }

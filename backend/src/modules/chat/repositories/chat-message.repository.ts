@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { ChatMessageSchemaClass } from '../schemas/chat-message.schema';
 import type { ChatMessage } from '../interfaces/chat-message.interface';
+import type { ChatAttachment } from '../interfaces/chat-attachment.interface';
 import type { IChatMessageRepository } from '../interfaces/chat-message-repository.interface';
 
 @Injectable()
@@ -96,7 +97,7 @@ export class MongoChatMessageRepository
       replyToSenderName: doc.replyToSenderName as string | undefined,
       visibleTo: doc.visibleTo as string[] | undefined,
       reactions: (doc.reactions as Record<string, string[]>) ?? {},
-      attachments: (doc.attachments as import('../interfaces/chat-attachment.interface').ChatAttachment[]) ?? [],
+      attachments: (doc.attachments as ChatAttachment[]) ?? [],
       expiresAt: doc.expiresAt as Date | undefined,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,

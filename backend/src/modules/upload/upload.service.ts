@@ -1,4 +1,4 @@
-import { Injectable, UnsupportedMediaTypeException, BadGatewayException } from '@nestjs/common';
+import { Injectable, UnsupportedMediaTypeException, BadGatewayException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v2 as cloudinary } from 'cloudinary';
@@ -28,6 +28,8 @@ function getResourceType(type: 'image' | 'video' | 'document'): 'image' | 'video
 
 @Injectable()
 export class UploadService {
+  private readonly logger = new Logger(UploadService.name);
+
   constructor(private readonly configService: ConfigService) {
     cloudinary.config({
       cloud_name: configService.get('CLOUDINARY_CLOUD_NAME'),
@@ -81,7 +83,7 @@ export class UploadService {
       try {
         await cloudinary.uploader.destroy(att.publicId, { resource_type: getResourceType(att.type) });
       } catch {
-        console.error(`[UploadService] Failed to delete Cloudinary asset: ${att.publicId}`);
+        this.logger.error(`Failed to delete Cloudinary asset: ${att.publicId}`);
       }
     }
   }
