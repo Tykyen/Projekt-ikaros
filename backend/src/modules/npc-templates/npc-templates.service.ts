@@ -50,12 +50,12 @@ export class NpcTemplatesService {
       armor: dto.armor ?? 0,
       injury: dto.injury ?? 0,
       abilities: dto.abilities ?? [],
-      diarySchema: (dto.diarySchema as NpcTemplate['diarySchema']) ?? [],
+      diarySchema: (dto.diarySchema as unknown as NpcTemplate['diarySchema']) ?? [],
       diaryData: dto.diaryData ?? {},
     });
   }
 
-  async update(id: string, worldId: string, dto: CreateNpcTemplateInput): Promise<NpcTemplate> {
+  async update(id: string, worldId: string, dto: Partial<CreateNpcTemplateInput>): Promise<NpcTemplate> {
     const result = await this.repo.updateByIdAndWorld(id, worldId, dto as Partial<NpcTemplate>);
     if (!result) throw new NotFoundException('NPC šablona nenalezena');
     return result;

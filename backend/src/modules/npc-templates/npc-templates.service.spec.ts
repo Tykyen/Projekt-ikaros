@@ -131,17 +131,17 @@ describe('NpcTemplatesService', () => {
 
     it('propustí PJ', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      await expect(service.assertCanManage('pj1', UserRole.User, 'world1')).resolves.toBeUndefined();
+      await expect(service.assertCanManage('pj1', UserRole.Hrac, 'world1')).resolves.toBeUndefined();
     });
 
     it('odmítne hráče s ForbiddenException', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Hrac });
-      await expect(service.assertCanManage('user1', UserRole.User, 'world1')).rejects.toThrow(ForbiddenException);
+      await expect(service.assertCanManage('user1', UserRole.Hrac, 'world1')).rejects.toThrow(ForbiddenException);
     });
 
     it('odmítne pokud membership neexistuje', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
-      await expect(service.assertCanManage('user1', UserRole.User, 'world1')).rejects.toThrow(ForbiddenException);
+      await expect(service.assertCanManage('user1', UserRole.Hrac, 'world1')).rejects.toThrow(ForbiddenException);
     });
   });
 });

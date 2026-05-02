@@ -161,12 +161,12 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 7b — NPC Templates ⬜
+## Krok 7b — NPC Templates ✅
 
 > Znovupoužitelné šablony NPC pro PJ — stats, schopnosti, poznámky.
 
-- [ ] **NpcTemplate schema**: name, imageUrl, abilities (MapTagValue), maxHp, armor, injury, notes
-- [ ] GET /api/npc-templates, GET /:id, POST, PUT /:id, DELETE (PJ/Admin+ pro mutace)
+- [x] **NpcTemplate schema**: name, imageUrl, abilities (TagValue), maxHp, armor, injury, notes, diarySchema, diaryData
+- [x] GET /api/worlds/:worldId/npc-templates, GET /:id, POST, PUT /:id, DELETE (PJ/Admin+ pro mutace)
 
 **Spec:** —  
 **Plán:** —
@@ -534,9 +534,9 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 3 | Chat & Upload | ✅ |
 | 4 | Users rozšíření | ✅ |
 | 5 | Presence & IkarosMessages | ✅ |
-| 6 | Pages (Wiki) | ⬜ |
+| 6 | Pages (Wiki) | ✅ |
 | 7a | Characters RPG rozšíření | ⬜ |
-| 7b | NPC Templates | ⬜ |
+| 7b | NPC Templates | ✅ |
 | 7c | Universe Map | ⬜ |
 | 7d | RPG System Presets | ⬜ |
 | 8 | Mapy | ⬜ |

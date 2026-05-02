@@ -16,6 +16,11 @@ export class MongoNpcTemplatesRepository
     super(model as never);
   }
 
+  async create(data: Partial<NpcTemplate>): Promise<NpcTemplate> {
+    const doc = await this.model.create(data);
+    return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
+  }
+
   async findByWorld(worldId: string): Promise<NpcTemplate[]> {
     const docs = await this.model.find({ worldId }).lean().exec();
     return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));

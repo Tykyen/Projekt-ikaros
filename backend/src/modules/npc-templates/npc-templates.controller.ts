@@ -42,7 +42,17 @@ export class NpcTemplatesController {
     @CurrentUser() user: RequestUser,
   ) {
     await this.service.assertCanManage(user.id, user.role, worldId);
-    return this.service.update(id, worldId, dto);
+    return this.service.update(id, worldId, {
+      name: dto.name,
+      imageUrl: dto.imageUrl,
+      notes: dto.notes,
+      maxHp: dto.maxHp,
+      armor: dto.armor,
+      injury: dto.injury,
+      abilities: dto.abilities,
+      diarySchema: dto.diarySchema,
+      diaryData: dto.diaryData,
+    });
   }
 
   @Delete(':id')
