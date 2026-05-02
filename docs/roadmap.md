@@ -97,9 +97,9 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 > Online heartbeat + interní zprávy (inbox, pozvánky, žádosti o vstup do světa).
 
 ### Presence
-- [ ] `User.lastSeenUtc` — update při každém JWT requestu (middleware nebo guard)
+- [ ] `User.lastSeenAt` — update při každém JWT requestu (již implementováno v Kroku 4); index na `lastSeenAt`
 - [ ] GET /api/presence/online → vrátí `string[]` (userIds online za posledních 25h)
-- [ ] Presence threshold konfigurovatelný (výchozí 25h pro "online")
+- [ ] Presence threshold konfigurovatelný přes env `PRESENCE_THRESHOLD_HOURS` (výchozí 25h)
 
 ### IkarosMessage (přímé zprávy + systémové akce)
 - [ ] Schema: senderId, senderName, recipientId, recipientName, subject, body, sentAtUtc, isRead, deletedBySender, deletedByRecipient, actionType, actionWorldId, actionUserId, actionResolved
@@ -107,7 +107,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Soft-delete: každá strana může nezávisle smazat svoji kopii
 - [ ] GET /api/ikaros-messages/inbox (filtruje deletedByRecipient)
 - [ ] GET /api/ikaros-messages/sent (filtruje deletedBySender)
-- [ ] GET /api/ikaros-messages/unread-count
+- [ ] GET /api/ikaros-messages/unread-count → `{ messages: number, pendingRequests: number }`
 - [ ] GET /api/ikaros-messages/:id (označí isRead=true)
 - [ ] POST /api/ikaros-messages (odeslání)
 - [ ] DELETE /api/ikaros-messages/:id (soft delete pro aktuálního usera)
@@ -117,7 +117,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Při JOIN do světa s accessMode=private/closed: vytvoř IkarosMessage s actionType=world_join_request vlastníkovi
 - [ ] PJ zavolá /resolve → přijme nebo odmítne → membership update
 
-**Spec:** —  
+**Spec:** [docs/superpowers/specs/2026-05-02-krok-5-presence-ikaros-messages-design.md](superpowers/specs/2026-05-02-krok-5-presence-ikaros-messages-design.md)  
 **Plán:** —
 
 ---
