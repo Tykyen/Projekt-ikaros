@@ -8,5 +8,7 @@ export interface IWorldsRepository {
   findByOwnerId(ownerId: string): Promise<World[]>;
   save(world: Partial<World>): Promise<World>;
   update(id: string, data: Partial<World>): Promise<World | null>;
+  existsBySlug(slug: string): Promise<boolean>;
+  increment(id: string, field: string, by: number): Promise<void>;
   delete(id: string): Promise<boolean>;
 }
