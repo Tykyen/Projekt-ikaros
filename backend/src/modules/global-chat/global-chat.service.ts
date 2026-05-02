@@ -39,7 +39,7 @@ export class GlobalChatService implements OnModuleInit {
   }
 
   async getMessages(userId: string, opts: { before?: string; limit?: number }): Promise<ChatMessage[]> {
-    const limit = Math.min(opts.limit && opts.limit > 0 ? opts.limit : 50, 100);
+    const limit = Math.min(opts.limit && opts.limit > 0 ? opts.limit : 50, 50);
     const messages = await this.messageRepo.findByChannelId(this.globalChannelId, {
       before: opts.before,
       limit,
@@ -51,12 +51,6 @@ export class GlobalChatService implements OnModuleInit {
   }
 
   async sendMessage(dto: CreateGlobalMessageDto, user: RequestUser): Promise<ChatMessage> {
-    let visibleTo: string[] | undefined;
-    if (dto.visibleTo && dto.visibleTo.length > 0) {
-      const recipients = dto.visibleTo.filter((id) => id !== user.id);
-      visibleTo = [user.id, ...recipients];
-    }
-
     const message = await this.messageRepo.save({
       channelId: this.globalChannelId,
       worldId: null,
@@ -67,7 +61,7 @@ export class GlobalChatService implements OnModuleInit {
       isDeleted: false,
       reactions: {},
       attachments: [],
-      visibleTo,
+      visibleTo: dto.visibleTo ?? [],
       expiresAt: new Date(Date.now() + 3600000),
     });
 

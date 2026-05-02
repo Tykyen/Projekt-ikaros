@@ -127,10 +127,10 @@ describe('GlobalChatService', () => {
       expect(result.map((m) => m.id)).toEqual(['msg2', 'msg3']);
     });
 
-    it('should cap limit at 100', async () => {
+    it('should cap limit at 50', async () => {
       messageRepo.findByChannelId.mockResolvedValue([]);
       await service.getMessages('u1', { limit: 999 });
-      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', { before: undefined, limit: 100 });
+      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', { before: undefined, limit: 50 });
     });
   });
 
@@ -164,18 +164,18 @@ describe('GlobalChatService', () => {
       }));
     });
 
-    it('should normalize visibleTo to always include sender', async () => {
+    it('should store empty array when visibleTo is not provided', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage({ content: 'hello' }, mockUser);
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.visibleTo).toEqual([]);
+    });
+
+    it('should store visibleTo as-is without adding sender', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
       await service.sendMessage({ content: 'šeptám', visibleTo: ['u2'] }, mockUser);
       const call = messageRepo.save.mock.calls[0][0];
-      expect(call.visibleTo).toEqual(['u1', 'u2']);
-    });
-
-    it('should not duplicate sender in visibleTo', async () => {
-      messageRepo.save.mockResolvedValue(makeMsg());
-      await service.sendMessage({ content: 'šeptám', visibleTo: ['u1', 'u2'] }, mockUser);
-      const call = messageRepo.save.mock.calls[0][0];
-      expect(call.visibleTo).toEqual(['u1', 'u2']);
+      expect(call.visibleTo).toEqual(['u2']);
     });
   });
 
