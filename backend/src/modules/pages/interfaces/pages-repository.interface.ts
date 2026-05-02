@@ -8,4 +8,8 @@ export interface IPagesRepository {
   save(page: Partial<Page>): Promise<Page>;
   update(id: string, data: Partial<Page>): Promise<Page | null>;
   delete(id: string): Promise<boolean>;
+  findDirectory(worldId: string): Promise<Pick<Page, 'id' | 'slug' | 'title' | 'type' | 'order'>[]>;
+  findAllSlugs(worldId: string): Promise<string[]>;
+  findRandom(worldId: string, count: number): Promise<Page[]>;
+  findBySlugs(slugs: string[], worldId: string): Promise<Page[]>;
 }

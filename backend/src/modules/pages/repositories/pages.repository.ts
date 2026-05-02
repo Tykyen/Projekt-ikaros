@@ -32,6 +32,40 @@ export class MongoPagesRepository
     return count > 0;
   }
 
+  async findDirectory(worldId: string): Promise<Pick<Page, 'id' | 'slug' | 'title' | 'type' | 'order'>[]> {
+    const docs = await this.model
+      .find({ worldId }, { _id: 1, slug: 1, title: 1, type: 1, order: 1 })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+    return docs.map((doc) => ({
+      id: String(doc._id),
+      slug: doc.slug as string,
+      title: doc.title as string,
+      type: doc.type as PageType,
+      order: (doc.order as number) ?? 0,
+    }));
+  }
+
+  async findAllSlugs(worldId: string): Promise<string[]> {
+    const docs = await this.model.find({ worldId }, { slug: 1 }).lean().exec();
+    return docs.map((doc) => doc.slug as string);
+  }
+
+  async findRandom(worldId: string, count: number): Promise<Page[]> {
+    const docs = await this.model.aggregate([
+      { $match: { worldId } },
+      { $sample: { size: count } },
+    ]);
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
+  async findBySlugs(slugs: string[], worldId: string): Promise<Page[]> {
+    if (slugs.length === 0) return [];
+    const docs = await this.model.find({ worldId, slug: { $in: slugs } }).lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
   protected toEntity(doc: Record<string, unknown>): Page {
     return {
       id: String(doc._id),
