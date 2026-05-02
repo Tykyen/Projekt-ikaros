@@ -45,6 +45,12 @@ export interface InstructionalVideo {
   youtubeVideoId: string;
 }
 
+export interface MenuItem {
+  label: string;
+  href: string;
+  order: number;
+}
+
 export interface PageTable {
   hasTable: boolean;
   title?: string;
@@ -65,6 +71,9 @@ export interface Page {
   sections: PageSection[];
   galleryImages: GalleryImage[];
   videos: InstructionalVideo[];
+  menu: MenuItem[];
+  plainText: string;
+  isWoodWide: boolean;
   accessRequirements: AccessRequirement[];
   customData?: Record<string, string>;
   order: number;

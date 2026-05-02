@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { PageSchemaClass } from '../schemas/page.schema';
-import { Page, PageSection, PageSectionItem, GalleryImage, InstructionalVideo, PageTable, AccessRequirement, PageType } from '../interfaces/page.interface';
+import { Page, PageSection, PageSectionItem, GalleryImage, InstructionalVideo, MenuItem, PageTable, AccessRequirement, PageType } from '../interfaces/page.interface';
 import type { IPagesRepository } from '../interfaces/pages-repository.interface';
 
 @Injectable()
@@ -68,6 +68,13 @@ export class MongoPagesRepository
         youtubeUrl: (v.youtubeUrl as string) ?? '',
         youtubeVideoId: (v.youtubeVideoId as string) ?? '',
       } as InstructionalVideo)),
+      menu: ((doc.menu as Record<string, unknown>[]) ?? []).map((m) => ({
+        label: m.label as string,
+        href: m.href as string,
+        order: (m.order as number) ?? 0,
+      } as MenuItem)),
+      plainText: (doc.plainText as string) ?? '',
+      isWoodWide: (doc.isWoodWide as boolean) ?? false,
       accessRequirements: ((doc.accessRequirements as Record<string, unknown>[]) ?? []).map((r) => ({
         type: r.type as 'UserId' | 'AKJ' | 'Role',
         value: r.value as string,

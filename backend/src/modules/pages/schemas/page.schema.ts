@@ -16,6 +16,9 @@ export class PageSchemaClass {
   @Prop({ type: [Object], default: [] }) sections: Record<string, unknown>[];
   @Prop({ type: [Object], default: [] }) galleryImages: Record<string, unknown>[];
   @Prop({ type: [Object], default: [] }) videos: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] }) menu: Record<string, unknown>[];
+  @Prop({ default: '' }) plainText: string;
+  @Prop({ default: false }) isWoodWide: boolean;
   @Prop({ type: [Object], default: [] }) accessRequirements: Record<string, unknown>[];
   @Prop({ type: Object, default: {} }) customData?: Record<string, string>;
   @Prop({ default: 0 }) order: number;

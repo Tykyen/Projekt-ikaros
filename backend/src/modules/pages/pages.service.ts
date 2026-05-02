@@ -35,6 +35,8 @@ export class PagesService {
       sections: (dto.sections ?? []) as any,
       galleryImages: (dto.galleryImages ?? []) as any,
       videos: (dto.videos ?? []) as any,
+      menu: (dto.menu ?? []) as any,
+      isWoodWide: dto.isWoodWide ?? false,
       accessRequirements: (dto.accessRequirements ?? []) as any,
       order: dto.order ?? 0,
     } as Partial<Page>);

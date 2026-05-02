@@ -84,6 +84,18 @@ export class InstructionalVideoDto {
   youtubeVideoId: string;
 }
 
+export class MenuItemDto {
+  @IsString()
+  label: string;
+
+  @IsString()
+  href: string;
+
+  @IsOptional()
+  @IsNumber()
+  order?: number;
+}
+
 export class CreatePageDto {
   @IsString()
   slug: string;
@@ -123,6 +135,16 @@ export class CreatePageDto {
   @ValidateNested({ each: true })
   @Type(() => InstructionalVideoDto)
   videos?: InstructionalVideoDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MenuItemDto)
+  menu?: MenuItemDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  isWoodWide?: boolean;
 
   @IsOptional()
   @IsArray()
