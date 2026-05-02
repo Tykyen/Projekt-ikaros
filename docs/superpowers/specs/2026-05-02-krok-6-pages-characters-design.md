@@ -41,10 +41,12 @@ Propojení sub-stránek na postavu se určí podle slug konvence (`{char-slug}-d
 ### Účel
 Světové wiki stránky — obsah který PJ nebo hráči tvoří. Nepokrývá CP/NPC (ty jsou Characters).
 
-### PageType enum
+### PageType
+`type` je uložen jako `string` — ne enum. Definované konstanty pro known types:
 ```
-Lokace | Noviny | Seznam | Galerie | Rodokmen | Obrazovka | Ostatní
+'Lokace' | 'Noviny' | 'Seznam' | 'Galerie' | 'Rodokmen' | 'Obrazovka' | 'Ostatní'
 ```
+Vlastní typy jsou možné bez změny kódu; nový typ s vlastní render logikou vyžaduje změnu frontendu.
 
 ### Page dokument
 ```typescript
@@ -107,10 +109,12 @@ Postavy světa. CP je přiřazena konkrétnímu hráči, NPC ovládá PJ. Obě s
 | Co | CP | NPC |
 |---|---|---|
 | Veřejná část (publicBio, publicInfoBlocks) | ostatní hráči světa | všichni hráči světa |
-| Soukromá část (privateBio, privateInfoBlocks, herní statistiky) | jen přiřazený hráč + PJ | jen PJ |
+| Soukromá část (privateBio, privateInfoBlocks) | jen přiřazený hráč + PJ | jen PJ |
 | Sub-dokumenty | jen přiřazený hráč + PJ | jen PJ |
 
 ### Character dokument
+Herní statistiky **nejsou** na Character entitě — patří do deníku (charsheet), který je systémově specifický dle světa.
+
 ```typescript
 {
   id: string
@@ -122,6 +126,7 @@ Postavy světa. CP je přiřazena konkrétnímu hráči, NPC ovládá PJ. Obě s
   // Sdílené
   imageUrl: string
   accessRequirements: AccessRequirement[]
+  campaignSubjectId?: string          // odkaz na záznam v pavučině
 
   // Veřejná část
   publicBio: string                   // HTML — vidí ostatní hráči
@@ -130,22 +135,6 @@ Postavy světa. CP je přiřazena konkrétnímu hráči, NPC ovládá PJ. Obě s
   // Soukromá část
   privateBio: string                  // HTML — jen hráč + PJ
   privateInfoBlocks: InfoBlock[]      // sidebar "KONTAKTY" + odkazy na sub-docs
-
-  // Herní statistiky (soukromé)
-  health: number
-  magicHealth: number
-  armor: number
-  tiredness: number
-  abilityPoints: number
-  fatePoints: number
-  overPressure: { physical, magical, diplomatic, technical: number }
-  languages: TagValue[]
-  aspects: TagValue[]
-  abilities: TagValue[]
-  contacts: { name: string, description: string }[]
-  magicGene: string
-  bornWhere: string
-  personalDiarySchema: CustomDiaryBlock[]  // layout charsheetů
 
   customData?: Record<string, unknown>
   createdAt: Date
@@ -204,10 +193,13 @@ Finance a Výbava se při CP→NPC konverzi **nesmažou** — nastaví se `isHid
 {
   characterId: string
   worldId: string
-  sections: PageSection[]             // { id, title, content(HTML), order, isCollapsed }
-  customDiarySchema: CustomDiaryBlock[]  // layout charsheetů per postava
+  sections: PageSection[]                   // volný text obsah deníku
+  personalDiarySchema?: CustomDiaryBlock[]  // přepis world.customDiarySchema (optional)
+  customData: Record<string, unknown>       // hodnoty charsheeetu (health, fatePoints, atd.)
 }
 ```
+
+Deník přebírá schema ze světa (`world.customDiarySchema`) jako výchozí layout. Každý svět má jiný RPG systém (Matrix, CoC, DnD, Drd16...) — schema definuje jaké bloky se zobrazí a `customData` ukládá hodnoty.
 
 **`character_calendars`**
 ```typescript
