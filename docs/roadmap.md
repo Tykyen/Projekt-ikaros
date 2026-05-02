@@ -176,16 +176,16 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 7c — Universe Map ⬜
+## Krok 7c — Universe Map ✅
 
 > 3D vesmírná mapa světa — uzly, spoje, postupné odhalování, real-time sync, legacy seed pro Matrix.
 
-- [ ] **UniverseMap schema**: worldId, nodes (id/name/type/color/size/img/alliance/x/y/z/isPublic/visibleToPlayerIds), links (source/target/isOrbit)
-- [ ] Node typy: planet/star/nebula/asteroid/moon/blackhole
-- [ ] Visibility filter: PJ/Admin vidí vše; hráči vidí isPublic=true NEBO v visibleToPlayerIds; links filtrovat aby neodhalily skryté uzly
-- [ ] Lazy init: Matrix world → seed (40 uzlů, 108+ spojení); ostatní světy → prázdná mapa
-- [ ] GET /api/universe?worldId=:id, PUT (full replace), PATCH /:worldId/nodes/:nodeId/visibility
-- [ ] Real-time: universe:updated event přes world:{worldId} room
+- [x] **UniverseMap schema**: worldId, nodes (id/name/type/color/size/img/alliance/x/y/z/isPublic/visibleToPlayerIds), links (source/target/isOrbit)
+- [x] Node typy: planet/star/nebula/asteroid/moon/blackhole
+- [x] Visibility filter: PJ/Admin vidí vše; hráči vidí isPublic=true NEBO v visibleToPlayerIds; links filtrovat aby neodhalily skryté uzly
+- [x] Lazy init: Matrix world → seed (40 uzlů, 81 spojení); ostatní světy → prázdná mapa
+- [x] GET /api/universe?worldId=:id, PUT (full replace), PATCH /:worldId/nodes/:nodeId/visibility
+- [x] Real-time: universe:updated event přes world:{worldId} room
 
 **Spec:** [docs/superpowers/specs/2026-05-02-krok-7c-universe-map-design.md](superpowers/specs/2026-05-02-krok-7c-universe-map-design.md)  
 **Plán:** [docs/superpowers/plans/2026-05-02-krok-7c-universe-map.md](superpowers/plans/2026-05-02-krok-7c-universe-map.md)
@@ -541,7 +541,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 6 | Pages (Wiki) | ✅ |
 | 7a | Characters RPG rozšíření | ✅ |
 | 7b | NPC Templates | ✅ |
-| 7c | Universe Map | ⬜ |
+| 7c | Universe Map | ✅ |
 | 7d | RPG System Presets | ⬜ |
 | 8 | Mapy | ⬜ |
 | 9 | Kampaně | ⬜ |
