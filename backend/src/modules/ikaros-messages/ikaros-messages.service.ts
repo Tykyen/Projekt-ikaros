@@ -105,8 +105,11 @@ export class IkarosMessagesService {
     if (dto.accept) {
       const membership = await this.membershipRepo.findByUserAndWorld(msg.actionUserId!, msg.actionWorldId!);
       if (membership && membership.role === WorldRole.Pending) {
-        await this.membershipRepo.update(membership.id, { role: WorldRole.Hrac });
-        this.eventEmitter.emit('world.membership.changed', { worldId: msg.actionWorldId, membership });
+        const updatedMembership = await this.membershipRepo.update(membership.id, { role: WorldRole.Hrac });
+        this.eventEmitter.emit('world.membership.changed', {
+          worldId: msg.actionWorldId,
+          membership: updatedMembership ?? { ...membership, role: WorldRole.Hrac },
+        });
       }
       await this.msgRepo.save({
         senderId: userId,
