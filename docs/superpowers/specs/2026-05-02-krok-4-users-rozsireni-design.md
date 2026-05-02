@@ -66,14 +66,17 @@ Fire-and-forget znamená: chyba v `updateLastSeen` neovlivní response. Loguje s
 
 ### 4. UpdateUserDto rozšíření
 
-Přibydou dvě volitelná pole:
+Přibydou tři volitelná pole:
 
 ```typescript
 themeSettings?: Record<string, unknown>
 chatPreferences?: Record<string, unknown>
+username?: string   // max 32, jen Superadmin
 ```
 
-Bez validace obsahu — backend přijme cokoliv frontend pošle.
+`themeSettings` a `chatPreferences` — bez validace obsahu, backend přijme cokoliv frontend pošle.
+
+`username` — pokud je přítomen v dto a requester **není Superadmin**, service hodí `ForbiddenException`. Pokud je Superadmin, ověří unikátnost (conflict check) a přepíše. Username je unique index — konflikt vrátí `ConflictException`.
 
 ---
 
@@ -98,7 +101,8 @@ Deep merge umožňuje frontend poslat jen změněné klíče (`{ accentColor: 'r
 
 #### Nové
 - `GET /api/users/profile/:id` — veřejný profil, **bez autentizace**
-- `PUT /api/users/password` — změna hesla, vyžaduje JWT
+- `PUT /api/users/password` — vlastní změna hesla, vyžaduje JWT + staré heslo
+- `PUT /api/users/:id/reset-password` — Superadmin reset hesla bez starého hesla
 - `DELETE /api/users/:id` — vlastní účet nebo Admin+
 
 ---
@@ -127,7 +131,10 @@ Endpoint je **bez autentizace** — slouží pro zobrazení autorů zpráv, kart
 
 ### 8. ChangePassword
 
-`PUT /api/users/password` — pouze vlastní heslo. Controller ověří `requester.id === params.id` — Admin nemůže měnit cizí heslo tímto endpointem (pro admin reset slouží budoucí admin endpoint v Kroku 15).
+Dva oddělené endpointy pro dvě situace:
+
+#### Vlastní změna hesla
+`PUT /api/users/password` — vlastní heslo, vyžaduje znát staré.
 
 ```typescript
 class ChangePasswordDto {
@@ -137,9 +144,25 @@ class ChangePasswordDto {
 ```
 
 Logika:
-1. Načti uživatele z DB (s passwordHash)
-2. `bcrypt.compare(oldPassword, user.passwordHash)` — pokud selže → `UnauthorizedException`
-3. `bcrypt.hash(newPassword, 10)` → ulož
+1. Controller ověří `requester.id === params.id` (nelze měnit cizí)
+2. Načti uživatele z DB (s passwordHash)
+3. `bcrypt.compare(oldPassword, user.passwordHash)` — pokud selže → `UnauthorizedException`
+4. `bcrypt.hash(newPassword, 10)` → ulož
+
+#### Superadmin reset hesla
+`PUT /api/users/:id/reset-password` — reset cizího hesla bez znalosti starého. **Pouze Superadmin.**
+
+```typescript
+class ResetPasswordDto {
+  newPassword: string   // min 8, max 128
+}
+```
+
+Logika:
+1. Controller ověří `requester.role === UserRole.Superadmin` — jinak `ForbiddenException`
+2. `bcrypt.hash(newPassword, 10)` → ulož přímo (bez ověření starého hesla)
+
+Použití: hráč zapomněl heslo → kontaktuje Superadmina → reset.
 
 ---
 
@@ -179,6 +202,10 @@ Logika:
 - `GET /profile/:id` přístupný bez JWT
 - `DELETE /:id` cizího účtu non-adminem → `ForbiddenException`
 - `PUT /password` jiného userId než vlastního → `ForbiddenException`
+- `PUT /:id/reset-password` non-Superadminem → `ForbiddenException`
+- `PUT /:id/reset-password` Superadminem → úspěch bez ověření starého hesla
+- `PATCH /:id` s polem `username` non-Superadminem → `ForbiddenException`
+- `PATCH /:id` s polem `username` Superadminem + obsazený username → `ConflictException`
 
 ---
 
@@ -192,6 +219,7 @@ backend/src/modules/users/
 ├── users.repository.ts                 ← toEntity rozšíření o nová pole
 ├── dto/update-user.dto.ts              ← přidat themeSettings, chatPreferences
 ├── dto/change-password.dto.ts          ← NOVÉ
+├── dto/reset-password.dto.ts           ← NOVÉ (Superadmin reset)
 ├── users.service.ts                    ← update merge logika, changePassword, publicProfile
 ├── users.service.spec.ts               ← NOVÉ / rozšíření testů
 ├── users.controller.ts                 ← nové endpointy
