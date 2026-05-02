@@ -6,7 +6,7 @@ export type PageDocument = HydratedDocument<PageSchemaClass>;
 @Schema({ timestamps: true, collection: 'pages' })
 export class PageSchemaClass {
   @Prop({ required: true }) slug: string;
-  @Prop({ required: true, index: true }) worldId: string;
+  @Prop({ required: true }) worldId: string;
   @Prop({ required: true, default: 'Ostatní' }) type: string;
   @Prop({ required: true }) title: string;
   @Prop({ default: '' }) content: string;
