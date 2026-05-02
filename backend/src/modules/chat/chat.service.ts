@@ -164,9 +164,18 @@ export class ChatService {
     if (!(await this.hasChannelAccess(channel, userId))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
-    return this.messageRepo.findByChannelId(channelId, {
+    const messages = await this.messageRepo.findByChannelId(channelId, {
       before: opts.before,
       limit: Math.min(Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50, 100),
+    });
+
+    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId);
+    const canSeeAllWhispers = membership !== null && membership.role >= WorldRole.PomocnyPJ;
+
+    return messages.filter((m) => {
+      if (!m.visibleTo || m.visibleTo.length === 0) return true;
+      if (canSeeAllWhispers) return true;
+      return m.visibleTo.includes(userId);
     });
   }
 
@@ -176,22 +185,78 @@ export class ChatService {
     if (!(await this.hasChannelAccess(channel, requester.id))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
+
+    if (dto.overrideName !== undefined || dto.overrideAvatarUrl !== undefined) {
+      if (!(await this.canManageChat(requester, channel.worldId))) {
+        throw new ForbiddenException('Nedostatečná oprávnění pro NPC mód');
+      }
+    }
+
     const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId);
     const senderName = membership?.characterPath ?? requester.id;
+    const senderAvatarUrl = membership?.avatarUrl;
+
+    let replyToPreview: string | undefined;
+    let replyToSenderName: string | undefined;
+    if (dto.replyToId) {
+      const cited = await this.messageRepo.findById(dto.replyToId);
+      if (cited && !cited.isDeleted) {
+        replyToPreview = cited.content?.slice(0, 200) ?? undefined;
+        replyToSenderName = cited.overrideName ?? cited.senderName;
+      }
+    }
+
+    let visibleTo: string[] | undefined;
+    if (dto.visibleTo && dto.visibleTo.length > 0) {
+      const recipients = dto.visibleTo.filter((id) => id !== requester.id);
+      visibleTo = [requester.id, ...recipients];
+    }
 
     const message = await this.messageRepo.save({
       channelId,
       worldId: channel.worldId,
       senderId: requester.id,
       senderName,
+      senderAvatarUrl,
+      overrideName: dto.overrideName,
+      overrideAvatarUrl: dto.overrideAvatarUrl,
       content: dto.content,
       isEdited: false,
       isDeleted: false,
+      rpDate: dto.rpDate,
+      replyToId: dto.replyToId,
+      replyToPreview,
+      replyToSenderName,
+      visibleTo,
+      reactions: {},
     });
+
     await this.channelRepo.update(channelId, { lastMessageAt: message.createdAt });
     this.eventEmitter.emit('chat.message.created', { channelId, worldId: channel.worldId, message });
     await this.broadcastUnreadUpdate(channel.worldId, channelId, requester.id);
     return message;
+  }
+
+  async toggleReaction(messageId: string, emoji: string, requester: RequestUser): Promise<ChatMessage> {
+    const message = await this.messageRepo.findById(messageId);
+    if (!message || message.isDeleted) throw new NotFoundException('Zpráva nenalezena');
+
+    const channel = await this.channelRepo.findById(message.channelId);
+    if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
+    if (!(await this.hasChannelAccess(channel, requester.id))) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
+
+    const currentReactions = message.reactions[emoji] ?? [];
+    const hasReacted = currentReactions.includes(requester.id);
+
+    const updated = hasReacted
+      ? await this.messageRepo.removeReaction(messageId, emoji, requester.id)
+      : await this.messageRepo.addReaction(messageId, emoji, requester.id);
+
+    if (!updated) throw new NotFoundException('Zpráva nenalezena');
+    this.eventEmitter.emit('chat.message.updated', { channelId: message.channelId, message: updated });
+    return updated;
   }
 
   async editMessage(messageId: string, dto: UpdateMessageDto, requester: RequestUser): Promise<ChatMessage> {
@@ -222,6 +287,11 @@ export class ChatService {
   // ─── Read status ─────────────────────────────────────────────────────────
 
   async markAsRead(channelId: string, userId: string): Promise<void> {
+    const channel = await this.channelRepo.findById(channelId);
+    if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
+    if (!(await this.hasChannelAccess(channel, userId))) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
     const messages = await this.messageRepo.findByChannelId(channelId, { limit: 1 });
     if (messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];

@@ -249,3 +249,274 @@ describe('ChatService', () => {
     });
   });
 });
+
+describe('sendMessage — new fields', () => {
+  const baseMockMsg = {
+    id: 'msg1', channelId: 'ch1', worldId: 'world1',
+    senderId: 'user1', senderName: 'Elara', senderAvatarUrl: 'http://avatar.png',
+    content: 'ahoj', isEdited: false, isDeleted: false,
+    reactions: {}, createdAt: new Date(), updatedAt: new Date(),
+  };
+
+  let service: ChatService;
+  const mockGroupRepo = {
+    findById: jest.fn(), findByWorldId: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+  const mockChannelRepo = {
+    findById: jest.fn(), findByGroupId: jest.fn(), findByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(), softDeleteByWorldId: jest.fn(),
+  };
+  const mockMessageRepo = {
+    findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
+    save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
+    addReaction: jest.fn(), removeReaction: jest.fn(),
+  };
+  const mockReadRepo = {
+    findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
+  };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(), findByWorldId: jest.fn(),
+    findByUserId: jest.fn(), findById: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
+        { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
+        { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
+        { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
+        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(ChatService);
+    jest.clearAllMocks();
+  });
+
+  it('should snapshot senderAvatarUrl from membership', async () => {
+    const membership = { ...mockPJMembership, avatarUrl: 'http://avatar.png', characterPath: 'Elara' };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.save.mockResolvedValue(baseMockMsg);
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    await service.sendMessage('ch1', { content: 'ahoj' }, mockPJ);
+    expect(mockMessageRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ senderAvatarUrl: 'http://avatar.png' }),
+    );
+  });
+
+  it('should throw ForbiddenException when non-PJ sets overrideName', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+    await expect(
+      service.sendMessage('ch1', { content: 'x', overrideName: 'NPC' }, { id: 'user2', role: UserRole.Hrac }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('should allow PJ to set overrideName', async () => {
+    const membership = { ...mockPJMembership, avatarUrl: undefined, characterPath: 'PJ' };
+    const msgWithOverride = { ...baseMockMsg, overrideName: 'Starý kovář' };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.save.mockResolvedValue(msgWithOverride);
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    const result = await service.sendMessage('ch1', { content: 'x', overrideName: 'Starý kovář' }, mockPJ);
+    expect(result.overrideName).toBe('Starý kovář');
+  });
+
+  it('should populate replyToPreview from cited message', async () => {
+    const citedMsg = { ...baseMockMsg, id: 'cited1', content: 'původní zpráva', senderName: 'Elara' };
+    const replyMsg = { ...baseMockMsg, replyToId: 'cited1', replyToPreview: 'původní zpráva', replyToSenderName: 'Elara' };
+    const membership = { ...mockPJMembership, avatarUrl: undefined, characterPath: 'Elara' };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.findById.mockResolvedValue(citedMsg);
+    mockMessageRepo.save.mockResolvedValue(replyMsg);
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    await service.sendMessage('ch1', { content: 'odpověď', replyToId: 'cited1' }, mockPJ);
+    expect(mockMessageRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replyToId: 'cited1',
+        replyToPreview: 'původní zpráva',
+        replyToSenderName: 'Elara',
+      }),
+    );
+  });
+
+  it('should add senderId to visibleTo for whisper', async () => {
+    const membership = { ...mockPJMembership, avatarUrl: undefined, characterPath: 'Elara' };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.save.mockResolvedValue({ ...baseMockMsg, visibleTo: ['user1', 'user2'] });
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    await service.sendMessage('ch1', { content: 'šepot', visibleTo: ['user2'] }, mockPJ);
+    expect(mockMessageRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ visibleTo: expect.arrayContaining(['user1', 'user2']) }),
+    );
+  });
+});
+
+describe('toggleReaction', () => {
+  const mockMsg = {
+    id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1',
+    senderName: 'Elara', content: 'text', isEdited: false, isDeleted: false,
+    reactions: {}, createdAt: new Date(), updatedAt: new Date(),
+  };
+
+  let service: ChatService;
+  const mockGroupRepo = {
+    findById: jest.fn(), findByWorldId: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+  const mockChannelRepo = {
+    findById: jest.fn(), findByGroupId: jest.fn(), findByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(), softDeleteByWorldId: jest.fn(),
+  };
+  const mockMessageRepo = {
+    findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
+    save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
+    addReaction: jest.fn(), removeReaction: jest.fn(),
+  };
+  const mockReadRepo = {
+    findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
+  };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(), findByWorldId: jest.fn(),
+    findByUserId: jest.fn(), findById: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
+        { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
+        { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
+        { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
+        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(ChatService);
+    jest.clearAllMocks();
+  });
+
+  it('should add reaction when user has not reacted yet', async () => {
+    mockMessageRepo.findById.mockResolvedValue(mockMsg);
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+    mockMessageRepo.addReaction.mockResolvedValue({ ...mockMsg, reactions: { '👍': ['user2'] } });
+    const result = await service.toggleReaction('msg1', '👍', { id: 'user2', role: UserRole.Hrac });
+    expect(mockMessageRepo.addReaction).toHaveBeenCalledWith('msg1', '👍', 'user2');
+    expect(result.reactions['👍']).toContain('user2');
+  });
+
+  it('should remove reaction when user already reacted', async () => {
+    const msgWithReaction = { ...mockMsg, reactions: { '👍': ['user2'] } };
+    mockMessageRepo.findById.mockResolvedValue(msgWithReaction);
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+    mockMessageRepo.removeReaction.mockResolvedValue({ ...mockMsg, reactions: { '👍': [] } });
+    await service.toggleReaction('msg1', '👍', { id: 'user2', role: UserRole.Hrac });
+    expect(mockMessageRepo.removeReaction).toHaveBeenCalledWith('msg1', '👍', 'user2');
+    expect(mockMessageRepo.addReaction).not.toHaveBeenCalled();
+  });
+
+  it('should throw NotFoundException for missing message', async () => {
+    mockMessageRepo.findById.mockResolvedValue(null);
+    await expect(service.toggleReaction('unknown', '👍', mockPJ)).rejects.toThrow(NotFoundException);
+  });
+
+  it('should throw ForbiddenException when no channel access', async () => {
+    mockMessageRepo.findById.mockResolvedValue(mockMsg);
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+    await expect(service.toggleReaction('msg1', '👍', { id: 'stranger', role: UserRole.Hrac }))
+      .rejects.toThrow(ForbiddenException);
+  });
+});
+
+describe('getMessages — whisper filtering', () => {
+  const publicMsg = {
+    id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1',
+    senderName: 'Elara', content: 'veřejná', isEdited: false, isDeleted: false,
+    reactions: {}, createdAt: new Date(), updatedAt: new Date(),
+  };
+  const whisperMsg = {
+    ...publicMsg, id: 'msg2', content: 'šepot',
+    visibleTo: ['user1', 'user2'],
+  };
+
+  let service: ChatService;
+  const mockGroupRepo = {
+    findById: jest.fn(), findByWorldId: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+  const mockChannelRepo = {
+    findById: jest.fn(), findByGroupId: jest.fn(), findByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(), softDeleteByWorldId: jest.fn(),
+  };
+  const mockMessageRepo = {
+    findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
+    save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
+    addReaction: jest.fn(), removeReaction: jest.fn(),
+  };
+  const mockReadRepo = {
+    findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
+  };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(), findByWorldId: jest.fn(),
+    findByUserId: jest.fn(), findById: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
+        { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
+        { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
+        { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
+        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(ChatService);
+    jest.clearAllMocks();
+  });
+
+  it('should hide whisper from user not in visibleTo', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ ...mockHracMembership, userId: 'user3' });
+    mockMessageRepo.findByChannelId.mockResolvedValue([publicMsg, whisperMsg]);
+    const result = await service.getMessages('ch1', 'user3', {});
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('msg1');
+  });
+
+  it('should show whisper to sender', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+    mockMessageRepo.findByChannelId.mockResolvedValue([publicMsg, whisperMsg]);
+    const result = await service.getMessages('ch1', 'user1', {});
+    expect(result).toHaveLength(2);
+  });
+
+  it('should show all whispers to PJ', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+    mockMessageRepo.findByChannelId.mockResolvedValue([publicMsg, whisperMsg]);
+    const result = await service.getMessages('ch1', 'user1', {});
+    expect(result).toHaveLength(2);
+  });
+});
