@@ -5,6 +5,7 @@ import { InfoBlockDto } from './create-character.dto';
 
 export class UpdateCharacterDto {
   @IsOptional() @IsString() slug?: string;
+  @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() userId?: string;
   @IsOptional() @IsBoolean() isNpc?: boolean;
   @IsOptional() @IsString() imageUrl?: string;

@@ -81,6 +81,8 @@ export class CharactersService {
       worldId: character.worldId,
       userId: character.userId,
       isNpc: character.isNpc,
+      name: character.name,
+      imageUrl: character.imageUrl,
     });
 
     return character;
@@ -95,7 +97,16 @@ export class CharactersService {
       const isOwner = !character.isNpc && character.userId === requester.id;
       if (!isPj && !isOwner) throw new ForbiddenException('Nedostatečná oprávnění');
     }
-    return (await this.charRepo.update(character.id, dto as unknown as Partial<Character>))!;
+    const result = (await this.charRepo.update(character.id, dto as unknown as Partial<Character>))!;
+    this.eventEmitter.emit('character.updated', {
+      characterId: result.id,
+      worldId,
+      userId: result.userId,
+      isNpc: result.isNpc,
+      name: result.name,
+      imageUrl: result.imageUrl,
+    });
+    return result;
   }
 
   async convert(slug: string, worldId: string, dto: ConvertCharacterDto): Promise<Character> {
@@ -112,7 +123,9 @@ export class CharactersService {
       characterId: character.id,
       worldId,
       toNpc,
-      userId: dto.userId,
+      userId: toNpc ? character.userId : dto.userId,
+      name: character.name,
+      imageUrl: character.imageUrl,
     });
 
     return updated!;
@@ -128,6 +141,7 @@ export class CharactersService {
     return {
       id: c.id,
       slug: c.slug,
+      name: c.name,
       worldId: c.worldId,
       isNpc: c.isNpc,
       imageUrl: c.imageUrl,

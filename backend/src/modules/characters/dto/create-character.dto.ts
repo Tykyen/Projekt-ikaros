@@ -9,6 +9,7 @@ export class InfoBlockDto {
 
 export class CreateCharacterDto {
   @IsString() slug: string;
+  @IsString() name: string;
   @IsOptional() @IsString() userId?: string;
   @IsBoolean() isNpc: boolean;
   @IsOptional() @IsString() imageUrl?: string;

@@ -8,6 +8,7 @@ export interface InfoBlock {
 export interface Character {
   id: string;
   slug: string;
+  name: string;
   worldId: string;
   userId?: string;
   isNpc: boolean;
@@ -31,6 +32,7 @@ export interface Character {
 export interface CharacterPublicView {
   id: string;
   slug: string;
+  name: string;
   worldId: string;
   isNpc: boolean;
   imageUrl?: string;

@@ -6,6 +6,7 @@ export type CharacterDocument = HydratedDocument<CharacterSchemaClass>;
 @Schema({ timestamps: true, collection: 'characters' })
 export class CharacterSchemaClass {
   @Prop({ required: true }) slug: string;
+  @Prop({ required: true }) name: string;
   @Prop({ required: true }) worldId: string;
   @Prop() userId?: string;
   @Prop({ default: false }) isNpc: boolean;

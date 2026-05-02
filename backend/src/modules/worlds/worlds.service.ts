@@ -6,7 +6,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IWorldsRepository } from './interfaces/worlds-repository.interface';
 import type { IWorldMembershipRepository } from './interfaces/world-membership-repository.interface';
 import type { IWorldSettingsRepository } from './interfaces/world-settings-repository.interface';
@@ -260,6 +260,36 @@ export class WorldsService {
     if (this.canManageMembers(requester, world, membership)) return true;
     if (membership && membership.role >= WorldRole.Korektor) return true;
     return false;
+  }
+
+  // ─── Character event listeners (membership sync) ─────────────────────────
+
+  @OnEvent('character.created')
+  async onCharacterCreated(payload: { userId?: string; worldId: string; isNpc: boolean; name: string; imageUrl?: string }): Promise<void> {
+    if (payload.isNpc || !payload.userId) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(payload.userId, payload.worldId);
+    if (!membership) return;
+    await this.membershipRepo.update(membership.id, { characterPath: payload.name, avatarUrl: payload.imageUrl });
+  }
+
+  @OnEvent('character.updated')
+  async onCharacterUpdated(payload: { userId?: string; worldId: string; isNpc: boolean; name?: string; imageUrl?: string }): Promise<void> {
+    if (payload.isNpc || !payload.userId) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(payload.userId, payload.worldId);
+    if (!membership) return;
+    await this.membershipRepo.update(membership.id, { characterPath: payload.name, avatarUrl: payload.imageUrl });
+  }
+
+  @OnEvent('character.converted')
+  async onCharacterConverted(payload: { userId?: string; worldId: string; toNpc: boolean; name: string; imageUrl?: string }): Promise<void> {
+    if (!payload.userId) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(payload.userId, payload.worldId);
+    if (!membership) return;
+    if (payload.toNpc) {
+      await this.membershipRepo.update(membership.id, { characterPath: undefined, avatarUrl: undefined });
+    } else {
+      await this.membershipRepo.update(membership.id, { characterPath: payload.name, avatarUrl: payload.imageUrl });
+    }
   }
 
   private getCurrenciesForGenre(genre?: string): WorldSettings['currencies'] {

@@ -5,14 +5,14 @@ import { CharactersService } from './characters.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 const mockCharacter = {
-  id: 'char1', slug: 'medak', worldId: 'world1',
+  id: 'char1', slug: 'medak', name: 'Měďák', worldId: 'world1',
   userId: 'user1', isNpc: false,
   publicBio: '<p>veřejné</p>', publicInfoBlocks: [],
   privateBio: '<p>soukromé</p>', privateInfoBlocks: [],
   accessRequirements: [], createdAt: new Date(),
 };
 
-const mockNpc = { ...mockCharacter, id: 'char2', slug: 'agent-smith', userId: undefined, isNpc: true };
+const mockNpc = { ...mockCharacter, id: 'char2', slug: 'agent-smith', name: 'Agent Smith', userId: undefined, isNpc: true };
 
 const mockMembership = { id: 'mem1', userId: 'user1', worldId: 'world1', role: WorldRole.Hrac, akj: 5, joinedAt: new Date() };
 const mockPjMembership = { ...mockMembership, role: WorldRole.PJ };
@@ -87,13 +87,13 @@ describe('CharactersService', () => {
   describe('create', () => {
     it('vyhodí ConflictException pokud slug existuje', async () => {
       mockCharRepo.existsBySlugAndWorld.mockResolvedValue(true);
-      await expect(service.create({ slug: 'medak', isNpc: false }, 'world1')).rejects.toThrow(ConflictException);
+      await expect(service.create({ slug: 'medak', name: 'Měďák', isNpc: false }, 'world1')).rejects.toThrow(ConflictException);
     });
 
     it('emituje character.created po vytvoření', async () => {
       mockCharRepo.existsBySlugAndWorld.mockResolvedValue(false);
       mockCharRepo.save.mockResolvedValue(mockCharacter);
-      await service.create({ slug: 'medak', isNpc: false }, 'world1');
+      await service.create({ slug: 'medak', name: 'Měďák', isNpc: false }, 'world1');
       expect(mockEventEmitter.emit).toHaveBeenCalledWith('character.created', expect.objectContaining({ characterId: 'char1', isNpc: false }));
     });
   });

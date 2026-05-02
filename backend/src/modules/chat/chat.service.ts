@@ -200,7 +200,7 @@ export class ChatService {
 
     const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId!);
     const character = await this.charactersService.findByUser(requester.id, channel.worldId!);
-    const senderName = character?.slug ?? membership?.characterPath ?? requester.id;
+    const senderName = character?.name ?? membership?.characterPath ?? requester.id;
     const senderAvatarUrl = character?.imageUrl ?? membership?.avatarUrl;
 
     let replyToPreview: string | undefined;
