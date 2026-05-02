@@ -34,4 +34,5 @@ export class UpdateWorldSettingsDto {
   @IsOptional() @IsBoolean() hideDefaultWeather?: boolean;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AkjTypeDto) akjTypes?: AkjTypeDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => MenuTemplateDto) menuTemplates?: MenuTemplateDto[];
+  @IsOptional() @IsArray() diarySchema?: Record<string, unknown>[];
 }

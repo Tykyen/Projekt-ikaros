@@ -38,6 +38,7 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
       hideDefaultWeather: (doc.hideDefaultWeather as boolean) ?? false,
       akjTypes: (doc.akjTypes as WorldSettings['akjTypes']) ?? [],
       menuTemplates: (doc.menuTemplates as WorldSettings['menuTemplates']) ?? [],
+      diarySchema: (doc.diarySchema as WorldSettings['diarySchema']) ?? [],
       updatedAt: doc.updatedAt as Date,
     };
   }

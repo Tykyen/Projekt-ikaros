@@ -14,6 +14,7 @@ export class WorldSettingsSchemaClass {
   @Prop({ default: false }) hideDefaultWeather: boolean;
   @Prop({ type: [Object], default: [] }) akjTypes: Record<string, unknown>[];
   @Prop({ type: [Object], default: [] }) menuTemplates: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] }) diarySchema: Record<string, unknown>[];
   @Prop({ default: Date.now }) updatedAt: Date;
 }
 

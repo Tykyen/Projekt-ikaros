@@ -1,3 +1,5 @@
+import type { SchemaBlock } from '../../characters/interfaces/character.interface';
+
 export interface AkjType {
   key: string;
   name: string;
@@ -42,5 +44,6 @@ export interface WorldSettings {
   hideDefaultWeather: boolean;
   akjTypes: AkjType[];
   menuTemplates: MenuTemplate[];
+  diarySchema: SchemaBlock[];
   updatedAt: Date;
 }
