@@ -13,7 +13,7 @@ export class MongoUniverseRepository implements IUniverseRepository {
 
   async findByWorld(worldId: string): Promise<UniverseMap | null> {
     const doc = await this.model.findOne({ worldId }).lean().exec();
-    return doc ? this.toEntity(doc as Record<string, unknown>) : null;
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
   }
 
   async upsert(worldId: string, nodes: UniverseNode[], links: UniverseLink[]): Promise<UniverseMap> {
@@ -25,7 +25,7 @@ export class MongoUniverseRepository implements IUniverseRepository {
       )
       .lean()
       .exec();
-    return this.toEntity(doc as Record<string, unknown>);
+    return this.toEntity(doc as unknown as Record<string, unknown>);
   }
 
   async updateNodeVisibility(
@@ -50,7 +50,7 @@ export class MongoUniverseRepository implements IUniverseRepository {
       .lean()
       .exec();
 
-    return updated ? this.toEntity(updated as Record<string, unknown>) : null;
+    return updated ? this.toEntity(updated as unknown as Record<string, unknown>) : null;
   }
 
   private toEntity(doc: Record<string, unknown>): UniverseMap {

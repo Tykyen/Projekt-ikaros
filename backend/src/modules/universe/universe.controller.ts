@@ -1,5 +1,5 @@
 import { Controller, Get, Put, Patch, Query, Param, Body, UseGuards, Req } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { UniverseService } from './universe.service';
 import { UpdateUniverseDto } from './dto/update-universe.dto';
 import { UpdateNodeVisibilityDto } from './dto/update-node-visibility.dto';
