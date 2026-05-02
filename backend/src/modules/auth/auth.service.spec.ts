@@ -55,6 +55,18 @@ describe('AuthService', () => {
     );
   });
 
+  it('login token payload should include akj: false when user has akj false', async () => {
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+    mockRepo.findByEmail.mockResolvedValue({ ...mockUser, akj: false });
+    mockRepo.updateLastSeen.mockResolvedValue(undefined);
+
+    await service.login({ email: 'a@a.com', password: 'pass' });
+
+    expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ akj: false }),
+    );
+  });
+
   it('register should throw ConflictException for duplicate email', async () => {
     mockRepo.findByEmail.mockResolvedValue(mockUser);
     await expect(
