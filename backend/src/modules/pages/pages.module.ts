@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PageSchemaClass, PageSchema } from './schemas/page.schema';
 import { MongoPagesRepository } from './repositories/pages.repository';
@@ -10,7 +10,7 @@ import { TipTapExtractor } from './tiptap-extractor.service';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: PageSchemaClass.name, schema: PageSchema }]),
-    WorldsModule,
+    forwardRef(() => WorldsModule),
   ],
   controllers: [PagesController],
   providers: [

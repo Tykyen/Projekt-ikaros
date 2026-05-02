@@ -88,4 +88,22 @@ export class PagesController {
   ) {
     return this.pagesService.delete(id, worldId);
   }
+
+  @Post(':slug/favorite')
+  @UseGuards(JwtAuthGuard)
+  addFavorite(
+    @Param('worldId') worldId: string,
+    @Param('slug') slug: string,
+  ) {
+    return this.pagesService.addFavorite(worldId, slug);
+  }
+
+  @Delete(':slug/favorite')
+  @UseGuards(JwtAuthGuard)
+  removeFavorite(
+    @Param('worldId') worldId: string,
+    @Param('slug') slug: string,
+  ) {
+    return this.pagesService.removeFavorite(worldId, slug);
+  }
 }

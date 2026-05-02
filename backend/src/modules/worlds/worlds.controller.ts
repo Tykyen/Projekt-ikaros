@@ -22,10 +22,14 @@ import {
   UpdateMemberAkjDto,
   UpdateMemberCharacterDto,
 } from './dto/update-member.dto';
+import { PagesService } from '../pages/pages.service';
 
 @Controller('worlds')
 export class WorldsController {
-  constructor(private readonly worldsService: WorldsService) {}
+  constructor(
+    private readonly worldsService: WorldsService,
+    private readonly pagesService: PagesService,
+  ) {}
 
   @Get()
   findAll() {
@@ -144,5 +148,11 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.updateMemberAkj(membershipId, dto.akj, user);
+  }
+
+  @Get(':worldId/favorites')
+  @UseGuards(JwtAuthGuard)
+  getFavorites(@Param('worldId') worldId: string) {
+    return this.pagesService.findFavorites(worldId);
   }
 }

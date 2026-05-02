@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { Page } from './interfaces/page.interface';
 import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
@@ -11,6 +12,7 @@ export class PagesService {
   constructor(
     @Inject('IPagesRepository') private readonly pagesRepo: IPagesRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
     private readonly tipTapExtractor: TipTapExtractor,
   ) {}
 
@@ -81,6 +83,22 @@ export class PagesService {
     const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page) throw new NotFoundException('Stránka nenalezena');
     return { isWoodWide: page.isWoodWide ?? false };
+  }
+
+  async addFavorite(worldId: string, slug: string): Promise<void> {
+    const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
+    if (!exists) throw new NotFoundException('Stránka nenalezena');
+    await this.worldsRepo.addFavoriteSlug(worldId, slug);
+  }
+
+  async removeFavorite(worldId: string, slug: string): Promise<void> {
+    await this.worldsRepo.removeFavoriteSlug(worldId, slug);
+  }
+
+  async findFavorites(worldId: string): Promise<Page[]> {
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world) throw new NotFoundException('Svět nenalezen');
+    return this.pagesRepo.findBySlugs(world.favoritePageSlugs, worldId);
   }
 
   private async assertAccess(page: Page, userId: string, worldId: string): Promise<void> {

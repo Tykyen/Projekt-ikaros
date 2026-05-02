@@ -26,9 +26,15 @@ describe('PagesService', () => {
     findDirectory: jest.fn(),
     findAllSlugs: jest.fn(),
     findRandom: jest.fn(),
+    findBySlugs: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
+  };
+  const mockWorldsRepo = {
+    findById: jest.fn(),
+    addFavoriteSlug: jest.fn(),
+    removeFavoriteSlug: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -38,6 +44,7 @@ describe('PagesService', () => {
         PagesService,
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
         { provide: TipTapExtractor, useValue: { extract: jest.fn().mockReturnValue('plain text') } },
       ],
     }).compile();
