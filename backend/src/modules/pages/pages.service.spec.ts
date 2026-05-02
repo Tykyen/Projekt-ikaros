@@ -110,4 +110,32 @@ describe('PagesService', () => {
       await expect(service.delete('page1', 'world1')).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('findDirectory', () => {
+    it('vrátí zkrácené stránky bez access filtru', async () => {
+      const dirItem = { id: 'p1', slug: 'lokace', title: 'Lokace', type: 'Lokace', order: 0 };
+      mockPagesRepo.findDirectory = jest.fn().mockResolvedValue([dirItem]);
+      const result = await service.findDirectory('world1');
+      expect(result).toHaveLength(1);
+      expect(result[0]).not.toHaveProperty('content');
+      expect(mockPagesRepo.findDirectory).toHaveBeenCalledWith('world1');
+    });
+  });
+
+  describe('findAllSlugs', () => {
+    it('vrátí seznam slugů', async () => {
+      mockPagesRepo.findAllSlugs = jest.fn().mockResolvedValue(['lokace', 'faq']);
+      const result = await service.findAllSlugs('world1');
+      expect(result).toEqual(['lokace', 'faq']);
+    });
+  });
+
+  describe('findRandom', () => {
+    it('vrátí N náhodných stránek s default 5', async () => {
+      mockPagesRepo.findRandom = jest.fn().mockResolvedValue([mockPage]);
+      const result = await service.findRandom('world1', 5);
+      expect(mockPagesRepo.findRandom).toHaveBeenCalledWith('world1', 5);
+      expect(result).toHaveLength(1);
+    });
+  });
 });

@@ -65,6 +65,18 @@ export class PagesService {
     await this.pagesRepo.delete(id);
   }
 
+  async findDirectory(worldId: string) {
+    return this.pagesRepo.findDirectory(worldId);
+  }
+
+  async findAllSlugs(worldId: string): Promise<string[]> {
+    return this.pagesRepo.findAllSlugs(worldId);
+  }
+
+  async findRandom(worldId: string, count: number): Promise<Page[]> {
+    return this.pagesRepo.findRandom(worldId, Math.max(1, Math.min(count, 50)));
+  }
+
   private async assertAccess(page: Page, userId: string, worldId: string): Promise<void> {
     if (!page.accessRequirements || page.accessRequirements.length === 0) return;
     const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
