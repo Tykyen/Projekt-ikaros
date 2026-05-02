@@ -147,17 +147,20 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 7a — Characters RPG rozšíření ⬜
+## Krok 7a — Characters RPG rozšíření ✅
 
-> Rozšíření existujícího Character modelu o plný RPG sheet (stats, schopnosti, inventář, deník).
+> Rozšíření existujícího Character modelu o systém deníků (diaryData + extraBlocks), world diary template (diarySchema na WorldSettings) a nové endpointy /players + /directory.
 
-- [ ] **Character schema rozšíření**: bornWhere, magicGene, abilityPoints, fatePoints, health/magicHealth/armor, tiredness, overPressure (4 dimenze: physical/magical/diplomatic/technical), languages/aspects/abilities (TagValue arrays), inventory, contacts, lastFatePointModification, personalDiarySchema
-- [ ] GetPlayerCharacters: filtruje dle Pages type=0 (hráčské stránky) v Matrix světě; matchuje slugy `{base}`, `{base}-denik`, `{base}-denik-pj`
-- [ ] GET /api/worlds/:worldId/characters/players (PJ+ only)
-- [ ] Character directory: GET /api/worlds/:worldId/characters/directory (veřejný seznam)
+- [x] **SchemaBlock** interface (key, label, type, config, order) — volný JSON, backend jen ukládá
+- [x] **WorldSettings.diarySchema**: SchemaBlock[] — world template pro deníky postav
+- [x] **Character.diaryData**: Record<string, unknown> — hodnoty bloků, merge při PATCH
+- [x] **Character.extraBlocks**: SchemaBlock[] — additivní bloky specifické pro postavu, replace při PATCH
+- [x] **getPlayerCharacters**: filtruje isNpc=false + userId set
+- [x] GET /api/worlds/:worldId/characters/players (JWT required)
+- [x] GET /api/worlds/:worldId/characters/directory (veřejný, bez JWT)
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-02-krok-7a-characters-design.md](superpowers/specs/2026-05-02-krok-7a-characters-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-02-krok-7a-characters.md](superpowers/plans/2026-05-02-krok-7a-characters.md)
 
 ---
 
@@ -535,7 +538,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 4 | Users rozšíření | ✅ |
 | 5 | Presence & IkarosMessages | ✅ |
 | 6 | Pages (Wiki) | ✅ |
-| 7a | Characters RPG rozšíření | ⬜ |
+| 7a | Characters RPG rozšíření | ✅ |
 | 7b | NPC Templates | ✅ |
 | 7c | Universe Map | ⬜ |
 | 7d | RPG System Presets | ⬜ |
