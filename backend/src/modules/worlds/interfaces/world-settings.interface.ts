@@ -1,3 +1,20 @@
+export interface AkjType {
+  key: string;
+  name: string;
+  level: number;
+}
+
+export interface MenuTemplateItem {
+  label: string;
+  href: string;
+  order?: number;
+}
+
+export interface MenuTemplate {
+  name: string;
+  items: MenuTemplateItem[];
+}
+
 export interface HeadlineNode {
   id: string;
   label: string;
@@ -23,5 +40,7 @@ export interface WorldSettings {
   customHeadline: HeadlineNode[];
   currencies: WorldCurrencyItem[];
   hideDefaultWeather: boolean;
+  akjTypes: AkjType[];
+  menuTemplates: MenuTemplate[];
   updatedAt: Date;
 }
