@@ -67,6 +67,19 @@ describe('AuthService', () => {
     );
   });
 
+  it('should include akj claim in register token', async () => {
+    const dto = { email: 'test@example.com', username: 'testuser', password: 'password123' };
+    mockRepo.findByEmail.mockResolvedValue(null);
+    mockRepo.findByUsername.mockResolvedValue(null);
+    mockRepo.save.mockResolvedValue({ ...mockUser, akj: true });
+
+    await service.register(dto);
+
+    expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ akj: true }),
+    );
+  });
+
   it('register should throw ConflictException for duplicate email', async () => {
     mockRepo.findByEmail.mockResolvedValue(mockUser);
     await expect(

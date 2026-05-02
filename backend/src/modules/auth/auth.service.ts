@@ -52,7 +52,7 @@ export class AuthService {
       role: user.role,
       characterPath: user.characterPath ?? '',
       ikarosSkin: user.ikarosSkin ?? 'default',
-      akj: user.akj ?? false,
+      akj: user.akj,
     });
   }
 
