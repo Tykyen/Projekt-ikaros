@@ -20,6 +20,7 @@ export class WorldSchemaClass {
   @Prop({ default: 'private' }) accessMode: string;
   @Prop({ type: [{ slug: String, name: String }], default: [] }) offeredCharacters: { slug: string; name: string }[];
   @Prop({ type: Object }) calendarConfig?: Record<string, unknown>;
+  @Prop({ type: [String], default: [] }) favoritePageSlugs: string[];
 }
 
 export const WorldSchema = SchemaFactory.createForClass(WorldSchemaClass);

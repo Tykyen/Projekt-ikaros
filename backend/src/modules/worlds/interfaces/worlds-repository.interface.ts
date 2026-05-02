@@ -9,4 +9,6 @@ export interface IWorldsRepository {
   save(world: Partial<World>): Promise<World>;
   update(id: string, data: Partial<World>): Promise<World | null>;
   delete(id: string): Promise<boolean>;
+  addFavoriteSlug(worldId: string, slug: string): Promise<void>;
+  removeFavoriteSlug(worldId: string, slug: string): Promise<void>;
 }
