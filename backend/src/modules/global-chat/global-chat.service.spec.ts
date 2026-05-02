@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GlobalChatService } from './global-chat.service';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
@@ -106,6 +106,11 @@ describe('GlobalChatService', () => {
     beforeEach(async () => {
       channelRepo.findGlobal.mockResolvedValue(mockChannel);
       await service.onModuleInit();
+    });
+
+    it('should throw InternalServerErrorException if not initialized', async () => {
+      (service as any).globalChannelId = undefined;
+      await expect(service.getMessages('u1', {})).rejects.toThrow(InternalServerErrorException);
     });
 
     it('should return all messages including deleted (frontend handles rendering)', async () => {

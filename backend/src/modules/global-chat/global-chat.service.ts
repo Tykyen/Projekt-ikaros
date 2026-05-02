@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, OnModuleInit, InternalServerErrorException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
@@ -8,7 +8,8 @@ import type { CreateGlobalMessageDto } from './dto/create-global-message.dto';
 
 @Injectable()
 export class GlobalChatService implements OnModuleInit {
-  private globalChannelId: string;
+  private static readonly MESSAGE_TTL_MS = 60 * 60 * 1000;
+  private globalChannelId!: string;
 
   constructor(
     @Inject('IChatChannelRepository') private readonly channelRepo: IChatChannelRepository,
@@ -39,6 +40,7 @@ export class GlobalChatService implements OnModuleInit {
   }
 
   async getMessages(userId: string, opts: { before?: string; limit?: number }): Promise<ChatMessage[]> {
+    if (!this.globalChannelId) throw new InternalServerErrorException('Global channel not initialized');
     const limit = Math.min(opts.limit && opts.limit > 0 ? opts.limit : 50, 50);
     const messages = await this.messageRepo.findByChannelId(this.globalChannelId, {
       before: opts.before,
@@ -51,6 +53,7 @@ export class GlobalChatService implements OnModuleInit {
   }
 
   async sendMessage(dto: CreateGlobalMessageDto, user: RequestUser): Promise<ChatMessage> {
+    if (!this.globalChannelId) throw new InternalServerErrorException('Global channel not initialized');
     const message = await this.messageRepo.save({
       channelId: this.globalChannelId,
       worldId: null,
@@ -62,14 +65,16 @@ export class GlobalChatService implements OnModuleInit {
       reactions: {},
       attachments: [],
       visibleTo: dto.visibleTo ?? [],
-      expiresAt: new Date(Date.now() + 3600000),
+      expiresAt: new Date(Date.now() + GlobalChatService.MESSAGE_TTL_MS),
     });
 
     this.eventEmitter.emit('chat.global.message.created', { channelId: this.globalChannelId, message });
     return message;
   }
 
+  // Auth enforced by AdminGuard at controller level
   async deleteMessage(messageId: string): Promise<void> {
+    if (!this.globalChannelId) throw new InternalServerErrorException('Global channel not initialized');
     const message = await this.messageRepo.findById(messageId);
     if (!message || message.channelId !== this.globalChannelId) {
       throw new NotFoundException('Zpráva nenalezena');
