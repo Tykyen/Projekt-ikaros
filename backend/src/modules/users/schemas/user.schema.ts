@@ -20,6 +20,7 @@ export class UserSchemaClass {
 
   @Prop() displayName?: string;
   @Prop() avatarUrl?: string;
+  @Prop() profileImageUrl?: string;
   @Prop() characterPath?: string;
   @Prop() ikarosSkin?: string;
 

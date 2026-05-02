@@ -13,6 +13,8 @@ import { GlobalChatModule } from './modules/global-chat/global-chat.module';
 import { PresenceModule } from './modules/presence/presence.module';
 import { IkarosMessagesModule } from './modules/ikaros-messages/ikaros-messages.module';
 import { PagesModule } from './modules/pages/pages.module';
+import { CharactersModule } from './modules/characters/characters.module';
+import { CharacterSubdocsModule } from './modules/character-subdocs/character-subdocs.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -29,6 +31,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     PresenceModule,
     IkarosMessagesModule,
     PagesModule,
+    CharactersModule,
+    CharacterSubdocsModule,
     GatewaysModule,
   ],
   controllers: [AppController],

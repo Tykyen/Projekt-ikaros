@@ -1,0 +1,72 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
+import { CharacterSchemaClass } from '../schemas/character.schema';
+import { Character, InfoBlock } from '../interfaces/character.interface';
+import { AccessRequirement } from '../../pages/interfaces/page.interface';
+import type { ICharactersRepository } from '../interfaces/characters-repository.interface';
+
+@Injectable()
+export class MongoCharactersRepository
+  extends BaseMongoRepository<Character>
+  implements ICharactersRepository
+{
+  constructor(@InjectModel(CharacterSchemaClass.name) model: Model<CharacterSchemaClass>) {
+    super(model as never);
+  }
+
+  async findAll(): Promise<Character[]> {
+    const docs = await this.model.find().lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
+  async findBySlugAndWorld(slug: string, worldId: string): Promise<Character | null> {
+    const doc = await this.model.findOne({ slug: slug.toLowerCase(), worldId }).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
+  async findByWorld(worldId: string): Promise<Character[]> {
+    const docs = await this.model.find({ worldId }).lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
+  async findByUserAndWorld(userId: string, worldId: string): Promise<Character | null> {
+    const doc = await this.model.findOne({ userId, worldId, isNpc: false }).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
+  async existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean> {
+    const count = await this.model.countDocuments({ slug: slug.toLowerCase(), worldId }).exec();
+    return count > 0;
+  }
+
+  protected toEntity(doc: Record<string, unknown>): Character {
+    return {
+      id: String(doc._id),
+      slug: doc.slug as string,
+      name: (doc.name as string) ?? '',
+      worldId: doc.worldId as string,
+      userId: doc.userId as string | undefined,
+      isNpc: (doc.isNpc as boolean) ?? false,
+      imageUrl: doc.imageUrl as string | undefined,
+      publicBio: (doc.publicBio as string) ?? '',
+      publicInfoBlocks: ((doc.publicInfoBlocks as Record<string, unknown>[]) ?? []).map((b) => ({
+        label: b.label as string,
+        value: b.value as string,
+      } as InfoBlock)),
+      privateBio: (doc.privateBio as string) ?? '',
+      privateInfoBlocks: ((doc.privateInfoBlocks as Record<string, unknown>[]) ?? []).map((b) => ({
+        label: b.label as string,
+        value: b.value as string,
+      } as InfoBlock)),
+      campaignSubjectId: doc.campaignSubjectId as string | undefined,
+      accessRequirements: ((doc.accessRequirements as Record<string, unknown>[]) ?? []).map((r) => ({
+        type: r.type as 'UserId' | 'AKJ' | 'Role',
+        value: r.value as string,
+      } as AccessRequirement)),
+      customData: (doc.customData as Record<string, unknown>) ?? {},
+      createdAt: doc.createdAt as Date,
+    };
+  }
+}

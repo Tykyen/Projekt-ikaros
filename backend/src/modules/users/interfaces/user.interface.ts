@@ -18,6 +18,7 @@ export interface User {
   role: UserRole;
   displayName?: string;
   avatarUrl?: string;
+  profileImageUrl?: string;
   characterPath?: string;
   ikarosSkin?: string;
   akj: boolean;
