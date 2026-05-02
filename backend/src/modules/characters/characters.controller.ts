@@ -19,6 +19,17 @@ export class CharactersController {
     return this.charactersService.findByWorld(worldId);
   }
 
+  @Get('players')
+  @UseGuards(JwtAuthGuard)
+  getPlayerCharacters(@Param('worldId') worldId: string) {
+    return this.charactersService.getPlayerCharacters(worldId);
+  }
+
+  @Get('directory')
+  getDirectory(@Param('worldId') worldId: string) {
+    return this.charactersService.getDirectory(worldId);
+  }
+
   @Get('by-user/:userId')
   @UseGuards(JwtAuthGuard)
   findByUser(
