@@ -32,19 +32,19 @@ export class PagesService {
       slug,
       worldId,
       content: dto.content ?? '',
-      sections: dto.sections ?? [],
-      galleryImages: dto.galleryImages ?? [],
-      videos: dto.videos ?? [],
-      accessRequirements: dto.accessRequirements ?? [],
+      sections: (dto.sections ?? []) as any,
+      galleryImages: (dto.galleryImages ?? []) as any,
+      videos: (dto.videos ?? []) as any,
+      accessRequirements: (dto.accessRequirements ?? []) as any,
       order: dto.order ?? 0,
-    });
+    } as Partial<Page>);
   }
 
   async update(id: string, worldId: string, dto: UpdatePageDto): Promise<Page> {
     const page = await this.pagesRepo.findById(id);
     if (!page) throw new NotFoundException('Stránka nenalezena');
     if (page.worldId !== worldId) throw new ForbiddenException('Stránka nepatří do tohoto světa');
-    const updated = await this.pagesRepo.update(id, dto);
+    const updated = await this.pagesRepo.update(id, dto as any);
     return updated!;
   }
 

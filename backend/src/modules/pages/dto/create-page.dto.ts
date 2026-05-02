@@ -8,6 +8,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { PAGE_TYPES } from '../interfaces/page.interface';
 
 export class AccessRequirementDto {
   @IsIn(['UserId', 'AKJ', 'Role'])
@@ -40,23 +41,19 @@ export class PageSectionDto {
   @IsString()
   title: string;
 
-  @IsOptional()
   @IsString()
-  content?: string;
+  content: string = '';
 
-  @IsOptional()
   @IsNumber()
-  order?: number;
+  order: number = 0;
 
-  @IsOptional()
   @IsBoolean()
-  isCollapsed?: boolean;
+  isCollapsed: boolean = false;
 
-  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PageSectionItemDto)
-  items?: PageSectionItemDto[];
+  items: PageSectionItemDto[] = [];
 }
 
 export class GalleryImageDto {
@@ -66,13 +63,11 @@ export class GalleryImageDto {
   @IsString()
   url: string;
 
-  @IsOptional()
   @IsString()
-  caption?: string;
+  caption: string = '';
 
-  @IsOptional()
   @IsNumber()
-  order?: number;
+  order: number = 0;
 }
 
 export class InstructionalVideoDto {
@@ -93,7 +88,7 @@ export class CreatePageDto {
   @IsString()
   slug: string;
 
-  @IsString()
+  @IsIn(Object.values(PAGE_TYPES))
   type: string;
 
   @IsString()
