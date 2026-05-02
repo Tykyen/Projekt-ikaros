@@ -13,13 +13,19 @@ import { ResolveIkarosMessageDto } from './dto/resolve-ikaros-message.dto';
 export class IkarosMessagesController {
   constructor(private readonly service: IkarosMessagesService) {}
 
+  private parseLimit(limit?: string): number {
+    if (!limit) return 50;
+    const n = parseInt(limit, 10);
+    return Number.isNaN(n) ? 50 : n;
+  }
+
   @Get('inbox')
   getInbox(
     @CurrentUser() user: RequestUser,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    return this.service.getInbox(user.id, limit ? parseInt(limit, 10) : 50, before);
+    return this.service.getInbox(user.id, this.parseLimit(limit), before);
   }
 
   @Get('sent')
@@ -28,7 +34,7 @@ export class IkarosMessagesController {
     @Query('limit') limit?: string,
     @Query('before') before?: string,
   ) {
-    return this.service.getSent(user.id, limit ? parseInt(limit, 10) : 50, before);
+    return this.service.getSent(user.id, this.parseLimit(limit), before);
   }
 
   @Get('unread-count')
