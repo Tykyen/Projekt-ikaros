@@ -188,7 +188,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Real-time: universe:updated event přes world:{worldId} room
 
 **Spec:** [docs/superpowers/specs/2026-05-02-krok-7c-universe-map-design.md](superpowers/specs/2026-05-02-krok-7c-universe-map-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-02-krok-7c-universe-map.md](superpowers/plans/2026-05-02-krok-7c-universe-map.md)
 
 ---
 
