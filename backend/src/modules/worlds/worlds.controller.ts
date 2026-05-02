@@ -20,6 +20,7 @@ import {
   UpdateMemberRoleDto,
   UpdateMemberGroupDto,
   UpdateMemberAkjDto,
+  UpdateMemberCharacterDto,
 } from './dto/update-member.dto';
 
 @Controller('worlds')
@@ -71,8 +72,8 @@ export class WorldsController {
 
   @Post(':id/join')
   @UseGuards(JwtAuthGuard)
-  join(@Param('id') id: string, @CurrentUser() user: { id: string }) {
-    return this.worldsService.join(id, user.id);
+  join(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.worldsService.join(id, user.id, user.username);
   }
 
   @Get(':id/members')
@@ -123,6 +124,16 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.updateMemberGroup(membershipId, dto.group, user);
+  }
+
+  @Patch(':worldId/members/:membershipId/character')
+  @UseGuards(JwtAuthGuard)
+  updateMemberCharacter(
+    @Param('membershipId') membershipId: string,
+    @Body() dto: UpdateMemberCharacterDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.updateMemberCharacter(membershipId, dto.characterPath, user);
   }
 
   @Patch(':worldId/members/:membershipId/akj')

@@ -30,7 +30,8 @@ describe('WorldsService', () => {
     findById: jest.fn(),
     findByIds: jest.fn(),
     findBySlug: jest.fn(),
-    findByOwnerId: jest.fn(),
+    existsBySlug: jest.fn(),
+    increment: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
   };
@@ -102,6 +103,32 @@ describe('WorldsService', () => {
       expect(mockMembershipRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ role: WorldRole.Pending }),
       );
+    });
+
+    it('neemituje event pokud membership je již Pending', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ ...mockWorld, accessMode: 'private' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'm1', userId: 'user2', worldId: 'world1', role: WorldRole.Pending, joinedAt: new Date(), akj: 0,
+      });
+      const emit = service['eventEmitter'].emit as jest.Mock;
+      await service.join('world1', 'user2', 'Frodo');
+      expect(emit).not.toHaveBeenCalledWith('world.join.requested', expect.anything());
+    });
+
+    it('emituje world.join.requested s worldName a requesterName při private world', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ ...mockWorld, name: 'Matrix', accessMode: 'private' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockMembershipRepo.save.mockResolvedValue({
+        id: 'm1', userId: 'user2', worldId: 'world1', role: WorldRole.Pending, joinedAt: new Date(), akj: 0,
+      });
+      const emit = service['eventEmitter'].emit as jest.Mock;
+      await service.join('world1', 'user2', 'Frodo');
+      expect(emit).toHaveBeenCalledWith('world.join.requested', {
+        worldId: 'world1',
+        worldName: 'Matrix',
+        requesterId: 'user2',
+        requesterName: 'Frodo',
+      });
     });
   });
 
