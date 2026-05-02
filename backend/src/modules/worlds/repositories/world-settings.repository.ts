@@ -36,6 +36,8 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
       customHeadline: (doc.customHeadline as WorldSettings['customHeadline']) ?? [],
       currencies: (doc.currencies as WorldSettings['currencies']) ?? [],
       hideDefaultWeather: (doc.hideDefaultWeather as boolean) ?? false,
+      akjTypes: (doc.akjTypes as WorldSettings['akjTypes']) ?? [],
+      menuTemplates: (doc.menuTemplates as WorldSettings['menuTemplates']) ?? [],
       updatedAt: doc.updatedAt as Date,
     };
   }

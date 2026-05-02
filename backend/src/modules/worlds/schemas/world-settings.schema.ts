@@ -12,6 +12,8 @@ export class WorldSettingsSchemaClass {
   @Prop({ type: [Object], default: [] }) customHeadline: Record<string, unknown>[];
   @Prop({ type: [Object], default: [] }) currencies: Record<string, unknown>[];
   @Prop({ default: false }) hideDefaultWeather: boolean;
+  @Prop({ type: [Object], default: [] }) akjTypes: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] }) menuTemplates: Record<string, unknown>[];
   @Prop({ default: Date.now }) updatedAt: Date;
 }
 
