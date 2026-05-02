@@ -137,7 +137,7 @@ describe('ChatService', () => {
       mockChannelRepo.findById.mockResolvedValue(mockChannel);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
       mockMembershipRepo.findByWorldId.mockResolvedValue([mockPJMembership]);
-      const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'ahoj', isEdited: false, isDeleted: false, reactions: {}, createdAt: new Date(), updatedAt: new Date() };
+      const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'ahoj', isEdited: false, isDeleted: false, reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date() };
       mockMessageRepo.save.mockResolvedValue(mockMsg);
       mockChannelRepo.update.mockResolvedValue({ ...mockChannel, lastMessageAt: mockMsg.createdAt });
       const result = await service.sendMessage('ch1', { content: 'ahoj' }, mockPJ);
@@ -154,7 +154,7 @@ describe('ChatService', () => {
   });
 
   describe('editMessage', () => {
-    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'original', isEdited: false, isDeleted: false, reactions: {}, createdAt: new Date(), updatedAt: new Date() };
+    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'original', isEdited: false, isDeleted: false, reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date() };
 
     it('should allow author to edit own message', async () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
@@ -181,7 +181,7 @@ describe('ChatService', () => {
   });
 
   describe('deleteMessage', () => {
-    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'text', isEdited: false, isDeleted: false, reactions: {}, createdAt: new Date(), updatedAt: new Date() };
+    const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'text', isEdited: false, isDeleted: false, reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date() };
 
     it('should soft-delete message (content=null, isDeleted=true)', async () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
@@ -248,6 +248,20 @@ describe('ChatService', () => {
       expect(msg.reactions['👍']).toContain('user2');
     });
   });
+
+  describe('ChatMessage interface — attachments field', () => {
+    it('mockMsg should have attachments field (type check)', () => {
+      const msg: import('./interfaces/chat-message.interface').ChatMessage = {
+        id: 'msg1', channelId: 'ch1', worldId: 'world1',
+        senderId: 'user1', senderName: 'Elara',
+        content: 'text', isEdited: false, isDeleted: false,
+        reactions: {},
+        attachments: [{ url: 'https://example.com/a.jpg', publicId: 'abc', type: 'image', mimeType: 'image/jpeg', filename: 'a.jpg', size: 1024 }],
+        createdAt: new Date(), updatedAt: new Date(),
+      };
+      expect(msg.attachments![0].type).toBe('image');
+    });
+  });
 });
 
 describe('sendMessage — new fields', () => {
@@ -255,7 +269,7 @@ describe('sendMessage — new fields', () => {
     id: 'msg1', channelId: 'ch1', worldId: 'world1',
     senderId: 'user1', senderName: 'Elara', senderAvatarUrl: 'http://avatar.png',
     content: 'ahoj', isEdited: false, isDeleted: false,
-    reactions: {}, createdAt: new Date(), updatedAt: new Date(),
+    reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date(),
   };
 
   let service: ChatService;
@@ -368,7 +382,7 @@ describe('toggleReaction', () => {
   const mockMsg = {
     id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1',
     senderName: 'Elara', content: 'text', isEdited: false, isDeleted: false,
-    reactions: {}, createdAt: new Date(), updatedAt: new Date(),
+    reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date(),
   };
 
   let service: ChatService;
@@ -449,7 +463,7 @@ describe('getMessages — whisper filtering', () => {
   const publicMsg = {
     id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1',
     senderName: 'Elara', content: 'veřejná', isEdited: false, isDeleted: false,
-    reactions: {}, createdAt: new Date(), updatedAt: new Date(),
+    reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date(),
   };
   const whisperMsg = {
     ...publicMsg, id: 'msg2', content: 'šepot',

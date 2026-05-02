@@ -21,6 +21,7 @@ export class ChatMessageSchemaClass {
   @Prop({ type: String }) replyToSenderName?: string;
   @Prop({ type: [String] }) visibleTo?: string[];
   @Prop({ type: Object, default: {} }) reactions: Record<string, string[]>;
+  @Prop({ type: [Object], default: [] }) attachments: Record<string, unknown>[];
 }
 
 export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessageSchemaClass);

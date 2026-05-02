@@ -96,6 +96,7 @@ export class MongoChatMessageRepository
       replyToSenderName: doc.replyToSenderName as string | undefined,
       visibleTo: doc.visibleTo as string[] | undefined,
       reactions: (doc.reactions as Record<string, string[]>) ?? {},
+      attachments: (doc.attachments as import('../interfaces/chat-attachment.interface').ChatAttachment[]) ?? [],
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

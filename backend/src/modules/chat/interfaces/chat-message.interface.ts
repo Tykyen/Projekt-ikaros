@@ -1,3 +1,5 @@
+import type { ChatAttachment } from './chat-attachment.interface';
+
 export interface ChatMessage {
   id: string;
   channelId: string;
@@ -16,6 +18,7 @@ export interface ChatMessage {
   replyToSenderName?: string;
   visibleTo?: string[];
   reactions: Record<string, string[]>;
+  attachments?: ChatAttachment[];
   createdAt: Date;
   updatedAt: Date;
 }
