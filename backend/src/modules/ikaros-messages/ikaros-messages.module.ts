@@ -4,6 +4,7 @@ import { IkarosMessageSchemaClass, IkarosMessageSchema } from './schemas/ikaros-
 import { MongoIkarosMessagesRepository } from './repositories/ikaros-messages.repository';
 import { IkarosMessagesService } from './ikaros-messages.service';
 import { IkarosMessagesGateway } from './ikaros-messages.gateway';
+import { IkarosMessagesController } from './ikaros-messages.controller';
 import { WorldsModule } from '../worlds/worlds.module';
 import { AuthModule } from '../auth/auth.module';
 
@@ -15,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
     WorldsModule,
     AuthModule,
   ],
+  controllers: [IkarosMessagesController],
   providers: [
     IkarosMessagesService,
     { provide: 'IIkarosMessagesRepository', useClass: MongoIkarosMessagesRepository },

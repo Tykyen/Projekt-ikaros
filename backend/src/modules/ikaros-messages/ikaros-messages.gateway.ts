@@ -13,7 +13,8 @@ export class IkarosMessagesGateway implements OnGatewayConnection {
     try {
       const token = client.handshake.auth?.token as string | undefined;
       if (!token) return;
-      const payload = this.jwtService.verify(token) as { sub: string };
+      const payload = this.jwtService.verify(token) as { sub?: string };
+      if (!payload?.sub) return;
       void client.join(`user:${payload.sub}`);
     } catch {
       // neplatný token — socket připojen bez user roomu
