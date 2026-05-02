@@ -22,5 +22,6 @@ export class IkarosMessageSchemaClass {
 }
 
 export const IkarosMessageSchema = SchemaFactory.createForClass(IkarosMessageSchemaClass);
-IkarosMessageSchema.index({ sentAtUtc: 1 });
-IkarosMessageSchema.index({ recipientId: 1, isRead: 1 });
+IkarosMessageSchema.index({ recipientId: 1, deletedByRecipient: 1, _id: -1 });
+IkarosMessageSchema.index({ senderId: 1, deletedBySender: 1, _id: -1 });
+IkarosMessageSchema.index({ recipientId: 1, isRead: 1, deletedByRecipient: 1 });

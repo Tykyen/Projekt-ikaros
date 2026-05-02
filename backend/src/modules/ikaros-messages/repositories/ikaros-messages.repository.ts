@@ -1,16 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { IkarosMessageSchemaClass } from '../schemas/ikaros-message.schema';
 import { IkarosMessage, IkarosMessageActionType } from '../interfaces/ikaros-message.interface';
 import { IIkarosMessagesRepository } from '../interfaces/ikaros-messages-repository.interface';
 
 @Injectable()
-export class MongoIkarosMessagesRepository implements IIkarosMessagesRepository {
+export class MongoIkarosMessagesRepository
+  extends BaseMongoRepository<IkarosMessage>
+  implements IIkarosMessagesRepository
+{
   constructor(
     @InjectModel(IkarosMessageSchemaClass.name)
-    private readonly model: Model<IkarosMessageSchemaClass>,
-  ) {}
+    model: Model<IkarosMessageSchemaClass>,
+  ) {
+    super(model as never);
+  }
 
   async findById(id: string): Promise<IkarosMessage | null> {
     if (!Types.ObjectId.isValid(id)) return null;
@@ -25,7 +31,7 @@ export class MongoIkarosMessagesRepository implements IIkarosMessagesRepository 
     }
     const docs = await this.model
       .find(filter)
-      .sort({ sentAtUtc: -1 })
+      .sort({ _id: -1 })
       .limit(opts.limit)
       .lean()
       .exec();
@@ -39,7 +45,7 @@ export class MongoIkarosMessagesRepository implements IIkarosMessagesRepository 
     }
     const docs = await this.model
       .find(filter)
-      .sort({ sentAtUtc: -1 })
+      .sort({ _id: -1 })
       .limit(opts.limit)
       .lean()
       .exec();
@@ -70,16 +76,7 @@ export class MongoIkarosMessagesRepository implements IIkarosMessagesRepository 
     return this.toEntity(saved.toObject() as unknown as Record<string, unknown>);
   }
 
-  async update(id: string, data: Partial<IkarosMessage>): Promise<IkarosMessage | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await this.model
-      .findByIdAndUpdate(id, { $set: data as Record<string, unknown> }, { new: true })
-      .lean()
-      .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
-  }
-
-  private toEntity(doc: Record<string, unknown>): IkarosMessage {
+  protected toEntity(doc: Record<string, unknown>): IkarosMessage {
     return {
       id: String(doc._id),
       senderId: doc.senderId as string,
