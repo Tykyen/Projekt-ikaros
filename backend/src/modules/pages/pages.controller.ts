@@ -40,22 +40,22 @@ export class PagesController {
     return this.pagesService.create(dto, worldId);
   }
 
-  @Patch(':id')
+  @Patch(':slug')
   @UseGuards(JwtAuthGuard)
   update(
     @Param('worldId') worldId: string,
-    @Param('id') id: string,
+    @Param('slug') slug: string,
     @Body() dto: UpdatePageDto,
   ) {
-    return this.pagesService.update(id, worldId, dto);
+    return this.pagesService.update(slug, worldId, dto);
   }
 
-  @Delete(':id')
+  @Delete(':slug')
   @UseGuards(JwtAuthGuard)
   remove(
     @Param('worldId') worldId: string,
-    @Param('id') id: string,
+    @Param('slug') slug: string,
   ) {
-    return this.pagesService.delete(id, worldId);
+    return this.pagesService.delete(slug, worldId);
   }
 }

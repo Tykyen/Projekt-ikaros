@@ -40,19 +40,17 @@ export class PagesService {
     });
   }
 
-  async update(id: string, worldId: string, dto: UpdatePageDto): Promise<Page> {
-    const page = await this.pagesRepo.findById(id);
+  async update(slug: string, worldId: string, dto: UpdatePageDto): Promise<Page> {
+    const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page) throw new NotFoundException('Stránka nenalezena');
-    if (page.worldId !== worldId) throw new ForbiddenException('Stránka nepatří do tohoto světa');
-    const updated = await this.pagesRepo.update(id, dto as unknown as Partial<Page>);
+    const updated = await this.pagesRepo.update(page.id, dto as unknown as Partial<Page>);
     return updated!;
   }
 
-  async delete(id: string, worldId: string): Promise<void> {
-    const page = await this.pagesRepo.findById(id);
+  async delete(slug: string, worldId: string): Promise<void> {
+    const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page) throw new NotFoundException('Stránka nenalezena');
-    if (page.worldId !== worldId) throw new ForbiddenException('Stránka nepatří do tohoto světa');
-    await this.pagesRepo.delete(id);
+    await this.pagesRepo.delete(page.id);
   }
 
   private async assertAccess(page: Page, userId: string, worldId: string): Promise<void> {

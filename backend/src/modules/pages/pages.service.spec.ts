@@ -98,13 +98,15 @@ describe('PagesService', () => {
 
   describe('delete', () => {
     it('vyhodí NotFoundException pokud stránka neexistuje', async () => {
-      mockPagesRepo.findById.mockResolvedValue(null);
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(null);
       await expect(service.delete('neexistuje', 'world1')).rejects.toThrow(NotFoundException);
     });
 
-    it('vyhodí ForbiddenException pokud stránka patří jinému světu', async () => {
-      mockPagesRepo.findById.mockResolvedValue({ ...mockPage, worldId: 'jiny-svet' });
-      await expect(service.delete('page1', 'world1')).rejects.toThrow(ForbiddenException);
+    it('smaže stránku pokud existuje', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(mockPage);
+      mockPagesRepo.delete.mockResolvedValue(true);
+      await service.delete('hlavni-lokace', 'world1');
+      expect(mockPagesRepo.delete).toHaveBeenCalledWith('page1');
     });
   });
 });
