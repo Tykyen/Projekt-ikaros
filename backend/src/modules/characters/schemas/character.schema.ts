@@ -15,6 +15,8 @@ export class CharacterSchemaClass {
   @Prop({ type: [Object], default: [] }) publicInfoBlocks: Record<string, unknown>[];
   @Prop({ default: '' }) privateBio: string;
   @Prop({ type: [Object], default: [] }) privateInfoBlocks: Record<string, unknown>[];
+  @Prop({ type: Object, default: {} }) diaryData: Record<string, unknown>;
+  @Prop({ type: [Object], default: [] }) extraBlocks: Record<string, unknown>[];
   @Prop() campaignSubjectId?: string;
   @Prop({ type: [Object], default: [] }) accessRequirements: Record<string, unknown>[];
   @Prop({ type: Object, default: {} }) customData?: Record<string, unknown>;

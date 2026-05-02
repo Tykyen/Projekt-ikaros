@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { CharacterSchemaClass } from '../schemas/character.schema';
-import { Character, InfoBlock } from '../interfaces/character.interface';
+import { Character, CharacterDirectoryEntry, InfoBlock, SchemaBlock } from '../interfaces/character.interface';
 import { AccessRequirement } from '../../pages/interfaces/page.interface';
 import type { ICharactersRepository } from '../interfaces/characters-repository.interface';
 
@@ -36,6 +36,25 @@ export class MongoCharactersRepository
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
   }
 
+  async findPlayerCharacters(worldId: string): Promise<Character[]> {
+    const docs = await this.model.find({ worldId, isNpc: false, userId: { $exists: true, $ne: null } }).lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
+  async findDirectory(worldId: string): Promise<CharacterDirectoryEntry[]> {
+    const docs = await this.model
+      .find({ worldId }, { _id: 1, slug: 1, name: 1, imageUrl: 1, isNpc: 1 })
+      .lean()
+      .exec();
+    return docs.map((doc) => ({
+      id: String((doc as unknown as Record<string, unknown>)._id),
+      slug: (doc as unknown as Record<string, unknown>).slug as string,
+      name: (doc as unknown as Record<string, unknown>).name as string,
+      imageUrl: (doc as unknown as Record<string, unknown>).imageUrl as string | undefined,
+      isNpc: ((doc as unknown as Record<string, unknown>).isNpc as boolean) ?? false,
+    }));
+  }
+
   async existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean> {
     const count = await this.model.countDocuments({ slug: slug.toLowerCase(), worldId }).exec();
     return count > 0;
@@ -60,9 +79,11 @@ export class MongoCharactersRepository
         label: b.label as string,
         value: b.value as string,
       } as InfoBlock)),
+      diaryData: (doc.diaryData as Record<string, unknown>) ?? {},
+      extraBlocks: (doc.extraBlocks as SchemaBlock[]) ?? [],
       campaignSubjectId: doc.campaignSubjectId as string | undefined,
       accessRequirements: ((doc.accessRequirements as Record<string, unknown>[]) ?? []).map((r) => ({
-        type: r.type as 'UserId' | 'AKJ' | 'Role',
+        type: r.type as 'UserId' | 'AKJ' | 'Role' | 'AKJType',
         value: r.value as string,
       } as AccessRequirement)),
       customData: (doc.customData as Record<string, unknown>) ?? {},
