@@ -41,6 +41,7 @@ describe('IkarosMessagesService', () => {
       countPendingRequests: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      resolveIfPending: jest.fn(),
     } as jest.Mocked<IIkarosMessagesRepository>;
 
     membershipRepo = {
@@ -118,7 +119,7 @@ describe('IkarosMessagesService', () => {
   });
 
   describe('resolve', () => {
-    it('hodí ConflictException pokud je actionResolved=true', async () => {
+    it('hodí ConflictException pokud resolveIfPending vrátí false', async () => {
       msgRepo.findById.mockResolvedValue(makeMsg({
         recipientId: 'pj1',
         actionType: 'world_join_request',
@@ -126,6 +127,7 @@ describe('IkarosMessagesService', () => {
         actionWorldId: 'w1',
         actionUserId: 'req1',
       }));
+      msgRepo.resolveIfPending.mockResolvedValue(false);
       await expect(service.resolve('msg1', { accept: true }, 'pj1')).rejects.toThrow(ConflictException);
     });
 

@@ -98,9 +98,8 @@ export class IkarosMessagesService {
     if (msg.actionType !== 'world_join_request') {
       throw new ForbiddenException('Zpráva není žádost o vstup');
     }
-    if (msg.actionResolved) throw new ConflictException('Žádost již byla vyřízena');
-
-    await this.msgRepo.update(id, { actionResolved: true, isRead: true });
+    const resolved = await this.msgRepo.resolveIfPending(id);
+    if (!resolved) throw new ConflictException('Žádost již byla vyřízena');
 
     if (dto.accept) {
       const membership = await this.membershipRepo.findByUserAndWorld(msg.actionUserId!, msg.actionWorldId!);

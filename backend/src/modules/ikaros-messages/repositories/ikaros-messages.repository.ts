@@ -70,6 +70,18 @@ export class MongoIkarosMessagesRepository
     }).exec();
   }
 
+  async resolveIfPending(id: string): Promise<boolean> {
+    if (!Types.ObjectId.isValid(id)) return false;
+    const result = await this.model
+      .findOneAndUpdate(
+        { _id: new Types.ObjectId(id), actionResolved: false },
+        { $set: { actionResolved: true, isRead: true } },
+      )
+      .lean()
+      .exec();
+    return result !== null;
+  }
+
   async save(msg: Partial<IkarosMessage>): Promise<IkarosMessage> {
     const created = new this.model(msg);
     const saved = await created.save();
