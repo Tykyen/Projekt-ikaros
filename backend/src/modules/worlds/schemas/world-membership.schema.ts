@@ -18,3 +18,4 @@ export class WorldMembershipSchemaClass {
 
 export const WorldMembershipSchema = SchemaFactory.createForClass(WorldMembershipSchemaClass);
 WorldMembershipSchema.index({ userId: 1, worldId: 1 }, { unique: true });
+WorldMembershipSchema.index({ worldId: 1 });

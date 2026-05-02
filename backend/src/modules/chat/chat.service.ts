@@ -34,6 +34,10 @@ export class ChatService {
 
   // ─── Permission helpers ───────────────────────────────────────────────────
 
+  private assertWorldChannel(channel: ChatChannel): asserts channel is ChatChannel & { worldId: string } {
+    if (!channel.worldId) throw new BadRequestException('Operace není podporována pro globální kanál');
+  }
+
   private async canManageChat(requester: RequestUser, worldId: string): Promise<boolean> {
     if (requester.role <= UserRole.Admin) return true;
     const membership = await this.membershipRepo.findByUserAndWorld(requester.id, worldId);
@@ -54,12 +58,18 @@ export class ChatService {
   // ─── Groups ───────────────────────────────────────────────────────────────
 
   async getGroupsWithChannels(worldId: string): Promise<{ group: ChatGroup; channels: ChatChannel[] }[]> {
-    const groups = await this.groupRepo.findByWorldId(worldId);
-    const channels = await this.channelRepo.findByWorldId(worldId);
-    return groups.map((group) => ({
-      group,
-      channels: channels.filter((c) => c.groupId === group.id),
-    }));
+    const [groups, channels] = await Promise.all([
+      this.groupRepo.findByWorldId(worldId),
+      this.channelRepo.findByWorldId(worldId),
+    ]);
+    const channelsByGroup = new Map<string, ChatChannel[]>();
+    for (const c of channels) {
+      if (!c.groupId) continue;
+      const list = channelsByGroup.get(c.groupId) ?? [];
+      list.push(c);
+      channelsByGroup.set(c.groupId, list);
+    }
+    return groups.map((group) => ({ group, channels: channelsByGroup.get(group.id) ?? [] }));
   }
 
   async createGroup(worldId: string, dto: CreateGroupDto, requester: RequestUser): Promise<ChatGroup> {
@@ -131,24 +141,26 @@ export class ChatService {
   async updateChannel(channelId: string, dto: UpdateChannelDto, requester: RequestUser): Promise<ChatChannel> {
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
-    if (!(await this.canManageChat(requester, channel.worldId!))) {
+    this.assertWorldChannel(channel);
+    if (!(await this.canManageChat(requester, channel.worldId))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
     const updated = await this.channelRepo.update(channelId, dto);
     if (!updated) throw new NotFoundException('Kanál nenalezen');
-    this.eventEmitter.emit('chat.channel.updated', { worldId: channel.worldId!, channel: updated });
+    this.eventEmitter.emit('chat.channel.updated', { worldId: channel.worldId, channel: updated });
     return updated;
   }
 
   async deleteChannel(channelId: string, requester: RequestUser): Promise<{ message: string }> {
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
-    if (!(await this.canManageChat(requester, channel.worldId!))) {
+    this.assertWorldChannel(channel);
+    if (!(await this.canManageChat(requester, channel.worldId))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
     await this.messageRepo.softDeleteByChannelId(channelId);
     await this.channelRepo.delete(channelId);
-    this.eventEmitter.emit('chat.channel.deleted', { worldId: channel.worldId!, channelId, groupId: channel.groupId! });
+    this.eventEmitter.emit('chat.channel.deleted', { worldId: channel.worldId, channelId, groupId: channel.groupId! });
     return { message: 'Kanál smazán' };
   }
 
@@ -161,6 +173,7 @@ export class ChatService {
   ): Promise<ChatMessage[]> {
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
+    this.assertWorldChannel(channel);
     if (!(await this.hasChannelAccess(channel, userId))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
@@ -169,7 +182,7 @@ export class ChatService {
       limit: Math.min(Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50, 100),
     });
 
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId!);
+    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId);
     const canSeeAllWhispers = membership !== null && membership.role >= WorldRole.PomocnyPJ;
 
     return messages.filter((m) => {
@@ -182,6 +195,7 @@ export class ChatService {
   async sendMessage(channelId: string, dto: CreateMessageDto, requester: RequestUser): Promise<ChatMessage> {
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
+    this.assertWorldChannel(channel);
     if (!(await this.hasChannelAccess(channel, requester.id))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
@@ -191,12 +205,12 @@ export class ChatService {
     }
 
     if (dto.overrideName !== undefined || dto.overrideAvatarUrl !== undefined) {
-      if (!(await this.canManageChat(requester, channel.worldId!))) {
+      if (!(await this.canManageChat(requester, channel.worldId))) {
         throw new ForbiddenException('Nedostatečná oprávnění pro NPC mód');
       }
     }
 
-    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId!);
+    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId);
     const senderName = membership?.characterPath ?? requester.id;
     const senderAvatarUrl = membership?.avatarUrl;
 
@@ -218,7 +232,7 @@ export class ChatService {
 
     const message = await this.messageRepo.save({
       channelId,
-      worldId: channel.worldId!,
+      worldId: channel.worldId,
       senderId: requester.id,
       senderName,
       senderAvatarUrl,
@@ -237,8 +251,8 @@ export class ChatService {
     });
 
     await this.channelRepo.update(channelId, { lastMessageAt: message.createdAt });
-    this.eventEmitter.emit('chat.message.created', { channelId, worldId: channel.worldId!, message });
-    await this.broadcastUnreadUpdate(channel.worldId!, channelId, requester.id);
+    this.eventEmitter.emit('chat.message.created', { channelId, worldId: channel.worldId, message });
+    await this.broadcastUnreadUpdate(channel, requester.id);
     return message;
   }
 
@@ -305,11 +319,19 @@ export class ChatService {
   }
 
   async getUnreadCounts(worldId: string, userId: string): Promise<{ channelId: string; count: number }[]> {
-    const channels = await this.channelRepo.findByWorldId(worldId);
-    const accessible = await Promise.all(
-      channels.map(async (c) => ({ channel: c, access: await this.hasChannelAccess(c, userId) })),
-    );
-    const accessibleChannels = accessible.filter((a) => a.access).map((a) => a.channel);
+    const [channels, membership] = await Promise.all([
+      this.channelRepo.findByWorldId(worldId),
+      this.membershipRepo.findByUserAndWorld(userId, worldId),
+    ]);
+
+    if (!membership || membership.role === WorldRole.Pending) return [];
+
+    const accessibleChannels = channels.filter((c) => {
+      if (c.accessMode === 'members') return c.allowedMemberIds.includes(userId);
+      if (c.accessMode === 'all') return true;
+      return c.allowedRoles.includes(membership.role);
+    });
+
     const channelIds = accessibleChannels.map((c) => c.id);
     const readStatuses = await this.readRepo.findByUserAndChannels(userId, channelIds);
     const readMap = new Map(readStatuses.map((r) => [r.channelId, r.lastReadMessageId]));
@@ -323,11 +345,14 @@ export class ChatService {
     );
   }
 
-  private async broadcastUnreadUpdate(worldId: string, channelId: string, senderId: string): Promise<void> {
-    const memberships = await this.membershipRepo.findByWorldId(worldId);
+  private async broadcastUnreadUpdate(channel: ChatChannel, senderId: string): Promise<void> {
+    const memberships = await this.membershipRepo.findByWorldId(channel.worldId!);
     for (const m of memberships) {
       if (m.userId === senderId) continue;
-      this.eventEmitter.emit('chat.unread.updated', { userId: m.userId, channelId, count: -1 });
+      if (m.role === WorldRole.Pending) continue;
+      if (channel.accessMode === 'members' && !channel.allowedMemberIds.includes(m.userId)) continue;
+      if (channel.accessMode === 'roles' && !channel.allowedRoles.includes(m.role)) continue;
+      this.eventEmitter.emit('chat.unread.updated', { userId: m.userId, channelId: channel.id, count: -1 });
     }
   }
 

@@ -25,6 +25,16 @@ export class MongoWorldsRepository
     return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
   }
 
+  async increment(id: string, field: string, by: number): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
+    await this.model.findByIdAndUpdate(id, { $inc: { [field]: by } }).exec();
+  }
+
+  async existsBySlug(slug: string): Promise<boolean> {
+    const count = await this.model.countDocuments({ slug: slug.toLowerCase() }).exec();
+    return count > 0;
+  }
+
   async findBySlug(slug: string): Promise<World | null> {
     const doc = await this.model.findOne({ slug: slug.toLowerCase(), isActive: true }).lean().exec();
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
@@ -32,11 +42,6 @@ export class MongoWorldsRepository
 
   async findAll(): Promise<World[]> {
     const docs = await this.model.find({ isActive: true }).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
-  }
-
-  async findByOwnerId(ownerId: string): Promise<World[]> {
-    const docs = await this.model.find({ ownerId, isActive: true }).lean().exec();
     return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
   }
 

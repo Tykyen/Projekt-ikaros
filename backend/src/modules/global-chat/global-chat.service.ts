@@ -41,7 +41,7 @@ export class GlobalChatService implements OnModuleInit {
 
   async getMessages(userId: string, opts: { before?: string; limit?: number }): Promise<ChatMessage[]> {
     if (!this.globalChannelId) throw new InternalServerErrorException('Global channel not initialized');
-    const limit = Math.min(opts.limit && opts.limit > 0 ? opts.limit : 50, 50);
+    const limit = Math.min(opts.limit && opts.limit > 0 ? opts.limit : 50, 100);
     const messages = await this.messageRepo.findByChannelId(this.globalChannelId, {
       before: opts.before,
       limit,

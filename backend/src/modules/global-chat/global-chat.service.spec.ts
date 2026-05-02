@@ -145,10 +145,10 @@ describe('GlobalChatService', () => {
       expect(result.map((m) => m.id)).toEqual(['msg1', 'msg3']);
     });
 
-    it('should cap limit at 50', async () => {
+    it('should cap limit at 100', async () => {
       messageRepo.findByChannelId.mockResolvedValue([]);
       await service.getMessages('u1', { limit: 999 });
-      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', { before: undefined, limit: 50 });
+      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', { before: undefined, limit: 100 });
     });
   });
 
