@@ -37,5 +37,29 @@ describe('PopulateProfileImagesService', () => {
       await service.populateFromCharacter({ userId: undefined, imageUrl: 'https://img.example.com/npc.jpg', isNpc: true } as any);
       expect(mockUsersRepo.findById).not.toHaveBeenCalled();
     });
+
+    it('přeskočí pokud character nemá imageUrl', async () => {
+      await service.populateFromCharacter({ userId: 'u1', imageUrl: undefined, isNpc: false } as any);
+      expect(mockUsersRepo.findById).not.toHaveBeenCalled();
+    });
+
+    it('přeskočí pokud user neexistuje', async () => {
+      mockUsersRepo.findById.mockResolvedValue(null);
+      await service.populateFromCharacter({ userId: 'u1', imageUrl: 'https://img.example.com/a.jpg', isNpc: false } as any);
+      expect(mockUsersRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onApplicationBootstrap', () => {
+    it('zpracuje CP a přeskočí NPC při backfillu', async () => {
+      const cp = { userId: 'u1', imageUrl: 'https://img.example.com/a.jpg', isNpc: false };
+      const npc = { userId: undefined, imageUrl: 'https://img.example.com/npc.jpg', isNpc: true };
+      mockCharactersRepo.findAll.mockResolvedValue([cp, npc]);
+      mockUsersRepo.findById.mockResolvedValue({ id: 'u1', profileImageUrl: undefined });
+      mockUsersRepo.update.mockResolvedValue({});
+      await service.onApplicationBootstrap();
+      expect(mockUsersRepo.update).toHaveBeenCalledTimes(1);
+      expect(mockUsersRepo.update).toHaveBeenCalledWith('u1', { profileImageUrl: 'https://img.example.com/a.jpg' });
+    });
   });
 });
