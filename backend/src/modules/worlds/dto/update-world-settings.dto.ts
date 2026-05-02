@@ -26,6 +26,14 @@ export class MenuTemplateDto {
   @IsArray() @ValidateNested({ each: true }) @Type(() => MenuTemplateItemDto) items: MenuTemplateItemDto[];
 }
 
+export class SchemaBlockDto {
+  @IsString() key: string;
+  @IsString() label: string;
+  @IsString() type: string;
+  @IsOptional() @IsObject() config?: Record<string, unknown>;
+  @IsNumber() order: number;
+}
+
 export class UpdateWorldSettingsDto {
   @IsOptional() @IsArray() hiddenNavItems?: string[];
   @IsOptional() @IsArray() customGroups?: string[];
@@ -34,5 +42,5 @@ export class UpdateWorldSettingsDto {
   @IsOptional() @IsBoolean() hideDefaultWeather?: boolean;
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AkjTypeDto) akjTypes?: AkjTypeDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => MenuTemplateDto) menuTemplates?: MenuTemplateDto[];
-  @IsOptional() @IsArray() diarySchema?: Record<string, unknown>[];
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SchemaBlockDto) diarySchema?: SchemaBlockDto[];
 }

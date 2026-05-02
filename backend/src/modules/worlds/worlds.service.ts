@@ -154,7 +154,7 @@ export class WorldsService {
     if (!this.canAdminWorld(requester, world, membership ?? undefined)) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
-    const settings = await this.settingsRepo.upsert(worldId, dto as unknown as Partial<WorldSettings>);
+    const settings = await this.settingsRepo.upsert(worldId, dto);
     this.eventEmitter.emit('world.settings.updated', { worldId, settings });
     return settings;
   }
