@@ -11,7 +11,7 @@ export const PAGE_TYPES = {
 export type PageType = typeof PAGE_TYPES[keyof typeof PAGE_TYPES];
 
 export interface AccessRequirement {
-  type: 'UserId' | 'AKJ' | 'Role';
+  type: 'UserId' | 'AKJ' | 'Role' | 'AKJType';
   value: string;
 }
 

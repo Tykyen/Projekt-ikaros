@@ -36,6 +36,7 @@ describe('PagesService', () => {
     addFavoriteSlug: jest.fn(),
     removeFavoriteSlug: jest.fn(),
   };
+  const mockSettingsRepo = { findByWorldId: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -45,6 +46,7 @@ describe('PagesService', () => {
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
+        { provide: 'IWorldSettingsRepository', useValue: mockSettingsRepo },
         { provide: TipTapExtractor, useValue: { extract: jest.fn().mockReturnValue('plain text') } },
       ],
     }).compile();
@@ -146,6 +148,29 @@ describe('PagesService', () => {
       const result = await service.findRandom('world1', 5);
       expect(mockPagesRepo.findRandom).toHaveBeenCalledWith('world1', 5);
       expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('findBySlug — AKJType access', () => {
+    it('propustí pokud hráč má správnou AKJ skupinu', async () => {
+      const restricted = { ...mockPage, accessRequirements: [{ type: 'AKJType', value: 'woodwide' }] };
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(restricted);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ ...mockMembership, akj: 7 });
+      mockSettingsRepo.findByWorldId.mockResolvedValue({
+        akjTypes: [{ key: 'woodwide', name: 'Wood Wide Web', level: 7 }],
+      });
+      const result = await service.findBySlug('hlavni-lokace', 'world1', 'user1');
+      expect(result.id).toBe('page1');
+    });
+
+    it('zamítne pokud hráč nemá dostatečný AKJ pro skupinu', async () => {
+      const restricted = { ...mockPage, accessRequirements: [{ type: 'AKJType', value: 'woodwide' }] };
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(restricted);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ ...mockMembership, akj: 5 });
+      mockSettingsRepo.findByWorldId.mockResolvedValue({
+        akjTypes: [{ key: 'woodwide', name: 'Wood Wide Web', level: 7 }],
+      });
+      await expect(service.findBySlug('hlavni-lokace', 'world1', 'user1')).rejects.toThrow(ForbiddenException);
     });
   });
 });

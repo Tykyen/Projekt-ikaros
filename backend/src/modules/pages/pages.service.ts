@@ -2,6 +2,7 @@ import { Injectable, Inject, NotFoundException, ConflictException, ForbiddenExce
 import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
+import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
 import type { Page } from './interfaces/page.interface';
 import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
@@ -13,6 +14,7 @@ export class PagesService {
     @Inject('IPagesRepository') private readonly pagesRepo: IPagesRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
+    @Inject('IWorldSettingsRepository') private readonly settingsRepo: IWorldSettingsRepository,
     private readonly tipTapExtractor: TipTapExtractor,
   ) {}
 
@@ -108,6 +110,12 @@ export class PagesService {
       if (req.type === 'UserId' && req.value === userId) return;
       if (req.type === 'AKJ' && membership && membership.akj >= parseInt(req.value, 10)) return;
       if (req.type === 'Role' && membership && membership.role >= parseInt(req.value, 10)) return;
+      if (req.type === 'AKJType') {
+        const settings = await this.settingsRepo.findByWorldId(worldId);
+        const akjTypes = (settings as any)?.akjTypes ?? [];
+        const group = akjTypes.find((g: any) => g.key === req.value);
+        if (group && membership && membership.akj >= group.level) return;
+      }
     }
     throw new ForbiddenException('Přístup odepřen');
   }
