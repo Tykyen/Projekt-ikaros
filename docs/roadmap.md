@@ -178,15 +178,16 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 7c — Universe Map ⬜
 
-> Vesmírná mapa světa — uzly, spoje, viditelnost, legacy seed pro Matrix.
+> 3D vesmírná mapa světa — uzly, spoje, postupné odhalování, real-time sync, legacy seed pro Matrix.
 
 - [ ] **UniverseMap schema**: worldId, nodes (id/name/type/color/size/img/alliance/x/y/z/isPublic/visibleToPlayerIds), links (source/target/isOrbit)
-- [ ] Node typy: planet/star/nebula/asteroid/moon
+- [ ] Node typy: planet/star/nebula/asteroid/moon/blackhole
 - [ ] Visibility filter: PJ/Admin vidí vše; hráči vidí isPublic=true NEBO v visibleToPlayerIds; links filtrovat aby neodhalily skryté uzly
-- [ ] Legacy seed: 40 uzlů Matrix světa (Midgard, Asgard, Alfheim...), ~70 linek
-- [ ] GET /api/universe?worldId=:id, PUT (full replace/upsert)
+- [ ] Lazy init: Matrix world → seed (40 uzlů, 108+ spojení); ostatní světy → prázdná mapa
+- [ ] GET /api/universe?worldId=:id, PUT (full replace), PATCH /:worldId/nodes/:nodeId/visibility
+- [ ] Real-time: universe:updated event přes world:{worldId} room
 
-**Spec:** —  
+**Spec:** [docs/superpowers/specs/2026-05-02-krok-7c-universe-map-design.md](superpowers/specs/2026-05-02-krok-7c-universe-map-design.md)  
 **Plán:** —
 
 ---
