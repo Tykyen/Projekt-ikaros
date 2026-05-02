@@ -92,33 +92,33 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 5 — Presence & IkarosMessages ⬜
+## Krok 5 — Presence & IkarosMessages ✅
 
 > Online heartbeat + interní zprávy (inbox, pozvánky, žádosti o vstup do světa).
 
 ### Presence
-- [ ] `User.lastSeenAt` — update při každém JWT requestu (již implementováno v Kroku 4); index na `lastSeenAt`
-- [ ] GET /api/presence/online → vrátí `string[]` (userIds online za posledních 25h)
-- [ ] Presence threshold konfigurovatelný přes env `PRESENCE_THRESHOLD_HOURS` (výchozí 25h)
+- [x] `User.lastSeenAt` — update při každém JWT requestu (již implementováno v Kroku 4); index na `lastSeenAt`
+- [x] GET /api/presence/online → vrátí `string[]` (userIds online za posledních 25h)
+- [x] Presence threshold konfigurovatelný přes env `PRESENCE_THRESHOLD_HOURS` (výchozí 25h)
 
 ### IkarosMessage (přímé zprávy + systémové akce)
-- [ ] Schema: senderId, senderName, recipientId, recipientName, subject, body, sentAtUtc, isRead, deletedBySender, deletedByRecipient, actionType, actionWorldId, actionUserId, actionResolved
-- [ ] `actionType`: `""` (normální) | `"world_join_request"` (žádost o vstup do světa)
-- [ ] Soft-delete: každá strana může nezávisle smazat svoji kopii
-- [ ] GET /api/ikaros-messages/inbox (filtruje deletedByRecipient)
-- [ ] GET /api/ikaros-messages/sent (filtruje deletedBySender)
-- [ ] GET /api/ikaros-messages/unread-count → `{ messages: number, pendingRequests: number }`
-- [ ] GET /api/ikaros-messages/:id (označí isRead=true)
-- [ ] POST /api/ikaros-messages (odeslání)
-- [ ] DELETE /api/ikaros-messages/:id (soft delete pro aktuálního usera)
-- [ ] POST /api/ikaros-messages/:id/resolve `{ accept: bool }` — pro world_join_request: Pending→Hrac + zpráva zpět hráči
+- [x] Schema: senderId, senderName, recipientId, recipientName, subject, body, sentAtUtc, isRead, deletedBySender, deletedByRecipient, actionType, actionWorldId, actionUserId, actionResolved
+- [x] `actionType`: `""` (normální) | `"world_join_request"` (žádost o vstup do světa)
+- [x] Soft-delete: každá strana může nezávisle smazat svoji kopii
+- [x] GET /api/ikaros-messages/inbox (filtruje deletedByRecipient)
+- [x] GET /api/ikaros-messages/sent (filtruje deletedBySender)
+- [x] GET /api/ikaros-messages/unread-count → `{ messages: number, pendingRequests: number }`
+- [x] GET /api/ikaros-messages/:id (označí isRead=true)
+- [x] POST /api/ikaros-messages (odeslání)
+- [x] DELETE /api/ikaros-messages/:id (soft delete pro aktuálního usera)
+- [x] POST /api/ikaros-messages/:id/resolve `{ accept: bool }` — pro world_join_request: Pending→Hrac + zpráva zpět hráči
 
 ### Worlds JOIN flow (navazuje na krok 2)
-- [ ] Při JOIN do světa s accessMode=private/closed: vytvoř IkarosMessage s actionType=world_join_request vlastníkovi
-- [ ] PJ zavolá /resolve → přijme nebo odmítne → membership update
+- [x] Při JOIN do světa s accessMode=private/closed: vytvoř IkarosMessage s actionType=world_join_request vlastníkovi
+- [x] PJ zavolá /resolve → přijme nebo odmítne → membership update
 
 **Spec:** [docs/superpowers/specs/2026-05-02-krok-5-presence-ikaros-messages-design.md](superpowers/specs/2026-05-02-krok-5-presence-ikaros-messages-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-02-krok-5-presence-ikaros-messages.md](superpowers/plans/2026-05-02-krok-5-presence-ikaros-messages.md)
 
 ---
 
@@ -509,8 +509,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 1 | Základ & Auth | ✅ |
 | 2 | Světy | ✅ |
 | 3 | Chat & Upload | ✅ |
-| 4 | Users rozšíření | ⬜ |
-| 5 | Presence & IkarosMessages | ⬜ |
+| 4 | Users rozšíření | ✅ |
+| 5 | Presence & IkarosMessages | ✅ |
 | 6 | Pages (Wiki) | ⬜ |
 | 7 | Postavy & NPC & Vesmír | ⬜ |
 | 8 | Mapy | ⬜ |
