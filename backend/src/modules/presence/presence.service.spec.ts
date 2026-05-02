@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { PresenceService } from './presence.service';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 
@@ -13,6 +14,7 @@ describe('PresenceService', () => {
       providers: [
         PresenceService,
         { provide: 'IUsersRepository', useValue: usersRepo },
+        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(25) } },
       ],
     }).compile();
 
@@ -34,6 +36,6 @@ describe('PresenceService', () => {
     const call = usersRepo.findOnlineSince.mock.calls[0][0] as Date;
     const diffMs = before - call.getTime();
     expect(diffMs).toBeGreaterThan(24 * 60 * 60 * 1000);
-    expect(diffMs).toBeLessThan(after - call.getTime() + 26 * 60 * 60 * 1000);
+    expect(diffMs).toBeLessThan(26 * 60 * 60 * 1000);
   });
 });
