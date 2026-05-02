@@ -8,6 +8,8 @@ export const PAGE_TYPES = {
   Ostatni: 'Ostatní',
 } as const;
 
+export type PageType = typeof PAGE_TYPES[keyof typeof PAGE_TYPES];
+
 export interface AccessRequirement {
   type: 'UserId' | 'AKJ' | 'Role';
   value: string;
@@ -54,7 +56,7 @@ export interface Page {
   id: string;
   slug: string;
   worldId: string;
-  type: string;
+  type: PageType;
   title: string;
   content: string;
   imageUrl?: string;
@@ -67,4 +69,5 @@ export interface Page {
   customData?: Record<string, string>;
   order: number;
   createdAt: Date;
+  updatedAt: Date;
 }
