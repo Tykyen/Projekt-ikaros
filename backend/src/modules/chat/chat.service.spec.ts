@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ChatService } from './chat.service';
-import { CharactersService } from '../characters/characters.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
@@ -52,7 +51,6 @@ describe('ChatService', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: CharactersService, useValue: { findByUser: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(ChatService);
@@ -307,7 +305,6 @@ describe('sendMessage — new fields', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: CharactersService, useValue: { findByUser: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(ChatService);
@@ -421,7 +418,6 @@ describe('toggleReaction', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: CharactersService, useValue: { findByUser: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(ChatService);
@@ -503,7 +499,6 @@ describe('sendMessage — attachments', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: CharactersService, useValue: { findByUser: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(ChatService);
@@ -569,7 +564,6 @@ describe('findChannelForUpload', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: CharactersService, useValue: { findByUser: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(ChatService);
@@ -639,7 +633,6 @@ describe('getMessages — whisper filtering', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
-        { provide: CharactersService, useValue: { findByUser: jest.fn().mockResolvedValue(null) } },
       ],
     }).compile();
     service = module.get(ChatService);
