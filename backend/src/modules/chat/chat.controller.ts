@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards,
+  Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -135,5 +135,14 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.chatService.getUnreadCounts(worldId, user.id);
+  }
+
+  @Put('messages/:messageId/reactions/:emoji')
+  toggleReaction(
+    @Param('messageId') messageId: string,
+    @Param('emoji') emoji: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.toggleReaction(messageId, emoji, user);
   }
 }
