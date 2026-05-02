@@ -268,7 +268,7 @@ export class ChatService {
     const message = await this.messageRepo.findById(messageId);
     if (!message || message.isDeleted) throw new NotFoundException('Zpráva nenalezena');
 
-    const canEdit = message.senderId === requester.id || (await this.canManageChat(requester, message.worldId));
+    const canEdit = message.senderId === requester.id || (message.worldId && (await this.canManageChat(requester, message.worldId)));
     if (!canEdit) throw new ForbiddenException('Nedostatečná oprávnění');
 
     const updated = await this.messageRepo.update(messageId, { content: dto.content, isEdited: true });
@@ -281,7 +281,7 @@ export class ChatService {
     const msg = await this.messageRepo.findById(messageId);
     if (!msg || msg.isDeleted) throw new NotFoundException('Zpráva nenalezena');
 
-    const canDelete = msg.senderId === requester.id || (await this.canManageChat(requester, msg.worldId));
+    const canDelete = msg.senderId === requester.id || (msg.worldId && (await this.canManageChat(requester, msg.worldId)));
     if (!canDelete) throw new ForbiddenException('Nedostatečná oprávnění');
 
     await this.messageRepo.update(messageId, { isDeleted: true, content: null });

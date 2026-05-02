@@ -3,7 +3,7 @@ import type { ChatAttachment } from './chat-attachment.interface';
 export interface ChatMessage {
   id: string;
   channelId: string;
-  worldId: string;
+  worldId: string | null;
   senderId: string;
   senderName: string;
   senderAvatarUrl?: string;
@@ -19,6 +19,7 @@ export interface ChatMessage {
   visibleTo?: string[];
   reactions: Record<string, string[]>;
   attachments?: ChatAttachment[];
+  expiresAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }

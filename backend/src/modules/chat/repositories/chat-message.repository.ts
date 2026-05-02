@@ -81,7 +81,7 @@ export class MongoChatMessageRepository
     return {
       id: String(doc._id),
       channelId: doc.channelId as string,
-      worldId: doc.worldId as string,
+      worldId: (doc.worldId as string | null) ?? null,
       senderId: doc.senderId as string,
       senderName: doc.senderName as string,
       senderAvatarUrl: doc.senderAvatarUrl as string | undefined,
@@ -97,6 +97,7 @@ export class MongoChatMessageRepository
       visibleTo: doc.visibleTo as string[] | undefined,
       reactions: (doc.reactions as Record<string, string[]>) ?? {},
       attachments: (doc.attachments as import('../interfaces/chat-attachment.interface').ChatAttachment[]) ?? [],
+      expiresAt: doc.expiresAt as Date | undefined,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

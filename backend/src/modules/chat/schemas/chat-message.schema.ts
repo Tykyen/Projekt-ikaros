@@ -6,7 +6,7 @@ export type ChatMessageDocument = HydratedDocument<ChatMessageSchemaClass>;
 @Schema({ timestamps: true, collection: 'chatmessages' })
 export class ChatMessageSchemaClass {
   @Prop({ required: true }) channelId: string;
-  @Prop({ required: true }) worldId: string;
+  @Prop({ type: String, default: null }) worldId: string | null;
   @Prop({ required: true }) senderId: string;
   @Prop({ required: true }) senderName: string;
   @Prop({ type: String }) senderAvatarUrl?: string;
@@ -22,6 +22,7 @@ export class ChatMessageSchemaClass {
   @Prop({ type: [String] }) visibleTo?: string[];
   @Prop({ type: Object, default: {} }) reactions: Record<string, string[]>;
   @Prop({ type: [Object], default: [] }) attachments: Record<string, unknown>[];
+  @Prop({ type: Date }) expiresAt?: Date;
 }
 
 export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessageSchemaClass);
@@ -29,3 +30,4 @@ ChatMessageSchema.index({ channelId: 1, createdAt: -1 });
 ChatMessageSchema.index({ worldId: 1 });
 ChatMessageSchema.index({ senderId: 1 });
 ChatMessageSchema.index({ channelId: 1, visibleTo: 1 });
+ChatMessageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
