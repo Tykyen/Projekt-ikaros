@@ -134,7 +134,7 @@ Herní statistiky **nejsou** na Character entitě — patří do deníku (charsh
 
   // Soukromá část
   privateBio: string                  // HTML — jen hráč + PJ
-  privateInfoBlocks: InfoBlock[]      // sidebar "KONTAKTY" + odkazy na sub-docs
+  privateInfoBlocks: InfoBlock[]      // info panel soukromé stránky (národnost, povolání, magie... + nav odkazy na sub-docs)
 
   customData?: Record<string, unknown>
   createdAt: Date
@@ -215,12 +215,35 @@ Deník přebírá schema ze světa (`world.customDiarySchema`) jako výchozí la
 {
   characterId: string
   isHidden: boolean                   // true pokud je postava NPC
-  table: {
-    headers: string[]                 // ["Zůstatek", "Příjem", "Výdaje"]
-    values: string[]
-  }
+
+  // Metadata účtu
+  accountType: string                 // "Osobní", "Firemní"...
+  accessLocation: string              // "Švýcarsko"...
+  currency: string                    // "Libra", "Dolar"...
+  lastSyncDate?: Date                 // datum posledního "přidej měsíční"
+
+  // Finanční stav
+  balance: number                     // akumulovaný zůstatek
+
+  // Měsíční položky (ROZEPSANÉ)
+  entries: {
+    id: string
+    label: string                     // "GMOI", "Tajné služby"...
+    amount: number                    // kladné = příjem, záporné = výdaj
+  }[]
+
+  // Historie transakcí (pro "zpět")
+  transactions: {
+    id: string
+    date: Date
+    delta: number                     // o kolik se změnil balance
+    description: string               // "měsíční zúčtování"
+  }[]
 }
 ```
+
+**"Přidej měsíční":** součet `entries` se přičte k `balance`, zapíše se záznam do `transactions`, aktualizuje se `lastSyncDate`.  
+**"Zpět":** odebere poslední transakci a odečte její `delta` od `balance`.
 
 **`character_inventories`**
 ```typescript
