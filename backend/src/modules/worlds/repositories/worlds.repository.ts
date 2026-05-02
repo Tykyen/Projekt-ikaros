@@ -64,6 +64,16 @@ export class MongoWorldsRepository
     };
   }
 
+  async increment(id: string, field: string, by: number): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
+    await this.model.findByIdAndUpdate(id, { $inc: { [field]: by } }).exec();
+  }
+
+  async existsBySlug(slug: string): Promise<boolean> {
+    const count = await this.model.countDocuments({ slug: slug.toLowerCase() }).exec();
+    return count > 0;
+  }
+
   async addFavoriteSlug(worldId: string, slug: string): Promise<void> {
     if (!Types.ObjectId.isValid(worldId)) return;
     await this.model.findByIdAndUpdate(worldId, { $addToSet: { favoritePageSlugs: slug } }).exec();
