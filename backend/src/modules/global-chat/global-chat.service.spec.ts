@@ -113,23 +113,36 @@ describe('GlobalChatService', () => {
       await expect(service.getMessages('u1', {})).rejects.toThrow(InternalServerErrorException);
     });
 
-    it('should return all messages including deleted (frontend handles rendering)', async () => {
+    it('W2: should filter out deleted messages', async () => {
       const messages = [makeMsg(), makeMsg({ id: 'msg2', isDeleted: true })];
       messageRepo.findByChannelId.mockResolvedValue(messages);
       const result = await service.getMessages('u1', {});
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('msg1');
     });
 
     it('should filter out whispers not visible to the user', async () => {
       const messages = [
-        makeMsg({ visibleTo: ['u2', 'u3'] }),
-        makeMsg({ id: 'msg2', visibleTo: ['u1', 'u2'] }),
+        makeMsg({ senderId: 'u99', visibleTo: ['u2', 'u3'] }),
+        makeMsg({ id: 'msg2', senderId: 'u99', visibleTo: ['u1', 'u2'] }),
         makeMsg({ id: 'msg3' }),
       ];
       messageRepo.findByChannelId.mockResolvedValue(messages);
       const result = await service.getMessages('u1', {});
       expect(result).toHaveLength(2);
       expect(result.map((m) => m.id)).toEqual(['msg2', 'msg3']);
+    });
+
+    it('W1: sender sees own whisper in history even if not in visibleTo', async () => {
+      const messages = [
+        makeMsg({ id: 'msg1', senderId: 'u1', visibleTo: ['u2'] }),
+        makeMsg({ id: 'msg2', senderId: 'u2', visibleTo: ['u2'] }),
+        makeMsg({ id: 'msg3' }),
+      ];
+      messageRepo.findByChannelId.mockResolvedValue(messages);
+      const result = await service.getMessages('u1', {});
+      expect(result).toHaveLength(2);
+      expect(result.map((m) => m.id)).toEqual(['msg1', 'msg3']);
     });
 
     it('should cap limit at 50', async () => {

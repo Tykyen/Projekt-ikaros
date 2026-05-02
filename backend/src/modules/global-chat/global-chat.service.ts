@@ -46,10 +46,12 @@ export class GlobalChatService implements OnModuleInit {
       before: opts.before,
       limit,
     });
-    return messages.filter((m) => {
-      if (!m.visibleTo || m.visibleTo.length === 0) return true;
-      return m.visibleTo.includes(userId);
-    });
+    return messages
+      .filter((m) => !m.isDeleted)
+      .filter((m) => {
+        if (!m.visibleTo || m.visibleTo.length === 0) return true;
+        return m.visibleTo.includes(userId) || m.senderId === userId;
+      });
   }
 
   async sendMessage(dto: CreateGlobalMessageDto, user: RequestUser): Promise<ChatMessage> {

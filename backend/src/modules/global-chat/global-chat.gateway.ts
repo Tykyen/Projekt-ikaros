@@ -12,6 +12,8 @@ export class GlobalChatGateway {
 
   constructor(private readonly globalChatService: GlobalChatService) {}
 
+  // Clients join room chat:{channelId} via the existing room:join Socket.IO event (AppGateway).
+  // This handler only broadcasts the presence event to already-joined clients.
   @SubscribeMessage('chat:hospoda:join')
   handleHospodaJoin(
     @MessageBody() payload: { username: string },
