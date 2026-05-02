@@ -5,6 +5,8 @@ export interface InfoBlock {
   value: string;
 }
 
+export type TagValue = InfoBlock; // { label: string; value: string }
+
 export interface SchemaBlock {
   key: string;
   label: string;
