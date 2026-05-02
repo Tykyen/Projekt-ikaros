@@ -24,6 +24,8 @@ describe('CharactersService', () => {
     findBySlugAndWorld: jest.fn(),
     findByWorld: jest.fn(),
     findByUserAndWorld: jest.fn(),
+    findPlayerCharacters: jest.fn(),
+    findDirectory: jest.fn(),
     existsBySlugAndWorld: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -126,6 +128,50 @@ describe('CharactersService', () => {
       mockCharRepo.findByUserAndWorld.mockResolvedValue(mockCharacter);
       const result = await service.findByUser('user1', 'world1');
       expect(result?.slug).toBe('medak');
+    });
+  });
+
+  describe('getPlayerCharacters', () => {
+    it('vrátí pouze CP s userId (isNpc=false)', async () => {
+      const cp = { ...mockCharacter, slug: 'aragorn', name: 'Aragorn' };
+      mockCharRepo.findPlayerCharacters = jest.fn().mockResolvedValue([cp]);
+      const result = await service.getPlayerCharacters('world1');
+      expect(result).toEqual([{ name: 'Aragorn', slug: 'aragorn' }]);
+      expect(mockCharRepo.findPlayerCharacters).toHaveBeenCalledWith('world1');
+    });
+  });
+
+  describe('getDirectory', () => {
+    it('vrátí directory entries pro svět', async () => {
+      const entry = { id: 'c1', slug: 'frodo', name: 'Frodo', isNpc: false };
+      mockCharRepo.findDirectory = jest.fn().mockResolvedValue([entry]);
+      const result = await service.getDirectory('world1');
+      expect(result).toEqual([entry]);
+    });
+  });
+
+  describe('update diaryData merge', () => {
+    it('merguje diaryData — zachová existující klíče, přidá nové', async () => {
+      const existingChar = { ...mockCharacter, diaryData: { hp: 10, mana: 5 }, extraBlocks: [] };
+      mockCharRepo.findBySlugAndWorld.mockResolvedValue(existingChar);
+      mockCharRepo.update.mockResolvedValue({ ...existingChar, diaryData: { hp: 20, mana: 5 } });
+      await service.update('medak', 'world1', { diaryData: { hp: 20 } });
+      expect(mockCharRepo.update).toHaveBeenCalledWith(
+        'char1',
+        expect.objectContaining({ diaryData: { hp: 20, mana: 5 } }),
+      );
+    });
+
+    it('extraBlocks se přepíše celé', async () => {
+      const block = { key: 'skills', label: 'Dovednosti', type: 'tagvalue', order: 1 };
+      const existingChar = { ...mockCharacter, diaryData: {}, extraBlocks: [] };
+      mockCharRepo.findBySlugAndWorld.mockResolvedValue(existingChar);
+      mockCharRepo.update.mockResolvedValue({ ...existingChar, extraBlocks: [block] });
+      await service.update('medak', 'world1', { extraBlocks: [block] });
+      expect(mockCharRepo.update).toHaveBeenCalledWith(
+        'char1',
+        expect.objectContaining({ extraBlocks: [block] }),
+      );
     });
   });
 });

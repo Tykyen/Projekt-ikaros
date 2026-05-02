@@ -2,7 +2,7 @@ import { Injectable, Inject, NotFoundException, ConflictException, ForbiddenExce
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { ICharactersRepository } from './interfaces/characters-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import type { Character, CharacterPublicView } from './interfaces/character.interface';
+import type { Character, CharacterDirectoryEntry, CharacterPublicView, PlayerCharacter } from './interfaces/character.interface';
 import type { CreateCharacterDto } from './dto/create-character.dto';
 import type { UpdateCharacterDto } from './dto/update-character.dto';
 import type { ConvertCharacterDto } from './dto/convert-character.dto';
@@ -60,6 +60,15 @@ export class CharactersService {
     return this.charRepo.findByUserAndWorld(userId, worldId);
   }
 
+  async getPlayerCharacters(worldId: string): Promise<PlayerCharacter[]> {
+    const characters = await this.charRepo.findPlayerCharacters(worldId);
+    return characters.map((c) => ({ name: c.name, slug: c.slug }));
+  }
+
+  async getDirectory(worldId: string): Promise<CharacterDirectoryEntry[]> {
+    return this.charRepo.findDirectory(worldId);
+  }
+
   async create(dto: CreateCharacterDto, worldId: string): Promise<Character> {
     const slug = dto.slug.toLowerCase();
     const exists = await this.charRepo.existsBySlugAndWorld(slug, worldId);
@@ -73,6 +82,8 @@ export class CharactersService {
       publicInfoBlocks: (dto.publicInfoBlocks as unknown as Character['publicInfoBlocks']) ?? [],
       privateBio: dto.privateBio ?? '',
       privateInfoBlocks: (dto.privateInfoBlocks as unknown as Character['privateInfoBlocks']) ?? [],
+      diaryData: {},
+      extraBlocks: [],
       accessRequirements: (dto.accessRequirements as unknown as Character['accessRequirements']) ?? [],
     });
 
@@ -97,7 +108,13 @@ export class CharactersService {
       const isOwner = !character.isNpc && character.userId === requester.id;
       if (!isPj && !isOwner) throw new ForbiddenException('Nedostatečná oprávnění');
     }
-    const result = (await this.charRepo.update(character.id, dto as unknown as Partial<Character>))!;
+
+    const updateData: Partial<Character> = dto as unknown as Partial<Character>;
+    if (dto.diaryData !== undefined) {
+      updateData.diaryData = { ...(character.diaryData ?? {}), ...dto.diaryData };
+    }
+
+    const result = (await this.charRepo.update(character.id, updateData))!;
     this.eventEmitter.emit('character.updated', {
       characterId: result.id,
       worldId,
