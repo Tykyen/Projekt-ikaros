@@ -15,6 +15,7 @@ import { IkarosMessagesModule } from './modules/ikaros-messages/ikaros-messages.
 import { PagesModule } from './modules/pages/pages.module';
 import { CharactersModule } from './modules/characters/characters.module';
 import { CharacterSubdocsModule } from './modules/character-subdocs/character-subdocs.module';
+import { NpcTemplatesModule } from './modules/npc-templates/npc-templates.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -33,6 +34,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     PagesModule,
     CharactersModule,
     CharacterSubdocsModule,
+    NpcTemplatesModule,
     GatewaysModule,
   ],
   controllers: [AppController],
