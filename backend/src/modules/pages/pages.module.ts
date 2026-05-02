@@ -5,6 +5,7 @@ import { MongoPagesRepository } from './repositories/pages.repository';
 import { PagesService } from './pages.service';
 import { PagesController } from './pages.controller';
 import { WorldsModule } from '../worlds/worlds.module';
+import { TipTapExtractor } from './tiptap-extractor.service';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WorldsModule } from '../worlds/worlds.module';
   controllers: [PagesController],
   providers: [
     PagesService,
+    TipTapExtractor,
     { provide: 'IPagesRepository', useClass: MongoPagesRepository },
   ],
   exports: [PagesService, 'IPagesRepository'],

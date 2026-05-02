@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PagesService } from './pages.service';
+import { TipTapExtractor } from './tiptap-extractor.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 const mockPage = {
@@ -34,6 +35,7 @@ describe('PagesService', () => {
         PagesService,
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: TipTapExtractor, useValue: { extract: jest.fn().mockReturnValue('plain text') } },
       ],
     }).compile();
     service = module.get(PagesService);

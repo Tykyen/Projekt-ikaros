@@ -4,12 +4,14 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { Page } from './interfaces/page.interface';
 import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
+import { TipTapExtractor } from './tiptap-extractor.service';
 
 @Injectable()
 export class PagesService {
   constructor(
     @Inject('IPagesRepository') private readonly pagesRepo: IPagesRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+    private readonly tipTapExtractor: TipTapExtractor,
   ) {}
 
   async findByWorld(worldId: string, type?: string): Promise<Page[]> {
@@ -27,11 +29,13 @@ export class PagesService {
     const slug = dto.slug.toLowerCase();
     const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
     if (exists) throw new ConflictException('Slug již existuje v tomto světě');
+    const plainText = this.tipTapExtractor.extract(dto.content ?? '');
     return this.pagesRepo.save({
       ...dto,
       slug,
       worldId,
       content: dto.content ?? '',
+      plainText,
       sections: (dto.sections ?? []) as any,
       galleryImages: (dto.galleryImages ?? []) as any,
       videos: (dto.videos ?? []) as any,
@@ -46,7 +50,11 @@ export class PagesService {
     const page = await this.pagesRepo.findById(id);
     if (!page) throw new NotFoundException('Stránka nenalezena');
     if (page.worldId !== worldId) throw new ForbiddenException('Stránka nepatří do tohoto světa');
-    const updated = await this.pagesRepo.update(id, dto as any);
+    const extra: Partial<Page> = {};
+    if (dto.content !== undefined) {
+      extra.plainText = this.tipTapExtractor.extract(dto.content);
+    }
+    const updated = await this.pagesRepo.update(id, { ...dto, ...extra } as any);
     return updated!;
   }
 
