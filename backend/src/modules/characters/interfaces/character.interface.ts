@@ -5,6 +5,27 @@ export interface InfoBlock {
   value: string;
 }
 
+export interface SchemaBlock {
+  key: string;
+  label: string;
+  type: string;
+  config?: Record<string, unknown>;
+  order: number;
+}
+
+export interface PlayerCharacter {
+  name: string;
+  slug: string;
+}
+
+export interface CharacterDirectoryEntry {
+  id: string;
+  slug: string;
+  name: string;
+  imageUrl?: string;
+  isNpc: boolean;
+}
+
 export interface Character {
   id: string;
   slug: string;
@@ -21,6 +42,10 @@ export interface Character {
   // Soukromá část
   privateBio: string;
   privateInfoBlocks: InfoBlock[];
+
+  // Deník
+  diaryData: Record<string, unknown>;
+  extraBlocks: SchemaBlock[];
 
   // Společné
   campaignSubjectId?: string;
