@@ -6,6 +6,7 @@ import { PagesService } from './pages.service';
 import { PagesController } from './pages.controller';
 import { WorldsModule } from '../worlds/worlds.module';
 import { TipTapExtractor } from './tiptap-extractor.service';
+import { PagesWorldSeedListener } from './pages-world-seed.listener';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { TipTapExtractor } from './tiptap-extractor.service';
     PagesService,
     TipTapExtractor,
     { provide: 'IPagesRepository', useClass: MongoPagesRepository },
+    PagesWorldSeedListener,
   ],
   exports: [PagesService, 'IPagesRepository'],
 })
