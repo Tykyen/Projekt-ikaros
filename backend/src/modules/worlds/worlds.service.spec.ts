@@ -5,7 +5,7 @@ import { WorldsService } from './worlds.service';
 import { WorldRole } from './interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 
-const mockRequester = { id: 'user1', role: UserRole.Hrac };
+const mockRequester = { id: 'user1', role: UserRole.Hrac, username: 'user1' };
 
 const mockWorld = {
   id: 'world1',
@@ -125,7 +125,7 @@ describe('WorldsService', () => {
       mockWorldsRepo.findById.mockResolvedValue({ ...mockWorld, ownerId: 'other' });
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       mockWorldsRepo.update.mockResolvedValue({ ...mockWorld, name: 'Updated' });
-      const adminUser = { id: 'admin1', role: UserRole.Admin };
+      const adminUser = { id: 'admin1', role: UserRole.Admin, username: 'admin1' };
       const result = await service.update('world1', { name: 'Updated' }, adminUser);
       expect(result.name).toBe('Updated');
     });

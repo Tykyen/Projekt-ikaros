@@ -2,9 +2,10 @@ import type { WorldRole } from '../../worlds/interfaces/world-membership.interfa
 
 export interface ChatChannel {
   id: string;
-  groupId: string;
-  worldId: string;
+  groupId: string | null;
+  worldId: string | null;
   name: string;
+  isGlobal: boolean;
   accessMode: 'all' | 'roles' | 'members';
   allowedRoles: WorldRole[];
   allowedMemberIds: string[];

@@ -45,7 +45,7 @@ export class ChatService {
     if (channel.accessMode === 'members') {
       return channel.allowedMemberIds.includes(userId);
     }
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId!);
     if (!membership || membership.role === WorldRole.Pending) return false;
     if (channel.accessMode === 'all') return true;
     return channel.allowedRoles.includes(membership.role);
@@ -131,24 +131,24 @@ export class ChatService {
   async updateChannel(channelId: string, dto: UpdateChannelDto, requester: RequestUser): Promise<ChatChannel> {
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
-    if (!(await this.canManageChat(requester, channel.worldId))) {
+    if (!(await this.canManageChat(requester, channel.worldId!))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
     const updated = await this.channelRepo.update(channelId, dto);
     if (!updated) throw new NotFoundException('Kanál nenalezen');
-    this.eventEmitter.emit('chat.channel.updated', { worldId: channel.worldId, channel: updated });
+    this.eventEmitter.emit('chat.channel.updated', { worldId: channel.worldId!, channel: updated });
     return updated;
   }
 
   async deleteChannel(channelId: string, requester: RequestUser): Promise<{ message: string }> {
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
-    if (!(await this.canManageChat(requester, channel.worldId))) {
+    if (!(await this.canManageChat(requester, channel.worldId!))) {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
     await this.messageRepo.softDeleteByChannelId(channelId);
     await this.channelRepo.delete(channelId);
-    this.eventEmitter.emit('chat.channel.deleted', { worldId: channel.worldId, channelId, groupId: channel.groupId });
+    this.eventEmitter.emit('chat.channel.deleted', { worldId: channel.worldId!, channelId, groupId: channel.groupId! });
     return { message: 'Kanál smazán' };
   }
 
@@ -169,7 +169,7 @@ export class ChatService {
       limit: Math.min(Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50, 100),
     });
 
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(userId, channel.worldId!);
     const canSeeAllWhispers = membership !== null && membership.role >= WorldRole.PomocnyPJ;
 
     return messages.filter((m) => {
@@ -191,12 +191,12 @@ export class ChatService {
     }
 
     if (dto.overrideName !== undefined || dto.overrideAvatarUrl !== undefined) {
-      if (!(await this.canManageChat(requester, channel.worldId))) {
+      if (!(await this.canManageChat(requester, channel.worldId!))) {
         throw new ForbiddenException('Nedostatečná oprávnění pro NPC mód');
       }
     }
 
-    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId!);
     const senderName = membership?.characterPath ?? requester.id;
     const senderAvatarUrl = membership?.avatarUrl;
 
@@ -218,7 +218,7 @@ export class ChatService {
 
     const message = await this.messageRepo.save({
       channelId,
-      worldId: channel.worldId,
+      worldId: channel.worldId!,
       senderId: requester.id,
       senderName,
       senderAvatarUrl,
@@ -237,8 +237,8 @@ export class ChatService {
     });
 
     await this.channelRepo.update(channelId, { lastMessageAt: message.createdAt });
-    this.eventEmitter.emit('chat.message.created', { channelId, worldId: channel.worldId, message });
-    await this.broadcastUnreadUpdate(channel.worldId, channelId, requester.id);
+    this.eventEmitter.emit('chat.message.created', { channelId, worldId: channel.worldId!, message });
+    await this.broadcastUnreadUpdate(channel.worldId!, channelId, requester.id);
     return message;
   }
 

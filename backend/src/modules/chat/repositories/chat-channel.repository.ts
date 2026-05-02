@@ -16,6 +16,11 @@ export class MongoChatChannelRepository
     super(model as never);
   }
 
+  async findGlobal(): Promise<ChatChannel | null> {
+    const doc = await this.model.findOne({ isGlobal: true }).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
   async findByGroupId(groupId: string): Promise<ChatChannel[]> {
     const docs = await this.model.find({ groupId, isDeleted: false }).sort({ order: 1 }).lean().exec();
     return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
@@ -33,9 +38,10 @@ export class MongoChatChannelRepository
   protected toEntity(doc: Record<string, unknown>): ChatChannel {
     return {
       id: String(doc._id),
-      groupId: doc.groupId as string,
-      worldId: doc.worldId as string,
+      groupId: (doc.groupId as string | null) ?? null,
+      worldId: (doc.worldId as string | null) ?? null,
       name: doc.name as string,
+      isGlobal: (doc.isGlobal as boolean) ?? false,
       accessMode: (doc.accessMode as ChatChannel['accessMode']) ?? 'all',
       allowedRoles: (doc.allowedRoles as WorldRole[]) ?? [],
       allowedMemberIds: (doc.allowedMemberIds as string[]) ?? [],

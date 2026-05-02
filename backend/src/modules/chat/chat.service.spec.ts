@@ -5,14 +5,14 @@ import { ChatService } from './chat.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
-const mockPJ: { id: string; role: UserRole } = { id: 'user1', role: UserRole.Hrac };
-const mockAdmin: { id: string; role: UserRole } = { id: 'admin1', role: UserRole.Admin };
+const mockPJ: { id: string; role: UserRole; username: string } = { id: 'user1', role: UserRole.Hrac, username: 'pj1' };
+const mockAdmin: { id: string; role: UserRole; username: string } = { id: 'admin1', role: UserRole.Admin, username: 'admin1' };
 
 const mockGroup = { id: 'group1', worldId: 'world1', name: 'Globální', order: 0, createdAt: new Date() };
 const mockChannel = {
   id: 'ch1', groupId: 'group1', worldId: 'world1', name: 'obecný',
   accessMode: 'all' as const, allowedRoles: [], allowedMemberIds: [],
-  order: 0, isDeleted: false, createdAt: new Date(),
+  order: 0, isDeleted: false, isGlobal: false, createdAt: new Date(),
 };
 const mockPJMembership = { id: 'm1', userId: 'user1', worldId: 'world1', role: WorldRole.PJ, joinedAt: new Date(), akj: 0 };
 const mockHracMembership = { id: 'm2', userId: 'user2', worldId: 'world1', role: WorldRole.Hrac, joinedAt: new Date(), akj: 0 };
@@ -68,7 +68,7 @@ describe('ChatService', () => {
 
     it('should throw ForbiddenException for Hrac', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
-      await expect(service.createGroup('world1', { name: 'X' }, { id: 'user2', role: UserRole.Hrac }))
+      await expect(service.createGroup('world1', { name: 'X' }, { id: 'user2', role: UserRole.Hrac, username: 'user2' }))
         .rejects.toThrow(ForbiddenException);
     });
 
@@ -148,7 +148,7 @@ describe('ChatService', () => {
     it('should throw ForbiddenException when no channel access', async () => {
       mockChannelRepo.findById.mockResolvedValue(mockChannel);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
-      await expect(service.sendMessage('ch1', { content: 'x' }, { id: 'stranger', role: UserRole.Hrac }))
+      await expect(service.sendMessage('ch1', { content: 'x' }, { id: 'stranger', role: UserRole.Hrac, username: 'stranger' }))
         .rejects.toThrow(ForbiddenException);
     });
   });
@@ -167,7 +167,7 @@ describe('ChatService', () => {
     it('should throw ForbiddenException for non-author without manage permission', async () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
-      await expect(service.editMessage('msg1', { content: 'hack' }, { id: 'user2', role: UserRole.Hrac }))
+      await expect(service.editMessage('msg1', { content: 'hack' }, { id: 'user2', role: UserRole.Hrac, username: 'user2' }))
         .rejects.toThrow(ForbiddenException);
     });
 
@@ -175,7 +175,7 @@ describe('ChatService', () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
       mockMessageRepo.update.mockResolvedValue({ ...mockMsg, content: 'pj edit', isEdited: true });
-      const result = await service.editMessage('msg1', { content: 'pj edit' }, { id: 'user3', role: UserRole.Hrac });
+      const result = await service.editMessage('msg1', { content: 'pj edit' }, { id: 'user3', role: UserRole.Hrac, username: 'user3' });
       expect(result.content).toBe('pj edit');
     });
   });
@@ -328,7 +328,7 @@ describe('sendMessage — new fields', () => {
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
     await expect(
-      service.sendMessage('ch1', { content: 'x', overrideName: 'NPC' }, { id: 'user2', role: UserRole.Hrac }),
+      service.sendMessage('ch1', { content: 'x', overrideName: 'NPC' }, { id: 'user2', role: UserRole.Hrac, username: 'user2' }),
     ).rejects.toThrow(ForbiddenException);
   });
 
@@ -429,7 +429,7 @@ describe('toggleReaction', () => {
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
     mockMessageRepo.addReaction.mockResolvedValue({ ...mockMsg, reactions: { '👍': ['user2'] } });
-    const result = await service.toggleReaction('msg1', '👍', { id: 'user2', role: UserRole.Hrac });
+    const result = await service.toggleReaction('msg1', '👍', { id: 'user2', role: UserRole.Hrac, username: 'user2' });
     expect(mockMessageRepo.addReaction).toHaveBeenCalledWith('msg1', '👍', 'user2');
     expect(result.reactions['👍']).toContain('user2');
   });
@@ -440,7 +440,7 @@ describe('toggleReaction', () => {
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
     mockMessageRepo.removeReaction.mockResolvedValue({ ...mockMsg, reactions: { '👍': [] } });
-    await service.toggleReaction('msg1', '👍', { id: 'user2', role: UserRole.Hrac });
+    await service.toggleReaction('msg1', '👍', { id: 'user2', role: UserRole.Hrac, username: 'user2' });
     expect(mockMessageRepo.removeReaction).toHaveBeenCalledWith('msg1', '👍', 'user2');
     expect(mockMessageRepo.addReaction).not.toHaveBeenCalled();
   });
@@ -454,7 +454,7 @@ describe('toggleReaction', () => {
     mockMessageRepo.findById.mockResolvedValue(mockMsg);
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
-    await expect(service.toggleReaction('msg1', '👍', { id: 'stranger', role: UserRole.Hrac }))
+    await expect(service.toggleReaction('msg1', '👍', { id: 'stranger', role: UserRole.Hrac, username: 'stranger' }))
       .rejects.toThrow(ForbiddenException);
   });
 });

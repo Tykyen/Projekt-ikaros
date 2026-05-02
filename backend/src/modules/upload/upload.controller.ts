@@ -35,6 +35,6 @@ export class UploadController {
     if (!file) throw new BadRequestException('Soubor je povinný');
     if (!channelId) throw new BadRequestException('channelId je povinné');
     const channel = await this.chatService.findChannelForUpload(channelId, user.id);
-    return this.uploadService.uploadFile(file, channel.worldId, channelId);
+    return this.uploadService.uploadFile(file, channel.worldId!, channelId);
   }
 }

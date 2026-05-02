@@ -21,6 +21,7 @@ import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
 export interface RequestUser {
   id: string;
   role: UserRole;
+  username: string;
 }
 
 @Injectable()
