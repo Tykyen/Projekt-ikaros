@@ -32,6 +32,6 @@ import { WorldsModule } from '../worlds/worlds.module';
     { provide: 'IChannelReadStatusRepository', useClass: MongoChannelReadStatusRepository },
     ChatGateway,
   ],
-  exports: [ChatService],
+  exports: [ChatService, 'IChatChannelRepository', 'IChatMessageRepository'],
 })
 export class ChatModule {}
