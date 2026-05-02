@@ -39,6 +39,14 @@ export class MongoUsersRepository
       .exec();
   }
 
+  async findOnlineSince(since: Date): Promise<string[]> {
+    const docs = await this.model
+      .find({ lastSeenAt: { $gte: since } }, { _id: 1 })
+      .lean()
+      .exec();
+    return docs.map((d) => String((d as { _id: unknown })._id));
+  }
+
   protected toEntity(doc: Record<string, unknown>): User {
     return {
       id: String(doc._id),

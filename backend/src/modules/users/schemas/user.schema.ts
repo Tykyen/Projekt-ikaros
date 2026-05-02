@@ -33,3 +33,4 @@ export class UserSchemaClass {
 
 export const UserSchema = SchemaFactory.createForClass(UserSchemaClass);
 UserSchema.index({ role: 1 });
+UserSchema.index({ lastSeenAt: 1 });
