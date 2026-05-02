@@ -17,7 +17,7 @@ export class MongoChatChannelRepository
   }
 
   async findGlobal(): Promise<ChatChannel | null> {
-    const doc = await this.model.findOne({ isGlobal: true }).lean().exec();
+    const doc = await this.model.findOne({ isGlobal: true, isDeleted: false }).lean().exec();
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
   }
 
