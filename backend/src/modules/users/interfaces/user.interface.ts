@@ -20,8 +20,21 @@ export interface User {
   avatarUrl?: string;
   characterPath?: string;
   ikarosSkin?: string;
+  akj: boolean;
+  themeSettings: Record<string, unknown>;
+  chatPreferences: Record<string, unknown>;
   isOnline: boolean;
   lastSeenAt: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface PublicUser {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  characterPath?: string;
+  role: UserRole;
+  createdAt: Date;
 }

@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseMongoRepository } from '../../database/mongo/base-mongo.repository';
 import { UserSchemaClass } from './schemas/user.schema';
-import { User } from './interfaces/user.interface';
+import { User, UserRole } from './interfaces/user.interface';
 import { IUsersRepository } from './interfaces/users-repository.interface';
 
 @Injectable()
@@ -28,9 +28,14 @@ export class MongoUsersRepository
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
   }
 
+  async findFirstByRole(role: UserRole): Promise<User | null> {
+    const doc = await this.model.findOne({ role }).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
   async updateLastSeen(id: string): Promise<void> {
     await this.model
-      .findByIdAndUpdate(id, { lastSeenAt: new Date(), isOnline: true })
+      .findByIdAndUpdate(id, { lastSeenAt: new Date() })
       .exec();
   }
 
@@ -45,6 +50,9 @@ export class MongoUsersRepository
       avatarUrl: doc.avatarUrl as string | undefined,
       characterPath: doc.characterPath as string | undefined,
       ikarosSkin: doc.ikarosSkin as string | undefined,
+      akj: (doc.akj as boolean) ?? false,
+      themeSettings: (doc.themeSettings as Record<string, unknown>) ?? {},
+      chatPreferences: (doc.chatPreferences as Record<string, unknown>) ?? {},
       isOnline: (doc.isOnline as boolean) ?? false,
       lastSeenAt: doc.lastSeenAt as Date,
       createdAt: doc.createdAt as Date,
