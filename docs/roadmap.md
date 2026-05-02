@@ -147,30 +147,51 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 7 — Postavy & NPC & Vesmír ⬜
+## Krok 7a — Characters RPG rozšíření ⬜
 
-> Character model (PC/NPC), karty postav, NPC šablony, Universe mapa.
+> Rozšíření existujícího Character modelu o plný RPG sheet (stats, schopnosti, inventář, deník).
 
-### Characters
-- [ ] **Character schema**: worldId, slug, name, bornWhere, magicGene, abilityPoints, fatePoints, health/magicHealth/armor, tiredness, overPressure (4 dimenze), languages/aspects/abilities (TagValue arrays), inventory, contacts, accessRequirements, personalDiarySchema, customData
+- [ ] **Character schema rozšíření**: bornWhere, magicGene, abilityPoints, fatePoints, health/magicHealth/armor, tiredness, overPressure (4 dimenze: physical/magical/diplomatic/technical), languages/aspects/abilities (TagValue arrays), inventory, contacts, lastFatePointModification, personalDiarySchema
 - [ ] GetPlayerCharacters: filtruje dle Pages type=0 (hráčské stránky) v Matrix světě; matchuje slugy `{base}`, `{base}-denik`, `{base}-denik-pj`
-- [ ] GET /api/characters, GET /api/characters/:slug, GET /api/characters/players (PJ+ only)
-- [ ] POST, PUT /:slug, DELETE
-- [ ] Character directory: GET /api/characters/directory (veřejný seznam hráčských postav)
+- [ ] GET /api/worlds/:worldId/characters/players (PJ+ only)
+- [ ] Character directory: GET /api/worlds/:worldId/characters/directory (veřejný seznam)
 
-### NPC Templates
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 7b — NPC Templates ⬜
+
+> Znovupoužitelné šablony NPC pro PJ — stats, schopnosti, poznámky.
+
 - [ ] **NpcTemplate schema**: name, imageUrl, abilities (MapTagValue), maxHp, armor, injury, notes
-- [ ] GET /api/npc-templates, GET /:id, POST, PUT /:id, DELETE
+- [ ] GET /api/npc-templates, GET /:id, POST, PUT /:id, DELETE (PJ/Admin+ pro mutace)
 
-### Universe Map
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 7c — Universe Map ⬜
+
+> Vesmírná mapa světa — uzly, spoje, viditelnost, legacy seed pro Matrix.
+
 - [ ] **UniverseMap schema**: worldId, nodes (id/name/type/color/size/img/alliance/x/y/z/isPublic/visibleToPlayerIds), links (source/target/isOrbit)
 - [ ] Node typy: planet/star/nebula/asteroid/moon
 - [ ] Visibility filter: PJ/Admin vidí vše; hráči vidí isPublic=true NEBO v visibleToPlayerIds; links filtrovat aby neodhalily skryté uzly
 - [ ] Legacy seed: 40 uzlů Matrix světa (Midgard, Asgard, Alfheim...), ~70 linek
 - [ ] GET /api/universe?worldId=:id, PUT (full replace/upsert)
 
-### RPG Systémové presety (SystemPresetsService)
-- [ ] Konfigurace CharacterSheet šablon per RPG systém
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 7d — RPG System Presets ⬜
+
+> Konfigurace CharacterSheet šablon per RPG systém; auto-vyplnění personalDiarySchema.
+
 - [ ] Podporované systémy: **D&D 5e**, **D&D 2e**, **D&D 3+**, **DrD Hero**, **DrD 16** (sub-moduly: Alchemy/Ranger/Thief/Warrior/Wizard), **GURPS**, **Call of Cthulhu**, **Fate**, **Shadowrun**, **Jad**, **Pi**, **Matrix custom**
 - [ ] Auto-vyplnění personalDiarySchema při vytvoření postavy dle world.system
 - [ ] GET /api/system-presets (seznam podporovaných systémů s konfigurací)
@@ -514,7 +535,10 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 4 | Users rozšíření | ✅ |
 | 5 | Presence & IkarosMessages | ✅ |
 | 6 | Pages (Wiki) | ⬜ |
-| 7 | Postavy & NPC & Vesmír | ⬜ |
+| 7a | Characters RPG rozšíření | ⬜ |
+| 7b | NPC Templates | ⬜ |
+| 7c | Universe Map | ⬜ |
+| 7d | RPG System Presets | ⬜ |
 | 8 | Mapy | ⬜ |
 | 9 | Kampaně | ⬜ |
 | 10 | Herní čas & Svět | ⬜ |
