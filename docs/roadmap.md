@@ -168,8 +168,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [x] **NpcTemplate schema**: name, imageUrl, abilities (TagValue), maxHp, armor, injury, notes, diarySchema, diaryData
 - [x] GET /api/worlds/:worldId/npc-templates, GET /:id, POST, PUT /:id, DELETE (PJ/Admin+ pro mutace)
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-02-krok-7b-npc-templates-design.md](superpowers/specs/2026-05-02-krok-7b-npc-templates-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-02-krok-7b-npc-templates.md](superpowers/plans/2026-05-02-krok-7b-npc-templates.md)
 
 ---
 
