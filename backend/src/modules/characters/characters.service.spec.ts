@@ -162,16 +162,16 @@ describe('CharactersService', () => {
       );
     });
 
-    it('extraBlocks se přepíše celé', async () => {
-      const block = { key: 'skills', label: 'Dovednosti', type: 'tagvalue', order: 1 };
-      const existingChar = { ...mockCharacter, diaryData: {}, extraBlocks: [] };
+    it('extraBlocks se přepíše celé — existující bloky se zahazují', async () => {
+      const oldBlock = { key: 'old', label: 'Starý', type: 'text', order: 0 };
+      const newBlock = { key: 'skills', label: 'Dovednosti', type: 'tagvalue', order: 1 };
+      const existingChar = { ...mockCharacter, diaryData: {}, extraBlocks: [oldBlock] };
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(existingChar);
-      mockCharRepo.update.mockResolvedValue({ ...existingChar, extraBlocks: [block] });
-      await service.update('medak', 'world1', { extraBlocks: [block] });
-      expect(mockCharRepo.update).toHaveBeenCalledWith(
-        'char1',
-        expect.objectContaining({ extraBlocks: [block] }),
-      );
+      mockCharRepo.update.mockResolvedValue({ ...existingChar, extraBlocks: [newBlock] });
+      await service.update('medak', 'world1', { extraBlocks: [newBlock] });
+      const callArgs = mockCharRepo.update.mock.calls[0][1] as { extraBlocks: unknown[] };
+      expect(callArgs.extraBlocks).toEqual([newBlock]);
+      expect(callArgs.extraBlocks).not.toContainEqual(oldBlock);
     });
   });
 });

@@ -109,8 +109,9 @@ export class CharactersService {
       if (!isPj && !isOwner) throw new ForbiddenException('Nedostatečná oprávnění');
     }
 
-    const updateData: Partial<Character> = dto as unknown as Partial<Character>;
+    const updateData: Partial<Character> = { ...(dto as unknown as Partial<Character>) };
     if (dto.diaryData !== undefined) {
+      // Shallow merge: klíče z dto přidají/přepíší, ostatní zůstanou. Vnořené objekty se nahrazují celé.
       updateData.diaryData = { ...(character.diaryData ?? {}), ...dto.diaryData };
     }
 
