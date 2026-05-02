@@ -122,26 +122,28 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 6 — Pages (Wiki) ⬜
+## Krok 6 — Pages (Wiki) ✅
 
 > Stránky světa s TipTap JSON obsahem, access control, slugy, search integrace.
 
-- [ ] **Page schema**: slug (auto-Slugify), worldId, menu, type (0=PC/1=NPC/2=LOCATION/5=OTHER/11=Videos), title, paragraphs (TipTap JSON), plainText (auto-extract pro search), bigImage, imageUrl, table (hasTable, title, headers[], values[]), createdAt, isWoodWide, accessRequirements, videos, sections (collapsible), galleryImages, customData, order
-- [ ] **AccessRequirement**: type (AKJ/UserId/Role) + value; hierarchie: PJ/Admin vždy; Korektor≥Player≥User
-- [ ] **TipTapExtractor**: auto-extract plainText z TipTap JSON při create/update (pro search index)
-- [ ] **MatrixWorldFilter**: správné filtrování stránek Matrix světa (null/ObjectId/string worldId varianty)
-- [ ] Seed při vytvoření světa: 5 šablon stránek (pravidla, magicky-system, technologie, faq, videa) s prefixem worldId
-- [ ] GET /api/pages (všechny, s access filtrem)
-- [ ] GET /api/pages/directory (veřejné, typy 0/1/2/5)
-- [ ] GET /api/pages/:slug
-- [ ] GET /api/pages/meta/:slug → `{ isWoodWide: bool }`
-- [ ] GET /api/pages/data?number=N, GET /api/pages/dataSlugs
-- [ ] POST, PUT, DELETE /api/pages
-- [ ] **FavoritePages** (přesunuto sem z Kroku 4 — závisí na Pages): pole slugů na User schema; POST /api/pages/favorite-pages/toggle/:slug, PUT /api/pages/favorite-pages/reorder, GET /api/pages/favorite-pages, GET /api/pages/favorite-pages/check/:slug
-- [ ] **PopulateProfileImages** (přesunuto sem z Kroku 4 — závisí na Pages): service/cron — pro každého uživatele s characterPath auto-vyplní profileImageUrl z Page.imageUrl (priority: `{slug}` > `{slug}-denik`)
+- [x] **Page schema**: slug, worldId, type, title, content, imageUrl, bigImage, accessRequirements, order, isWoodWide, createdAt _(obsah jako string místo TipTap JSON paragraphs)_
+- [x] **AccessRequirement**: type (AKJ/AKJType/UserId/Role) + value; hierarchie: PJ/Admin vždy; Korektor≥Player≥User
+- [ ] **TipTapExtractor**: _(přeskočeno — content je string, ne TipTap JSON)_
+- [ ] **MatrixWorldFilter**: _(přeskočeno — k Kroku 7)_
+- [x] Seed při vytvoření světa: 5 šablon stránek (pravidla, magicky-system, technologie, faq, videa)
+- [x] GET /api/worlds/:worldId/pages (s access filtrem)
+- [x] GET /api/worlds/:worldId/pages/directory
+- [x] GET /api/worlds/:worldId/pages/:slug
+- [x] GET /api/worlds/:worldId/pages/meta/:slug
+- [x] GET /api/worlds/:worldId/pages/data?number=N, GET /api/worlds/:worldId/pages/dataSlugs
+- [x] POST, PUT, DELETE /api/worlds/:worldId/pages
+- [x] **FavoritePages** _(world-scoped místo user-scoped: pole na World schema; POST/DELETE /api/worlds/:worldId/pages/:slug/favorite, GET /api/worlds/:worldId/favorites)_
+- [x] **PopulateProfileImages** _(z character.imageUrl místo Page.imageUrl — OnEvent character.created/updated + bootstrap backfill)_
+- [x] **AKJType v WorldSettings**: akjTypes[], menuTemplates[] — seed pro Matrix world
+- [x] **Characters** _(základní schema; plný RPG model přesunut na Krok 7)_
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-02-krok-6a-pages-design.md](superpowers/specs/2026-05-02-krok-6a-pages-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-02-krok-6a-pages.md](superpowers/plans/2026-05-02-krok-6a-pages.md)
 
 ---
 
