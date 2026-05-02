@@ -77,6 +77,12 @@ export class PagesService {
     return this.pagesRepo.findRandom(worldId, Math.max(1, Math.min(count, 50)));
   }
 
+  async findMeta(slug: string, worldId: string): Promise<{ isWoodWide: boolean }> {
+    const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
+    if (!page) throw new NotFoundException('Stránka nenalezena');
+    return { isWoodWide: page.isWoodWide ?? false };
+  }
+
   private async assertAccess(page: Page, userId: string, worldId: string): Promise<void> {
     if (!page.accessRequirements || page.accessRequirements.length === 0) return;
     const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);

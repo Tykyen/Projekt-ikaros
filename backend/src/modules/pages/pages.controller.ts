@@ -21,6 +21,36 @@ export class PagesController {
     return this.pagesService.findByWorld(worldId, type);
   }
 
+  @Get('directory')
+  @UseGuards(JwtAuthGuard)
+  getDirectory(@Param('worldId') worldId: string) {
+    return this.pagesService.findDirectory(worldId);
+  }
+
+  @Get('dataSlugs')
+  @UseGuards(JwtAuthGuard)
+  getDataSlugs(@Param('worldId') worldId: string) {
+    return this.pagesService.findAllSlugs(worldId);
+  }
+
+  @Get('data')
+  @UseGuards(JwtAuthGuard)
+  getData(
+    @Param('worldId') worldId: string,
+    @Query('number') number?: string,
+  ) {
+    return this.pagesService.findRandom(worldId, number ? parseInt(number, 10) : 5);
+  }
+
+  @Get('meta/:slug')
+  @UseGuards(JwtAuthGuard)
+  getMeta(
+    @Param('worldId') worldId: string,
+    @Param('slug') slug: string,
+  ) {
+    return this.pagesService.findMeta(slug, worldId);
+  }
+
   @Get(':slug')
   @UseGuards(JwtAuthGuard)
   findOne(

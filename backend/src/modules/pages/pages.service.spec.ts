@@ -23,6 +23,9 @@ describe('PagesService', () => {
     save: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    findDirectory: jest.fn(),
+    findAllSlugs: jest.fn(),
+    findRandom: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
