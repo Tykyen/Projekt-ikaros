@@ -71,23 +71,24 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 4 — Users rozšíření ⬜
+## Krok 4 — Users rozšíření ✅
 
 > Dokončení user modelu — vše bez závislosti na Pages nebo jiných pozdějších modulech.
 
-- [ ] **AKJ flag**: boolean na user schema; zahrnuto v JWT claims (`akj`)
-- [ ] **ThemeSettings**: embedded objekt `{ theme, accentColor, fontSize, ... }` na user schema
-- [ ] **ChatPreferences**: embedded objekt `{ font, fontSize, compactMode, notifications: {...} }`
-- [ ] **LastSeenAt middleware**: NestJS middleware (nebo interceptor) — update `lastSeenAt` + `isOnline` při každém autentizovaném requestu automaticky
-- [ ] **PublicProfile endpoint**: GET /api/users/profile/:id → vrátí veřejný subset (bez passwordHash, email, chatPreferences)
-- [ ] **UpdateTheme endpoint**: PUT /api/users/theme `{ themeSettings }` — oddělený endpoint pro theme
-- [ ] **UpdatePassword endpoint**: PUT /api/users/password `{ oldPassword, newPassword }` — bcrypt verify + hash
-- [ ] JWT claims rozšíření: přidat `akj` claim, zachovat sub/username/role/characterPath/ikarosSkin
-- [ ] Merge logika v PATCH: pole `themeSettings` a `chatPreferences` deep-merge (ne replace), ostatní pole přímé přepsání pokud !== null
-- [ ] DELETE /api/users/:id (vlastní účet nebo Admin+)
+- [x] **AKJ flag**: boolean na user schema; zahrnuto v JWT claims (`akj`)
+- [x] **ThemeSettings**: volný JSON blob `Record<string, unknown>` na user schema
+- [x] **ChatPreferences**: volný JSON blob `Record<string, unknown>` na user schema
+- [x] **LastSeenAt v JwtAuthGuard**: fire-and-forget `updateLastSeen` při každém úspěšném JWT; `isOnline` se nenastavuje (řeší Krok 5 Presence)
+- [x] **PublicUser interface + GET /api/users/profile/:id**: veřejný subset (id, username, displayName, avatarUrl, characterPath, role, createdAt), bez JWT
+- [x] **JWT claims rozšíření**: přidán `akj` claim
+- [x] **Merge logika v PATCH**: `themeSettings` a `chatPreferences` deep-merge, ostatní přímé přepsání; `username` jen Superadmin
+- [x] **PUT /api/users/password**: vlastní změna hesla (bcrypt verify + hash)
+- [x] **PUT /api/users/:id/reset-password**: Superadmin reset bez ověření starého hesla
+- [x] **DELETE /api/users/:id**: vlastní účet nebo Admin+; 204 No Content
+- [x] **UsersModule @Global()**: `IUsersRepository` dostupné globálně
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-02-krok-4-users-rozsireni-design.md](superpowers/specs/2026-05-02-krok-4-users-rozsireni-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-02-krok-4-users-rozsireni.md](superpowers/plans/2026-05-02-krok-4-users-rozsireni.md)
 
 ---
 
