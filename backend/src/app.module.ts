@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { GatewaysModule } from './gateways/gateways.module';
 import { WorldsModule } from './modules/worlds/worlds.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { UploadModule } from './modules/upload/upload.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -17,6 +18,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     AuthModule,
     WorldsModule,
     ChatModule,
+    UploadModule,
     GatewaysModule,
   ],
   controllers: [AppController],
