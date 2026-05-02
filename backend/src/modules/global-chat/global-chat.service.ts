@@ -35,7 +35,7 @@ export class GlobalChatService implements OnModuleInit {
     this.globalChannelId = channel.id;
   }
 
-  getGlobalChannelId(): string {
+  getGlobalChannelId(): string | undefined {
     return this.globalChannelId;
   }
 
