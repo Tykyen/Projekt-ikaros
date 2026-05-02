@@ -31,4 +31,11 @@ describe('AdminGuard', () => {
   it('should deny Hrac (role=5)', () => {
     expect(() => guard.canActivate(makeContext(UserRole.Hrac))).toThrow(ForbiddenException);
   });
+
+  it('should deny missing user', () => {
+    const ctx = {
+      switchToHttp: () => ({ getRequest: () => ({}) }),
+    } as unknown as ExecutionContext;
+    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+  });
 });
