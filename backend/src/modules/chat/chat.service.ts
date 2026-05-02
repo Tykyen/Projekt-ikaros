@@ -1,5 +1,5 @@
 import {
-  Injectable, Inject, NotFoundException, ForbiddenException,
+  Injectable, Inject, NotFoundException, ForbiddenException, BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IChatGroupRepository } from './interfaces/chat-group-repository.interface';
@@ -186,6 +186,10 @@ export class ChatService {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
 
+    if (!dto.content && (!dto.attachments || dto.attachments.length === 0)) {
+      throw new BadRequestException('Zpráva musí obsahovat text nebo přílohu');
+    }
+
     if (dto.overrideName !== undefined || dto.overrideAvatarUrl !== undefined) {
       if (!(await this.canManageChat(requester, channel.worldId))) {
         throw new ForbiddenException('Nedostatečná oprávnění pro NPC mód');
@@ -220,7 +224,7 @@ export class ChatService {
       senderAvatarUrl,
       overrideName: dto.overrideName,
       overrideAvatarUrl: dto.overrideAvatarUrl,
-      content: dto.content,
+      content: dto.content ?? null,
       isEdited: false,
       isDeleted: false,
       rpDate: dto.rpDate,
@@ -229,6 +233,7 @@ export class ChatService {
       replyToSenderName,
       visibleTo,
       reactions: {},
+      attachments: dto.attachments ?? [],
     });
 
     await this.channelRepo.update(channelId, { lastMessageAt: message.createdAt });
@@ -280,7 +285,7 @@ export class ChatService {
     if (!canDelete) throw new ForbiddenException('Nedostatečná oprávnění');
 
     await this.messageRepo.update(messageId, { isDeleted: true, content: null });
-    this.eventEmitter.emit('chat.message.deleted', { channelId: msg.channelId, messageId });
+    this.eventEmitter.emit('chat.message.deleted', { channelId: msg.channelId, messageId, attachments: msg.attachments });
     return { message: 'Zpráva smazána' };
   }
 
@@ -340,6 +345,13 @@ export class ChatService {
       groupId: group2.id, worldId: world.id, name: 'hráči',
       accessMode: 'all', allowedRoles: [], allowedMemberIds: [], order: 0, isDeleted: false,
     });
+  }
+
+  async findChannelForUpload(channelId: string, userId: string): Promise<ChatChannel> {
+    const channel = await this.channelRepo.findById(channelId);
+    if (!channel || channel.isDeleted) throw new NotFoundException('Kanál nenalezen');
+    if (!(await this.hasChannelAccess(channel, userId))) throw new ForbiddenException('Nedostatečná oprávnění');
+    return channel;
   }
 
   @OnEvent('world.deleted')

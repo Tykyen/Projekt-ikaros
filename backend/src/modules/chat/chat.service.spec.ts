@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ChatService } from './chat.service';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -456,6 +456,136 @@ describe('toggleReaction', () => {
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
     await expect(service.toggleReaction('msg1', '👍', { id: 'stranger', role: UserRole.Hrac }))
       .rejects.toThrow(ForbiddenException);
+  });
+});
+
+describe('sendMessage — attachments', () => {
+  const membership = { ...mockPJMembership, avatarUrl: undefined, characterPath: 'Elara' };
+  const attachment = {
+    url: 'https://res.cloudinary.com/test.jpg', publicId: 'chat/world1/ch1/abc',
+    type: 'image' as const, mimeType: 'image/jpeg', filename: 'img.jpg', size: 1024,
+  };
+
+  let service: ChatService;
+  const mockGroupRepo = {
+    findById: jest.fn(), findByWorldId: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+  const mockChannelRepo = {
+    findById: jest.fn(), findByGroupId: jest.fn(), findByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(), softDeleteByWorldId: jest.fn(),
+  };
+  const mockMessageRepo = {
+    findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
+    save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
+    addReaction: jest.fn(), removeReaction: jest.fn(),
+  };
+  const mockReadRepo = {
+    findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
+  };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(), findByWorldId: jest.fn(),
+    findByUserId: jest.fn(), findById: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
+        { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
+        { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
+        { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
+        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(ChatService);
+    jest.clearAllMocks();
+  });
+
+  it('should throw BadRequestException when neither content nor attachments provided', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    await expect(
+      service.sendMessage('ch1', {} as any, mockPJ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('should allow message with only attachments (no content)', async () => {
+    const mockMsg = {
+      id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'Elara',
+      content: null, isEdited: false, isDeleted: false, reactions: {}, attachments: [attachment],
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.save.mockResolvedValue(mockMsg);
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    const result = await service.sendMessage('ch1', { attachments: [attachment] } as any, mockPJ);
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments![0].type).toBe('image');
+  });
+});
+
+describe('findChannelForUpload', () => {
+  let service: ChatService;
+  const mockGroupRepo = {
+    findById: jest.fn(), findByWorldId: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+  const mockChannelRepo = {
+    findById: jest.fn(), findByGroupId: jest.fn(), findByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(), softDeleteByWorldId: jest.fn(),
+  };
+  const mockMessageRepo = {
+    findById: jest.fn(), findByChannelId: jest.fn(), countAfter: jest.fn(),
+    save: jest.fn(), update: jest.fn(), softDeleteByChannelId: jest.fn(), softDeleteByWorldId: jest.fn(),
+    addReaction: jest.fn(), removeReaction: jest.fn(),
+  };
+  const mockReadRepo = {
+    findByUserAndChannel: jest.fn(), findByUserAndChannels: jest.fn(), upsert: jest.fn(),
+  };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(), findByWorldId: jest.fn(),
+    findByUserId: jest.fn(), findById: jest.fn(), countByWorldId: jest.fn(),
+    save: jest.fn(), update: jest.fn(), delete: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        ChatService,
+        { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
+        { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
+        { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
+        { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
+        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(ChatService);
+    jest.clearAllMocks();
+  });
+
+  it('should return channel when user has access', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+    const result = await service.findChannelForUpload('ch1', 'user1');
+    expect(result.id).toBe('ch1');
+  });
+
+  it('should throw NotFoundException for unknown channel', async () => {
+    mockChannelRepo.findById.mockResolvedValue(null);
+    await expect(service.findChannelForUpload('unknown', 'user1')).rejects.toThrow(NotFoundException);
+  });
+
+  it('should throw ForbiddenException when no channel access', async () => {
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+    await expect(service.findChannelForUpload('ch1', 'stranger')).rejects.toThrow(ForbiddenException);
   });
 });
 
