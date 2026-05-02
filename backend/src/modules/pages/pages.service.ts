@@ -28,14 +28,14 @@ export class PagesService {
     const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
     if (exists) throw new ConflictException('Slug již existuje v tomto světě');
     return this.pagesRepo.save({
-      ...dto,
+      ...(dto as unknown as Partial<Page>),
       slug,
       worldId,
       content: dto.content ?? '',
-      sections: dto.sections ?? [],
-      galleryImages: dto.galleryImages ?? [],
-      videos: dto.videos ?? [],
-      accessRequirements: dto.accessRequirements ?? [],
+      sections: (dto.sections as unknown as Page['sections']) ?? [],
+      galleryImages: (dto.galleryImages as unknown as Page['galleryImages']) ?? [],
+      videos: (dto.videos as unknown as Page['videos']) ?? [],
+      accessRequirements: (dto.accessRequirements as unknown as Page['accessRequirements']) ?? [],
       order: dto.order ?? 0,
     });
   }
@@ -44,7 +44,7 @@ export class PagesService {
     const page = await this.pagesRepo.findById(id);
     if (!page) throw new NotFoundException('Stránka nenalezena');
     if (page.worldId !== worldId) throw new ForbiddenException('Stránka nepatří do tohoto světa');
-    const updated = await this.pagesRepo.update(id, dto);
+    const updated = await this.pagesRepo.update(id, dto as unknown as Partial<Page>);
     return updated!;
   }
 
