@@ -16,6 +16,11 @@ export class MongoCharactersRepository
     super(model as never);
   }
 
+  async findAll(): Promise<Character[]> {
+    const docs = await this.model.find().lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
   async findBySlugAndWorld(slug: string, worldId: string): Promise<Character | null> {
     const doc = await this.model.findOne({ slug: slug.toLowerCase(), worldId }).lean().exec();
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
@@ -40,6 +45,7 @@ export class MongoCharactersRepository
     return {
       id: String(doc._id),
       slug: doc.slug as string,
+      name: (doc.name as string) ?? '',
       worldId: doc.worldId as string,
       userId: doc.userId as string | undefined,
       isNpc: (doc.isNpc as boolean) ?? false,

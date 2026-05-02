@@ -5,6 +5,7 @@ import { MongoCharactersRepository } from './repositories/characters.repository'
 import { CharactersService } from './characters.service';
 import { CharactersController } from './characters.controller';
 import { WorldsModule } from '../worlds/worlds.module';
+import { PopulateProfileImagesService } from './populate-profile-images.service';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { WorldsModule } from '../worlds/worlds.module';
   providers: [
     CharactersService,
     { provide: 'ICharactersRepository', useClass: MongoCharactersRepository },
+    PopulateProfileImagesService,
   ],
   exports: [CharactersService, 'ICharactersRepository'],
 })

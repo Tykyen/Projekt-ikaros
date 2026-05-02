@@ -1,6 +1,7 @@
 import { Character } from './character.interface';
 
 export interface ICharactersRepository {
+  findAll(): Promise<Character[]>;
   findById(id: string): Promise<Character | null>;
   findBySlugAndWorld(slug: string, worldId: string): Promise<Character | null>;
   findByWorld(worldId: string): Promise<Character[]>;
