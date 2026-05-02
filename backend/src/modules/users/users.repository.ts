@@ -45,7 +45,7 @@ export class MongoUsersRepository
       email: doc.email as string,
       username: doc.username as string,
       passwordHash: doc.passwordHash as string,
-      role: doc.role as number,
+      role: doc.role as UserRole,
       displayName: doc.displayName as string | undefined,
       avatarUrl: doc.avatarUrl as string | undefined,
       characterPath: doc.characterPath as string | undefined,
