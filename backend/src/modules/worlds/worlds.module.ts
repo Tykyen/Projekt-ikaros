@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { WorldSchemaClass, WorldSchema } from './schemas/world.schema';
 import { WorldMembershipSchemaClass, WorldMembershipSchema } from './schemas/world-membership.schema';
@@ -9,6 +9,7 @@ import { MongoWorldSettingsRepository } from './repositories/world-settings.repo
 import { WorldsService } from './worlds.service';
 import { WorldsController } from './worlds.controller';
 import { WorldsGateway } from './worlds.gateway';
+import { PagesModule } from '../pages/pages.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { WorldsGateway } from './worlds.gateway';
       { name: WorldMembershipSchemaClass.name, schema: WorldMembershipSchema },
       { name: WorldSettingsSchemaClass.name, schema: WorldSettingsSchema },
     ]),
+    forwardRef(() => PagesModule),
   ],
   controllers: [WorldsController],
   providers: [

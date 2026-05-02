@@ -37,6 +37,7 @@ export interface World {
   accessMode: string;
   offeredCharacters?: OfferedCharacter[];
   calendarConfig?: WorldCalendarConfig;
+  favoritePageSlugs: string[];
   createdAt: Date;
   updatedAt: Date;
 }
