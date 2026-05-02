@@ -1,6 +1,6 @@
-import { IsString, IsOptional, IsBoolean, IsArray, IsNumber, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, IsNumber, IsObject, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AccessRequirementDto, PageSectionDto, GalleryImageDto, InstructionalVideoDto } from './create-page.dto';
+import { AccessRequirementDto, PageSectionDto, GalleryImageDto, InstructionalVideoDto, PageTableDto } from './create-page.dto';
 
 export class UpdatePageDto {
   @IsOptional() @IsString() slug?: string;
@@ -14,4 +14,6 @@ export class UpdatePageDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => InstructionalVideoDto) videos?: InstructionalVideoDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AccessRequirementDto) accessRequirements?: AccessRequirementDto[];
   @IsOptional() @IsNumber() order?: number;
+  @IsOptional() @ValidateNested() @Type(() => PageTableDto) table?: PageTableDto;
+  @IsOptional() @IsObject() customData?: Record<string, string>;
 }

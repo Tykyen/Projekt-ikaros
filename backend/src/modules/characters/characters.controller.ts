@@ -40,10 +40,12 @@ export class CharactersController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(
+  async create(
     @Param('worldId') worldId: string,
     @Body() dto: CreateCharacterDto,
+    @CurrentUser() user: RequestUser,
   ) {
+    await this.charactersService.assertCanManage(user.id, user.role, worldId);
     return this.charactersService.create(dto, worldId);
   }
 
@@ -53,26 +55,31 @@ export class CharactersController {
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
     @Body() dto: UpdateCharacterDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.charactersService.update(slug, worldId, dto);
+    return this.charactersService.update(slug, worldId, dto, user);
   }
 
   @Patch(':slug/convert')
   @UseGuards(JwtAuthGuard)
-  convert(
+  async convert(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
     @Body() dto: ConvertCharacterDto,
+    @CurrentUser() user: RequestUser,
   ) {
+    await this.charactersService.assertCanManage(user.id, user.role, worldId);
     return this.charactersService.convert(slug, worldId, dto);
   }
 
   @Delete(':slug')
   @UseGuards(JwtAuthGuard)
-  remove(
+  async remove(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
+    @CurrentUser() user: RequestUser,
   ) {
+    await this.charactersService.assertCanManage(user.id, user.role, worldId);
     return this.charactersService.delete(slug, worldId);
   }
 }

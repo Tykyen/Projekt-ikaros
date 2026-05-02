@@ -4,6 +4,8 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { Page } from './interfaces/page.interface';
 import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
+import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 
 @Injectable()
 export class PagesService {
@@ -11,6 +13,12 @@ export class PagesService {
     @Inject('IPagesRepository') private readonly pagesRepo: IPagesRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
   ) {}
+
+  async assertCanManage(userId: string, userRole: UserRole, worldId: string): Promise<void> {
+    if (userRole <= UserRole.Admin) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
+    if (!membership || membership.role < WorldRole.PJ) throw new ForbiddenException('Nedostatečná oprávnění');
+  }
 
   async findByWorld(worldId: string, type?: string): Promise<Page[]> {
     return this.pagesRepo.findByWorld(worldId, type);

@@ -33,29 +33,35 @@ export class PagesController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(
+  async create(
     @Param('worldId') worldId: string,
     @Body() dto: CreatePageDto,
+    @CurrentUser() user: RequestUser,
   ) {
+    await this.pagesService.assertCanManage(user.id, user.role, worldId);
     return this.pagesService.create(dto, worldId);
   }
 
   @Patch(':slug')
   @UseGuards(JwtAuthGuard)
-  update(
+  async update(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
     @Body() dto: UpdatePageDto,
+    @CurrentUser() user: RequestUser,
   ) {
+    await this.pagesService.assertCanManage(user.id, user.role, worldId);
     return this.pagesService.update(slug, worldId, dto);
   }
 
   @Delete(':slug')
   @UseGuards(JwtAuthGuard)
-  remove(
+  async remove(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
+    @CurrentUser() user: RequestUser,
   ) {
+    await this.pagesService.assertCanManage(user.id, user.role, worldId);
     return this.pagesService.delete(slug, worldId);
   }
 }

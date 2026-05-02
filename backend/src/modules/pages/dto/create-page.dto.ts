@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsArray, IsNumber, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray, IsNumber, IsObject, ValidateNested, IsIn } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class AccessRequirementDto {
@@ -29,6 +29,13 @@ export class GalleryImageDto {
   @IsOptional() @IsNumber() order?: number;
 }
 
+export class PageTableDto {
+  @IsBoolean() hasTable: boolean;
+  @IsOptional() @IsString() title?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) headers?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) values?: string[];
+}
+
 export class InstructionalVideoDto {
   @IsString() id: string;
   @IsString() title: string;
@@ -48,4 +55,6 @@ export class CreatePageDto {
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => InstructionalVideoDto) videos?: InstructionalVideoDto[];
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AccessRequirementDto) accessRequirements?: AccessRequirementDto[];
   @IsOptional() @IsNumber() order?: number;
+  @IsOptional() @ValidateNested() @Type(() => PageTableDto) table?: PageTableDto;
+  @IsOptional() @IsObject() customData?: Record<string, string>;
 }

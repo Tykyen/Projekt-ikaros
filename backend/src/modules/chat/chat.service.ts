@@ -20,6 +20,7 @@ import type { UpdateChannelDto } from './dto/update-channel.dto';
 import type { CreateMessageDto } from './dto/create-message.dto';
 import type { UpdateMessageDto } from './dto/update-message.dto';
 import type { World } from '../worlds/interfaces/world.interface';
+import { CharactersService } from '../characters/characters.service';
 
 @Injectable()
 export class ChatService {
@@ -30,6 +31,7 @@ export class ChatService {
     @Inject('IChannelReadStatusRepository') private readonly readRepo: IChannelReadStatusRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly charactersService: CharactersService,
   ) {}
 
   // ─── Permission helpers ───────────────────────────────────────────────────
@@ -197,8 +199,9 @@ export class ChatService {
     }
 
     const membership = await this.membershipRepo.findByUserAndWorld(requester.id, channel.worldId!);
-    const senderName = membership?.characterPath ?? requester.id;
-    const senderAvatarUrl = membership?.avatarUrl;
+    const character = await this.charactersService.findByUser(requester.id, channel.worldId!);
+    const senderName = character?.slug ?? membership?.characterPath ?? requester.id;
+    const senderAvatarUrl = character?.imageUrl ?? membership?.avatarUrl;
 
     let replyToPreview: string | undefined;
     let replyToSenderName: string | undefined;

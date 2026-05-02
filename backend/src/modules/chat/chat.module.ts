@@ -12,6 +12,7 @@ import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ChatGateway } from './chat.gateway';
 import { WorldsModule } from '../worlds/worlds.module';
+import { CharactersModule } from '../characters/characters.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { WorldsModule } from '../worlds/worlds.module';
       { name: ChannelReadStatusSchemaClass.name, schema: ChannelReadStatusSchema },
     ]),
     WorldsModule,
+    CharactersModule,
   ],
   controllers: [ChatController],
   providers: [
