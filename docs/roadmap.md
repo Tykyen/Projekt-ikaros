@@ -283,7 +283,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] PJ_BASE_ token: PJ vidí vlastní data + legacy (null ownerId); prefix se stripne při create
 
 **Spec:** [docs/superpowers/specs/2026-05-03-krok-9-kampane-design.md](superpowers/specs/2026-05-03-krok-9-kampane-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-03-krok-9-kampane.md](superpowers/plans/2026-05-03-krok-9-kampane.md)
 
 ---
 
