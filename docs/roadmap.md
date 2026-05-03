@@ -208,37 +208,37 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 8 — Mapy ⬜
+## Krok 8a — Taktická mapa ✅
 
-> Hex-based mapy, tokeny, fog of war, efekty, šablony, real-time sync.
+> Hex-based mapy, tokeny, fog of war, efekty, šablony, real-time sync. Tokeny jako bojový snapshot z character deníků. Dvouúrovňový NPC bestiář (globální + per-world).
 
-### MapScene
-- [ ] **MapScene schema**: worldId, name, imageUrl, config (HexConfig: size/originX/originY/showGrid), tokens (MapToken[]), npcTemplates, effects (MapEffect[]), fogEnabled, revealedHexes, isActive, isHidden, isLocked, activeSoundIds, lastModified
-- [ ] **MapToken**: characterId/slug, q/r (hex coords), isNpc, templateId, instanceName, currentHp/maxHp/baseHp, armor/baseArmor, injury, initiative, inCombat, movement, abilities, personalDiarySchema, customData
-- [ ] **MapEffect**: type, hexes, color, rings (radius+damage), variant, excludedHexes, barrierDC
-- [ ] SetActive: deaktivuje ostatní scény světa
-- [ ] MoveToken: hráči mohou pohybovat vlastními tokeny; PJ může pohybovat libovolným
+- [x] **MapScene schema**: worldId, name, imageUrl, folder, config (HexConfig), tokens (MapToken[]), npcTemplates (MapSceneNpc[]), effects (MapEffect[]), fogEnabled, revealedHexes, templateId, isActive, isHidden, isLocked, activeSoundIds, lastModified
+- [x] **MapToken**: characterId/slug, q/r (hex coords), isNpc, templateId, instanceName, currentHp/maxHp/baseHp, armor/baseArmor, injury, initiative/initiativeBase, inCombat, movement, abilities, personalDiarySchema, customData; `characterData` enrichment při GET
+- [x] **MapSceneNpc**: lokální embedded kopie NPC šablony (originTemplateId, abilities jako label/value)
+- [x] **MapEffect**: id, type, hexes, color, rings (radius+damage), variant, excludedHexes, barrierDC
+- [x] **MapTemplate**: znovupoužitelné scény bez worldId/isActive/isHidden/isLocked
+- [x] SetActive: deaktivuje ostatní scény světa (max 1 aktivní per world)
+- [x] MoveToken/RemoveToken: hráči jen svůj token, PJ cokoliv
+- [x] GET /api/maps, /active, /:id (s characterData enrichment)
+- [x] POST, POST /:id/active, PUT /:id, PATCH move-token/remove-token, DELETE
+- [x] GET/POST/PUT/DELETE /api/map-templates
+- [x] **MapsGateway**: 13 Socket.io eventů (token, config, fog, dice, ping, sound, effects, scene state)
+- [x] `map:dice-rolled` → broadcast všem včetně odesílatele
+- [x] **NpcTemplates rozšíření**: nullable worldId (null = globální bestiář), movement, initiativeBase, GET /global, POST /:id/import
+- [x] **User.themeSettings.dicePreferences**: per-dice-type skin persistence (bez nového API)
 
-### MapTemplate
-- [ ] Znovupoužitelné scény bez worldId/isActive/isHidden/isLocked
-- [ ] GET /api/map-templates, POST, PUT (upsert), DELETE
+**Spec:** [docs/superpowers/specs/2026-05-03-krok-8a-tactical-map-design.md](superpowers/specs/2026-05-03-krok-8a-tactical-map-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-03-krok-8a-tactical-map.md](superpowers/plans/2026-05-03-krok-8a-tactical-map.md)
 
-### REST API
-- [ ] GET /api/maps (Matrix world all), GET /api/maps/active, GET /api/maps/:id
-- [ ] POST (create), POST /:id/active, PUT /:id (full replace)
-- [ ] PATCH /:id/move-token, PATCH /:id/remove-token, DELETE
+---
 
-### MapHub (real-time)
-- [ ] TokenMoved, ConfigUpdated, TokenRemoved, ReloadScene, SceneCleared
-- [ ] PingMap (označení bodu na mapě)
-- [ ] EffectAdded/Removed, FogUpdated
-- [ ] DiceRolled (broadcast všem včetně odesílatele)
-- [ ] SceneStateChanged, ActiveSoundChanged
-- [ ] CleanupInactiveConnections
+## Krok 8b — Dungeon Builder ⬜
 
-### Dungeon Builder
-- [ ] Nástroj pro procedurální tvorbu dungeonů (mapové dlaždice)
-- [ ] Perzistentní scény (ukládá se jako MapTemplate nebo MapScene)
+> Canvas nástroj pro procedurální tvorbu dungeonů. Frontend-only, ukládá jako MapTemplate nebo MapScene.
+
+- [ ] Nástroj pro tvorbu dungeonů z mapových dlaždic (hex/square grid)
+- [ ] Export do PNG nebo uložení jako MapTemplate/MapScene
+- [ ] Perzistentní scény (backend integruje s Krok 8a maps modulem)
 
 **Spec:** —  
 **Plán:** —
@@ -546,7 +546,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 7b | NPC Templates | ✅ |
 | 7c | Universe Map | ✅ |
 | 7d | RPG System Presets | ⬜ |
-| 8 | Mapy | ⬜ |
+| 8a | Taktická mapa | ✅ |
+| 8b | Dungeon Builder | ⬜ |
 | 9 | Kampaně | ⬜ |
 | 10 | Herní čas & Svět | ⬜ |
 | 11 | Ikaros obsah | ⬜ |
