@@ -21,7 +21,7 @@ Jedno pravidlo bez logiky: před jakoukoli implementací bezpodmínečně aktivu
 Skill řídí tři fáze:
 
 **Fáze 1 — Ověření specifikace**
-- Najdi `docs/arch/<modul>/<komponenta>/` pro danou komponentu
+- Najdi `docs/specs/<modul>/<komponenta>/` pro danou komponentu
 - Zkontroluj existenci `index.md` a `purpose.md`
 - Chybí-li → zastav, informuj uživatele, odmítni implementovat
 - Existují-li → přečti všechny dostupné spec soubory, pak pokračuj

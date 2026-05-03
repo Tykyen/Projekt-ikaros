@@ -7,14 +7,18 @@ description: Use when implementing any component feature — before writing code
 
 Řídí celý vývojový cyklus komponenty: ověření specifikace → implementace → aktualizace specifikace.
 
+## Fáze 0: ADR check
+
+Aktivuj skill `adr-check`.
+
 ## Fáze 1: Ověření specifikace
 
 1. Identifikuj modul a komponentu z kontextu úkolu
-2. Zkontroluj existenci `docs/arch/<modul>/<komponenta>/index.md` a `purpose.md`
+2. Zkontroluj existenci `docs/specs/<modul>/<komponenta>/index.md` a `purpose.md`
 3. **Pokud chybí `index.md` nebo `purpose.md`:**
    - Zastav práci
-   - Informuj uživatele které soubory chybí a kde je vytvořit (`docs/arch/_templates/`)
-   - Odmítni implementovat dokud specifikace neexistuje
+   - Aktivuj skill `spec-create` pro společné vytvoření specifikace s uživatelem
+   - Pokračuj implementací až po dokončení specifikace
 4. **Pokud existují:**
    - Přečti `index.md` — zjisti jaké soubory specifikace existují
    - Přečti všechny relevantní spec soubory pro daný úkol
@@ -31,7 +35,7 @@ description: Use when implementing any component feature — before writing code
 Po dokončení implementace projdi specifikaci a doplň co se změnilo nebo přibylo:
 
 1. **Aktualizuj existující soubory** — doplň nové API endpointy, datové modely, chybové stavy, testovací scénáře
-2. **Vytvoř chybějící soubory** — pokud implementace přinesla obsah pro `api.md`, `tests.md`, `errors.md`, `security.md` nebo `data-models.md` a soubor neexistuje, zkopíruj šablonu z `docs/arch/_templates/` a vyplň
+2. **Vytvoř chybějící soubory** — pokud implementace přinesla obsah pro `api.md`, `tests.md`, `errors.md`, `security.md` nebo `data-models.md` a soubor neexistuje, zkopíruj šablonu z `docs/specs/_templates/` a vyplň
 3. **Aktualizuj `index.md`** — přidej záznamy pro nově vytvořené soubory
 
-Konvence pojmenování a formát viz `docs/arch/_spec-guide.md`.
+Konvence pojmenování a formát viz `docs/specs/_spec-guide.md`.

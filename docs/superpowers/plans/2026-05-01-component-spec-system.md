@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Vytvořit souborový systém `docs/arch/` se šablonami a průvodcem pro udržování specifikací backendových komponent konzumovaných AI agenty.
+**Goal:** Vytvořit souborový systém `docs/specs/` se šablonami a průvodcem pro udržování specifikací backendových komponent konzumovaných AI agenty.
 
 **Architecture:** Čistá adresářová struktura bez kódu — šablony Markdown v `_templates/`, referenční průvodce v `_spec-guide.md`. Každá budoucí komponenta dostane vlastní složku s `index.md` jako vstupním bodem pro AI agenta.
 
@@ -13,15 +13,15 @@
 ### Task 1: Základní struktura složek a šablona `index.md`
 
 **Files:**
-- Create: `docs/arch/_templates/index.md`
+- Create: `docs/specs/_templates/index.md`
 
-- [ ] **Step 1: Vytvoř složku `docs/arch/_templates/`**
+- [ ] **Step 1: Vytvoř složku `docs/specs/_templates/`**
 
 ```bash
-mkdir -p docs/arch/_templates
+mkdir -p docs/specs/_templates
 ```
 
-- [ ] **Step 2: Vytvoř `docs/arch/_templates/index.md`**
+- [ ] **Step 2: Vytvoř `docs/specs/_templates/index.md`**
 
 ```markdown
 # <NázevKomponenty>
@@ -39,13 +39,13 @@ mkdir -p docs/arch/_templates
 
 Ověř že soubor existuje a má správný obsah:
 ```bash
-cat docs/arch/_templates/index.md
+cat docs/specs/_templates/index.md
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/arch/_templates/index.md
+git add docs/specs/_templates/index.md
 git commit -m "feat: add spec system index template"
 ```
 
@@ -54,9 +54,9 @@ git commit -m "feat: add spec system index template"
 ### Task 2: Šablona `purpose.md`
 
 **Files:**
-- Create: `docs/arch/_templates/purpose.md`
+- Create: `docs/specs/_templates/purpose.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/purpose.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/purpose.md`**
 
 ```markdown
 # Účel
@@ -79,13 +79,13 @@ git commit -m "feat: add spec system index template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/purpose.md
+cat docs/specs/_templates/purpose.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/purpose.md
+git add docs/specs/_templates/purpose.md
 git commit -m "feat: add spec system purpose template"
 ```
 
@@ -94,9 +94,9 @@ git commit -m "feat: add spec system purpose template"
 ### Task 3: Šablona `data-models.md`
 
 **Files:**
-- Create: `docs/arch/_templates/data-models.md`
+- Create: `docs/specs/_templates/data-models.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/data-models.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/data-models.md`**
 
 ```markdown
 # Datové modely
@@ -123,13 +123,13 @@ git commit -m "feat: add spec system purpose template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/data-models.md
+cat docs/specs/_templates/data-models.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/data-models.md
+git add docs/specs/_templates/data-models.md
 git commit -m "feat: add spec system data-models template"
 ```
 
@@ -138,9 +138,9 @@ git commit -m "feat: add spec system data-models template"
 ### Task 4: Šablona `api.md`
 
 **Files:**
-- Create: `docs/arch/_templates/api.md`
+- Create: `docs/specs/_templates/api.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/api.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/api.md`**
 
 ```markdown
 # API
@@ -185,13 +185,13 @@ git commit -m "feat: add spec system data-models template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/api.md
+cat docs/specs/_templates/api.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/api.md
+git add docs/specs/_templates/api.md
 git commit -m "feat: add spec system api template"
 ```
 
@@ -200,9 +200,9 @@ git commit -m "feat: add spec system api template"
 ### Task 5: Šablona `errors.md`
 
 **Files:**
-- Create: `docs/arch/_templates/errors.md`
+- Create: `docs/specs/_templates/errors.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/errors.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/errors.md`**
 
 ```markdown
 # Chybové stavy
@@ -224,13 +224,13 @@ git commit -m "feat: add spec system api template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/errors.md
+cat docs/specs/_templates/errors.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/errors.md
+git add docs/specs/_templates/errors.md
 git commit -m "feat: add spec system errors template"
 ```
 
@@ -239,9 +239,9 @@ git commit -m "feat: add spec system errors template"
 ### Task 6: Šablona `security.md`
 
 **Files:**
-- Create: `docs/arch/_templates/security.md`
+- Create: `docs/specs/_templates/security.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/security.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/security.md`**
 
 ```markdown
 # Bezpečnost
@@ -270,13 +270,13 @@ git commit -m "feat: add spec system errors template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/security.md
+cat docs/specs/_templates/security.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/security.md
+git add docs/specs/_templates/security.md
 git commit -m "feat: add spec system security template"
 ```
 
@@ -285,9 +285,9 @@ git commit -m "feat: add spec system security template"
 ### Task 7: Šablona `tests.md`
 
 **Files:**
-- Create: `docs/arch/_templates/tests.md`
+- Create: `docs/specs/_templates/tests.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/tests.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/tests.md`**
 
 ```markdown
 # Testovací scénáře
@@ -313,13 +313,13 @@ git commit -m "feat: add spec system security template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/tests.md
+cat docs/specs/_templates/tests.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/tests.md
+git add docs/specs/_templates/tests.md
 git commit -m "feat: add spec system tests template"
 ```
 
@@ -328,9 +328,9 @@ git commit -m "feat: add spec system tests template"
 ### Task 8: Šablona `ai-notes.md`
 
 **Files:**
-- Create: `docs/arch/_templates/ai-notes.md`
+- Create: `docs/specs/_templates/ai-notes.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_templates/ai-notes.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_templates/ai-notes.md`**
 
 ```markdown
 # Poznámky pro AI agenta
@@ -347,7 +347,7 @@ git commit -m "feat: add spec system tests template"
 
 (Na jakých dalších komponentách nebo systémech tato komponenta závisí. Kde najít jejich specifikace.)
 
-- `docs/arch/<modul>/<komponenta>/` — (popis závislosti)
+- `docs/specs/<modul>/<komponenta>/` — (popis závislosti)
 
 ## Doporučený postup
 
@@ -361,13 +361,13 @@ git commit -m "feat: add spec system tests template"
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_templates/ai-notes.md
+cat docs/specs/_templates/ai-notes.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_templates/ai-notes.md
+git add docs/specs/_templates/ai-notes.md
 git commit -m "feat: add spec system ai-notes template"
 ```
 
@@ -376,9 +376,9 @@ git commit -m "feat: add spec system ai-notes template"
 ### Task 9: Referenční průvodce `_spec-guide.md`
 
 **Files:**
-- Create: `docs/arch/_spec-guide.md`
+- Create: `docs/specs/_spec-guide.md`
 
-- [ ] **Step 1: Vytvoř `docs/arch/_spec-guide.md`**
+- [ ] **Step 1: Vytvoř `docs/specs/_spec-guide.md`**
 
 ```markdown
 # Průvodce systémem specifikací
@@ -396,7 +396,7 @@ Každá plánovaná backendová komponenta má vlastní složku se specifikačn�
 ## Struktura složek
 
 ```
-docs/arch/
+docs/specs/
   _templates/          # Šablony — základ pro nové komponenty
   _spec-guide.md       # Tento soubor
   <modul>/
@@ -477,8 +477,8 @@ Pokyny specificky pro AI agenta pracujícího na komponentě.
 
 ## Jak vytvořit specifikaci nové komponenty
 
-1. Vytvoř složku `docs/arch/<modul>/<komponenta>/`
-2. Zkopíruj šablony ze `docs/arch/_templates/` které jsou relevantní
+1. Vytvoř složku `docs/specs/<modul>/<komponenta>/`
+2. Zkopíruj šablony ze `docs/specs/_templates/` které jsou relevantní
 3. Vyplň zkopírované soubory — odstraň komentáře v závorkách, nahraď je skutečným obsahem
 4. Aktualizuj `index.md` — uveď pouze soubory které jsi vyplnil
 
@@ -497,13 +497,13 @@ Před zahájením práce na komponentě agent vždy nejprve přečte její speci
 - [ ] **Step 2: Zkontroluj výstup**
 
 ```bash
-cat docs/arch/_spec-guide.md
+cat docs/specs/_spec-guide.md
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add docs/arch/_spec-guide.md
+git add docs/specs/_spec-guide.md
 git commit -m "feat: add spec system guide"
 ```
 

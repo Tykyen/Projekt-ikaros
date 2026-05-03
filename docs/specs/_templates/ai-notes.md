@@ -12,7 +12,7 @@
 
 (Na jakých dalších komponentách nebo systémech tato komponenta závisí. Kde najít jejich specifikace.)
 
-- `docs/arch/<modul>/<komponenta>/` — (popis závislosti)
+- `docs/specs/<modul>/<komponenta>/` — (popis závislosti)
 
 ## Doporučený postup
 

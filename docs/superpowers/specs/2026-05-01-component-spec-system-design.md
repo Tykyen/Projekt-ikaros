@@ -14,7 +14,7 @@ Souborový systém pro udržování specifikací budoucích backendových kompon
 ## Struktura složek
 
 ```
-docs/arch/
+docs/specs/
   _templates/                  # Šablony pro nové komponenty
     index.md
     purpose.md
