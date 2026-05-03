@@ -192,19 +192,19 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 7d — RPG System Presets ⬜
+## Krok 7d — RPG System Presets ✅
 
 > Konfigurace CharacterSheet šablon per RPG systém; auto-seed WorldSettings.diarySchema při vytvoření/změně světa; verzování schémat.
 
-- [ ] Podporované systémy: **D&D 5e**, **D&D 2e**, **D&D 3+**, **DrD Hero**, **DrD 16** (sub-moduly: Alchemy/Ranger/Thief/Warrior/Wizard), **GURPS**, **Call of Cthulhu**, **Fate**, **Shadowrun**, **Jad**, **Pi**, **Matrix custom**
-- [ ] Presety jako statické TS soubory (`src/modules/system-presets/presets/`), jeden per systém
-- [ ] Auto-seed `WorldSettings.diarySchema` při POST /api/worlds dle `world.system`
-- [ ] Při změně `world.system`: archivace staré diarySchema → `DiarySchemaVersion` kolekce → seed nové z presetu
-- [ ] GET /api/system-presets, GET /api/system-presets/:system
-- [ ] GET /api/worlds/:worldId/diary-schema-versions, GET .../diary-schema-versions/:version
+- [x] Podporované systémy: **D&D 5e**, **D&D 2e**, **D&D 3+**, **DrD Hero**, **DrD 16** (sub-moduly: Alchemy/Ranger/Thief/Warrior/Wizard), **GURPS**, **Call of Cthulhu**, **Fate**, **Shadowrun**, **Jad**, **Pi**, **Matrix custom**
+- [x] Presety jako statické TS soubory (`src/modules/system-presets/presets/`), jeden per systém
+- [x] Auto-seed `WorldSettings.diarySchema` při POST /api/worlds dle `world.system`
+- [x] Při změně `world.system`: archivace staré diarySchema → `DiarySchemaVersion` kolekce → seed nové z presetu
+- [x] GET /api/system-presets, GET /api/system-presets/:system
+- [x] GET /api/worlds/:worldId/diary-schema-versions, GET .../diary-schema-versions/:version
 
 **Spec:** [docs/superpowers/specs/2026-05-03-krok-7d-rpg-system-presets-design.md](superpowers/specs/2026-05-03-krok-7d-rpg-system-presets-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-03-krok-7d-rpg-system-presets.md](superpowers/plans/2026-05-03-krok-7d-rpg-system-presets.md)
 
 ---
 
@@ -282,7 +282,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Sorted: updatedAtUtc / priority / pinned
 - [ ] PJ_BASE_ token: PJ vidí vlastní data + legacy (null ownerId); prefix se stripne při create
 
-**Spec:** —  
+**Spec:** [docs/superpowers/specs/2026-05-03-krok-9-kampane-design.md](superpowers/specs/2026-05-03-krok-9-kampane-design.md)  
 **Plán:** —
 
 ---
@@ -545,7 +545,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 7a | Characters RPG rozšíření | ✅ |
 | 7b | NPC Templates | ✅ |
 | 7c | Universe Map | ✅ |
-| 7d | RPG System Presets | ⬜ |
+| 7d | RPG System Presets | ✅ |
 | 8a | Taktická mapa | ✅ |
 | 8b | Dungeon Builder | ⬜ |
 | 9 | Kampaně | ⬜ |
