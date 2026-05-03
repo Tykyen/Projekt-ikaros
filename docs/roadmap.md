@@ -194,13 +194,16 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 7d — RPG System Presets ⬜
 
-> Konfigurace CharacterSheet šablon per RPG systém; auto-vyplnění personalDiarySchema.
+> Konfigurace CharacterSheet šablon per RPG systém; auto-seed WorldSettings.diarySchema při vytvoření/změně světa; verzování schémat.
 
 - [ ] Podporované systémy: **D&D 5e**, **D&D 2e**, **D&D 3+**, **DrD Hero**, **DrD 16** (sub-moduly: Alchemy/Ranger/Thief/Warrior/Wizard), **GURPS**, **Call of Cthulhu**, **Fate**, **Shadowrun**, **Jad**, **Pi**, **Matrix custom**
-- [ ] Auto-vyplnění personalDiarySchema při vytvoření postavy dle world.system
-- [ ] GET /api/system-presets (seznam podporovaných systémů s konfigurací)
+- [ ] Presety jako statické TS soubory (`src/modules/system-presets/presets/`), jeden per systém
+- [ ] Auto-seed `WorldSettings.diarySchema` při POST /api/worlds dle `world.system`
+- [ ] Při změně `world.system`: archivace staré diarySchema → `DiarySchemaVersion` kolekce → seed nové z presetu
+- [ ] GET /api/system-presets, GET /api/system-presets/:system
+- [ ] GET /api/worlds/:worldId/diary-schema-versions, GET .../diary-schema-versions/:version
 
-**Spec:** —  
+**Spec:** [docs/superpowers/specs/2026-05-03-krok-7d-rpg-system-presets-design.md](superpowers/specs/2026-05-03-krok-7d-rpg-system-presets-design.md)  
 **Plán:** —
 
 ---
