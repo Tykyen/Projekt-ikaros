@@ -213,6 +213,36 @@ Existující schema v Kroku 7b má `worldId: string` (required). Změníme na op
 
 ---
 
+### Dice preferences — rozšíření Krok 4 (Users)
+
+Skin preference per typ kostky se ukládají do `User.themeSettings` pod klíčem `dicePreferences`. Žádné nové API — používá existující `PATCH /api/users` s deep-merge.
+
+**Struktura v `themeSettings`:**
+```json
+{
+  "dicePreferences": {
+    "default": "core-ivory",
+    "1k4":  "skin-id",
+    "1k6":  "skin-id",
+    "1k8":  "skin-id",
+    "1k10": "skin-id",
+    "1k12": "skin-id",
+    "1k20": "skin-id",
+    "1k%":  "skin-id",
+    "fate": "skin-id"
+  }
+}
+```
+
+**Tok:**
+1. Frontend při přihlášení načte `themeSettings.dicePreferences` z `/api/users/me`
+2. Při změně skinu frontend zavolá `PATCH /api/users` s `{ themeSettings: { dicePreferences: { ... } } }` → deep-merge
+3. Při hodu frontend přiloží `skinMapping` (= aktuální `dicePreferences`) do `map:dice-rolled` eventu → ostatní hráči renderují kostky ve skinu odesílatele
+
+Zpětná kompatibilita: `User.ikarosSkin` zůstane v DB a JWT (nezměněno z Kroku 4), ale nově ho frontend nepoužívá — preferuje `dicePreferences.default`.
+
+---
+
 ### `/api/npc-templates` — rozšíření Krok 7b
 
 | Metoda | Cesta | Auth | Popis |
