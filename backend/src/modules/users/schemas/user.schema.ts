@@ -24,9 +24,9 @@ export class UserSchemaClass {
   @Prop() characterPath?: string;
   @Prop() ikarosSkin?: string;
 
-  @Prop({ default: false }) akj: boolean;
   @Prop({ type: Object, default: {} }) themeSettings: Record<string, unknown>;
   @Prop({ type: Object, default: {} }) chatPreferences: Record<string, unknown>;
+  @Prop({ type: [String], default: [] }) favoriteDiscussionIds: string[];
 
   @Prop({ default: false }) isOnline: boolean;
   @Prop({ default: Date.now }) lastSeenAt: Date;

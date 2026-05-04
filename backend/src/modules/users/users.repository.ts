@@ -69,6 +69,7 @@ export class MongoUsersRepository
       akj: (doc.akj as boolean) ?? false,
       themeSettings: (doc.themeSettings as Record<string, unknown>) ?? {},
       chatPreferences: (doc.chatPreferences as Record<string, unknown>) ?? {},
+      favoriteDiscussionIds: (doc.favoriteDiscussionIds as string[]) ?? [],
       isOnline: (doc.isOnline as boolean) ?? false,
       lastSeenAt: doc.lastSeenAt as Date,
       createdAt: doc.createdAt as Date,

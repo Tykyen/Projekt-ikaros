@@ -27,6 +27,7 @@ export interface User {
   akj: boolean;
   themeSettings: Record<string, unknown>;
   chatPreferences: Record<string, unknown>;
+  favoriteDiscussionIds: string[];
   isOnline: boolean;
   lastSeenAt: Date;
   createdAt: Date;
