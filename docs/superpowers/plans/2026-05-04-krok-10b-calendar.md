@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rozšířit existující `character-subdocs` kalendář o nastavení vzhledu, agregovaný PJ pohled a legacy endpoint pro budoucí migraci dat.
+**Goal:** Rozšířit existující `character-subdocs` kalendář o nastavení vzhledu, agregovaný PJ pohled, legacy endpoint pro budoucí migraci dat a podporu lokací jako entit s kalendářem.
 
-**Architecture:** Existující `CharacterCalendar` schema dostane `color` + `displaySettings`. Nový `CalendarsModule` přidá tři endpointy: agregaci, nastavení (PJ only) a legacy URL. `CharacterSubdocsModule` exportuje svůj service a controller změní `PATCH` → `PUT`.
+**Architecture:** Existující `CharacterCalendar` schema dostane `color` + `displaySettings`. `Character` schema dostane `isLocation` flag, který podmíní tvorbu subdokumentů. Nový `CalendarsModule` přidá tři endpointy: agregaci, nastavení (PJ only) a legacy URL. `CharacterSubdocsModule` exportuje svůj service a controller změní `PATCH` → `PUT`.
 
 **Tech Stack:** NestJS, Mongoose, Jest (unit testy), TypeScript
 
@@ -14,6 +14,13 @@
 
 | Akce | Soubor |
 |------|--------|
+| Modify | `backend/src/modules/characters/interfaces/character.interface.ts` |
+| Modify | `backend/src/modules/characters/schemas/character.schema.ts` |
+| Modify | `backend/src/modules/characters/dto/create-character.dto.ts` |
+| Modify | `backend/src/modules/characters/characters.service.ts` |
+| Modify | `backend/src/modules/characters/characters.service.spec.ts` |
+| Modify | `backend/src/modules/character-subdocs/character-subdocs.service.ts` |
+| Modify | `backend/src/modules/character-subdocs/character-subdocs.service.spec.ts` |
 | Modify | `backend/src/modules/character-subdocs/interfaces/character-calendar.interface.ts` |
 | Modify | `backend/src/modules/character-subdocs/schemas/character-calendar.schema.ts` |
 | Modify | `backend/src/modules/character-subdocs/repositories/character-calendar.repository.ts` |
@@ -28,6 +35,199 @@
 | Create | `backend/src/modules/calendars/legacy-calenders.controller.ts` |
 | Create | `backend/src/modules/calendars/calendars.module.ts` |
 | Modify | `backend/src/app.module.ts` |
+
+---
+
+## Task 0: isLocation flag — Character schema, DTO, service, subdocs logika
+
+**Files:**
+- Modify: `backend/src/modules/characters/interfaces/character.interface.ts`
+- Modify: `backend/src/modules/characters/schemas/character.schema.ts`
+- Modify: `backend/src/modules/characters/dto/create-character.dto.ts`
+- Modify: `backend/src/modules/characters/characters.service.ts`
+- Test: `backend/src/modules/characters/characters.service.spec.ts`
+- Modify: `backend/src/modules/character-subdocs/character-subdocs.service.ts`
+- Test: `backend/src/modules/character-subdocs/character-subdocs.service.spec.ts`
+
+- [ ] **Step 1: Napiš failing test — subdocs přeskočí diary/notes pro lokaci**
+
+V `backend/src/modules/character-subdocs/character-subdocs.service.spec.ts` přidej tento blok za stávající `onCharacterCreated — NPC` describe:
+
+```typescript
+  describe('onCharacterCreated — lokace', () => {
+    it('vytvoří jen calendar pro lokaci — bez diary, notes, finance, inventory', async () => {
+      mockCalendarRepo.create.mockResolvedValue(mockCalendar);
+
+      await service.onCharacterCreated({ characterId: 'loc1', worldId: 'w1', userId: undefined, isNpc: true, isLocation: true });
+
+      expect(mockCalendarRepo.create).toHaveBeenCalledWith('loc1', 'w1');
+      expect(mockDiaryRepo.create).not.toHaveBeenCalled();
+      expect(mockNotesRepo.create).not.toHaveBeenCalled();
+      expect(mockFinanceRepo.create).not.toHaveBeenCalled();
+      expect(mockInventoryRepo.create).not.toHaveBeenCalled();
+    });
+  });
+```
+
+- [ ] **Step 2: Spusť test — ověř FAIL**
+
+```bash
+cd backend && npx jest --testPathPattern=character-subdocs.service --no-coverage
+```
+
+Očekáváno: FAIL — test selže, protože `onCharacterCreated` ignoruje `isLocation` a volá i diary/notes
+
+- [ ] **Step 3: Přidej `isLocation` do Character interface**
+
+V `backend/src/modules/characters/interfaces/character.interface.ts` přidej pole `isLocation` za `isNpc`:
+
+```typescript
+export interface Character {
+  id: string;
+  slug: string;
+  name: string;
+  worldId: string;
+  userId?: string;
+  isNpc: boolean;
+  isLocation: boolean;
+  imageUrl?: string;
+  // ... zbytek beze změny
+```
+
+Stejně tak v `CharacterDirectoryEntry`:
+
+```typescript
+export interface CharacterDirectoryEntry {
+  id: string;
+  slug: string;
+  name: string;
+  imageUrl?: string;
+  isNpc: boolean;
+  isLocation: boolean;
+}
+```
+
+- [ ] **Step 4: Přidej `isLocation` do Character schema**
+
+V `backend/src/modules/characters/schemas/character.schema.ts` přidej prop za `isNpc`:
+
+```typescript
+  @Prop({ default: false }) isNpc: boolean;
+  @Prop({ default: false }) isLocation: boolean;
+```
+
+- [ ] **Step 5: Přidej `isLocation` do CreateCharacterDto**
+
+V `backend/src/modules/characters/dto/create-character.dto.ts` přidej za `isNpc`:
+
+```typescript
+  @IsBoolean() isNpc: boolean;
+  @IsOptional() @IsBoolean() isLocation?: boolean;
+```
+
+- [ ] **Step 6: Propaguj `isLocation` v CharactersService**
+
+V `backend/src/modules/characters/characters.service.ts` najdi metodu `create`. Přidej `isLocation` do uloženého objektu a emitu události.
+
+Najdi blok kde se ukládá postava (volání `charRepo.save`) — přidej `isLocation: dto.isLocation ?? false`:
+
+```typescript
+    const character = await this.charRepo.save({
+      slug: dto.slug.toLowerCase(),
+      name: dto.name,
+      worldId,
+      userId: dto.userId,
+      isNpc: dto.isNpc,
+      isLocation: dto.isLocation ?? false,
+      imageUrl: dto.imageUrl,
+      publicBio: dto.publicBio ?? '',
+      publicInfoBlocks: (dto.publicInfoBlocks as unknown as Character['publicInfoBlocks']) ?? [],
+      privateBio: dto.privateBio ?? '',
+      privateInfoBlocks: (dto.privateInfoBlocks as unknown as Character['privateInfoBlocks']) ?? [],
+      diaryData: {},
+      extraBlocks: [],
+      campaignSubjectId: dto.campaignSubjectId,
+      accessRequirements: (dto.accessRequirements as unknown as Character['accessRequirements']) ?? [],
+    });
+```
+
+Poté přidej `isLocation` do `character.created` emitu:
+
+```typescript
+    this.eventEmitter.emit('character.created', {
+      characterId: character.id,
+      worldId: character.worldId,
+      userId: character.userId,
+      isNpc: character.isNpc,
+      isLocation: character.isLocation,
+      name: character.name,
+      imageUrl: character.imageUrl,
+    });
+```
+
+- [ ] **Step 7: Aktualizuj `CharacterCreatedPayload` a logiku v CharacterSubdocsService**
+
+V `backend/src/modules/character-subdocs/character-subdocs.service.ts` rozšiř interface:
+
+```typescript
+interface CharacterCreatedPayload {
+  characterId: string;
+  worldId: string;
+  userId?: string;
+  isNpc: boolean;
+  isLocation?: boolean;
+}
+```
+
+Poté nahraď tělo `onCharacterCreated`:
+
+```typescript
+  @OnEvent('character.created')
+  async onCharacterCreated(payload: CharacterCreatedPayload): Promise<void> {
+    const { characterId, worldId, isNpc, isLocation } = payload;
+
+    await this.calendarRepo.create(characterId, worldId);
+
+    if (!isLocation) {
+      await Promise.all([
+        this.diaryRepo.create(characterId, worldId),
+        this.notesRepo.create(characterId),
+        ...(!isNpc ? [
+          this.financeRepo.create(characterId),
+          this.inventoryRepo.create(characterId),
+        ] : []),
+      ]);
+    }
+  }
+```
+
+- [ ] **Step 8: Spusť testy — ověř PASS**
+
+```bash
+cd backend && npx jest --testPathPattern=character-subdocs.service --no-coverage
+```
+
+Očekáváno: všechny testy PASS
+
+- [ ] **Step 9: Spusť characters testy — ověř že nebyly rozbity**
+
+```bash
+cd backend && npx jest --testPathPattern=characters.service --no-coverage
+```
+
+Očekáváno: PASS (přidání `isLocation` je zpětně kompatibilní díky `?? false`)
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add backend/src/modules/characters/interfaces/character.interface.ts \
+        backend/src/modules/characters/schemas/character.schema.ts \
+        backend/src/modules/characters/dto/create-character.dto.ts \
+        backend/src/modules/characters/characters.service.ts \
+        backend/src/modules/character-subdocs/character-subdocs.service.ts \
+        backend/src/modules/character-subdocs/character-subdocs.service.spec.ts
+git commit -m "feat(characters): isLocation flag — lokace dostane jen kalendář"
+```
 
 ---
 
@@ -810,6 +1010,7 @@ git commit -m "docs(roadmap): označit Krok 10b jako hotový"
 ### Spec coverage
 | Požadavek ze spec | Úkol |
 |---|---|
+| `isLocation` flag — lokace dostane jen kalendář | Task 0 |
 | PATCH → PUT (full replace events) | Task 2 Step 5 |
 | `color` + `displaySettings` na schema | Task 1 |
 | Agregovaný PJ pohled `GET /worlds/:worldId/calendars/aggregate` | Task 3 + 4 |

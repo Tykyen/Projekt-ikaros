@@ -18,6 +18,21 @@ Scope: **pouze backend**.
 
 ---
 
+## isLocation flag (lokace jako entity s kalendářem)
+
+Lokace (místnosti, budovy, tábory...) jsou modelovány jako postava s `isNpc=true` + `isLocation=true`. Na rozdíl od NPC nedostávají deník, poznámky, finance ani inventář — pouze kalendář. PJ vidí jejich události v agregovaném pohledu stejně jako ostatní postavy.
+
+```typescript
+// Přidáno na Character interface + schema:
+isLocation: boolean;  // výchozí false
+```
+
+Logika tvorby subdokumentů při `character.created`:
+- `isLocation=false` → existující chování (diary, calendar, notes; pro CP i finance+inventory)
+- `isLocation=true` → pouze calendar
+
+---
+
 ## Schema změny
 
 ### `CharacterCalendar` — nová pole
