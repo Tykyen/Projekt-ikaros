@@ -23,6 +23,7 @@ import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
 import { IkarosNewsModule } from './modules/ikaros-news/ikaros-news.module';
 import { IkarosArticlesModule } from './modules/ikaros-articles/ikaros-articles.module';
 import { IkarosGalleryModule } from './modules/ikaros-gallery/ikaros-gallery.module';
+import { IkarosDiscussionsModule } from './modules/ikaros-discussions/ikaros-discussions.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -49,6 +50,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     IkarosNewsModule,
     IkarosArticlesModule,
     IkarosGalleryModule,
+    IkarosDiscussionsModule,
     GatewaysModule,
   ],
   controllers: [AppController],

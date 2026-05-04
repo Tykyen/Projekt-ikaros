@@ -445,17 +445,17 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 11d — IkarosDiscussions ⬜
+## Krok 11d — IkarosDiscussions ✅
 
 > Diskuzní fórum se schvalováním, manažery, pozváním a oblíbenými.
 
-- [ ] Schema: title, description, bulletin (editovatelné oznámení), creatorId, creatorName, isApproved, isOpen, managerIds (creator auto-přidán), invitedUserIds, postCount, likeCount, createdAtUtc, lastActivityUtc
-- [ ] IkarosDiscussionPost: discussionId, authorId, authorName, content, createdAtUtc
-- [ ] Oprávnění: creator/manažeři editují; admin schvaluje non-adminům; jen manager/admin může zvát
-- [ ] Notifikace: submit (adminům), approve (creatorovi), reject (s důvodem)
-- [ ] GET (filtrováno dle approval), GET /pending, GET /my-favorites
-- [ ] POST /:id/approve, POST /:id/reject, POST /:id/invite, POST /:id/toggle-favorite
-- [ ] GET /:id/posts (stránkované), POST /:id/posts, DELETE /:id/posts/:postId
+- [x] Schema: title, description, bulletin (editovatelné oznámení), creatorId, creatorName, isApproved, isOpen, managerIds (creator auto-přidán), invitedUserIds, postCount, likeCount, createdAtUtc, lastActivityUtc
+- [x] IkarosDiscussionPost: discussionId, authorId, authorName, content, createdAtUtc
+- [x] Oprávnění: creator/manažeři editují; admin schvaluje non-adminům; jen manager/admin může zvát
+- [x] Notifikace: submit (adminům), approve (creatorovi), reject (s důvodem)
+- [x] GET (filtrováno dle approval), GET /pending, GET /my-favorites
+- [x] POST /:id/approve, POST /:id/reject, POST /:id/invite, POST /:id/toggle-favorite
+- [x] GET /:id/posts (stránkované), POST /:id/posts, DELETE /:id/posts/:postId
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11d-ikaros-discussions-design.md](superpowers/specs/2026-05-04-krok-11d-ikaros-discussions-design.md)  
 **Plán:** [docs/superpowers/plans/2026-05-04-krok-11d-ikaros-discussions.md](superpowers/plans/2026-05-04-krok-11d-ikaros-discussions.md)
@@ -647,7 +647,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 11a | IkarosNews | ✅ |
 | 11b | IkarosArticles | ✅ |
 | 11c | IkarosGallery | ✅ |
-| 11d | IkarosDiscussions | ⬜ |
+| 11d | IkarosDiscussions | ✅ |
 | 12 | Média & Emotes & Zvuky | ⬜ |
 | 13 | Push notifikace | ⬜ |
 | 14 | Vyhledávání | ⬜ |
