@@ -462,23 +462,24 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 12a — Custom Emotes & Image proxy ⬜
+## Krok 12a — Custom Emotes & Image proxy ✅
 
 > Per-world custom emote shortcody a Cloudinary image proxy pro zpětnou kompatibilitu.
 
 ### Custom Emotes
-- [ ] Schema: worldId, name, shortcode (":name:"), imageId (Cloudinary public ID), createdAt
-- [ ] Per-world izolace
-- [ ] GET /api/emotes/:worldId (Authorize), POST /:worldId (PJ+), DELETE /:worldId/:id (PJ+)
-- [ ] Emote picker: WebSocket broadcast nového emote při vytvoření
-- [ ] Integrace s chat inputem (podpora `:shortcode:` syntaxe)
+- [x] Schema: worldId (null = globální), name, shortcode, imageId, createdBy, createdAt; unique index (worldId, shortcode)
+- [x] Per-world izolace + globální emoty (worldId=null, Admin/Superadmin)
+- [x] GET /api/emotes/:worldId (JWT, člen světa), POST (PJ/PomocnýPJ+), DELETE, POST /:id/copy (PJ v obou světech)
+- [x] GET /api/emotes/global, POST /global (Admin+), DELETE /global/:id
+- [x] WebSocket broadcast `emote:created` do `world:{worldId}` při vytvoření per-world emote
+- [x] `:shortcode:` syntaxe — frontend zodpovědnost
 
 ### Image serving
-- [ ] GET /api/images/:id → proxy z Cloudinary (in-memory stream, zachová mimetype)
-- [ ] Slouží pro zpětnou kompatibilitu s uloženými Cloudinary public ID
+- [x] GET /api/images/* → HTTP 302 redirect na Cloudinary URL (wildcard pro folder paths)
+- [x] Slouží pro zpětnou kompatibilitu s uloženými Cloudinary public ID
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-12a-emotes-image-proxy-design.md](superpowers/specs/2026-05-04-krok-12a-emotes-image-proxy-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-12a-emotes-image-proxy.md](superpowers/plans/2026-05-04-krok-12a-emotes-image-proxy.md)
 
 ---
 
@@ -657,7 +658,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 11b | IkarosArticles | ✅ |
 | 11c | IkarosGallery | ✅ |
 | 11d | IkarosDiscussions | ✅ |
-| 12a | Custom Emotes & Image proxy | ⬜ |
+| 12a | Custom Emotes & Image proxy | ✅ |
 | 12b | Sound Database | ⬜ |
 | 13 | Push notifikace | ⬜ |
 | 14 | Vyhledávání | ⬜ |
