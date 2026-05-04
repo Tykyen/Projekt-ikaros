@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { GatewaysModule } from './gateways/gateways.module';
 import { WorldsModule } from './modules/worlds/worlds.module';
+import { WorldCurrenciesModule } from './modules/world-currencies/world-currencies.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { GlobalChatModule } from './modules/global-chat/global-chat.module';
@@ -34,6 +35,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     AuthModule,
     UsersModule,
     WorldsModule,
+    WorldCurrenciesModule,
     ChatModule,
     UploadModule,
     GlobalChatModule,

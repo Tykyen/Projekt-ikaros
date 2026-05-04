@@ -354,14 +354,14 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 10e — WorldCurrencies ⬜
+## Krok 10e — WorldCurrencies ✅
 
 > Měnový systém světa se seedem dle žánru a přepočty.
 
-- [ ] WorldCurrencyItem: code, name, ratio, symbol
-- [ ] Seed při vytvoření světa dle genre (fantasy → zlatý/stříbrný/bronzový...)
-- [ ] GET /api/worlds/:id/currencies, PUT (full replace)
-- [ ] CurrencyConverter logic: přepočet mezi světovými měnami
+- [x] WorldCurrencyItem: code, name, ratio, symbol
+- [x] Seed při vytvoření světa dle genre (fantasy → zlatý/stříbrný/bronzový...)
+- [x] GET /api/worlds/:id/currencies, PUT (full replace)
+- [x] CurrencyConverter logic: přepočet mezi světovými měnami
 
 **Spec:** —  
 **Plán:** —
@@ -641,7 +641,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 10b | Calendar | ⬜ |
 | 10c | TimelineEvent | ⬜ |
 | 10d | WorldCalendarConfig | ⬜ |
-| 10e | WorldCurrencies | ⬜ |
+| 10e | WorldCurrencies | ✅ |
 | 10f | WorldWeather | ✅ |
 | 10g | WorldNews | ⬜ |
 | 11a | IkarosNews | ✅ |

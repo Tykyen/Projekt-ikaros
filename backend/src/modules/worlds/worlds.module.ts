@@ -10,6 +10,7 @@ import { WorldsService } from './worlds.service';
 import { WorldsController } from './worlds.controller';
 import { WorldsGateway } from './worlds.gateway';
 import { PagesModule } from '../pages/pages.module';
+import { WorldCurrenciesModule } from '../world-currencies/world-currencies.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PagesModule } from '../pages/pages.module';
       { name: WorldSettingsSchemaClass.name, schema: WorldSettingsSchema },
     ]),
     forwardRef(() => PagesModule),
+    forwardRef(() => WorldCurrenciesModule),
   ],
   controllers: [WorldsController],
   providers: [

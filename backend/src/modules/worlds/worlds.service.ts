@@ -17,6 +17,7 @@ import { UserRole } from '../users/interfaces/user.interface';
 import { CreateWorldDto } from './dto/create-world.dto';
 import { UpdateWorldDto } from './dto/update-world.dto';
 import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
+import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 
 export interface RequestUser {
   id: string;
@@ -31,6 +32,7 @@ export class WorldsService {
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldSettingsRepository') private readonly settingsRepo: IWorldSettingsRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly currenciesService: WorldCurrenciesService,
   ) {}
 
   async findAll(): Promise<World[]> {
@@ -82,8 +84,7 @@ export class WorldsService {
       akj: 0,
     });
 
-    const currencies = this.getCurrenciesForGenre(dto.genre);
-    await this.settingsRepo.upsert(world.id, { currencies });
+    await this.currenciesService.seedForWorld(world.id, dto.genre);
 
     this.eventEmitter.emit('world.created', world);
     return world;
@@ -292,38 +293,4 @@ export class WorldsService {
     }
   }
 
-  private getCurrenciesForGenre(genre?: string): WorldSettings['currencies'] {
-    const id = () => crypto.randomUUID();
-    const fantasy = ['fantasy', 'dark-fantasy', 'heroic-fantasy', 'sword-sorcery', 'grimdark', 'mytologicky'];
-    const cyber = ['cyberpunk', 'sci-fi', 'hard-sci-fi', 'soft-sci-fi', 'biopunk'];
-    const space = ['space-opera', 'military'];
-    const postapo = ['postapo', 'post-postapo', 'dieselpunk'];
-
-    if (genre && fantasy.includes(genre)) {
-      return [
-        { id: id(), code: 'ZL', name: 'Zlaťák', symbol: 'Zl', rate: 1.0 },
-        { id: id(), code: 'ST', name: 'Stříbrňák', symbol: 'St', rate: 0.1 },
-        { id: id(), code: 'MD', name: 'Měďák', symbol: 'Md', rate: 0.01 },
-      ];
-    }
-    if (genre && cyber.includes(genre)) {
-      return [
-        { id: id(), code: 'CR', name: 'Kredit', symbol: 'Cr', rate: 1.0 },
-        { id: id(), code: 'NUSD', name: 'NUSA Dolar', symbol: '$', rate: 2.5 },
-      ];
-    }
-    if (genre && space.includes(genre)) {
-      return [
-        { id: id(), code: 'CR', name: 'Kredit', symbol: 'Cr', rate: 1.0 },
-        { id: id(), code: 'KR', name: 'Krystal', symbol: 'Kr', rate: 100.0 },
-      ];
-    }
-    if (genre && postapo.includes(genre)) {
-      return [
-        { id: id(), code: 'ZAT', name: 'Zátka', symbol: 'Zt', rate: 1.0 },
-        { id: id(), code: 'PR', name: 'Příděl', symbol: 'Př', rate: 50.0 },
-      ];
-    }
-    return [{ id: id(), code: 'MNC', name: 'Mince', symbol: 'Mn', rate: 1.0 }];
-  }
 }

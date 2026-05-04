@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldsService } from './worlds.service';
 import { WorldRole } from './interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 
 const mockRequester = { id: 'user1', role: UserRole.Hrac, username: 'user1' };
 
@@ -49,6 +50,8 @@ describe('WorldsService', () => {
     upsert: jest.fn(),
   };
 
+  const mockCurrenciesService = { seedForWorld: jest.fn() };
+
   beforeEach(async () => {
     const module = await Test.createTestingModule({
       providers: [
@@ -57,6 +60,7 @@ describe('WorldsService', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'IWorldSettingsRepository', useValue: mockSettingsRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: WorldCurrenciesService, useValue: mockCurrenciesService },
       ],
     }).compile();
     service = module.get(WorldsService);
