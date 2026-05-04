@@ -232,16 +232,17 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 8b — Dungeon Builder ⬜
+## Krok 8b — Dungeon Builder ✅
 
-> Canvas nástroj pro procedurální tvorbu dungeonů. Frontend-only, ukládá jako MapTemplate nebo MapScene.
+> Backend podpora pro tile-based dungeon editor. PJ ukládá rozpracované dungeony a exportuje je jako MapTemplate nebo MapScene.
 
-- [ ] Nástroj pro tvorbu dungeonů z mapových dlaždic (hex/square grid)
-- [ ] Export do PNG nebo uložení jako MapTemplate/MapScene
-- [ ] Perzistentní scény (backend integruje s Krok 8a maps modulem)
+- [x] DungeonMap kolekce: worldId, gridType (square/hex), cells[][], decorations[], theme (dyson/modern)
+- [x] CRUD API: GET/POST/PUT/DELETE /api/dungeon-maps (PJ+)
+- [x] Export jako MapTemplate: POST /api/dungeon-maps/:id/export-template
+- [x] Export jako MapScene: POST /api/dungeon-maps/:id/export-scene (vždy použije dungeon.worldId)
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-8b-dungeon-builder-design.md](superpowers/specs/2026-05-04-krok-8b-dungeon-builder-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-8b-dungeon-builder.md](superpowers/plans/2026-05-04-krok-8b-dungeon-builder.md)
 
 ---
 
