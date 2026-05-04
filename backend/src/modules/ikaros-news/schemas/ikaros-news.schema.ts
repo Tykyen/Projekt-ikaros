@@ -9,8 +9,8 @@ export class IkarosNewsSchemaClass {
   @Prop({ required: true }) content: string;
   @Prop({ required: true }) authorId: string;
   @Prop({ required: true }) authorName: string;
-  @Prop({ required: true, default: () => new Date() }) createdAtUtc: Date;
-  @Prop({ required: true, default: true }) isActive: boolean;
+  @Prop({ default: () => new Date() }) createdAtUtc: Date;
+  @Prop({ default: true }) isActive: boolean;
 }
 
 export const IkarosNewsSchema = SchemaFactory.createForClass(IkarosNewsSchemaClass);
