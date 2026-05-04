@@ -78,7 +78,6 @@ export class DungeonMapsService {
   async exportScene(
     id: string,
     imageUrl: string,
-    worldId: string,
     userId: string,
     userRole: UserRole,
   ): Promise<{ sceneId: string }> {
@@ -88,7 +87,7 @@ export class DungeonMapsService {
     const scene = await this.mapsRepo.create({
       name: dungeon.name,
       imageUrl,
-      worldId,
+      worldId: dungeon.worldId,
       config: { size: dungeon.cellSize, originX: 0, originY: 0, showGrid: true },
       tokens: [],
       npcTemplates: [],

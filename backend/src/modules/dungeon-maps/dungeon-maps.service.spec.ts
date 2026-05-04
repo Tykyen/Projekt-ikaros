@@ -155,7 +155,7 @@ describe('DungeonMapsService', () => {
       mockRepo.findById.mockResolvedValue(mockDungeon);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
       mockMapsRepo.create.mockResolvedValue({ id: 'scene1', worldId: 'world1' });
-      const result = await service.exportScene('dun1', 'https://example.com/img.png', 'world1', 'pj1', UserRole.Hrac);
+      const result = await service.exportScene('dun1', 'https://example.com/img.png', 'pj1', UserRole.Hrac);
       expect(result).toEqual({ sceneId: 'scene1' });
       expect(mockMapsRepo.create).toHaveBeenCalledWith(expect.objectContaining({
         name: 'Kobka',
@@ -167,7 +167,7 @@ describe('DungeonMapsService', () => {
 
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
-      await expect(service.exportScene('x', 'https://img.png', 'world1', 'pj1', UserRole.Hrac)).rejects.toThrow(NotFoundException);
+      await expect(service.exportScene('x', 'https://img.png', 'pj1', UserRole.Hrac)).rejects.toThrow(NotFoundException);
     });
   });
 });

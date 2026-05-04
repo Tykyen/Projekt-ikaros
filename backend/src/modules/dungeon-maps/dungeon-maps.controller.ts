@@ -66,6 +66,6 @@ export class DungeonMapsController {
     @Body() dto: ExportSceneDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.exportScene(id, dto.imageUrl, dto.worldId, user.id, user.role);
+    return this.service.exportScene(id, dto.imageUrl, user.id, user.role);
   }
 }
