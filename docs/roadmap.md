@@ -412,17 +412,17 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 11b — IkarosArticles ⬜
+## Krok 11b — IkarosArticles ✅
 
 > Platformové články se schvalovacím tokem a hodnocením.
 
-- [ ] Schema: title, content (Markdown), category (Povidky/Poezie/Uvahy/Recenze/Postavy/Ostatni), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings (userId+stars 1–5), averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
-- [ ] Workflow: Draft → Submit → Pending → Approve → Published | Reject → Rejected
-- [ ] Editovatelné jen ve stavu Draft nebo Rejected
-- [ ] Admin = Superadmin/Admin/PJ/SpravceClankuu nebo username "Tyky"
-- [ ] Notifikace: při submit (adminům), approve (autorovi), reject (autorovi)
-- [ ] GET (published + pending pro admin), GET /my, GET /pending (admin), POST, PUT, DELETE
-- [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
+- [x] Schema: title, content (Markdown), category (Povidky/Poezie/Uvahy/Recenze/Postavy/Ostatni), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings (userId+stars 1–5), averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
+- [x] Workflow: Draft → Submit → Pending → Approve → Published | Reject → Rejected
+- [x] Editovatelné jen ve stavu Draft nebo Rejected
+- [x] Admin = Superadmin/Admin/PJ/SpravceClankuu nebo username "Tyky"
+- [x] Notifikace: při submit (adminům), approve (autorovi), reject (autorovi)
+- [x] GET (published + pending pro admin), GET /my, GET /pending (admin), POST, PUT, DELETE
+- [x] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11b-ikaros-articles-design.md](superpowers/specs/2026-05-04-krok-11b-ikaros-articles-design.md)  
 **Plán:** [docs/superpowers/plans/2026-05-04-krok-11b-ikaros-articles.md](superpowers/plans/2026-05-04-krok-11b-ikaros-articles.md)

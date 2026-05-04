@@ -109,7 +109,7 @@ export class IkarosArticlesService {
     if (article.status !== 'Draft' && article.status !== 'Rejected') {
       throw new BadRequestException('Editovat lze jen Draft nebo Rejected článek');
     }
-    const updated = await this.repo.update(id, { ...dto, updatedAtUtc: new Date() });
+    const updated = await this.repo.update(id, { ...dto, category: dto.category as IkarosArticle['category'] | undefined, updatedAtUtc: new Date() });
     return updated!;
   }
 

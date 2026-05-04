@@ -21,6 +21,7 @@ import { CampaignModule } from './modules/campaign/campaign.module';
 import { MapsModule } from './modules/maps/maps.module';
 import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
 import { IkarosNewsModule } from './modules/ikaros-news/ikaros-news.module';
+import { IkarosArticlesModule } from './modules/ikaros-articles/ikaros-articles.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -45,6 +46,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     MapsModule,
     DungeonMapsModule,
     IkarosNewsModule,
+    IkarosArticlesModule,
     GatewaysModule,
   ],
   controllers: [AppController],
