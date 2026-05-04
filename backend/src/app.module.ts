@@ -18,6 +18,8 @@ import { CharacterSubdocsModule } from './modules/character-subdocs/character-su
 import { NpcTemplatesModule } from './modules/npc-templates/npc-templates.module';
 import { UniverseModule } from './modules/universe/universe.module';
 import { CampaignModule } from './modules/campaign/campaign.module';
+import { MapsModule } from './modules/maps/maps.module';
+import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -39,6 +41,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     NpcTemplatesModule,
     UniverseModule,
     CampaignModule,
+    MapsModule,
+    DungeonMapsModule,
     GatewaysModule,
   ],
   controllers: [AppController],
