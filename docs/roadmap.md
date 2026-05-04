@@ -310,42 +310,47 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 10b — Calendar ⬜
+## Krok 10b — Calendar ✅
 
 > Per-postava herní deník — osobní kalendář událostí.
 
-- [ ] Schema: worldId, slug (key = characterSlug), events (CalendarEvent: id/title/description/start/end/hourStart/hourEnd/allDay)
-- [ ] PUT: nahradí celé Events; auto-create pokud chybí; fixWorldId pokud neshoda
-- [ ] GET /api/calenders/:slug, PUT
+- [x] Schema: worldId, slug (key = characterSlug), events (CalendarEvent: id/title/description/start/end/hourStart/hourEnd/allDay)
+- [x] PUT: nahradí celé Events; auto-create pokud chybí; fixWorldId pokud neshoda
+- [x] GET /api/calenders/:slug, PUT
+- [x] color + displaySettings (PJ nastavení vzhledu)
+- [x] Agregovaný PJ pohled GET /worlds/:worldId/calendars/aggregate
+- [x] isLocation flag na Character
 
-**Spec:** —  
-**Plán:** —
+**Spec:** `docs/superpowers/specs/2026-05-04-krok-10b-calendar-design.md`  
+**Plán:** `docs/superpowers/plans/2026-05-04-krok-10b-calendar.md`
 
 ---
 
-## Krok 10c — TimelineEvent ⬜
+## Krok 10c — TimelineEvent ✅
 
 > Historická časová osa světa s fantasy datumovými formáty.
 
-- [ ] Schema: worldId, year/month/day (strings pro fantasy formáty), text, imageUrl, link
-- [ ] Base64 stripping: GET /api/timeline stripuje data: URI; GET /:id zachová; PUT zachová base64 pokud incoming null
-- [ ] GET, POST, PUT, DELETE
+- [x] Schema: worldId, year/month/day (1-based číselné indexy), text, imageUrl, link, celestialOverrides
+- [x] Base64 stripping: GET /api/timeline stripuje data: URI; GET /:id zachová; PUT zachová base64 pokud incoming null
+- [x] GET, POST, PUT, DELETE
+- [x] celestialStates vypočteny za běhu z WorldCalendarConfig (nejsou v DB)
 
-**Spec:** —  
-**Plán:** —
+**Spec:** `docs/superpowers/specs/2026-05-04-krok-10cd-timeline-calendar-config-design.md`  
+**Plán:** `docs/superpowers/plans/2026-05-04-krok-10cd-timeline-calendar-config.md`
 
 ---
 
-## Krok 10d — WorldCalendarConfig ⬜
+## Krok 10d — WorldCalendarConfig ✅
 
 > Konfigurace fantasy kalendáře světa (dny, měsíce, nebeská tělesa).
 
-- [ ] daysOfWeek, months (s daysCount), celestialBodies
-- [ ] Uloženo na World dokumentu nebo jako samostatná kolekce per world
-- [ ] GET /api/worlds/:id/calendar-config, PUT
+- [x] daysOfWeek, months (s daysCount), hoursPerDay, celestialBodies (moon/sun/planet/comet/other)
+- [x] Výpočet stavů nebeských těles: cyklická matematika s referenceDate a referenceOffset
+- [x] Samostatná kolekce `world_calendar_configs`, 1:1 per world
+- [x] GET /api/worlds/:worldId/calendar-config (jen členové), PUT (PJ/Admin)
 
-**Spec:** —  
-**Plán:** —
+**Spec:** `docs/superpowers/specs/2026-05-04-krok-10cd-timeline-calendar-config-design.md`  
+**Plán:** `docs/superpowers/plans/2026-05-04-krok-10cd-timeline-calendar-config.md`
 
 ---
 
@@ -363,37 +368,54 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 10f — WorldWeather ⬜
+## Krok 10f — WorldWeather ✅
 
-> Generátor počasí per world s konfigurovatelnou logikou.
+> Generátor počasí per world s konfigurovatelnou logikou a broadcast do chatu/mapy.
 
-- [ ] WeatherGenerator config per world: parametry pro generování počasí
-- [ ] GET /api/worlds/:id/weather-generators, PUT
-- [ ] POST /api/worlds/:id/weather/generate → vygeneruj aktuální počasí dle konfigurace
+- [x] WeatherGenerator schema: config (tempMin/Max, weatherTypes, wind, pressure, humidity, customFields), currentWeather
+- [x] Vážená náhoda výběru typu počasí, generování teploty/oblačnosti/srážek/větru/tlaku/vlhkosti/custom polí
+- [x] GET/POST/PUT/DELETE /api/worlds/:worldId/weather-generators
+- [x] POST /:id/generate → vygeneruj z configu, uloží do currentWeather
+- [x] PUT /:id/current → ruční nastavení currentWeather
+- [x] POST /:id/broadcast → chat (ChatMessage se systemovým senderem) nebo mapa (Socket.io weather:updated)
+- [x] Seed defaultního generátoru dle genre při vytvoření světa
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-10f-world-weather-design.md](superpowers/specs/2026-05-04-krok-10f-world-weather-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-10f-world-weather.md](superpowers/plans/2026-05-04-krok-10f-world-weather.md)
 
 ---
 
-## Krok 10g — WorldNews ⬜
+## Krok 10g — WorldNews ✅
 
 > Světové novinky (globální i per-world) viditelné pro anonymní uživatele.
 
-- [ ] NewsItem schema: worldId (null = globální), title, content, date (ISO 8601), type (info/alert/system), link
-- [ ] Index: (worldId, date DESC)
-- [ ] GET /api/news (limit?), GET /:id, POST, PUT, DELETE — všechny GET anon
+- [x] NewsItem schema: worldId (null = globální), title, content, date (ISO 8601), type (info/alert/system), link
+- [x] Index: (worldId, date DESC)
+- [x] GET /api/news (limit?), GET /:id, POST, PUT, DELETE — všechny GET anon
 
-**Spec:** —  
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-10g-world-news-design.md](superpowers/specs/2026-05-04-krok-10g-world-news-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-10g-world-news.md](superpowers/plans/2026-05-04-krok-10g-world-news.md)
+
+---
+
+## Krok 11a — IkarosNews ⬜
+
+> Platformové novinky — jednoduchý CRUD bez schvalovacího workflow.
+
+- [ ] Schema: title, content, authorId (server-filled), authorName (server-filled), createdAtUtc (server-filled), isActive (bool)
+- [ ] GET je AllowAnonymous, žádný approval workflow
+- [ ] POST/DELETE: jen Superadmin/Admin/PJ
+- [ ] Route: `/IkarosNews` (bez api/ prefixu — zpětná kompatibilita)
+
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-11a-ikaros-news-design.md](superpowers/specs/2026-05-04-krok-11a-ikaros-news-design.md)  
 **Plán:** —
 
 ---
 
-## Krok 11 — Ikaros obsah ⬜
+## Krok 11b — IkarosArticles ⬜
 
-> Platformové články, diskuze, galerie, novinky — schvalovací toky.
+> Platformové články se schvalovacím tokem a hodnocením.
 
-### IkarosArticles
 - [ ] Schema: title, content (Markdown), category (Povidky/Poezie/Uvahy/Recenze/Postavy/Ostatni), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings (userId+stars 1–5), averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
 - [ ] Workflow: Draft → Submit → Pending → Approve → Published | Reject → Rejected
 - [ ] Editovatelné jen ve stavu Draft nebo Rejected
@@ -402,7 +424,31 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] GET (published + pending pro admin), GET /my, GET /pending (admin), POST, PUT, DELETE
 - [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
 
-### IkarosDiscussions
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-11b-ikaros-articles-design.md](superpowers/specs/2026-05-04-krok-11b-ikaros-articles-design.md)  
+**Plán:** —
+
+---
+
+## Krok 11c — IkarosGallery ⬜
+
+> Galerie obrázků se schvalovacím tokem — stejný workflow jako Articles.
+
+- [ ] Schema: title, description, imageUrl (Cloudinary public ID), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings, averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
+- [ ] Upload: multipart/form-data (file, title, description, submit bool) → UploadService → Cloudinary ID uložen
+- [ ] Stejný workflow a notifikace jako Articles
+- [ ] Admin zahrnuje i SpravceGalerie roli
+- [ ] GET, GET /my, GET /pending, POST (multipart), PUT (jen title/description), DELETE
+- [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
+
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-11c-ikaros-gallery-design.md](superpowers/specs/2026-05-04-krok-11c-ikaros-gallery-design.md)  
+**Plán:** —
+
+---
+
+## Krok 11d — IkarosDiscussions ⬜
+
+> Diskuzní fórum se schvalováním, manažery, pozváním a oblíbenými.
+
 - [ ] Schema: title, description, bulletin (editovatelné oznámení), creatorId, creatorName, isApproved, isOpen, managerIds (creator auto-přidán), invitedUserIds, postCount, likeCount, createdAtUtc, lastActivityUtc
 - [ ] IkarosDiscussionPost: discussionId, authorId, authorName, content, createdAtUtc
 - [ ] Oprávnění: creator/manažeři editují; admin schvaluje non-adminům; jen manager/admin může zvát
@@ -411,21 +457,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] POST /:id/approve, POST /:id/reject, POST /:id/invite, POST /:id/toggle-favorite
 - [ ] GET /:id/posts (stránkované), POST /:id/posts, DELETE /:id/posts/:postId
 
-### IkarosGallery
-- [ ] Schema: title, description, imageUrl (Cloudinary public ID), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings, averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
-- [ ] Upload: multipart/form-data (file, title, description, submit bool) → UploadService → Cloudinary ID uložen
-- [ ] Stejný workflow a notifikace jako Articles
-- [ ] Admin zahrnuje i SpravceGalerie roli
-- [ ] GET, GET /my, GET /pending, POST (multipart), PUT (jen title/description), DELETE
-- [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
-
-### IkarosNews (platformové novinky)
-- [ ] Schema: title, content, authorId (server-filled), authorName (server-filled), createdAtUtc (server-filled), isActive (bool, žádný Draft/Published state)
-- [ ] GET je AllowAnonymous, žádný approval workflow
-- [ ] POST/DELETE: jen Superadmin/Admin/PJ
-- [ ] GET /api/ikaros-news (anon), POST, DELETE
-
-**Spec:** —  
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-11d-ikaros-discussions-design.md](superpowers/specs/2026-05-04-krok-11d-ikaros-discussions-design.md)  
 **Plán:** —
 
 ---
@@ -610,9 +642,12 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 10c | TimelineEvent | ⬜ |
 | 10d | WorldCalendarConfig | ⬜ |
 | 10e | WorldCurrencies | ⬜ |
-| 10f | WorldWeather | ⬜ |
+| 10f | WorldWeather | ✅ |
 | 10g | WorldNews | ⬜ |
-| 11 | Ikaros obsah | ⬜ |
+| 11a | IkarosNews | ⬜ |
+| 11b | IkarosArticles | ⬜ |
+| 11c | IkarosGallery | ⬜ |
+| 11d | IkarosDiscussions | ⬜ |
 | 12 | Média & Emotes & Zvuky | ⬜ |
 | 13 | Push notifikace | ⬜ |
 | 14 | Vyhledávání | ⬜ |
