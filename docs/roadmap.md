@@ -245,42 +245,45 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 9 — Kampaně ⬜
+## Krok 9 — Kampaně ✅
 
 > 6 modelů pro GM nástroje — pavučina vztahů, příběhové linky, scénáře.
 
 ### CampaignSubject (uzly pavučiny)
-- [ ] Schema: ownerId, worldId, type (PC/NPC/FACTION/ORG), name, avatarUrl, tags, status (active/archived), linkedPageSlug, linkedDiarySlug, notes, createdAtUtc, updatedAtUtc
-- [ ] PJ vidí vše; non-PJ vidí jen vlastní (ownerId === currentUserId)
+- [x] Schema: ownerId, worldId, type (PC/NPC/LOCATION/ORG/FACTION), name, avatarUrl, tags, status (active/archived), linkedPageSlug, linkedCharacterSlug, notes, isShared
+- [x] PJ vidí vše; PomocnýPJ vidí vlastní + sdílené; Hráč vidí jen vlastní
 
 ### CampaignRelationship
-- [ ] Schema: ownerId, worldId, subjectAId, subjectBId
-- [ ] Sdílená vrstva: whatHappened, behindTheScenes
-- [ ] Perspektivy SideA/SideB: tone, behavior, gmIntent
-- [ ] status: active/dormant/crisis/closed, priority, storylineIds, lastChangeNote
+- [x] Schema: ownerId, worldId, subjectAId, subjectBId
+- [x] Sdílená vrstva: whatHappened, behindTheScenes
+- [x] Perspektivy SideA/SideB: tone, behavior, gmIntent, strength (1–10)
+- [x] status: active/dormant/crisis/closed, priority (1–5), storylineIds, lastChangeNote
 
 ### CampaignStoryline
-- [ ] Schema: ownerId, worldId, level (macro/mid/micro), title, status (active/dormant/escalating/climax/closed)
-- [ ] phase, summary, whatHappened, truth (GM-only), playersBelief, gmIntent
-- [ ] nextStep (zobrazuje se na dashboardu), subjectIds, relationshipIds
+- [x] Schema: ownerId, worldId, level (macro/mid/micro), title, status (active/dormant/escalating/climax/closed)
+- [x] phase, summary, whatHappened, truth (GM-only), playersBelief, gmIntent
+- [x] nextStep (zobrazuje se na dashboardu), subjectIds, relationshipIds
 
 ### CampaignScenario
-- [ ] Schema: ownerId, worldId, title, contentData (TipTap JSON), order (auto-increment), linkedPageSlug, subjectIds, storylineIds, images (gallery URLs)
+- [x] Schema: ownerId, worldId, title, contentData (TipTap JSON), order (max+1 per scope), linkedPageSlug, subjectIds, storylineIds, images (gallery URLs)
 
 ### CampaignQuickNote
-- [ ] Schema: ownerId, worldId, title, body, status (open/done), pinned, subjectIds, storylineIds
+- [x] Schema: ownerId, worldId, title, body, status (open/done), pinned, subjectIds, storylineIds
 
 ### CampaignShopItem
-- [ ] Schema: ownerId, worldId, name, description, group/subgroup, price, currencyCode, linkedItemIds (cross-reference), referenceLink, isRecommended
-- [ ] Kaskádové mazání: deleteItem → pull z linkedItemIds ostatních
+- [x] Schema: ownerId, worldId, name, description, group/subgroup, price, currencyCode, linkedItemIds (cross-reference), referenceLink, isRecommended
+- [x] Kaskádové mazání: deleteItem → pull z linkedItemIds ostatních
+
+### CampaignChangeLog
+- [x] Auditní log s TTL 90 dní + max 200 záznamů per world; PJ vidí vše, PomocnýPJ jen sdílené
 
 ### Dashboard endpoint
-- [ ] GET /api/campaign/dashboard → crisisRelationships, activeStorylines, pinnedNotes, recentChanges (max 20)
+- [x] GET /api/campaign/dashboard → crisisRelationships, activeStorylines, pinnedNotes, recentChanges (max 20)
 
-### REST API (29 endpointů)
-- [ ] Všechny modely: GET (s filtry: ownerId/type/status/worldId), GET /:id, POST, PUT /:id, DELETE
-- [ ] Sorted: updatedAtUtc / priority / pinned
-- [ ] PJ_BASE_ token: PJ vidí vlastní data + legacy (null ownerId); prefix se stripne při create
+### REST API (33 endpointů)
+- [x] Všechny modely: GET (s filtry), GET /:id, POST, PUT /:id, DELETE
+- [x] Speciální: GET /players, GET /dashboard, GET /changelog
+- [x] resolveScope dle WorldRole (Hráč/PomocnýPJ/PJ)
 
 **Spec:** [docs/superpowers/specs/2026-05-03-krok-9-kampane-design.md](superpowers/specs/2026-05-03-krok-9-kampane-design.md)  
 **Plán:** [docs/superpowers/plans/2026-05-03-krok-9-kampane.md](superpowers/plans/2026-05-03-krok-9-kampane.md)
@@ -548,7 +551,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 7d | RPG System Presets | ✅ |
 | 8a | Taktická mapa | ✅ |
 | 8b | Dungeon Builder | ⬜ |
-| 9 | Kampaně | ⬜ |
+| 9 | Kampaně | ✅ |
 | 10 | Herní čas & Svět | ⬜ |
 | 11 | Ikaros obsah | ⬜ |
 | 12 | Média & Emotes & Zvuky | ⬜ |
