@@ -1,0 +1,460 @@
+import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
+import type { ICampaignSubjectRepository } from './interfaces/campaign-subject-repository.interface';
+import type { ICampaignRelationshipRepository } from './interfaces/campaign-relationship-repository.interface';
+import type { ICampaignStorylineRepository } from './interfaces/campaign-storyline-repository.interface';
+import type { ICampaignScenarioRepository } from './interfaces/campaign-scenario-repository.interface';
+import type { ICampaignQuickNoteRepository } from './interfaces/campaign-quick-note-repository.interface';
+import type { ICampaignShopItemRepository } from './interfaces/campaign-shop-item-repository.interface';
+import type { ICampaignChangeLogRepository } from './interfaces/campaign-change-log-repository.interface';
+import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { CampaignSubject } from './interfaces/campaign-subject.interface';
+import type { CampaignRelationship } from './interfaces/campaign-relationship.interface';
+import type { CampaignStoryline } from './interfaces/campaign-storyline.interface';
+import type { CampaignScenario } from './interfaces/campaign-scenario.interface';
+import type { CampaignQuickNote } from './interfaces/campaign-quick-note.interface';
+import type { CampaignShopItem } from './interfaces/campaign-shop-item.interface';
+import type { CampaignEntityType, CampaignChangeType } from './interfaces/campaign-change-log.interface';
+
+interface EntityBase { id: string; worldId: string; ownerId: string; isShared: boolean; }
+
+@Injectable()
+export class CampaignService {
+  constructor(
+    @Inject('ICampaignSubjectRepository') private readonly subjectRepo: ICampaignSubjectRepository,
+    @Inject('ICampaignRelationshipRepository') private readonly relRepo: ICampaignRelationshipRepository,
+    @Inject('ICampaignStorylineRepository') private readonly storylineRepo: ICampaignStorylineRepository,
+    @Inject('ICampaignScenarioRepository') private readonly scenarioRepo: ICampaignScenarioRepository,
+    @Inject('ICampaignQuickNoteRepository') private readonly noteRepo: ICampaignQuickNoteRepository,
+    @Inject('ICampaignShopItemRepository') private readonly shopRepo: ICampaignShopItemRepository,
+    @Inject('ICampaignChangeLogRepository') private readonly logRepo: ICampaignChangeLogRepository,
+    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+  ) {}
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  async getWorldRole(userId: string, userRole: UserRole, worldId: string): Promise<WorldRole> {
+    if (userRole <= UserRole.Admin) return WorldRole.PJ;
+    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
+    return membership?.role ?? WorldRole.Hrac;
+  }
+
+  resolveScope(userId: string, worldRole: WorldRole, worldId: string): Record<string, unknown> {
+    if (worldRole >= WorldRole.PJ) return { worldId };
+    if (worldRole === WorldRole.PomocnyPJ) return { worldId, $or: [{ ownerId: userId }, { isShared: true }] };
+    return { worldId, ownerId: userId };
+  }
+
+  canModify(entity: EntityBase, userId: string, worldRole: WorldRole): boolean {
+    if (worldRole >= WorldRole.PJ) return true;
+    if (entity.isShared && worldRole >= WorldRole.PomocnyPJ) return true;
+    return entity.ownerId === userId;
+  }
+
+  private logChange(
+    entity: EntityBase,
+    entityType: CampaignEntityType,
+    entityName: string,
+    changeType: CampaignChangeType,
+    changedByUserId: string,
+    changedByName: string,
+  ): void {
+    this.logRepo.append({
+      worldId: entity.worldId,
+      ownerId: entity.ownerId,
+      isShared: entity.isShared,
+      entityType,
+      entityId: entity.id,
+      entityName,
+      changeType,
+      changedByUserId,
+      changedByName,
+      changedAt: new Date(),
+    }).catch(() => { /* fire-and-forget */ });
+  }
+
+  // ── Subjects ─────────────────────────────────────────────────────────────
+
+  async findSubjects(
+    userId: string, worldRole: WorldRole, worldId: string,
+    filters: { type?: string; status?: string; q?: string },
+  ): Promise<CampaignSubject[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    if (filters.type) base['type'] = filters.type;
+    if (filters.status) base['status'] = filters.status;
+    if (filters.q) base['name'] = { $regex: filters.q, $options: 'i' };
+    return this.subjectRepo.findMany(base);
+  }
+
+  async findSubjectById(id: string, userId: string, worldRole: WorldRole): Promise<CampaignSubject> {
+    const entity = await this.subjectRepo.findById(id);
+    if (!entity) throw new NotFoundException('Subjekt nenalezen');
+    if (!this.canModify(entity, userId, worldRole)) throw new ForbiddenException();
+    return entity;
+  }
+
+  async createSubject(
+    userId: string, userName: string, worldRole: WorldRole, worldId: string, isShared: boolean,
+    dto: { name: string; type?: CampaignSubject['type']; avatarUrl?: string; tags?: string[]; status?: CampaignSubject['status']; linkedPageSlug?: string; linkedCharacterSlug?: string; notes?: string },
+  ): Promise<CampaignSubject> {
+    const created = await this.subjectRepo.create({
+      worldId, ownerId: userId, isShared,
+      type: dto.type ?? 'NPC',
+      name: dto.name,
+      avatarUrl: dto.avatarUrl,
+      tags: dto.tags ?? [],
+      status: dto.status ?? 'active',
+      linkedPageSlug: dto.linkedPageSlug,
+      linkedCharacterSlug: dto.linkedCharacterSlug,
+      notes: dto.notes,
+    });
+    this.logChange(created, 'subject', created.name, 'created', userId, userName);
+    return created;
+  }
+
+  async updateSubject(
+    id: string, userId: string, userName: string, worldRole: WorldRole,
+    dto: Partial<Omit<CampaignSubject, 'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<CampaignSubject> {
+    const existing = await this.subjectRepo.findById(id);
+    if (!existing) throw new NotFoundException('Subjekt nenalezen');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    const updated = await this.subjectRepo.update(id, dto);
+    if (!updated) throw new NotFoundException('Subjekt nenalezen');
+    this.logChange(updated, 'subject', updated.name, 'updated', userId, userName);
+    return updated;
+  }
+
+  async deleteSubject(id: string, userId: string, worldRole: WorldRole, userName: string): Promise<void> {
+    const existing = await this.subjectRepo.findById(id);
+    if (!existing) throw new NotFoundException('Subjekt nenalezen');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    await this.subjectRepo.delete(id);
+    this.logChange(existing, 'subject', existing.name, 'deleted', userId, userName);
+  }
+
+  // ── Relationships ─────────────────────────────────────────────────────────
+
+  async findRelationships(
+    userId: string, worldRole: WorldRole, worldId: string,
+    filters: { subjectId?: string; status?: string; storylineId?: string },
+  ): Promise<CampaignRelationship[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    if (filters.status) base['status'] = filters.status;
+    if (filters.storylineId) base['storylineIds'] = filters.storylineId;
+    if (filters.subjectId) {
+      base['$or'] = [{ subjectAId: filters.subjectId }, { subjectBId: filters.subjectId }];
+    }
+    return this.relRepo.findMany(base);
+  }
+
+  async findRelationshipById(id: string, userId: string, worldRole: WorldRole): Promise<CampaignRelationship> {
+    const entity = await this.relRepo.findById(id);
+    if (!entity) throw new NotFoundException('Vztah nenalezen');
+    if (!this.canModify(entity, userId, worldRole)) throw new ForbiddenException();
+    return entity;
+  }
+
+  async createRelationship(
+    userId: string, userName: string, worldRole: WorldRole, worldId: string, isShared: boolean,
+    dto: { subjectAId: string; subjectBId: string; shared?: CampaignRelationship['shared']; sideA?: Partial<CampaignRelationship['sideA']>; sideB?: Partial<CampaignRelationship['sideB']>; status?: CampaignRelationship['status']; priority?: number; storylineIds?: string[]; lastChangeNote?: string },
+  ): Promise<CampaignRelationship> {
+    const created = await this.relRepo.create({
+      worldId, ownerId: userId, isShared,
+      subjectAId: dto.subjectAId,
+      subjectBId: dto.subjectBId,
+      shared: dto.shared ?? {},
+      sideA: { strength: 5, ...dto.sideA },
+      sideB: { strength: 5, ...dto.sideB },
+      status: dto.status ?? 'active',
+      priority: dto.priority ?? 3,
+      storylineIds: dto.storylineIds ?? [],
+      lastChangeNote: dto.lastChangeNote,
+    });
+    this.logChange(created, 'relationship', `${created.subjectAId}↔${created.subjectBId}`, 'created', userId, userName);
+    return created;
+  }
+
+  async updateRelationship(
+    id: string, userId: string, userName: string, worldRole: WorldRole,
+    dto: Partial<Omit<CampaignRelationship, 'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<CampaignRelationship> {
+    const existing = await this.relRepo.findById(id);
+    if (!existing) throw new NotFoundException('Vztah nenalezen');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    const updated = await this.relRepo.update(id, dto);
+    if (!updated) throw new NotFoundException('Vztah nenalezen');
+    this.logChange(updated, 'relationship', `${updated.subjectAId}↔${updated.subjectBId}`, 'updated', userId, userName);
+    return updated;
+  }
+
+  async deleteRelationship(id: string, userId: string, worldRole: WorldRole, userName: string): Promise<void> {
+    const existing = await this.relRepo.findById(id);
+    if (!existing) throw new NotFoundException('Vztah nenalezen');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    await this.relRepo.delete(id);
+    this.logChange(existing, 'relationship', `${existing.subjectAId}↔${existing.subjectBId}`, 'deleted', userId, userName);
+  }
+
+  // ── Storylines ────────────────────────────────────────────────────────────
+
+  async findStorylines(
+    userId: string, worldRole: WorldRole, worldId: string,
+    filters: { level?: string; status?: string; subjectId?: string },
+  ): Promise<CampaignStoryline[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    if (filters.level) base['level'] = filters.level;
+    if (filters.status) base['status'] = filters.status;
+    if (filters.subjectId) base['subjectIds'] = filters.subjectId;
+    return this.storylineRepo.findMany(base);
+  }
+
+  async findStorylineById(id: string, userId: string, worldRole: WorldRole): Promise<CampaignStoryline> {
+    const entity = await this.storylineRepo.findById(id);
+    if (!entity) throw new NotFoundException('Storyline nenalezena');
+    if (!this.canModify(entity, userId, worldRole)) throw new ForbiddenException();
+    return entity;
+  }
+
+  async createStoryline(
+    userId: string, userName: string, worldRole: WorldRole, worldId: string, isShared: boolean,
+    dto: { title: string; level?: CampaignStoryline['level']; status?: CampaignStoryline['status']; phase?: string; summary?: string; whatHappened?: string; truth?: string; playersBelief?: string; gmIntent?: string; nextStep?: string; subjectIds?: string[]; relationshipIds?: string[] },
+  ): Promise<CampaignStoryline> {
+    const created = await this.storylineRepo.create({
+      worldId, ownerId: userId, isShared,
+      title: dto.title,
+      level: dto.level ?? 'mid',
+      status: dto.status ?? 'active',
+      phase: dto.phase, summary: dto.summary, whatHappened: dto.whatHappened,
+      truth: dto.truth, playersBelief: dto.playersBelief, gmIntent: dto.gmIntent, nextStep: dto.nextStep,
+      subjectIds: dto.subjectIds ?? [],
+      relationshipIds: dto.relationshipIds ?? [],
+    });
+    this.logChange(created, 'storyline', created.title, 'created', userId, userName);
+    return created;
+  }
+
+  async updateStoryline(
+    id: string, userId: string, userName: string, worldRole: WorldRole,
+    dto: Partial<Omit<CampaignStoryline, 'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<CampaignStoryline> {
+    const existing = await this.storylineRepo.findById(id);
+    if (!existing) throw new NotFoundException('Storyline nenalezena');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    const updated = await this.storylineRepo.update(id, dto);
+    if (!updated) throw new NotFoundException('Storyline nenalezena');
+    this.logChange(updated, 'storyline', updated.title, 'updated', userId, userName);
+    return updated;
+  }
+
+  async deleteStoryline(id: string, userId: string, worldRole: WorldRole, userName: string): Promise<void> {
+    const existing = await this.storylineRepo.findById(id);
+    if (!existing) throw new NotFoundException('Storyline nenalezena');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    await this.storylineRepo.delete(id);
+    this.logChange(existing, 'storyline', existing.title, 'deleted', userId, userName);
+  }
+
+  // ── Scenarios ─────────────────────────────────────────────────────────────
+
+  async findScenarios(userId: string, worldRole: WorldRole, worldId: string): Promise<CampaignScenario[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    return this.scenarioRepo.findMany(base, { order: 1 });
+  }
+
+  async findScenarioById(id: string, userId: string, worldRole: WorldRole): Promise<CampaignScenario> {
+    const entity = await this.scenarioRepo.findById(id);
+    if (!entity) throw new NotFoundException('Scénář nenalezen');
+    if (!this.canModify(entity, userId, worldRole)) throw new ForbiddenException();
+    return entity;
+  }
+
+  async createScenario(
+    userId: string, userName: string, worldRole: WorldRole, worldId: string, isShared: boolean,
+    dto: { title: string; contentData?: Record<string, unknown>; linkedPageSlug?: string; subjectIds?: string[]; storylineIds?: string[]; images?: string[] },
+  ): Promise<CampaignScenario> {
+    const scopeFilter = { worldId, ownerId: userId, isShared };
+    const maxOrder = await this.scenarioRepo.maxOrder(scopeFilter);
+    const created = await this.scenarioRepo.create({
+      worldId, ownerId: userId, isShared,
+      title: dto.title,
+      contentData: dto.contentData,
+      order: maxOrder + 1,
+      linkedPageSlug: dto.linkedPageSlug,
+      subjectIds: dto.subjectIds ?? [],
+      storylineIds: dto.storylineIds ?? [],
+      images: dto.images ?? [],
+    });
+    this.logChange(created, 'scenario', created.title, 'created', userId, userName);
+    return created;
+  }
+
+  async updateScenario(
+    id: string, userId: string, userName: string, worldRole: WorldRole,
+    dto: Partial<Omit<CampaignScenario, 'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<CampaignScenario> {
+    const existing = await this.scenarioRepo.findById(id);
+    if (!existing) throw new NotFoundException('Scénář nenalezen');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    const updated = await this.scenarioRepo.update(id, dto);
+    if (!updated) throw new NotFoundException('Scénář nenalezen');
+    this.logChange(updated, 'scenario', updated.title, 'updated', userId, userName);
+    return updated;
+  }
+
+  async deleteScenario(id: string, userId: string, worldRole: WorldRole, userName: string): Promise<void> {
+    const existing = await this.scenarioRepo.findById(id);
+    if (!existing) throw new NotFoundException('Scénář nenalezen');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    await this.scenarioRepo.delete(id);
+    this.logChange(existing, 'scenario', existing.title, 'deleted', userId, userName);
+  }
+
+  // ── QuickNotes ────────────────────────────────────────────────────────────
+
+  async findQuickNotes(
+    userId: string, worldRole: WorldRole, worldId: string,
+    filters: { status?: string; pinned?: boolean },
+  ): Promise<CampaignQuickNote[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    if (filters.status) base['status'] = filters.status;
+    if (filters.pinned !== undefined) base['pinned'] = filters.pinned;
+    return this.noteRepo.findMany(base);
+  }
+
+  async findQuickNoteById(id: string, userId: string, worldRole: WorldRole): Promise<CampaignQuickNote> {
+    const entity = await this.noteRepo.findById(id);
+    if (!entity) throw new NotFoundException('Poznámka nenalezena');
+    if (!this.canModify(entity, userId, worldRole)) throw new ForbiddenException();
+    return entity;
+  }
+
+  async createQuickNote(
+    userId: string, userName: string, worldRole: WorldRole, worldId: string, isShared: boolean,
+    dto: { title: string; body?: string; status?: CampaignQuickNote['status']; pinned?: boolean; subjectIds?: string[]; storylineIds?: string[] },
+  ): Promise<CampaignQuickNote> {
+    const created = await this.noteRepo.create({
+      worldId, ownerId: userId, isShared,
+      title: dto.title, body: dto.body,
+      status: dto.status ?? 'open',
+      pinned: dto.pinned ?? false,
+      subjectIds: dto.subjectIds ?? [],
+      storylineIds: dto.storylineIds ?? [],
+    });
+    this.logChange(created, 'quicknote', created.title, 'created', userId, userName);
+    return created;
+  }
+
+  async updateQuickNote(
+    id: string, userId: string, userName: string, worldRole: WorldRole,
+    dto: Partial<Omit<CampaignQuickNote, 'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<CampaignQuickNote> {
+    const existing = await this.noteRepo.findById(id);
+    if (!existing) throw new NotFoundException('Poznámka nenalezena');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    const updated = await this.noteRepo.update(id, dto);
+    if (!updated) throw new NotFoundException('Poznámka nenalezena');
+    this.logChange(updated, 'quicknote', updated.title, 'updated', userId, userName);
+    return updated;
+  }
+
+  async deleteQuickNote(id: string, userId: string, worldRole: WorldRole, userName: string): Promise<void> {
+    const existing = await this.noteRepo.findById(id);
+    if (!existing) throw new NotFoundException('Poznámka nenalezena');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    await this.noteRepo.delete(id);
+    this.logChange(existing, 'quicknote', existing.title, 'deleted', userId, userName);
+  }
+
+  // ── ShopItems ─────────────────────────────────────────────────────────────
+
+  async findShopItems(
+    userId: string, worldRole: WorldRole, worldId: string,
+    filters: { group?: string },
+  ): Promise<CampaignShopItem[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    if (filters.group) base['group'] = filters.group;
+    return this.shopRepo.findMany(base);
+  }
+
+  async findShopItemById(id: string, userId: string, worldRole: WorldRole): Promise<CampaignShopItem> {
+    const entity = await this.shopRepo.findById(id);
+    if (!entity) throw new NotFoundException('Položka nenalezena');
+    if (!this.canModify(entity, userId, worldRole)) throw new ForbiddenException();
+    return entity;
+  }
+
+  async createShopItem(
+    userId: string, userName: string, worldRole: WorldRole, worldId: string, isShared: boolean,
+    dto: { name: string; description?: string; group: string; subgroup?: string; price?: number; currencyCode?: string; linkedItemIds?: string[]; referenceLink?: string; isRecommended?: boolean },
+  ): Promise<CampaignShopItem> {
+    const created = await this.shopRepo.create({
+      worldId, ownerId: userId, isShared,
+      name: dto.name, description: dto.description,
+      group: dto.group, subgroup: dto.subgroup,
+      price: dto.price ?? 0,
+      currencyCode: dto.currencyCode ?? '',
+      linkedItemIds: dto.linkedItemIds ?? [],
+      referenceLink: dto.referenceLink,
+      isRecommended: dto.isRecommended ?? false,
+    });
+    this.logChange(created, 'shopitem', created.name, 'created', userId, userName);
+    return created;
+  }
+
+  async updateShopItem(
+    id: string, userId: string, userName: string, worldRole: WorldRole,
+    dto: Partial<Omit<CampaignShopItem, 'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<CampaignShopItem> {
+    const existing = await this.shopRepo.findById(id);
+    if (!existing) throw new NotFoundException('Položka nenalezena');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    const updated = await this.shopRepo.update(id, dto);
+    if (!updated) throw new NotFoundException('Položka nenalezen');
+    this.logChange(updated, 'shopitem', updated.name, 'updated', userId, userName);
+    return updated;
+  }
+
+  async deleteShopItem(id: string, userId: string, worldRole: WorldRole, userName: string): Promise<void> {
+    const existing = await this.shopRepo.findById(id);
+    if (!existing) throw new NotFoundException('Položka nenalezena');
+    if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
+    await this.shopRepo.delete(id);
+    await this.shopRepo.pullLinkedItem(existing.worldId, id);
+    this.logChange(existing, 'shopitem', existing.name, 'deleted', userId, userName);
+  }
+
+  // ── Players ───────────────────────────────────────────────────────────────
+
+  async getPlayers(requestingUserId: string, worldId: string) {
+    const memberships = await this.membershipRepo.findByWorldId(worldId);
+    return memberships
+      .filter((m) => m.role >= WorldRole.Hrac && m.userId !== requestingUserId)
+      .map((m) => ({ userId: m.userId, characterPath: m.characterPath, role: m.role }));
+  }
+
+  // ── Changelog & Dashboard ─────────────────────────────────────────────────
+
+  async getChangelog(worldId: string, worldRole: WorldRole, limit = 50) {
+    const filter: Record<string, unknown> = { worldId };
+    if (worldRole === WorldRole.PomocnyPJ) filter['isShared'] = true;
+    return this.logRepo.findMany(filter, limit);
+  }
+
+  async getDashboard(userId: string, worldRole: WorldRole, worldId: string) {
+    const scope = this.resolveScope(userId, worldRole, worldId);
+    const [crisisRelationships, activeStorylines, pinnedNotes, recentChanges] = await Promise.all([
+      this.relRepo.findMany({ ...scope, status: 'crisis' }),
+      this.storylineRepo.findMany({ ...scope, status: 'active' }),
+      this.noteRepo.findMany({ ...scope, pinned: true, status: 'open' }),
+      this.getChangelog(worldId, worldRole, 20),
+    ]);
+    return {
+      crisisRelationships: crisisRelationships.slice(0, 10),
+      activeStorylines,
+      pinnedNotes,
+      recentChanges,
+    };
+  }
+}
