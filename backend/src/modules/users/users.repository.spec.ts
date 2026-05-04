@@ -48,3 +48,30 @@ describe('MongoUsersRepository', () => {
     expect(user).toBeNull();
   });
 });
+
+describe('MongoUsersRepository.findByRoles', () => {
+  let repository: MongoUsersRepository;
+  const mockModel = {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        MongoUsersRepository,
+        { provide: getModelToken(UserSchemaClass.name), useValue: mockModel },
+      ],
+    }).compile();
+    repository = module.get(MongoUsersRepository);
+    jest.clearAllMocks();
+  });
+
+  it('volá find s $in query pro zadané role', async () => {
+    mockModel.find.mockReturnValue({ lean: () => ({ exec: () => [] }) });
+    await repository.findByRoles([UserRole.Admin, UserRole.PJ]);
+    expect(mockModel.find).toHaveBeenCalledWith({ role: { $in: [UserRole.Admin, UserRole.PJ] } });
+  });
+});

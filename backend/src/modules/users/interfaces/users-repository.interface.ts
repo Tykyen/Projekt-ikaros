@@ -5,6 +5,7 @@ export interface IUsersRepository {
   findByEmail(email: string): Promise<User | null>;
   findByUsername(username: string): Promise<User | null>;
   findFirstByRole(role: UserRole): Promise<User | null>;
+  findByRoles(roles: UserRole[]): Promise<User[]>;
   findOnlineSince(since: Date): Promise<string[]>;
   save(user: Partial<User>): Promise<User>;
   update(id: string, data: Partial<User>): Promise<User | null>;

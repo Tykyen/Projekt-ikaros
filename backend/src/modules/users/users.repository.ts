@@ -33,6 +33,14 @@ export class MongoUsersRepository
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
   }
 
+  async findByRoles(roles: UserRole[]): Promise<User[]> {
+    const docs = await this.model
+      .find({ role: { $in: roles } })
+      .lean()
+      .exec();
+    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+  }
+
   async updateLastSeen(id: string): Promise<void> {
     await this.model
       .findByIdAndUpdate(id, { lastSeenAt: new Date() })
