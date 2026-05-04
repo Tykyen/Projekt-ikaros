@@ -8,6 +8,9 @@ export enum UserRole {
   Zadatel = 7,
   Zakaz = 8,
   Ikarus = 9,
+  SpravceClankuu = 10,
+  SpravceGalerie = 11,
+  SpravceDisukzi = 12,
 }
 
 export interface User {
@@ -21,7 +24,6 @@ export interface User {
   profileImageUrl?: string;
   characterPath?: string;
   ikarosSkin?: string;
-  akj: boolean;
   themeSettings: Record<string, unknown>;
   chatPreferences: Record<string, unknown>;
   isOnline: boolean;
