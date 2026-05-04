@@ -398,14 +398,14 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 11a — IkarosNews ⬜
+## Krok 11a — IkarosNews ✅
 
 > Platformové novinky — jednoduchý CRUD bez schvalovacího workflow.
 
-- [ ] Schema: title, content, authorId (server-filled), authorName (server-filled), createdAtUtc (server-filled), isActive (bool)
-- [ ] GET je AllowAnonymous, žádný approval workflow
-- [ ] POST/DELETE: jen Superadmin/Admin/PJ
-- [ ] Route: `/IkarosNews` (bez api/ prefixu — zpětná kompatibilita)
+- [x] Schema: title, content, authorId (server-filled), authorName (server-filled), createdAtUtc (server-filled), isActive (bool)
+- [x] GET je AllowAnonymous, žádný approval workflow
+- [x] POST/DELETE: jen Superadmin/Admin/PJ
+- [x] Route: `/IkarosNews` (bez api/ prefixu — zpětná kompatibilita)
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11a-ikaros-news-design.md](superpowers/specs/2026-05-04-krok-11a-ikaros-news-design.md)  
 **Plán:** [docs/superpowers/plans/2026-05-04-krok-11a-ikaros-news.md](superpowers/plans/2026-05-04-krok-11a-ikaros-news.md)
