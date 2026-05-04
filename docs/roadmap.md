@@ -408,7 +408,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Route: `/IkarosNews` (bez api/ prefixu — zpětná kompatibilita)
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11a-ikaros-news-design.md](superpowers/specs/2026-05-04-krok-11a-ikaros-news-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-11a-ikaros-news.md](superpowers/plans/2026-05-04-krok-11a-ikaros-news.md)
 
 ---
 
@@ -425,7 +425,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11b-ikaros-articles-design.md](superpowers/specs/2026-05-04-krok-11b-ikaros-articles-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-11b-ikaros-articles.md](superpowers/plans/2026-05-04-krok-11b-ikaros-articles.md)
 
 ---
 
@@ -441,7 +441,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11c-ikaros-gallery-design.md](superpowers/specs/2026-05-04-krok-11c-ikaros-gallery-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-11c-ikaros-gallery.md](superpowers/plans/2026-05-04-krok-11c-ikaros-gallery.md)
 
 ---
 
@@ -458,7 +458,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] GET /:id/posts (stránkované), POST /:id/posts, DELETE /:id/posts/:postId
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11d-ikaros-discussions-design.md](superpowers/specs/2026-05-04-krok-11d-ikaros-discussions-design.md)  
-**Plán:** —
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-11d-ikaros-discussions.md](superpowers/plans/2026-05-04-krok-11d-ikaros-discussions.md)
 
 ---
 
