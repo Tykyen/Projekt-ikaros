@@ -6,9 +6,7 @@ import { CreateEmoteDto } from './dto/create-emote.dto';
 import { CopyEmoteDto } from './dto/copy-emote.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
-
-interface RequestUser { id: string; role: UserRole }
+import { RequestUser } from '../../common/interfaces/request-user.interface';
 
 @Controller('emotes')
 export class EmotesController {
