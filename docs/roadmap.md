@@ -291,18 +291,22 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 10a — GameEvent ⬜
+## Krok 10a — GameEvent ✅
 
-> Herní události světa s RSVP potvrzením a automatickým mazáním starých.
+> Herní události světa s RSVP potvrzením, skupinovou viditelností, diskusí a automatickým mazáním starých.
 
-- [ ] Schema: worldId, title, date (ISO string, sort key), targetGroup, imageUrl, description, confirmable (RSVP toggle), confirmedBy (EventConfirmation: userId/userName)
-- [ ] Index: (worldId, date)
-- [ ] GET /api/game-events (filtry: worldId/limit/fromDate), POST, PUT (zachová confirmedBy pokud incoming null), DELETE
-- [ ] POST /api/game-events/:id/confirm (toggle účasti)
-- [ ] **GameEventCleanupService**: cron job (každou hodinu), smaže eventy starší než 24h
+- [x] Schema: worldId, title, date (ISO string, sort key), targetGroup, groupOnly, imageUrl, description, confirmable (RSVP toggle), confirmedBy (EventConfirmation: userId/userName), comments (EventComment[])
+- [x] EventComment: id (UUID), parentId, authorId, authorName, content, createdAt, editedAt, reactions (emoji→userId[]), isDeleted (soft delete)
+- [x] Viditelnost: targetGroup + groupOnly flag — groupOnly=true omezí komentáře i zobrazení na danou skupinu + PJ/PomocnýPJ
+- [x] Index: (worldId, date)
+- [x] GET /api/game-events (filtry: worldId/limit/fromDate), POST, PUT (zachová confirmedBy pokud incoming null), DELETE
+- [x] POST /api/game-events/:id/confirm (toggle účasti)
+- [x] POST /api/game-events/:id/comments, PATCH /:id/comments/:commentId, DELETE /:id/comments/:commentId
+- [x] POST /api/game-events/:id/comments/:commentId/react (emoji toggle)
+- [x] **GameEventCleanupService**: cron job (každou hodinu), smaže eventy starší než 24h
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-04-krok-10a-game-event-design.md](superpowers/specs/2026-05-04-krok-10a-game-event-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-04-krok-10a-game-event.md](superpowers/plans/2026-05-04-krok-10a-game-event.md)
 
 ---
 
@@ -601,7 +605,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 8a | Taktická mapa | ✅ |
 | 8b | Dungeon Builder | ✅ |
 | 9 | Kampaně | ✅ |
-| 10a | GameEvent | ⬜ |
+| 10a | GameEvent | ✅ |
 | 10b | Calendar | ⬜ |
 | 10c | TimelineEvent | ⬜ |
 | 10d | WorldCalendarConfig | ⬜ |
