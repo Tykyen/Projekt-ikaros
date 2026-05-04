@@ -75,6 +75,32 @@ export class UploadService {
     };
   }
 
+  async uploadGalleryImage(file: Express.Multer.File): Promise<{ url: string; publicId: string }> {
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!allowedImageTypes.includes(file.mimetype)) {
+      throw new UnsupportedMediaTypeException(`Nepodporovaný typ souboru: ${file.mimetype}`);
+    }
+
+    let result: { secure_url: string; public_id: string };
+    try {
+      result = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            { folder: 'gallery', resource_type: 'image' },
+            (err, res) => {
+              if (err || !res) reject(err ?? new Error('Cloudinary: no response'));
+              else resolve(res as { secure_url: string; public_id: string });
+            },
+          )
+          .end(file.buffer);
+      });
+    } catch {
+      throw new BadGatewayException('Chyba při nahrávání obrázku na Cloudinary');
+    }
+
+    return { url: result.secure_url, publicId: result.public_id };
+  }
+
   @OnEvent('chat.message.deleted')
   async handleMessageDeleted(payload: { attachments?: ChatAttachment[] }): Promise<void> {
     for (const att of payload.attachments ?? []) {

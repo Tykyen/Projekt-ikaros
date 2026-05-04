@@ -7,5 +7,6 @@ import { ChatModule } from '../chat/chat.module';
   imports: [ChatModule],
   controllers: [UploadController],
   providers: [UploadService],
+  exports: [UploadService],
 })
 export class UploadModule {}
