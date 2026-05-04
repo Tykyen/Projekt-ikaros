@@ -429,7 +429,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 11c — IkarosGallery ⬜
+## Krok 11c — IkarosGallery ✅
 
 > Galerie obrázků se schvalovacím tokem — stejný workflow jako Articles.
 
@@ -644,9 +644,9 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 10e | WorldCurrencies | ⬜ |
 | 10f | WorldWeather | ✅ |
 | 10g | WorldNews | ⬜ |
-| 11a | IkarosNews | ⬜ |
-| 11b | IkarosArticles | ⬜ |
-| 11c | IkarosGallery | ⬜ |
+| 11a | IkarosNews | ✅ |
+| 11b | IkarosArticles | ✅ |
+| 11c | IkarosGallery | ✅ |
 | 11d | IkarosDiscussions | ⬜ |
 | 12 | Média & Emotes & Zvuky | ⬜ |
 | 13 | Push notifikace | ⬜ |
