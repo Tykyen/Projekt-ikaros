@@ -1,9 +1,9 @@
 // backend/src/modules/emotes/emotes.service.ts
 import { Injectable, Inject, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { ICustomEmotesRepository } from './interfaces/custom-emotes-repository.interface';
-import { CustomEmote } from './interfaces/custom-emote.interface';
-import { CreateEmoteDto } from './dto/create-emote.dto';
+import type { ICustomEmotesRepository } from './interfaces/custom-emotes-repository.interface';
+import type { CustomEmote } from './interfaces/custom-emote.interface';
+import type { CreateEmoteDto } from './dto/create-emote.dto';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';

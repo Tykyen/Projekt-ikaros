@@ -2,11 +2,11 @@ import {
   Controller, Get, Post, Delete, Param, Body, UseGuards, HttpCode,
 } from '@nestjs/common';
 import { EmotesService } from './emotes.service';
-import { CreateEmoteDto } from './dto/create-emote.dto';
-import { CopyEmoteDto } from './dto/copy-emote.dto';
+import type { CreateEmoteDto } from './dto/create-emote.dto';
+import type { CopyEmoteDto } from './dto/copy-emote.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { RequestUser } from '../../common/interfaces/request-user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 @Controller('emotes')
 export class EmotesController {

@@ -25,6 +25,7 @@ import { IkarosNewsModule } from './modules/ikaros-news/ikaros-news.module';
 import { IkarosArticlesModule } from './modules/ikaros-articles/ikaros-articles.module';
 import { IkarosGalleryModule } from './modules/ikaros-gallery/ikaros-gallery.module';
 import { IkarosDiscussionsModule } from './modules/ikaros-discussions/ikaros-discussions.module';
+import { EmotesModule } from './modules/emotes/emotes.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -53,6 +54,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     IkarosArticlesModule,
     IkarosGalleryModule,
     IkarosDiscussionsModule,
+    EmotesModule,
     GatewaysModule,
   ],
   controllers: [AppController],
