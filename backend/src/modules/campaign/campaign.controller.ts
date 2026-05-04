@@ -1,7 +1,7 @@
 // backend/src/modules/campaign/campaign.controller.ts
 import {
   Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards,
-  ForbiddenException, ParseIntPipe, DefaultValuePipe,
+  ForbiddenException, BadRequestException, ParseIntPipe, DefaultValuePipe,
 } from '@nestjs/common';
 import { CampaignService } from './campaign.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -23,6 +23,7 @@ export class CampaignController {
   constructor(private readonly service: CampaignService) {}
 
   private async role(user: RequestUser, worldId: string): Promise<WorldRole> {
+    if (!worldId) throw new BadRequestException('worldId je povinný parametr');
     return this.service.getWorldRole(user.id, user.role, worldId);
   }
 
