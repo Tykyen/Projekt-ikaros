@@ -26,6 +26,7 @@ import { IkarosArticlesModule } from './modules/ikaros-articles/ikaros-articles.
 import { IkarosGalleryModule } from './modules/ikaros-gallery/ikaros-gallery.module';
 import { IkarosDiscussionsModule } from './modules/ikaros-discussions/ikaros-discussions.module';
 import { EmotesModule } from './modules/emotes/emotes.module';
+import { ImagesModule } from './modules/images/images.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -55,6 +56,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     IkarosGalleryModule,
     IkarosDiscussionsModule,
     EmotesModule,
+    ImagesModule,
     GatewaysModule,
   ],
   controllers: [AppController],
