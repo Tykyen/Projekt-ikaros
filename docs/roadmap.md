@@ -462,9 +462,9 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 12 — Média & Emotes & Zvuky ⬜
+## Krok 12a — Custom Emotes & Image proxy ⬜
 
-> Databáze zvuků, custom emotes per world, správa médií.
+> Per-world custom emote shortcody a Cloudinary image proxy pro zpětnou kompatibilitu.
 
 ### Custom Emotes
 - [ ] Schema: worldId, name, shortcode (":name:"), imageId (Cloudinary public ID), createdAt
@@ -473,15 +473,24 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Emote picker: WebSocket broadcast nového emote při vytvoření
 - [ ] Integrace s chat inputem (podpora `:shortcode:` syntaxe)
 
+### Image serving
+- [ ] GET /api/images/:id → proxy z Cloudinary (in-memory stream, zachová mimetype)
+- [ ] Slouží pro zpětnou kompatibilitu s uloženými Cloudinary public ID
+
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 12b — Sound Database ⬜
+
+> Databáze zvuků s bohatými metadaty, integrace s taktickou mapou.
+
 ### Sound Database
 - [ ] Schema: id, name, youtubeUrl, mediaType, primaryFunction, environment, emotionalTone, intensity (1–5), duration, loop, onsetProfile, outroProfile, factionStyle, techLevel, magicLevel, combatEnergy, tags, notes
 - [ ] GET /api/sounds (all), GET /:id, POST, PUT /:id, DELETE
 - [ ] MapHub integrace: activeSoundIds na MapScene (změny broadcastovány přes MapHub)
 - [ ] Per-world sounds: GET /api/worlds/:id/sounds
-
-### Image serving
-- [ ] GET /api/images/:id → proxy z Cloudinary (in-memory stream, zachová mimetype)
-- [ ] Slouží pro zpětnou kompatibilitu s uloženými Cloudinary public ID
 
 **Spec:** —  
 **Plán:** —
@@ -648,7 +657,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 11b | IkarosArticles | ✅ |
 | 11c | IkarosGallery | ✅ |
 | 11d | IkarosDiscussions | ✅ |
-| 12 | Média & Emotes & Zvuky | ⬜ |
+| 12a | Custom Emotes & Image proxy | ⬜ |
+| 12b | Sound Database | ⬜ |
 | 13 | Push notifikace | ⬜ |
 | 14 | Vyhledávání | ⬜ |
 | 15 | Admin & Systémové nástroje | ⬜ |
