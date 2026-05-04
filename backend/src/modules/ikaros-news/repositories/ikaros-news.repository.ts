@@ -25,7 +25,7 @@ export class MongoIkarosNewsRepository implements IIkarosNewsRepository {
   }
 
   async findActive(): Promise<IkarosNewsItem[]> {
-    const docs = await this.model.find({ isActive: true }).sort({ createdAtUtc: -1 }).lean();
+    const docs = await this.model.find({ isActive: true }).sort({ createdAtUtc: -1 }).lean().exec();
     return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
   }
 

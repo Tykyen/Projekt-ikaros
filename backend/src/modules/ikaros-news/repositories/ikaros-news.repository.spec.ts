@@ -5,7 +5,9 @@ describe('MongoIkarosNewsRepository.findActive', () => {
     const mockModel = {
       find: jest.fn().mockReturnValue({
         sort: jest.fn().mockReturnValue({
-          lean: jest.fn().mockResolvedValue([]),
+          lean: jest.fn().mockReturnValue({
+            exec: jest.fn().mockResolvedValue([]),
+          }),
         }),
       }),
     };
