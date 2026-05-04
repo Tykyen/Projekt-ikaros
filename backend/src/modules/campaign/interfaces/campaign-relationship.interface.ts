@@ -9,7 +9,7 @@ export interface RelationshipSide {
   tone?: string;
   behavior?: string;
   gmIntent?: string;
-  strength: number;
+  strength?: number;
 }
 
 export interface CampaignRelationship {

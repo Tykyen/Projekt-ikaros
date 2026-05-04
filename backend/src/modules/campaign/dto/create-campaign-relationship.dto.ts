@@ -1,4 +1,5 @@
 import { IsString, IsOptional, IsArray, IsBoolean, IsNumber, IsIn, IsObject, Min, Max } from 'class-validator';
+import type { CampaignRelationshipStatus } from '../interfaces/campaign-relationship.interface';
 
 export class RelationshipSideDto {
   @IsOptional() @IsString() tone?: string;
@@ -13,7 +14,7 @@ export class CreateCampaignRelationshipDto {
   @IsOptional() @IsObject() shared?: { whatHappened?: string; behindTheScenes?: string };
   @IsOptional() @IsObject() sideA?: RelationshipSideDto;
   @IsOptional() @IsObject() sideB?: RelationshipSideDto;
-  @IsOptional() @IsIn(['active', 'dormant', 'crisis', 'closed']) status?: string;
+  @IsOptional() @IsIn(['active', 'dormant', 'crisis', 'closed']) status?: CampaignRelationshipStatus;
   @IsOptional() @IsNumber() @Min(1) @Max(5) priority?: number;
   @IsOptional() @IsArray() storylineIds?: string[];
   @IsOptional() @IsString() lastChangeNote?: string;
