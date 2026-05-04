@@ -290,43 +290,91 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 10 — Herní čas & Svět ⬜
+## Krok 10a — GameEvent ⬜
 
-> GameEvent, Kalendář, Timeline, WorldCalendar, měny, počasí.
+> Herní události světa s RSVP potvrzením a automatickým mazáním starých.
 
-### GameEvent
 - [ ] Schema: worldId, title, date (ISO string, sort key), targetGroup, imageUrl, description, confirmable (RSVP toggle), confirmedBy (EventConfirmation: userId/userName)
 - [ ] Index: (worldId, date)
 - [ ] GET /api/game-events (filtry: worldId/limit/fromDate), POST, PUT (zachová confirmedBy pokud incoming null), DELETE
 - [ ] POST /api/game-events/:id/confirm (toggle účasti)
 - [ ] **GameEventCleanupService**: cron job (každou hodinu), smaže eventy starší než 24h
 
-### Calender (per-character herní deník)
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 10b — Calendar ⬜
+
+> Per-postava herní deník — osobní kalendář událostí.
+
 - [ ] Schema: worldId, slug (key = characterSlug), events (CalendarEvent: id/title/description/start/end/hourStart/hourEnd/allDay)
 - [ ] PUT: nahradí celé Events; auto-create pokud chybí; fixWorldId pokud neshoda
 - [ ] GET /api/calenders/:slug, PUT
 
-### TimelineEvent
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 10c — TimelineEvent ⬜
+
+> Historická časová osa světa s fantasy datumovými formáty.
+
 - [ ] Schema: worldId, year/month/day (strings pro fantasy formáty), text, imageUrl, link
 - [ ] Base64 stripping: GET /api/timeline stripuje data: URI; GET /:id zachová; PUT zachová base64 pokud incoming null
 - [ ] GET, POST, PUT, DELETE
 
-### WorldCalendarConfig (rozšíření světa)
-- [ ] daysOfWeek, months (s daysCount), celestialBodies
-- [ ] Použito frontend kalendářem pro správné zobrazení fantasy datumů
+**Spec:** —  
+**Plán:** —
 
-### Měnový systém (WorldCurrencies)
+---
+
+## Krok 10d — WorldCalendarConfig ⬜
+
+> Konfigurace fantasy kalendáře světa (dny, měsíce, nebeská tělesa).
+
+- [ ] daysOfWeek, months (s daysCount), celestialBodies
+- [ ] Uloženo na World dokumentu nebo jako samostatná kolekce per world
+- [ ] GET /api/worlds/:id/calendar-config, PUT
+
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 10e — WorldCurrencies ⬜
+
+> Měnový systém světa se seedem dle žánru a přepočty.
+
 - [ ] WorldCurrencyItem: code, name, ratio, symbol
 - [ ] Seed při vytvoření světa dle genre (fantasy → zlatý/stříbrný/bronzový...)
 - [ ] GET /api/worlds/:id/currencies, PUT (full replace)
 - [ ] CurrencyConverter logic: přepočet mezi světovými měnami
 
-### Weather Generator (WorldWeather)
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 10f — WorldWeather ⬜
+
+> Generátor počasí per world s konfigurovatelnou logikou.
+
 - [ ] WeatherGenerator config per world: parametry pro generování počasí
 - [ ] GET /api/worlds/:id/weather-generators, PUT
 - [ ] POST /api/worlds/:id/weather/generate → vygeneruj aktuální počasí dle konfigurace
 
-### Světové novinky (World News)
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 10g — WorldNews ⬜
+
+> Světové novinky (globální i per-world) viditelné pro anonymní uživatele.
+
 - [ ] NewsItem schema: worldId (null = globální), title, content, date (ISO 8601), type (info/alert/system), link
 - [ ] Index: (worldId, date DESC)
 - [ ] GET /api/news (limit?), GET /:id, POST, PUT, DELETE — všechny GET anon
@@ -550,9 +598,15 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 7c | Universe Map | ✅ |
 | 7d | RPG System Presets | ✅ |
 | 8a | Taktická mapa | ✅ |
-| 8b | Dungeon Builder | ⬜ |
+| 8b | Dungeon Builder | ✅ |
 | 9 | Kampaně | ✅ |
-| 10 | Herní čas & Svět | ⬜ |
+| 10a | GameEvent | ⬜ |
+| 10b | Calendar | ⬜ |
+| 10c | TimelineEvent | ⬜ |
+| 10d | WorldCalendarConfig | ⬜ |
+| 10e | WorldCurrencies | ⬜ |
+| 10f | WorldWeather | ⬜ |
+| 10g | WorldNews | ⬜ |
 | 11 | Ikaros obsah | ⬜ |
 | 12 | Média & Emotes & Zvuky | ⬜ |
 | 13 | Push notifikace | ⬜ |
