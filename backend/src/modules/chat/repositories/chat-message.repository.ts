@@ -77,6 +77,25 @@ export class MongoChatMessageRepository
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
   }
 
+  async pruneChannel(channelId: string, olderThan: Date, keepLast: number): Promise<number> {
+    const recent = await this.model
+      .find({ channelId })
+      .sort({ createdAt: -1 })
+      .limit(keepLast)
+      .select('_id')
+      .lean()
+      .exec();
+    const keepIds = recent.map((d) => String((d as { _id: unknown })._id));
+    const result = await this.model
+      .deleteMany({
+        channelId,
+        createdAt: { $lt: olderThan },
+        _id: { $nin: keepIds },
+      })
+      .exec();
+    return result.deletedCount ?? 0;
+  }
+
   protected toEntity(doc: Record<string, unknown>): ChatMessage {
     return {
       id: String(doc._id),

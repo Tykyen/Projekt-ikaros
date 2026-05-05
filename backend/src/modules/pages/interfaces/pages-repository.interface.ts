@@ -13,4 +13,5 @@ export interface IPagesRepository {
   findAllSlugs(worldId: string): Promise<string[]>;
   findRandom(worldId: string, count: number): Promise<Page[]>;
   findBySlugs(slugs: string[], worldId: string): Promise<Page[]>;
+  findRecent(limit: number, worldIds?: string[]): Promise<Page[]>;
 }

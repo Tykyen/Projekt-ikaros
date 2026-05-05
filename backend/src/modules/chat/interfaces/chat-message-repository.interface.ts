@@ -10,4 +10,5 @@ export interface IChatMessageRepository {
   softDeleteByWorldId(worldId: string): Promise<void>;
   addReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null>;
   removeReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null>;
+  pruneChannel(channelId: string, olderThan: Date, keepLast: number): Promise<number>;
 }

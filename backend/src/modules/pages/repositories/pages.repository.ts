@@ -71,6 +71,18 @@ export class MongoPagesRepository
     return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
   }
 
+  async findRecent(limit: number, worldIds?: string[]): Promise<Page[]> {
+    const query: Record<string, unknown> = {};
+    if (worldIds && worldIds.length > 0) query.worldId = { $in: worldIds };
+    const docs = await this.model
+      .find(query)
+      .sort({ updatedAt: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
+    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+  }
+
   protected toEntity(doc: Record<string, unknown>): Page {
     return {
       id: String(doc._id),

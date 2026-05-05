@@ -55,6 +55,18 @@ export class MongoUsersRepository
     return docs.map((d) => String((d as { _id: unknown })._id));
   }
 
+  async findAllPaginated(opts: { username?: string; role?: UserRole; page: number; limit: number }): Promise<{ items: User[]; total: number }> {
+    const query: Record<string, unknown> = {};
+    if (opts.role !== undefined) query.role = opts.role;
+    if (opts.username) query.username = { $regex: opts.username, $options: 'i' };
+    const skip = (opts.page - 1) * opts.limit;
+    const [docs, total] = await Promise.all([
+      this.model.find(query).sort({ createdAt: -1 }).skip(skip).limit(opts.limit).lean().exec(),
+      this.model.countDocuments(query).exec(),
+    ]);
+    return { items: docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>)), total };
+  }
+
   protected toEntity(doc: Record<string, unknown>): User {
     return {
       id: String(doc._id),

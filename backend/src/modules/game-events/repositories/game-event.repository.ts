@@ -26,6 +26,13 @@ export class MongoGameEventRepository implements IGameEventRepository {
     await this.model.findByIdAndUpdate(id, { $set: { reminderSent: true } }).exec();
   }
 
+  async deleteOlderThan(before: Date): Promise<number> {
+    const result = await this.model
+      .deleteMany({ date: { $lt: before.toISOString() } })
+      .exec();
+    return result.deletedCount ?? 0;
+  }
+
   private toEntity(doc: Record<string, unknown>): GameEvent {
     return {
       id: String(doc._id),
