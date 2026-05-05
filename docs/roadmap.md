@@ -500,25 +500,26 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 13 — Push notifikace ⬜
+## Krok 13 — Push notifikace ✅
 
 > VAPID web push, odběry per user, notifikace per typ kanálu.
 
-- [ ] **VapidSettings**: publicKey, privateKey, subject (v konfiguraci)
-- [ ] GET /api/push/vapid-public-key (anon) → vrátí VAPID public key
-- [ ] POST /api/push/subscribe (JWT) → upsert PushSubscription (userId, endpoint [unique index], p256dh, auth, createdAt)
-- [ ] POST /api/push/unsubscribe (JWT) → smaž subscription dle endpoint
-- [ ] Auto-delete subscriptions při 404/410 odpovědi z push service
-- [ ] **WebPushService**: odešle notifikaci na všechny aktivní subscription daného usera
-- [ ] **Příjemci notifikace dle typu kanálu**:
+- [x] **VapidSettings**: publicKey, privateKey, subject (v konfiguraci)
+- [x] GET /api/push/vapid-public-key (anon) → vrátí VAPID public key
+- [x] POST /api/push/subscribe (JWT) → upsert PushSubscription (userId, endpoint [unique index], p256dh, auth, createdAt)
+- [x] POST /api/push/unsubscribe (JWT) → smaž subscription dle endpoint
+- [x] Auto-delete subscriptions při 404/410 odpovědi z push service
+- [x] **WebPushService**: odešle notifikaci na všechny aktivní subscription daného usera
+- [x] **Příjemci notifikace dle typu kanálu**:
   - Whisper → jen recipienti z visibleTo
   - Participants channel → jen participants
   - GroupRequired channel → jen členové skupiny
-  - Global → všichni online
-- [ ] Integrace s ChatService: po uložení zprávy → async push notifikace
+  - Global → všichni online (GlobalChat + IkarosNews)
+- [x] Integrace s ChatService: po uložení zprávy → async push notifikace
+- [x] **GameEventReminderJob**: cron každou hodinu, push 24h před eventem
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-05-krok-13-push-notifikace-design.md](superpowers/specs/2026-05-05-krok-13-push-notifikace-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-13-push-notifikace.md](superpowers/plans/2026-05-05-krok-13-push-notifikace.md)
 
 ---
 
@@ -662,7 +663,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 11d | IkarosDiscussions | ✅ |
 | 12a | Custom Emotes & Image proxy | ✅ |
 | 12b | Sound Database | ✅ |
-| 13 | Push notifikace | ⬜ |
+| 13 | Push notifikace | ✅ |
 | 14 | Vyhledávání | ⬜ |
 | 15 | Admin & Systémové nástroje | ⬜ |
 | 16 | Finalizace & Integrace | ⬜ |
