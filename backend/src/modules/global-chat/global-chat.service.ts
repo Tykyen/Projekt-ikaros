@@ -5,6 +5,7 @@ import type { IChatMessageRepository } from '../chat/interfaces/chat-message-rep
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
 import type { RequestUser } from '../worlds/worlds.service';
 import type { CreateGlobalMessageDto } from './dto/create-global-message.dto';
+import { PushService } from '../push/push.service';
 
 @Injectable()
 export class GlobalChatService implements OnModuleInit {
@@ -15,6 +16,7 @@ export class GlobalChatService implements OnModuleInit {
     @Inject('IChatChannelRepository') private readonly channelRepo: IChatChannelRepository,
     @Inject('IChatMessageRepository') private readonly messageRepo: IChatMessageRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly pushService: PushService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -71,6 +73,13 @@ export class GlobalChatService implements OnModuleInit {
     });
 
     this.eventEmitter.emit('chat.global.message.created', { channelId: this.globalChannelId, message });
+
+    // fire-and-forget push — nečekáme na výsledek
+    void this.pushService.notifyAll({
+      title: user.username,
+      body: (dto.content ?? '').slice(0, 100),
+    }).catch(() => undefined);
+
     return message;
   }
 

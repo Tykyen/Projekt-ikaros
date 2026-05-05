@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GlobalChatService } from './global-chat.service';
+import { PushService } from '../push/push.service';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import type { ChatChannel } from '../chat/interfaces/chat-channel.interface';
@@ -77,6 +78,10 @@ describe('GlobalChatService', () => {
         { provide: 'IChatChannelRepository', useValue: channelRepo },
         { provide: 'IChatMessageRepository', useValue: messageRepo },
         { provide: EventEmitter2, useValue: eventEmitter },
+        {
+          provide: PushService,
+          useValue: { notifyAll: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
