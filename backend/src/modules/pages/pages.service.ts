@@ -1,4 +1,5 @@
-import { Injectable, Inject, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Inject, Optional, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { SearchCoordinator } from '../search/search.coordinator';
 import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
@@ -16,6 +17,7 @@ export class PagesService {
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
     @Inject('IWorldSettingsRepository') private readonly settingsRepo: IWorldSettingsRepository,
     private readonly tipTapExtractor: TipTapExtractor,
+    @Optional() @Inject(SearchCoordinator) private readonly searchCoordinator?: SearchCoordinator,
   ) {}
 
   async findByWorld(worldId: string, type?: string): Promise<Page[]> {
@@ -34,7 +36,7 @@ export class PagesService {
     const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
     if (exists) throw new ConflictException('Slug již existuje v tomto světě');
     const plainText = this.tipTapExtractor.extract(dto.content ?? '');
-    return this.pagesRepo.save({
+    const savedPage = await this.pagesRepo.save({
       ...dto,
       slug,
       worldId,
@@ -48,6 +50,8 @@ export class PagesService {
       accessRequirements: (dto.accessRequirements ?? []) as any,
       order: dto.order ?? 0,
     } as Partial<Page>);
+    void this.searchCoordinator?.addPageToIndex(savedPage);
+    return savedPage;
   }
 
   async update(id: string, worldId: string, dto: UpdatePageDto): Promise<Page> {
@@ -59,6 +63,7 @@ export class PagesService {
       extra.plainText = this.tipTapExtractor.extract(dto.content);
     }
     const updated = await this.pagesRepo.update(id, { ...dto, ...extra } as any);
+    void this.searchCoordinator?.updatePageInIndex(updated!);
     return updated!;
   }
 
@@ -67,6 +72,7 @@ export class PagesService {
     if (!page) throw new NotFoundException('Stránka nenalezena');
     if (page.worldId !== worldId) throw new ForbiddenException('Stránka nepatří do tohoto světa');
     await this.pagesRepo.delete(id);
+    void this.searchCoordinator?.deletePageFromIndex(page.slug);
   }
 
   async findDirectory(worldId: string) {
