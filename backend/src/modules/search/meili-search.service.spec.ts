@@ -11,6 +11,9 @@ const mockIndex = {
 };
 
 jest.mock('meilisearch', () => ({
+  Meilisearch: jest.fn().mockImplementation(() => ({
+    index: jest.fn().mockReturnValue(mockIndex),
+  })),
   MeiliSearch: jest.fn().mockImplementation(() => ({
     index: jest.fn().mockReturnValue(mockIndex),
   })),
