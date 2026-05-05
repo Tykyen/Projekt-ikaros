@@ -7,6 +7,7 @@ import { User, PublicUser } from './interfaces/user.interface';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateThemeDto } from './dto/update-theme.dto';
 
 type SanitizedUser = Omit<User, 'passwordHash'>;
 
@@ -77,6 +78,10 @@ export class UsersService {
     if (!user) throw new NotFoundException('Uživatel nenalezen');
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
     await this.repo.update(userId, { passwordHash });
+  }
+
+  async updateTheme(id: string, dto: UpdateThemeDto): Promise<SanitizedUser> {
+    return this.update(id, { themeSettings: dto.themeSettings });
   }
 
   async existsByUsername(username: string): Promise<boolean> {

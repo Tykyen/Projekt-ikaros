@@ -173,6 +173,17 @@ describe('UsersService', () => {
     });
   });
 
+  // --- updateTheme ---
+  describe('updateTheme', () => {
+    it('zavolá update s themeSettings', async () => {
+      mockRepo.findById.mockResolvedValue(mockUser);
+      mockRepo.findByUsername.mockResolvedValue(null);
+      mockRepo.update.mockResolvedValue({ ...mockUser, themeSettings: { color: 'dark' } });
+      const result = await service.updateTheme('1', { themeSettings: { color: 'dark' } });
+      expect(mockRepo.update).toHaveBeenCalledWith('1', expect.objectContaining({ themeSettings: expect.any(Object) }));
+    });
+  });
+
   // --- delete ---
   it('delete: zavolá repo.delete s userId', async () => {
     mockRepo.delete.mockResolvedValue(true);

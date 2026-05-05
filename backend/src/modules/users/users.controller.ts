@@ -1,11 +1,12 @@
 import {
   Controller, Get, Patch, Put, Delete, Param, Body,
-  UseGuards, ForbiddenException, HttpCode,
+  UseGuards, ForbiddenException, HttpCode, HttpStatus,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdateThemeDto } from './dto/update-theme.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from './interfaces/user.interface';
@@ -83,6 +84,20 @@ export class UsersController {
       throw new ForbiddenException('Reset hesla může provést jen Superadmin');
     }
     return this.usersService.resetPassword(id, dto);
+  }
+
+  @Put(':id/theme')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  updateTheme(
+    @Param('id') id: string,
+    @Body() dto: UpdateThemeDto,
+    @CurrentUser() requester: Requester,
+  ) {
+    if (requester.id !== id && requester.role > UserRole.Admin) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
+    return this.usersService.updateTheme(id, dto);
   }
 
   @Delete(':id')
