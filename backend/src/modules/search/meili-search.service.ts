@@ -1,6 +1,6 @@
 import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MeiliSearch, Index } from 'meilisearch';
+import { Meilisearch as MeiliSearch, Index } from 'meilisearch';
 import type { ISearchProvider, SearchProviderInfo } from './interfaces/search-provider.interface';
 import type { SearchResult } from './interfaces/search-result.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';

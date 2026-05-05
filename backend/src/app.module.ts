@@ -31,6 +31,8 @@ import { ImagesModule } from './modules/images/images.module';
 import { SoundsModule } from './modules/sounds/sounds.module';
 import { PushModule } from './modules/push/push.module';
 import { GameEventsModule } from './modules/game-events/game-events.module';
+import { SearchModule } from './modules/search/search.module';
+import { StatsModule } from './modules/stats/stats.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -65,6 +67,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     ImagesModule,
     SoundsModule,
     GameEventsModule,
+    SearchModule,
+    StatsModule,
     GatewaysModule,
   ],
   controllers: [AppController],

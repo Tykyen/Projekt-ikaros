@@ -34,7 +34,7 @@ export class MongoPageEmbeddingRepository implements IPageEmbeddingRepository {
     await this.model.deleteMany({}).exec();
   }
 
-  private toEntity(doc: Record<string, unknown>): PageEmbedding {
+  private toEntity(doc: any): PageEmbedding {
     return {
       id: String(doc._id),
       pageId: doc.pageId as string,

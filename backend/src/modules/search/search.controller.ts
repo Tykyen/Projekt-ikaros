@@ -61,8 +61,8 @@ export class SearchController {
     if (!body?.slug && !body?.pageId) return { message: 'Uveden slug nebo pageId.' };
     let page: Page | null = null;
     if (body.slug) {
-      const pages = await this.pagesRepo.findAll({ slug: body.slug } as any);
-      page = pages[0] ?? null;
+      const pages = await this.pagesRepo.findAll();
+      page = pages.find((p) => p.slug === body.slug) ?? null;
     }
     if (!page && body.pageId) {
       page = await (this.pagesRepo as any).findById(body.pageId);
