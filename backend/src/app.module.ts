@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -28,13 +29,16 @@ import { IkarosDiscussionsModule } from './modules/ikaros-discussions/ikaros-dis
 import { EmotesModule } from './modules/emotes/emotes.module';
 import { ImagesModule } from './modules/images/images.module';
 import { SoundsModule } from './modules/sounds/sounds.module';
+import { PushModule } from './modules/push/push.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     DatabaseModule,
+    PushModule,
     AuthModule,
     UsersModule,
     WorldsModule,
