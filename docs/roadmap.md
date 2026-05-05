@@ -560,36 +560,33 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 15 — Admin & Systémové nástroje ⬜
+## Krok 15 — Admin & Systémové nástroje ✅
 
 > Admin endpoints, správa obsahu, background jobs, stats.
 
 ### Admin User Management
-- [ ] GET /api/admin/users (filtrování, stránkování)
-- [ ] PATCH /api/admin/users/:id/role (změna role)
-- [ ] PATCH /api/admin/users/:id/akj (toggle AKJ flagu)
-- [ ] GET /api/admin/recent-pages (posledně upravené stránky)
+- [x] GET /api/admin/users (filtrování, stránkování)
+- [x] PATCH /api/admin/users/:id/role (změna role)
+- [x] PATCH /api/admin/users/:id/akj (toggle AKJ flagu)
+- [x] GET /api/admin/recent-pages (posledně upravené stránky)
 
 ### World Admin
-- [ ] Auto-přidej všechny Korektor uživatele do Matrix World při jejich registraci
-- [ ] Matrix WorldId jako konstanta (seed při prvním spuštění)
-- [ ] GET /api/worlds/:id/members (s filtry role, group)
-- [ ] PATCH /api/worlds/:id/members/:userId (změna role/group)
-- [ ] DELETE /api/worlds/:id/members/:userId (vyhazování)
+- [x] GET /api/worlds/:id/members (s filtry role, group)
+- [x] PATCH /api/worlds/:id/members/:membershipId/free (isFree flag)
+- [x] Resolve IkarosMessage: přiřazení role/group/characterPath/isFree při přijetí hráče
 
 ### Background Jobs (CronService)
-- [ ] GameEventCleanupJob: každou hodinu → smaž GameEvents starší než 24h
-- [ ] CleanupInactiveUsers: každých 45 min → odpoj neaktivní IkarosChat uživatele
-- [ ] CleanMessages: každé 2h → smaž IkarosChat zprávy starší než 2h (max 100 zachováno per room)
-- [ ] EmbeddingQueueProcessor: continuous → zpracovává frontu embedding operací
+- [x] GameEventCleanupJob: každou hodinu → smaž GameEvents starší než 24h
+- [x] CleanupInactiveUsers: každých 45 min → odpoj neaktivní socket uživatele
+- [x] CleanMessages: každé 2h → smaž chat zprávy starší než 2h (max 100 zachováno)
+- [x] EmbeddingQueueProcessor: continuous → zpracovává frontu embedding operací (Krok 14)
 
 ### Compression & Performance
-- [ ] Brotli + GZip response compression middleware
-- [ ] SignalR max message size: 5 MB
-- [ ] Konfigurace CORS: produkční domény + localhost:5173/5174
+- [x] Socket.io max message size: 5 MB (CustomIoAdapter)
+- [x] Konfigurace CORS: localhost:5173/5174 + FRONTEND_URL env
 
-**Spec:** —  
-**Plán:** —
+**Spec:** `docs/superpowers/specs/2026-05-05-krok-15-admin-systemove-nastroje-design.md`  
+**Plán:** `docs/superpowers/plans/2026-05-05-krok-15-admin-systemove-nastroje.md`
 
 ---
 
