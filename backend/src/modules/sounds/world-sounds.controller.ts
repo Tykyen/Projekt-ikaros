@@ -18,6 +18,11 @@ export class WorldSoundsController {
     return this.service.findByWorld(worldId);
   }
 
+  @Get(':id')
+  findOne(@Param('worldId') worldId: string, @Param('id') id: string) {
+    return this.service.findOne(id, worldId);
+  }
+
   @Post('import/:globalId')
   async importGlobal(
     @Param('worldId') worldId: string,
