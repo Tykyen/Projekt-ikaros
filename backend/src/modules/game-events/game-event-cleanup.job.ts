@@ -20,7 +20,7 @@ export class GameEventCleanupJob {
         this.logger.log(`GameEventCleanup: smazáno ${deleted} starých událostí`);
       }
     } catch (err) {
-      this.logger.warn('GameEventCleanup: chyba při mazání', err);
+      this.logger.error('GameEventCleanup: chyba při mazání', err);
     }
   }
 }
