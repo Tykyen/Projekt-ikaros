@@ -35,7 +35,7 @@ export interface OldBackendData {
   jwtClaims: OldJwtClaim[];
 }
 
-function parseControllerFile(content: string, fileName: string): OldEndpoint[] {
+function parseControllerFile(content: string): OldEndpoint[] {
   const endpoints: OldEndpoint[] = [];
 
   const classMatch = content.match(/public class (\w+)Controller\s*:/);
@@ -101,6 +101,7 @@ function parseModelFiles(backendDir: string): OldSchema[] {
 
   if (schemas.length === 0) {
     const modelsDir = path.join(backendDir, 'Models');
+    if (!fs.existsSync(modelsDir)) return schemas;
     const skip = new Set(['Dto', 'Settings', 'Status', 'Result', 'Info', 'Model', 'LoginModel', 'WorldPage', 'CustomDiaryBlock', 'DirectoryItemDto']);
     for (const file of fs.readdirSync(modelsDir).filter(f => f.endsWith('.cs'))) {
       const name = file.replace('.cs', '');
@@ -151,12 +152,12 @@ export function parseCsharpBackend(backendDir: string): OldBackendData {
   const endpoints: OldEndpoint[] = [];
   const hubMethods: OldHubMethod[] = [];
 
-  for (const file of fs.readdirSync(controllersDir).filter(f => f.endsWith('.cs'))) {
+  for (const file of (fs.existsSync(controllersDir) ? fs.readdirSync(controllersDir) : []).filter(f => f.endsWith('.cs'))) {
     const content = fs.readFileSync(path.join(controllersDir, file), 'utf-8');
-    endpoints.push(...parseControllerFile(content, file));
+    endpoints.push(...parseControllerFile(content));
   }
 
-  for (const file of fs.readdirSync(hubsDir).filter(f => f.endsWith('.cs'))) {
+  for (const file of (fs.existsSync(hubsDir) ? fs.readdirSync(hubsDir) : []).filter(f => f.endsWith('.cs'))) {
     const content = fs.readFileSync(path.join(hubsDir, file), 'utf-8');
     hubMethods.push(...parseHubFile(content, file));
   }
