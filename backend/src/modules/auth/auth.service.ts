@@ -44,6 +44,12 @@ export class AuthService {
     return { accessToken: this.generateToken(user), user: this.sanitize(user) };
   }
 
+  async refreshToken(userId: string): Promise<string> {
+    const user = await this.usersRepo.findById(userId);
+    if (!user) throw new UnauthorizedException();
+    return this.generateToken(user);
+  }
+
   private generateToken(user: User): string {
     return this.jwtService.sign({
       sub: user.id,

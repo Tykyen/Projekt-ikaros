@@ -27,6 +27,7 @@ describe('AuthService', () => {
     findByUsername: jest.fn(),
     save: jest.fn(),
     updateLastSeen: jest.fn(),
+    findById: jest.fn(),
   };
   const mockJwt = { sign: jest.fn().mockReturnValue('token') };
 
@@ -55,5 +56,20 @@ describe('AuthService', () => {
     await expect(
       service.login({ email: 'a@a.com', password: 'wrong' }),
     ).rejects.toThrow(UnauthorizedException);
+  });
+
+  describe('refreshToken', () => {
+    it('vrátí nový accessToken pro existujícího uživatele', async () => {
+      mockRepo.findById.mockResolvedValue(mockUser);
+      mockJwt.sign.mockReturnValue('new.jwt.token');
+      const result = await service.refreshToken('1');
+      expect(result).toBe('new.jwt.token');
+      expect(mockRepo.findById).toHaveBeenCalledWith('1');
+    });
+
+    it('vyhodí UnauthorizedException pokud user neexistuje', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(service.refreshToken('nonexistent')).rejects.toThrow(UnauthorizedException);
+    });
   });
 });
