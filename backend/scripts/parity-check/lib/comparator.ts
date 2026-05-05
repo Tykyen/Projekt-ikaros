@@ -22,12 +22,12 @@ export interface DiffResult {
     extra: string[];
   };
   hubMethods: {
-    covered: Array<{ old: string; new: string }>;
+    covered: string[];
     missing: string[];
     extra: string[];
   };
   schemas: {
-    covered: Array<{ old: string; new: string }>;
+    covered: string[];
     missing: string[];
     extra: string[];
   };
@@ -85,7 +85,7 @@ export function compareEndpoints(
 
     // Fuzzy shoda: normalizované cesty se shodují ale originály se liší (přejmenovaný parametr)
     const fuzzyIdx = newNorm.findIndex(
-      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && n.path === old.path
+      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && n.path === old.path && n.original !== old.original
     );
     if (fuzzyIdx >= 0) {
       renamed.push({ status: 'renamed', old: old.original, new: newNorm[fuzzyIdx].original, confidence: 'high' });
