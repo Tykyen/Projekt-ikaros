@@ -8,10 +8,10 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
-import { IsNumber, IsBoolean } from 'class-validator';
+import { IsEnum, IsBoolean } from 'class-validator';
 
 class UpdateRoleDto {
-  @IsNumber() role: UserRole;
+  @IsEnum(UserRole) role: UserRole;
 }
 class UpdateAkjDto {
   @IsBoolean() akj: boolean;
