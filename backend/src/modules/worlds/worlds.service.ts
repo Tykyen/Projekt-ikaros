@@ -17,6 +17,7 @@ import { UserRole } from '../users/interfaces/user.interface';
 import { CreateWorldDto } from './dto/create-world.dto';
 import { UpdateWorldDto } from './dto/update-world.dto';
 import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
+import { UpdateCalendarConfigDto } from './dto/update-calendar-config.dto';
 import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 
 export interface RequestUser {
@@ -156,6 +157,21 @@ export class WorldsService {
       throw new ForbiddenException('Nedostatečná oprávnění');
     }
     const settings = await this.settingsRepo.upsert(worldId, dto);
+    this.eventEmitter.emit('world.settings.updated', { worldId, settings });
+    return settings;
+  }
+
+  async updateCalendarConfig(
+    worldId: string,
+    dto: UpdateCalendarConfigDto,
+    requester: RequestUser,
+  ): Promise<WorldSettings> {
+    const world = await this.findById(worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, worldId);
+    if (!this.canAdminWorld(requester, world, membership ?? undefined)) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
+    }
+    const settings = await this.settingsRepo.upsert(worldId, { calendarConfig: dto.calendarConfig });
     this.eventEmitter.emit('world.settings.updated', { worldId, settings });
     return settings;
   }

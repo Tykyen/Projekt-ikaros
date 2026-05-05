@@ -45,5 +45,6 @@ export interface WorldSettings {
   akjTypes: AkjType[];
   menuTemplates: MenuTemplate[];
   diarySchema: SchemaBlock[];
+  calendarConfig?: Record<string, unknown>;
   updatedAt: Date;
 }

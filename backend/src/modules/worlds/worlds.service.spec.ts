@@ -203,6 +203,21 @@ describe('WorldsService', () => {
     });
   });
 
+  describe('updateCalendarConfig', () => {
+    it('aktualizuje calendarConfig a vrátí WorldSettings', async () => {
+      const world = { ...mockWorld };
+      const membership = { worldId: 'world1', role: WorldRole.PJ };
+      mockWorldsRepo.findById.mockResolvedValue(world);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+      const updatedSettings = { id: 's1', worldId: 'world1', calendarConfig: { year: 360 }, hiddenNavItems: [], customGroups: [], groupColors: {}, customHeadline: [], currencies: [], hideDefaultWeather: false, akjTypes: [], menuTemplates: [], diarySchema: [], updatedAt: new Date() };
+      mockSettingsRepo.upsert.mockResolvedValue(updatedSettings);
+      const pjRequester = { id: 'user1', role: UserRole.PJ, username: 'user1' };
+      const result = await service.updateCalendarConfig('world1', { calendarConfig: { year: 360 } }, pjRequester);
+      expect(mockSettingsRepo.upsert).toHaveBeenCalledWith('world1', { calendarConfig: { year: 360 } });
+      expect(result.calendarConfig).toEqual({ year: 360 });
+    });
+  });
+
   describe('findMyWorlds', () => {
     it('should use findByIds to avoid N+1', async () => {
       const memberships = [

@@ -18,6 +18,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateWorldDto } from './dto/create-world.dto';
 import { UpdateWorldDto } from './dto/update-world.dto';
 import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
+import { UpdateCalendarConfigDto } from './dto/update-calendar-config.dto';
 import {
   UpdateMemberRoleDto,
   UpdateMemberGroupDto,
@@ -122,6 +123,16 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.updateSettings(worldId, dto, user);
+  }
+
+  @Put(':worldId/calendarconfig')
+  @UseGuards(JwtAuthGuard)
+  updateCalendarConfig(
+    @Param('worldId') worldId: string,
+    @Body() dto: UpdateCalendarConfigDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.updateCalendarConfig(worldId, dto, user);
   }
 
   @Patch(':worldId/members/:membershipId/role')
