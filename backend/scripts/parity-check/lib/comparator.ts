@@ -139,7 +139,7 @@ export function compareAll(
     next.schemas.map(s => s.name)
   );
   const schemas = {
-    covered: schemaResult.covered.map(s => ({ old: s, new: s })),
+    covered: schemaResult.covered,
     missing: schemaResult.missing,
     extra: schemaResult.extra,
   };
