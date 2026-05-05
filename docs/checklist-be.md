@@ -607,12 +607,74 @@
 
 ## Závěry a rozhodnutí
 
-<!-- Manuálně doplnit po analýze výsledků. Pro každou mezeru rozhodnout: -->
-<!-- - opravit (implementovat chybějící) -->
-<!-- - akceptovat (záměrná změna / redesign) -->
-<!-- - přeskočit (funkce se nepoužívá) -->
+**Celkem zjištěných mezer skriptem: 203 → po ruční analýze: ~15 skutečných mezer**
 
-**Celkem zjištěných mezer: 203**
+---
+
+## False Positives — Analýza
+
+Skript označil jako "chybějící" položky, které jsou ve skutečnosti implementovány. Důvody:
+
+### REST endpointy — false positives
+
+| Starý endpoint | Nový ekvivalent | Důvod |
+|---------------|-----------------|-------|
+| `GET/POST/... /api/characters/*` | `GET /api/worlds/:worldId/characters/*` | ✅ Přesun do kontextu světa |
+| `GET/POST/... /api/chat/*` | `GET /api/worlds/:worldId/chat/*` | ✅ Přesun do kontextu světa — redesign |
+| `GET/POST/... /api/ikarosarticles/*` | `GET /api/ikaros-articles/*` | ✅ Přejmenování na kebab-case |
+| `GET/POST/... /api/ikarosdiscussions/*` | `GET /api/ikaros-discussions/*` | ✅ Přejmenování na kebab-case |
+| `GET/POST/... /api/ikarosgallery/*` | `GET /api/ikaros-gallery/*` | ✅ Přejmenování na kebab-case |
+| `GET/POST/... /api/ikarosmessages/*` | `GET /api/ikaros-messages/*` | ✅ Přejmenování na kebab-case |
+| `GET/POST/DELETE /ikarosnews` | `GET /api/IkarosNews` | ✅ Přidán `/api` prefix |
+| `GET/POST/... /api/maptemplates/*` | `GET /api/map-templates/*` | ✅ Přejmenování na kebab-case |
+| `GET/POST/... /api/npctemplates/*` | `GET /api/worlds/:worldId/npc-templates/*` | ✅ Přesun do kontextu světa + kebab-case |
+| `GET/POST/... /api/pages/*` | `GET /api/worlds/:worldId/pages/*` | ✅ Přesun do kontextu světa |
+| `GET/POST/... /api/search/*` | `GET /api/search/*` | ✅ Chyba skriptu — generoval double prefix `/api/api/` |
+| `GET/POST/... /api/stats/search/*` | `GET /api/stats/search/*` | ✅ Chyba skriptu — double prefix |
+| `GET /api/images/{id}` | `GET /api/images/*` | ✅ Wildcard route |
+| `POST /api/upload/image` | `POST /api/upload` | ✅ Zjednodušení routy |
+| `PUT /api/users/{id}` | `PATCH /api/users/:id` | ✅ HTTP metoda změněna na PATCH |
+| `GET /api/users` | `GET /api/admin/users` | ✅ Přesun pod admin prefix |
+| `GET /api/users/debug` | — | ✅ Záměrně odstraněno (debug endpoint) |
+| `GET /api/worlds/{worldId}/channels` | `GET /api/worlds/:worldId/chat/groups` + channels | ✅ Redesign chat architektury — world-scoped |
+| `POST /api/worlds/{worldId}/channels` | `POST /api/worlds/:worldId/chat/groups/:groupId/channels` | ✅ Redesign chat architektury |
+| `PUT /api/worlds/{worldId}/pages/{slug}` | `PATCH /api/worlds/:worldId/pages/:id` | ✅ PATCH + world-scoped |
+
+### WebSocket události — všechny false positives
+
+Všechny WebSocket události jsou implementovány, pouze s jiným naming convention:
+- **Starý (SignalR):** `PascalCase` metody — `TokenMoved`, `JoinChannel`, `SendMessage`
+- **Nový (Socket.io):** `namespace:kebab-case` eventy — `map:token-moved`, `chat:typing:start`
+
+Mapping hubů → gatewayí: `ChatHub` → `ChatGateway`, `MapHub` → `MapsGateway`, `IkarosChatHub` → `GlobalChatGateway` ✅
+
+### MongoDB schémata — všechny false positives
+
+Skript porovnával starý **název kolekce** (např. `Worlds`, `sounds`) s novým **názvem třídy** (např. `WorldSchemaClass`, `SoundSchemaClass`). Všechna schémata existují — jde jen o jiné naming convention. ✅
+
+### Cron joby — false positive
+
+`GameEventCleanupService` → `GameEventCleanupJob` (`backend/src/modules/game-events/game-event-cleanup.job.ts`) ✅ Implementováno, jen přejmenováno.
+
+---
+
+## Skutečné mezery — k implementaci
+
+Viz implementační plán: `docs/superpowers/plans/2026-05-05-krok-16b-feature-parity-implementation.md`
+
+| Oblast | Endpoint / Funkce | Priorita |
+|--------|------------------|----------|
+| Auth | `POST /api/auth/refresh` — token refresh | Střední |
+| Users | `GET /api/users/exists/:username` | Nízká |
+| Users | `PUT /api/users/:id/theme` | Nízká |
+| Users | `POST /api/users` (admin vytvoření uživatele) | Nízká |
+| Game Events | `GET/POST/PUT/DELETE /api/events` + `POST /api/events/:id/confirm` | Střední |
+| Worlds | `PUT /api/worlds/:worldId/calendarconfig` | Nízká |
+| Calenders | CRUD `/api/calenders` (světový kalendář) | Vysoká — vyžaduje design spec |
+| Timeline | CRUD `/api/timeline` | Vysoká — vyžaduje design spec |
+| News | CRUD `/api/news` | Střední — vyžaduje design spec |
+| Users | `GET/PUT /api/users/getCalendarMonth/:id` | Nízká — vyžaduje design spec |
+| Ikaros Chat | `GET /api/ikaros-chat/room-info` | Nízká — vyžaduje design spec |
 
 ### Seed data (manuální ověření)
 
