@@ -72,10 +72,12 @@ export function compareEndpoints(
   const renamed: EndpointMatch[] = [];
   const matchedNewIdx = new Set<number>();
 
+  const stripParams = (s: string) => s.replace(/\{param\}/g, '').replace(/\/+/g, '/');
+
   for (const old of oldNorm) {
-    // Přesná shoda: normalizovaná cesta i originál jsou identické
+    // Přesná shoda: normalizované verb i path jsou identické
     const exactIdx = newNorm.findIndex(
-      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && n.path === old.path && n.original === old.original
+      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && n.path === old.path
     );
     if (exactIdx >= 0) {
       covered.push({ status: 'covered', old: old.original, new: newNorm[exactIdx].original });
@@ -83,25 +85,14 @@ export function compareEndpoints(
       continue;
     }
 
-    // Fuzzy shoda: normalizované cesty se shodují ale originály se liší (přejmenovaný parametr)
+    // Fuzzy shoda: stripped cesty (bez parametrů) se shodují ale normalizované ne
+    const oldStripped = stripParams(old.path);
     const fuzzyIdx = newNorm.findIndex(
-      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && n.path === old.path && n.original !== old.original
+      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && stripParams(n.path) === oldStripped
     );
     if (fuzzyIdx >= 0) {
       renamed.push({ status: 'renamed', old: old.original, new: newNorm[fuzzyIdx].original, confidence: 'high' });
       matchedNewIdx.add(fuzzyIdx);
-      continue;
-    }
-
-    // Stripped shoda: cesty bez parametrů se shodují (jiný počet/umístění parametrů)
-    const stripParams = (s: string) => s.replace(/\{param\}/g, '').replace(/\/+/g, '/');
-    const oldStripped = stripParams(old.path);
-    const strippedIdx = newNorm.findIndex(
-      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && stripParams(n.path) === oldStripped
-    );
-    if (strippedIdx >= 0) {
-      renamed.push({ status: 'renamed', old: old.original, new: newNorm[strippedIdx].original, confidence: 'high' });
-      matchedNewIdx.add(strippedIdx);
       continue;
     }
 

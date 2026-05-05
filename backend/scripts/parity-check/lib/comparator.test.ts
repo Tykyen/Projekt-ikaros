@@ -45,13 +45,15 @@ describe('compareEndpoints', () => {
     expect(result.missing[0].old).toBe('GET /api/worlds');
   });
 
-  it('označí přejmenovaný parametr jako renamed', () => {
+  it('označí přesnou shodu i když se liší názvy parametrů', () => {
+    // {id} i :worldId se normalizují na {param} → covered, ne renamed
     const result = compareEndpoints(
       [{ verb: 'GET', path: '/api/worlds/{id}' }],
       [{ verb: 'GET', path: '/api/worlds/:worldId' }]
     );
-    expect(result.renamed).toHaveLength(1);
-    expect(result.covered).toHaveLength(0);
+    expect(result.covered).toHaveLength(1);
+    expect(result.renamed).toHaveLength(0);
+    expect(result.missing).toHaveLength(0);
   });
 
   it('označí endpoint jen v novém jako extra', () => {
