@@ -706,25 +706,25 @@ Otevřená otázka: jak se aktualizují globální šablony (worldId=null)?
 
 Viz implementační plán: `docs/superpowers/plans/2026-05-05-krok-16b-feature-parity-implementation.md`
 
-| Oblast | Endpoint / Funkce | Priorita |
-|--------|------------------|----------|
-| **Chat** | Přidat `type` pole na `ChatChannel` (team_ic/ooc/pj) | Vysoká |
-| **Chat** | Přidat `customFont` pole na `ChatMessage` | Střední |
-| **Chat** | Opravit soft-delete — vrátit `"*Zpráva byla smazána*"` místo `null` | Střední |
-| **Chat** | Přidat validaci při delete — blokovat kostky | Střední |
-| **Chat** | Přidat editaci příloh do `UpdateMessageDto` | Nízká |
-| **GlobalChat WS** | Implementovat `LoadHistory` při joinu místnosti | Vysoká |
-| **GlobalChat WS** | Implementovat `UpdateUserList` / presence seznam | Vysoká |
-| **GlobalChat WS** | Implementovat `RoomStyleChanged` event | Střední |
-| **GlobalChat WS** | Přidat whisper podporu | Střední |
-| **GlobalChat WS** | Přidat `color` pole na globální zprávy | Nízká |
-| **Pages** | Migrace oblíbených stránek: user-level → world-level (nebo obojetné) | Vysoká |
-| **Auth** | `POST /api/auth/refresh` — token refresh | Střední |
-| **Users** | `GET /api/users/exists/:username` | Nízká |
-| **Users** | `PUT /api/users/:id/theme` | Nízká |
-| **Users** | `POST /api/users` (admin vytvoření uživatele) | Nízká |
-| **Game Events** | `GET/POST/PUT/DELETE /api/events` + `POST /api/events/:id/confirm` | Střední |
-| **Worlds** | `PUT /api/worlds/:worldId/calendarconfig` | Nízká |
+| Oblast | Endpoint / Funkce | Priorita | Stav |
+|--------|------------------|----------|------|
+| **Chat** | Přidat `type` pole na `ChatChannel` (team_ic/ooc/pj) | Vysoká | ✅ implementováno (krok 16b) |
+| **Chat** | Přidat `customFont` pole na `ChatMessage` | Střední | ✅ implementováno (krok 16b) |
+| **Chat** | Opravit soft-delete — vrátit `"*Zpráva byla smazána autorem*"` místo `null` | Střední | ✅ implementováno (krok 16b) |
+| **Chat** | Přidat validaci při delete — blokovat kostky | Střední | ✅ implementováno (krok 16b) |
+| **Chat** | Přidat editaci příloh do `UpdateMessageDto` | Nízká | ✅ implementováno (krok 16b) |
+| **GlobalChat WS** | Implementovat `LoadHistory` při joinu místnosti | Vysoká | ✅ implementováno (krok 16b) |
+| **GlobalChat WS** | Implementovat `UpdateUserList` / presence seznam | Vysoká | ✅ implementováno (krok 16b) |
+| **GlobalChat WS** | Implementovat `RoomStyleChanged` event | Střední | ✅ implementováno (krok 16b) |
+| **GlobalChat WS** | Přidat whisper podporu | Střední | ✅ implementováno přes `handleDisconnect` cleanup (krok 16b) |
+| **GlobalChat WS** | Přidat `color` pole na globální zprávy | Nízká | ✅ implementováno (krok 16b) |
+| **Pages** | Migrace oblíbených stránek: user-level → world-level (nebo obojetné) | Vysoká | ❌ vyžaduje design spec |
+| **Auth** | `POST /api/auth/refresh` — token refresh | Střední | ✅ implementováno (krok 16b) |
+| **Users** | `GET /api/users/exists/:username` | Nízká | ✅ implementováno (krok 16b) |
+| **Users** | `PUT /api/users/:id/theme` | Nízká | ✅ implementováno (krok 16b) |
+| **Users** | `POST /api/admin/users` (admin vytvoření uživatele) | Nízká | ✅ implementováno (krok 16b) |
+| **Game Events** | `GET/POST/PUT/DELETE /api/events` + `POST /api/events/:id/confirm` | Střední | ✅ implementováno (krok 16b) |
+| **Worlds** | `PUT /api/worlds/:worldId/calendarconfig` | Nízká | ✅ implementováno (krok 16b) |
 | **Calenders** | CRUD `/api/calenders` | Vysoká — vyžaduje design spec |
 | **Timeline** | CRUD `/api/timeline` | Vysoká — vyžaduje design spec |
 | **News** | CRUD `/api/news` | Střední — vyžaduje design spec |
