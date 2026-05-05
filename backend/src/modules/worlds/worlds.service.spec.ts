@@ -188,6 +188,19 @@ describe('WorldsService', () => {
 
       await expect(service.updateMemberFree('mem1', true, hrac)).rejects.toThrow(ForbiddenException);
     });
+
+    it('povolí změnu isFree pokud má requester PJ členství ve světě', async () => {
+      const hrac = { id: 'u2', role: UserRole.Hrac, username: 'hrac' };
+      const membership = { id: 'mem1', worldId: 'w1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
+      const worldMembership = { id: 'wm2', worldId: 'w1', userId: 'u2', role: WorldRole.PJ, joinedAt: new Date(), akj: 0 };
+      mockMembershipRepo.findById.mockResolvedValue(membership);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(worldMembership);
+      mockMembershipRepo.update.mockResolvedValue({ ...membership, isFree: true });
+
+      const result = await service.updateMemberFree('mem1', true, hrac);
+
+      expect(result?.isFree).toBe(true);
+    });
   });
 
   describe('findMyWorlds', () => {
