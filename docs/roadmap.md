@@ -607,11 +607,6 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Vyhledávání pokrývá Pages fulltext + embeddings
 - [ ] Admin může dělat vše co v starém systému
 
-### Migrace dat (volitelné)
-- [ ] Export script: starý MongoDB → JSON dump
-- [ ] Import script: JSON dump → nový schéma (transformace polí)
-- [ ] Ověření: počty dokumentů, ukázkové queries
-
 **Spec:** —  
 **Plán:** —
 
@@ -628,6 +623,20 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 ### WebSocket dokumentace
 - [ ] WebSocket event dokumentace (Gateway events in/out)
 - [ ] Popis všech emitovaných a přijímaných událostí pro ChatGateway, MapGateway, IkarosChatGateway
+
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 17 — Migrace dat ⬜
+
+> Přenos dat ze starého systému do nového.
+
+### Migrace
+- [ ] Export script: starý MongoDB → JSON dump
+- [ ] Import script: JSON dump → nový schéma (transformace polí)
+- [ ] Ověření: počty dokumentů, ukázkové queries
 
 **Spec:** —  
 **Plán:** —
@@ -680,3 +689,4 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 15 | Admin & Systémové nástroje | ⬜ |
 | 16a | Feature Parity Checklist | ⬜ |
 | 16b | Dokumentace API | ⬜ |
+| 17 | Migrace dat | ⬜ |
