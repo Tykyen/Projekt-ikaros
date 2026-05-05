@@ -8,6 +8,7 @@ import {
   Param,
   Body,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { WorldsService } from './worlds.service';
 import type { RequestUser } from './worlds.service';
@@ -82,8 +83,15 @@ export class WorldsController {
   }
 
   @Get(':id/members')
-  getMembers(@Param('id') id: string) {
-    return this.worldsService.getMembers(id);
+  getMembers(
+    @Param('id') id: string,
+    @Query('role') role?: string,
+    @Query('group') group?: string,
+  ) {
+    const filters: { role?: number; group?: string } = {};
+    if (role !== undefined) filters.role = Number(role);
+    if (group !== undefined) filters.group = group;
+    return this.worldsService.getMembers(id, Object.keys(filters).length ? filters : undefined);
   }
 
   @Delete(':worldId/members/:membershipId')

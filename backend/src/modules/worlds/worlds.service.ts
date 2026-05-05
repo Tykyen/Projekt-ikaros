@@ -141,8 +141,8 @@ export class WorldsService {
     return membership;
   }
 
-  async getMembers(worldId: string): Promise<WorldMembership[]> {
-    return this.membershipRepo.findByWorldId(worldId);
+  async getMembers(worldId: string, filters?: { role?: number; group?: string }): Promise<WorldMembership[]> {
+    return this.membershipRepo.findByWorldId(worldId, filters);
   }
 
   async getSettings(worldId: string): Promise<WorldSettings | null> {

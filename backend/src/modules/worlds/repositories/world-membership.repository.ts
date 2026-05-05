@@ -18,8 +18,11 @@ export class MongoWorldMembershipRepository
     super(model as never);
   }
 
-  async findByWorldId(worldId: string): Promise<WorldMembership[]> {
-    const docs = await this.model.find({ worldId }).lean().exec();
+  async findByWorldId(worldId: string, filters?: { role?: number; group?: string }): Promise<WorldMembership[]> {
+    const query: Record<string, unknown> = { worldId };
+    if (filters?.role !== undefined) query.role = filters.role;
+    if (filters?.group !== undefined) query.group = filters.group;
+    const docs = await this.model.find(query).lean().exec();
     return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
   }
 
