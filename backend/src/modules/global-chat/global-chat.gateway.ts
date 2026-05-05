@@ -32,16 +32,24 @@ export class GlobalChatGateway {
     return removed;
   }
 
-  // Clients join room chat:{channelId} via the existing room:join Socket.IO event (AppGateway).
-  // This handler only broadcasts the presence event to already-joined clients.
   @SubscribeMessage('chat:hospoda:join')
-  handleHospodaJoin(
+  async handleHospodaJoin(
     @MessageBody() payload: { username: string },
     @ConnectedSocket() client: Socket,
-  ): void {
+  ): Promise<void> {
     this.connectedUsers.set(client.id, { lastSeen: new Date(), username: payload.username });
     const channelId = this.globalChatService.getGlobalChannelId();
     if (!channelId) return;
+
+    // Send recent history to the joining client
+    const history = await this.globalChatService.getRecentMessages(50);
+    client.emit('ikaros:load-history', history);
+
+    // Broadcast updated user list to all in the channel
+    const userList = [...this.connectedUsers.values()].map((u) => u.username);
+    this.server.to(`chat:${channelId}`).emit('ikaros:user-list', userList);
+
+    // Announce join
     client.to(`chat:${channelId}`).emit('chat:presence', {
       username: payload.username,
       action: 'join',
@@ -56,10 +64,35 @@ export class GlobalChatGateway {
     this.connectedUsers.delete(client.id);
     const channelId = this.globalChatService.getGlobalChannelId();
     if (!channelId) return;
+
+    // Broadcast updated user list
+    const userList = [...this.connectedUsers.values()].map((u) => u.username);
+    this.server.to(`chat:${channelId}`).emit('ikaros:user-list', userList);
+
+    // Announce leave
     client.to(`chat:${channelId}`).emit('chat:presence', {
       username: payload.username,
       action: 'leave',
     });
+  }
+
+  @SubscribeMessage('ikaros:set-room-style')
+  handleSetRoomStyle(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { style: string },
+  ): void {
+    const channelId = this.globalChatService.getGlobalChannelId();
+    if (!channelId) return;
+    this.server.to(`chat:${channelId}`).emit('ikaros:room-style-changed', { style: payload.style });
+  }
+
+  handleDisconnect(client: Socket): void {
+    const userInfo = this.connectedUsers.get(client.id);
+    this.connectedUsers.delete(client.id);
+    const channelId = this.globalChatService.getGlobalChannelId();
+    if (!channelId || !userInfo) return;
+    const userList = [...this.connectedUsers.values()].map((u) => u.username);
+    this.server.to(`chat:${channelId}`).emit('ikaros:user-list', userList);
   }
 
   @OnEvent('chat.global.message.created')

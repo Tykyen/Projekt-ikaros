@@ -27,6 +27,8 @@ export class ChatMessageSchemaClass {
   customFont: string | null;
   @Prop({ default: false })
   isDiceRoll: boolean;
+  @Prop({ type: String, default: null })
+  color: string | null;
 }
 
 export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessageSchemaClass);

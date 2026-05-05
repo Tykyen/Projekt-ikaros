@@ -70,6 +70,7 @@ export class GlobalChatService implements OnModuleInit {
       attachments: [],
       visibleTo: dto.visibleTo ?? [],
       expiresAt: new Date(Date.now() + GlobalChatService.MESSAGE_TTL_MS),
+      color: dto.color ?? null,
     });
 
     this.eventEmitter.emit('chat.global.message.created', { channelId: this.globalChannelId, message });
@@ -81,6 +82,14 @@ export class GlobalChatService implements OnModuleInit {
     }).catch(() => undefined);
 
     return message;
+  }
+
+  async getRecentMessages(limit: number): Promise<ChatMessage[]> {
+    if (!this.globalChannelId) return [];
+    const messages = await this.messageRepo.findByChannelId(this.globalChannelId, { limit });
+    return messages
+      .filter((m) => !m.isDeleted)
+      .filter((m) => !m.visibleTo || m.visibleTo.length === 0);
   }
 
   // Auth enforced by AdminGuard at controller level

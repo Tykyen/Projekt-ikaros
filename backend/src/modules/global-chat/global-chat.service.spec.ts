@@ -157,6 +157,32 @@ describe('GlobalChatService', () => {
     });
   });
 
+  describe('getRecentMessages', () => {
+    beforeEach(async () => {
+      channelRepo.findGlobal.mockResolvedValue(mockChannel);
+      await service.onModuleInit();
+    });
+
+    it('vrátí veřejné zprávy bez whisperů', async () => {
+      const messages = [
+        makeMsg({ id: 'pub1' }),                                    // public
+        makeMsg({ id: 'pub2', visibleTo: ['u1', 'u2'] }),          // whisper - filtered out
+        makeMsg({ id: 'pub3', isDeleted: true }),                   // deleted - filtered out
+      ];
+      messageRepo.findByChannelId.mockResolvedValue(messages);
+      const result = await service.getRecentMessages(50);
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('pub1');
+      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', { limit: 50 });
+    });
+
+    it('vrátí prázdné pole pokud není inicializován', async () => {
+      (service as any).globalChannelId = undefined;
+      const result = await service.getRecentMessages(10);
+      expect(result).toEqual([]);
+    });
+  });
+
   describe('sendMessage', () => {
     const mockUser = { id: 'u1', role: UserRole.Hrac, username: 'gandalf' };
 

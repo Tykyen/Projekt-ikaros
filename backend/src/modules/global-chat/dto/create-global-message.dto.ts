@@ -6,4 +6,8 @@ export class CreateGlobalMessageDto {
 
   @IsOptional() @IsArray() @IsString({ each: true })
   visibleTo?: string[];
+
+  @IsOptional()
+  @IsString()
+  color?: string;
 }

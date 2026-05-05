@@ -22,6 +22,7 @@ export interface ChatMessage {
   expiresAt?: Date;
   customFont?: string | null;
   isDiceRoll?: boolean;
+  color?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
