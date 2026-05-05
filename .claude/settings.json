@@ -6,7 +6,15 @@
       "Bash(curl -s http://localhost:3000/api/health)",
       "Bash(pkill -f \"nest start\")",
       "Bash(pkill -f \"node.*nest\")",
-      "PowerShell($lockFile = \"C:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.git\\\\index.lock\"; $handle = [System.IO.File]::Open\\($lockFile, 'Open', 'ReadWrite', 'None'\\); $handle.Close\\(\\); $handle.Dispose\\(\\))"
+      "PowerShell($lockFile = \"C:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.git\\\\index.lock\"; $handle = [System.IO.File]::Open\\($lockFile, 'Open', 'ReadWrite', 'None'\\); $handle.Close\\(\\); $handle.Dispose\\(\\))",
+      "Bash(ls -d .worktrees)",
+      "Bash(ls -d worktrees)",
+      "Bash(grep -i \"worktree.*director\" CLAUDE.md)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10a\\\\backend\\\\src\\\\modules\\\\game-event\" -Force)",
+      "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" add backend/src/modules/calendars/calendars.service.spec.ts)",
+      "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"test\\(calendar\\): přidat test updateSharing pro null membership\")",
+      "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"fix\\(calendar\\): whitelistovat pouze events v PUT calendar endpointu\" backend/src/modules/character-subdocs/character-subdocs.controller.ts)",
+      "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"docs\\(roadmap\\): aktualizovat Krok 10b — přidat sdílení kalendáře\" docs/roadmap.md)"
     ],
     "additionalDirectories": [
       "C:\\Matrix\\ProjektIkaros\\Projekt-ikaros\\.git"

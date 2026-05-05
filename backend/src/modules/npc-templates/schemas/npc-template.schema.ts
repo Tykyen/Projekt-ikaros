@@ -5,13 +5,16 @@ export type NpcTemplateDocument = HydratedDocument<NpcTemplateSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'npcTemplates' })
 export class NpcTemplateSchemaClass {
-  @Prop({ required: true }) worldId: string;
+  @Prop({ required: false, default: null }) worldId: string | null;
+  @Prop() originTemplateId?: string;
   @Prop({ required: true }) name: string;
   @Prop() imageUrl?: string;
   @Prop({ default: '' }) notes: string;
   @Prop({ default: 5 }) maxHp: number;
   @Prop({ default: 0 }) armor: number;
   @Prop({ default: 0 }) injury: number;
+  @Prop({ default: 5 }) movement: number;
+  @Prop({ default: 0 }) initiativeBase: number;
   @Prop({ type: [Object], default: [] }) abilities: Record<string, unknown>[];
   @Prop({ type: [Object], default: [] }) diarySchema: Record<string, unknown>[];
   @Prop({ type: Object, default: {} }) diaryData: Record<string, unknown>;

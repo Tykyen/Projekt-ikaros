@@ -24,6 +24,7 @@ describe('NpcTemplatesService', () => {
   let service: NpcTemplatesService;
   const mockRepo = {
     findByWorld: jest.fn(),
+    findGlobal: jest.fn(),
     findById: jest.fn(),
     create: jest.fn(),
     updateByIdAndWorld: jest.fn(),
@@ -120,6 +121,38 @@ describe('NpcTemplatesService', () => {
     it('vyhodí NotFoundException pokud repo vrátí false', async () => {
       mockRepo.deleteByIdAndWorld.mockResolvedValue(false);
       await expect(service.remove('tpl1', 'world1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findGlobal', () => {
+    it('vrátí globální šablony (worldId = null)', async () => {
+      const globalTpl = { ...mockTemplate, worldId: null };
+      mockRepo.findGlobal.mockResolvedValue([globalTpl]);
+      const result = await service.findGlobal();
+      expect(result).toHaveLength(1);
+      expect(mockRepo.findGlobal).toHaveBeenCalled();
+    });
+  });
+
+  describe('importToWorld', () => {
+    it('zkopíruje globální šablonu do světa s originTemplateId', async () => {
+      const globalTpl = { ...mockTemplate, id: 'global1', worldId: null };
+      mockRepo.findById.mockResolvedValue(globalTpl);
+      mockRepo.create.mockResolvedValue({ ...mockTemplate, id: 'new1', worldId: 'world1' });
+      const result = await service.importToWorld('global1', 'world1');
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          worldId: 'world1',
+          originTemplateId: 'global1',
+          name: 'Goblin',
+        }),
+      );
+      expect(result.worldId).toBe('world1');
+    });
+
+    it('vyhodí NotFoundException pokud globální šablona neexistuje', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(service.importToWorld('bad', 'world1')).rejects.toThrow(NotFoundException);
     });
   });
 

@@ -35,7 +35,7 @@ export class MongoChatMessageRepository
   async countAfter(channelId: string, messageId: string): Promise<number> {
     if (!Types.ObjectId.isValid(messageId)) return 0;
     return this.model
-      .countDocuments({ channelId, _id: { $gt: new Types.ObjectId(messageId) } })
+      .countDocuments({ channelId, isDeleted: { $ne: true }, _id: { $gt: new Types.ObjectId(messageId) } })
       .exec();
   }
 

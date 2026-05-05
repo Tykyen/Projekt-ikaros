@@ -39,6 +39,10 @@ export class MongoCampaignRelationshipRepository
     return result !== null;
   }
 
+  async deleteBySubjectId(subjectId: string): Promise<void> {
+    await this.model.deleteMany({ $or: [{ subjectAId: subjectId }, { subjectBId: subjectId }] }).exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): CampaignRelationship {
     const shared = (doc.shared as Record<string, unknown>) ?? {};
     const sideA = (doc.sideA as Record<string, unknown>) ?? {};

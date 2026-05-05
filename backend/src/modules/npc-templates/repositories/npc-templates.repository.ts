@@ -26,6 +26,11 @@ export class MongoNpcTemplatesRepository
     return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
   }
 
+  async findGlobal(): Promise<NpcTemplate[]> {
+    const docs = await this.model.find({ worldId: null }).lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
   async updateByIdAndWorld(id: string, worldId: string, data: Partial<NpcTemplate>): Promise<NpcTemplate | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
@@ -44,13 +49,16 @@ export class MongoNpcTemplatesRepository
   protected toEntity(doc: Record<string, unknown>): NpcTemplate {
     return {
       id: String(doc._id),
-      worldId: doc.worldId as string,
+      worldId: (doc.worldId as string | null) ?? null,
+      originTemplateId: doc.originTemplateId as string | undefined,
       name: (doc.name as string) ?? '',
       imageUrl: doc.imageUrl as string | undefined,
       notes: (doc.notes as string) ?? '',
       maxHp: (doc.maxHp as number) ?? 5,
       armor: (doc.armor as number) ?? 0,
       injury: (doc.injury as number) ?? 0,
+      movement: (doc.movement as number) ?? 5,
+      initiativeBase: (doc.initiativeBase as number) ?? 0,
       abilities: ((doc.abilities as Record<string, unknown>[]) ?? []).map((a) => ({
         label: a.label as string,
         value: a.value as string,

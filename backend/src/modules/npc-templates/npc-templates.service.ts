@@ -6,12 +6,15 @@ import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 
 export interface CreateNpcTemplateInput {
+  originTemplateId?: string;
   name: string;
   imageUrl?: string;
   notes?: string;
   maxHp?: number;
   armor?: number;
   injury?: number;
+  movement?: number;
+  initiativeBase?: number;
   abilities?: { label: string; value: string }[];
   diarySchema?: Record<string, unknown>[];
   diaryData?: Record<string, unknown>;
@@ -34,6 +37,10 @@ export class NpcTemplatesService {
     return this.repo.findByWorld(worldId);
   }
 
+  async findGlobal(): Promise<NpcTemplate[]> {
+    return this.repo.findGlobal();
+  }
+
   async findOne(id: string, worldId: string): Promise<NpcTemplate> {
     const template = await this.repo.findById(id);
     if (!template || template.worldId !== worldId) throw new NotFoundException('NPC šablona nenalezena');
@@ -49,6 +56,8 @@ export class NpcTemplatesService {
       maxHp: dto.maxHp ?? 5,
       armor: dto.armor ?? 0,
       injury: dto.injury ?? 0,
+      movement: dto.movement ?? 5,
+      initiativeBase: dto.initiativeBase ?? 0,
       abilities: dto.abilities ?? [],
       diarySchema: (dto.diarySchema as unknown as NpcTemplate['diarySchema']) ?? [],
       diaryData: dto.diaryData ?? {},
@@ -64,5 +73,25 @@ export class NpcTemplatesService {
   async remove(id: string, worldId: string): Promise<void> {
     const deleted = await this.repo.deleteByIdAndWorld(id, worldId);
     if (!deleted) throw new NotFoundException('NPC šablona nenalezena');
+  }
+
+  async importToWorld(templateId: string, worldId: string): Promise<NpcTemplate> {
+    const tpl = await this.repo.findById(templateId);
+    if (!tpl) throw new NotFoundException('Globální šablona nenalezena');
+    return this.repo.create({
+      worldId,
+      originTemplateId: templateId,
+      name: tpl.name,
+      imageUrl: tpl.imageUrl,
+      notes: tpl.notes,
+      maxHp: tpl.maxHp,
+      armor: tpl.armor,
+      injury: tpl.injury,
+      movement: tpl.movement,
+      initiativeBase: tpl.initiativeBase,
+      abilities: tpl.abilities,
+      diarySchema: tpl.diarySchema,
+      diaryData: tpl.diaryData,
+    } as Partial<NpcTemplate>);
   }
 }

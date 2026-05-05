@@ -131,6 +131,7 @@ export class CampaignService {
     if (!existing) throw new NotFoundException('Subjekt nenalezen');
     if (!this.canModify(existing, userId, worldRole)) throw new ForbiddenException();
     await this.subjectRepo.delete(id);
+    await this.relRepo.deleteBySubjectId(id);
     this.logChange(existing, 'subject', existing.name, 'deleted', userId, userName);
   }
 
@@ -436,9 +437,13 @@ export class CampaignService {
 
   // ── Changelog & Dashboard ─────────────────────────────────────────────────
 
-  async getChangelog(worldId: string, worldRole: WorldRole, limit = 50) {
+  async getChangelog(worldId: string, worldRole: WorldRole, limit = 50, userId?: string) {
     const filter: Record<string, unknown> = { worldId };
-    if (worldRole === WorldRole.PomocnyPJ) filter['isShared'] = true;
+    if (worldRole === WorldRole.PomocnyPJ) {
+      filter['$or'] = [{ ownerId: userId }, { isShared: true }];
+    } else if (worldRole < WorldRole.PomocnyPJ) {
+      filter['ownerId'] = userId;
+    }
     return this.logRepo.findMany(filter, limit);
   }
 
@@ -448,7 +453,7 @@ export class CampaignService {
       this.relRepo.findMany({ ...scope, status: 'crisis' }),
       this.storylineRepo.findMany({ ...scope, status: 'active' }),
       this.noteRepo.findMany({ ...scope, pinned: true, status: 'open' }),
-      this.getChangelog(worldId, worldRole, 20),
+      this.getChangelog(worldId, worldRole, 20, userId),
     ]);
     return {
       crisisRelationships: crisisRelationships.slice(0, 10),

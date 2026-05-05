@@ -6,4 +6,5 @@ export interface ICampaignRelationshipRepository {
   create(data: Partial<CampaignRelationship>): Promise<CampaignRelationship>;
   update(id: string, data: Partial<CampaignRelationship>): Promise<CampaignRelationship | null>;
   delete(id: string): Promise<boolean>;
+  deleteBySubjectId(subjectId: string): Promise<void>;
 }

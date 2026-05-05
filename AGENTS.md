@@ -14,6 +14,23 @@ Postup: nejdřív zkus `docs/old/`, pokud nestačí dohledej konkrétní soubory
 
 ---
 
+# Paralelní agenti
+
+Kdykoli je možné spustit více agentů současně bez vzájemného konfliktu (různé soubory, různé moduly, nezávislé operace), **vždy je spusť v jedné zprávě jako paralelní volání**. Nečekej na dokončení jednoho před spuštěním dalšího, pokud na sobě nezávisí.
+
+Příklady kdy spouštět paralelně:
+- spec review + quality review (různí recenzenti, stejné soubory — čtení nekonfliktuje)
+- implementace více nezávislých modulů najednou
+- průzkum kódu (Explore agenti na různých částech codebase)
+- čtení více spec/doc souborů pro přípravu kontextu
+
+Výjimky — nespouštěj paralelně pokud:
+- agent B závisí na výstupu agenta A (sekvenční závislost)
+- oba agenti by zapisovali do stejného souboru
+- implementační agenti v rámci subagent-driven-development (ti musí být sekvenční kvůli git historii)
+
+---
+
 # Škálovací limity
 
 Při návrhu a implementaci vždy počítej s těmito limity:

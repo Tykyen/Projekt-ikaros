@@ -152,10 +152,13 @@ describe('CampaignService', () => {
       expect(mockLogRepo.findMany).toHaveBeenCalledWith({ worldId: 'w1' }, 50);
     });
 
-    it('PomocnýPJ dostane jen sdílené záznamy', async () => {
+    it('PomocnýPJ dostane vlastní i sdílené záznamy', async () => {
       mockLogRepo.findMany.mockResolvedValue([]);
-      await service.getChangelog('w1', WorldRole.PomocnyPJ, 50);
-      expect(mockLogRepo.findMany).toHaveBeenCalledWith({ worldId: 'w1', isShared: true }, 50);
+      await service.getChangelog('w1', WorldRole.PomocnyPJ, 50, 'user1');
+      expect(mockLogRepo.findMany).toHaveBeenCalledWith(
+        { worldId: 'w1', $or: [{ ownerId: 'user1' }, { isShared: true }] },
+        50,
+      );
     });
   });
 

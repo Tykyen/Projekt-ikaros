@@ -15,7 +15,6 @@ const mockUser = {
   passwordHash: 'hash', role: UserRole.Hrac,
   displayName: undefined, avatarUrl: undefined,
   characterPath: 'elara', ikarosSkin: 'default',
-  akj: true,
   themeSettings: {}, chatPreferences: {},
   isOnline: false, lastSeenAt: new Date(),
   createdAt: new Date(), updatedAt: new Date(),
@@ -41,43 +40,6 @@ describe('AuthService', () => {
     }).compile();
     service = module.get(AuthService);
     jest.clearAllMocks();
-  });
-
-  it('login token payload should include akj claim', async () => {
-    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-    mockRepo.findByEmail.mockResolvedValue(mockUser);
-    mockRepo.updateLastSeen.mockResolvedValue(undefined);
-
-    await service.login({ email: 'a@a.com', password: 'pass' });
-
-    expect(mockJwt.sign).toHaveBeenCalledWith(
-      expect.objectContaining({ akj: true }),
-    );
-  });
-
-  it('login token payload should include akj: false when user has akj false', async () => {
-    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-    mockRepo.findByEmail.mockResolvedValue({ ...mockUser, akj: false });
-    mockRepo.updateLastSeen.mockResolvedValue(undefined);
-
-    await service.login({ email: 'a@a.com', password: 'pass' });
-
-    expect(mockJwt.sign).toHaveBeenCalledWith(
-      expect.objectContaining({ akj: false }),
-    );
-  });
-
-  it('should include akj claim in register token', async () => {
-    const dto = { email: 'test@example.com', username: 'testuser', password: 'password123' };
-    mockRepo.findByEmail.mockResolvedValue(null);
-    mockRepo.findByUsername.mockResolvedValue(null);
-    mockRepo.save.mockResolvedValue({ ...mockUser, akj: true });
-
-    await service.register(dto);
-
-    expect(mockJwt.sign).toHaveBeenCalledWith(
-      expect.objectContaining({ akj: true }),
-    );
   });
 
   it('register should throw ConflictException for duplicate email', async () => {

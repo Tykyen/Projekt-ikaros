@@ -27,6 +27,7 @@ Jedna kolekce `custom_emotes`, dvě logické skupiny přes `worldId`:
 | `name` | string | Zobrazovaný název |
 | `shortcode` | string | Jen vnitřní část bez `:`, formát `[a-z0-9_]{2,32}` |
 | `imageId` | string | Cloudinary public ID |
+| `createdBy` | ObjectId | Server-filled — userId tvůrce |
 | `createdAt` | Date | Server-filled |
 
 **Indexy:**

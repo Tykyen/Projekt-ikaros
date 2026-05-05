@@ -27,6 +27,10 @@ export class CampaignController {
     return this.service.getWorldRole(user.id, user.role, worldId);
   }
 
+  private resolveIsShared(worldRole: WorldRole, requested?: boolean): boolean {
+    return worldRole >= WorldRole.PomocnyPJ ? (requested ?? false) : false;
+  }
+
   // ── Players ───────────────────────────────────────────────────────────────
 
   @Get('players')
@@ -60,7 +64,7 @@ export class CampaignController {
   ) {
     const worldRole = await this.role(user, worldId);
     if (worldRole < WorldRole.PomocnyPJ) throw new ForbiddenException();
-    return this.service.getChangelog(worldId, worldRole, limit);
+    return this.service.getChangelog(worldId, worldRole, limit, user.id);
   }
 
   // ── Subjects ──────────────────────────────────────────────────────────────
@@ -86,7 +90,7 @@ export class CampaignController {
   @Post('subjects')
   async createSubject(@CurrentUser() user: RequestUser, @Query('worldId') worldId: string, @Body() dto: CreateCampaignSubjectDto) {
     const worldRole = await this.role(user, worldId);
-    return this.service.createSubject(user.id, user.username, worldRole, worldId, dto.isShared ?? false, dto);
+    return this.service.createSubject(user.id, user.username, worldRole, worldId, this.resolveIsShared(worldRole, dto.isShared), dto);
   }
 
   @Put('subjects/:id')
@@ -124,7 +128,7 @@ export class CampaignController {
   @Post('relationships')
   async createRelationship(@CurrentUser() user: RequestUser, @Query('worldId') worldId: string, @Body() dto: CreateCampaignRelationshipDto) {
     const worldRole = await this.role(user, worldId);
-    return this.service.createRelationship(user.id, user.username, worldRole, worldId, dto.isShared ?? false, dto);
+    return this.service.createRelationship(user.id, user.username, worldRole, worldId, this.resolveIsShared(worldRole, dto.isShared), dto);
   }
 
   @Put('relationships/:id')
@@ -162,7 +166,7 @@ export class CampaignController {
   @Post('storylines')
   async createStoryline(@CurrentUser() user: RequestUser, @Query('worldId') worldId: string, @Body() dto: CreateCampaignStorylineDto) {
     const worldRole = await this.role(user, worldId);
-    return this.service.createStoryline(user.id, user.username, worldRole, worldId, dto.isShared ?? false, dto);
+    return this.service.createStoryline(user.id, user.username, worldRole, worldId, this.resolveIsShared(worldRole, dto.isShared), dto);
   }
 
   @Put('storylines/:id')
@@ -194,7 +198,7 @@ export class CampaignController {
   @Post('scenarios')
   async createScenario(@CurrentUser() user: RequestUser, @Query('worldId') worldId: string, @Body() dto: CreateCampaignScenarioDto) {
     const worldRole = await this.role(user, worldId);
-    return this.service.createScenario(user.id, user.username, worldRole, worldId, dto.isShared ?? false, dto);
+    return this.service.createScenario(user.id, user.username, worldRole, worldId, this.resolveIsShared(worldRole, dto.isShared), dto);
   }
 
   @Put('scenarios/:id')
@@ -234,7 +238,7 @@ export class CampaignController {
   @Post('quicknotes')
   async createQuickNote(@CurrentUser() user: RequestUser, @Query('worldId') worldId: string, @Body() dto: CreateCampaignQuickNoteDto) {
     const worldRole = await this.role(user, worldId);
-    return this.service.createQuickNote(user.id, user.username, worldRole, worldId, dto.isShared ?? false, dto);
+    return this.service.createQuickNote(user.id, user.username, worldRole, worldId, this.resolveIsShared(worldRole, dto.isShared), dto);
   }
 
   @Put('quicknotes/:id')
@@ -270,7 +274,7 @@ export class CampaignController {
   @Post('shopitems')
   async createShopItem(@CurrentUser() user: RequestUser, @Query('worldId') worldId: string, @Body() dto: CreateCampaignShopItemDto) {
     const worldRole = await this.role(user, worldId);
-    return this.service.createShopItem(user.id, user.username, worldRole, worldId, dto.isShared ?? false, dto);
+    return this.service.createShopItem(user.id, user.username, worldRole, worldId, this.resolveIsShared(worldRole, dto.isShared), dto);
   }
 
   @Put('shopitems/:id')

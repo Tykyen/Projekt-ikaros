@@ -17,6 +17,12 @@ export class NpcTemplatesController {
     return this.service.findAll(worldId);
   }
 
+  @Get('global')
+  @UseGuards(JwtAuthGuard)
+  findGlobal() {
+    return this.service.findGlobal();
+  }
+
   @Get(':id')
   findOne(@Param('worldId') worldId: string, @Param('id') id: string) {
     return this.service.findOne(id, worldId);
@@ -64,5 +70,16 @@ export class NpcTemplatesController {
   ) {
     await this.service.assertCanManage(user.id, user.role, worldId);
     return this.service.remove(id, worldId);
+  }
+
+  @Post(':id/import')
+  @UseGuards(JwtAuthGuard)
+  async importToWorld(
+    @Param('worldId') worldId: string,
+    @Param('id') templateId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user.id, user.role, worldId);
+    return this.service.importToWorld(templateId, worldId);
   }
 }
