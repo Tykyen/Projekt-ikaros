@@ -593,9 +593,9 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 16 — Finalizace & Integrace ⬜
+## Krok 16a — Feature Parity Checklist ⬜
 
-> Kontrola feature parity se starým systémem, integrace všech modulů.
+> Kontrola feature parity se starým systémem — ověření že nový backend pokrývá vše co starý.
 
 ### Feature Parity Checklist
 - [ ] Všechny MongoDB kolekce přítomny: Users, Pages, Characters, Calenders, ChatMessages, ChatChannels, ChatGroups, PageEmbeddings, GameEvents, News, TimelineEvents, ChannelReadStatuses, MapScenes, NpcTemplates, MapTemplates, IkarosArticles, IkarosDiscussions, IkarosGallery, IkarosNews, UniverseMaps, Worlds, WorldMemberships, CampaignSubjects, CampaignRelationships, CampaignStorylines, CampaignQuickNotes, CampaignShopItems, CampaignScenarios, Sounds, CustomEmotes, PushSubscriptions, SearchStats, FailedIndexings, IkarosMessages
@@ -612,9 +612,22 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 - [ ] Import script: JSON dump → nový schéma (transformace polí)
 - [ ] Ověření: počty dokumentů, ukázkové queries
 
-### Dokumentace API
-- [ ] Swagger/OpenAPI pro všechny endpointy
+**Spec:** —  
+**Plán:** —
+
+---
+
+## Krok 16b — Dokumentace API ⬜
+
+> Swagger/OpenAPI dokumentace všech endpointů + WebSocket event dokumentace.
+
+### Swagger / OpenAPI
+- [ ] Swagger/OpenAPI pro všechny REST endpointy
+- [ ] Každý endpoint má popsané request/response typy, auth požadavky a příklady
+
+### WebSocket dokumentace
 - [ ] WebSocket event dokumentace (Gateway events in/out)
+- [ ] Popis všech emitovaných a přijímaných událostí pro ChatGateway, MapGateway, IkarosChatGateway
 
 **Spec:** —  
 **Plán:** —
@@ -665,4 +678,5 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 13 | Push notifikace | ✅ |
 | 14 | Vyhledávání | ✅ |
 | 15 | Admin & Systémové nástroje | ⬜ |
-| 16 | Finalizace & Integrace | ⬜ |
+| 16a | Feature Parity Checklist | ⬜ |
+| 16b | Dokumentace API | ⬜ |
