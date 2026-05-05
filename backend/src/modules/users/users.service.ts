@@ -79,6 +79,11 @@ export class UsersService {
     await this.repo.update(userId, { passwordHash });
   }
 
+  async existsByUsername(username: string): Promise<boolean> {
+    const user = await this.repo.findByUsername(username);
+    return !!user;
+  }
+
   async delete(id: string): Promise<void> {
     const deleted = await this.repo.delete(id);
     if (!deleted) throw new NotFoundException('Uživatel nenalezen');

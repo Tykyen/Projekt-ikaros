@@ -22,6 +22,12 @@ export class UsersController {
     return this.usersService.findById(user.id);
   }
 
+  @Get('exists/:username')
+  async existsByUsername(@Param('username') username: string) {
+    const exists = await this.usersService.existsByUsername(username);
+    return { exists };
+  }
+
   @Get('profile/:id')
   publicProfile(@Param('id') id: string) {
     return this.usersService.publicProfile(id);

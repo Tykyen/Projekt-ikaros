@@ -158,6 +158,21 @@ describe('UsersService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  // --- existsByUsername ---
+  describe('existsByUsername', () => {
+    it('vrátí true pokud username existuje', async () => {
+      mockRepo.findByUsername.mockResolvedValue({ id: '1', username: 'testuser' });
+      const result = await service.existsByUsername('testuser');
+      expect(result).toBe(true);
+    });
+
+    it('vrátí false pokud username neexistuje', async () => {
+      mockRepo.findByUsername.mockResolvedValue(null);
+      const result = await service.existsByUsername('neexistuje');
+      expect(result).toBe(false);
+    });
+  });
+
   // --- delete ---
   it('delete: zavolá repo.delete s userId', async () => {
     mockRepo.delete.mockResolvedValue(true);
