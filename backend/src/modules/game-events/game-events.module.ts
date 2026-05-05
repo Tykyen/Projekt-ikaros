@@ -5,6 +5,8 @@ import { MongoGameEventRepository } from './repositories/game-event.repository';
 import { GameEventReminderJob } from './game-event-reminder.job';
 import { GameEventCleanupJob } from './game-event-cleanup.job';
 import { WorldsModule } from '../worlds/worlds.module';
+import { GameEventsController } from './game-events.controller';
+import { GameEventsService } from './game-events.service';
 
 @Module({
   imports: [
@@ -13,10 +15,12 @@ import { WorldsModule } from '../worlds/worlds.module';
     ]),
     WorldsModule,
   ],
+  controllers: [GameEventsController],
   providers: [
     GameEventReminderJob,
     GameEventCleanupJob,
     { provide: 'IGameEventRepository', useClass: MongoGameEventRepository },
+    GameEventsService,
   ],
 })
 export class GameEventsModule {}

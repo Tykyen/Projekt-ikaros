@@ -33,6 +33,37 @@ export class MongoGameEventRepository implements IGameEventRepository {
     return result.deletedCount ?? 0;
   }
 
+  async findByWorld(worldId: string): Promise<GameEvent[]> {
+    const docs = await this.model.find({ worldId }).sort({ date: 1 }).lean().exec();
+    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+  }
+
+  async findOne(id: string): Promise<GameEvent | null> {
+    const doc = await this.model.findById(id).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
+  async create(data: Omit<GameEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<GameEvent> {
+    const doc = await this.model.create(data);
+    return this.toEntity(doc.toObject());
+  }
+
+  async update(id: string, data: Partial<GameEvent>): Promise<GameEvent | null> {
+    const doc = await this.model.findByIdAndUpdate(id, data, { new: true }).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.model.findByIdAndDelete(id).exec();
+  }
+
+  async confirm(id: string): Promise<GameEvent | null> {
+    const doc = await this.model.findByIdAndUpdate(
+      id, { reminderSent: true }, { new: true },
+    ).lean().exec();
+    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  }
+
   private toEntity(doc: Record<string, unknown>): GameEvent {
     return {
       id: String(doc._id),
