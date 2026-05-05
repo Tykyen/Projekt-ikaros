@@ -483,18 +483,20 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 12b — Sound Database ⬜
+## Krok 12b — Sound Database ✅
 
 > Databáze zvuků s bohatými metadaty, integrace s taktickou mapou.
 
 ### Sound Database
-- [ ] Schema: id, name, youtubeUrl, mediaType, primaryFunction, environment, emotionalTone, intensity (1–5), duration, loop, onsetProfile, outroProfile, factionStyle, techLevel, magicLevel, combatEnergy, tags, notes
-- [ ] GET /api/sounds (all), GET /:id, POST, PUT /:id, DELETE
-- [ ] MapHub integrace: activeSoundIds na MapScene (změny broadcastovány přes MapHub)
-- [ ] Per-world sounds: GET /api/worlds/:id/sounds
+- [x] Schema: name, youtubeUrl, mediaType, primaryFunction, environment, emotionalTone, intensity (1–5), duration, loop, onsetProfile, outroProfile, factionStyle, techLevel, magicLevel, combatEnergy, tags, notes; worldId (null = globální); status (active/pending/rejected); proposedBy/proposedByWorldId/rejectReason
+- [x] GET /api/sounds (approved globální), GET /api/sounds/pending (Admin+), GET /api/sounds/:id, POST, PUT /:id, DELETE, POST /:id/approve, POST /:id/reject
+- [x] GET /api/worlds/:worldId/sounds, GET /:id, POST, PUT /:id, DELETE, POST /:id/nominate, POST /import/:globalId
+- [x] Schvalovací workflow: PJ nominuje per-world zvuk → Admin schválí/zamítne → status active/rejected
+- [x] Deduplicita: URL exact match + name case-insensitive při nominaci i přímém přidání
+- [x] MapHub integrace: activeSoundIds na MapScene broadcastovány přes existující `map:sound-changed` event
 
-**Spec:** —  
-**Plán:** —
+**Spec:** [docs/superpowers/specs/2026-05-05-krok-12b-sound-database-design.md](superpowers/specs/2026-05-05-krok-12b-sound-database-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-12b-sound-database.md](superpowers/plans/2026-05-05-krok-12b-sound-database.md)
 
 ---
 
@@ -659,7 +661,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 11c | IkarosGallery | ✅ |
 | 11d | IkarosDiscussions | ✅ |
 | 12a | Custom Emotes & Image proxy | ✅ |
-| 12b | Sound Database | ⬜ |
+| 12b | Sound Database | ✅ |
 | 13 | Push notifikace | ⬜ |
 | 14 | Vyhledávání | ⬜ |
 | 15 | Admin & Systémové nástroje | ⬜ |
