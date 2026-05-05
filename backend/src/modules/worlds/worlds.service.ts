@@ -217,7 +217,7 @@ export class WorldsService {
     if (!membership) throw new NotFoundException('Membership nenalezeno');
 
     const world = await this.findById(membership.worldId);
-    if (!this.canManageMembers(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
+    if (!this.canManageMembers(requester, world, membership)) throw new ForbiddenException('Nedostatečná oprávnění');
 
     const updated = await this.membershipRepo.update(membershipId, { isFree });
     if (!updated) throw new NotFoundException('Membership nenalezeno');
