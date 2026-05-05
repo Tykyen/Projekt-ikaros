@@ -60,6 +60,13 @@ export function normalizeEndpoint(verb: string, rawPath: string): NormalizedEndp
   };
 }
 
+function stripStaticPath(normalizedPath: string): string {
+  return normalizedPath
+    .split('/')
+    .filter(seg => seg !== '{param}')
+    .join('/');
+}
+
 export function compareEndpoints(
   oldEndpoints: { verb: string; path: string }[],
   newEndpoints: { verb: string; path: string }[]
@@ -67,32 +74,52 @@ export function compareEndpoints(
   const newNorm = newEndpoints.map(e => normalizeEndpoint(e.verb, e.path));
   const oldNorm = oldEndpoints.map(e => normalizeEndpoint(e.verb, e.path));
 
+  // Uchováme i originální (před normalizací) cesty pro detekci přejmenování
+  const newOrigPaths = newEndpoints.map(e => e.path);
+  const oldOrigPaths = oldEndpoints.map(e => e.path);
+
   const covered: EndpointMatch[] = [];
   const missing: EndpointMatch[] = [];
   const renamed: EndpointMatch[] = [];
   const matchedNewIdx = new Set<number>();
 
-  const stripParams = (s: string) => s.replace(/\{param\}/g, '').replace(/\/+/g, '/');
+  for (let oi = 0; oi < oldNorm.length; oi++) {
+    const old = oldNorm[oi];
 
-  for (const old of oldNorm) {
-    // Přesná shoda: normalizované verb i path jsou identické
+    // Pass 1: Přesná shoda — normalizované verb i path identické
     const exactIdx = newNorm.findIndex(
       (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && n.path === old.path
     );
     if (exactIdx >= 0) {
-      covered.push({ status: 'covered', old: old.original, new: newNorm[exactIdx].original });
+      // Zkontroluj, zda se originální cesty liší (přejmenovaný parametr)
+      const origOld = oldOrigPaths[oi];
+      const origNew = newOrigPaths[exactIdx];
+      const origDiffers = normalizeRoutePath(origOld) !== origOld || normalizeRoutePath(origNew) !== origNew
+        ? origOld !== origNew
+        : false;
+
+      if (origDiffers && normalizeRoutePath(origOld) === normalizeRoutePath(origNew)) {
+        // Stejná normalizovaná cesta, ale různé původní — renamed
+        renamed.push({ status: 'renamed', old: old.original, new: newNorm[exactIdx].original, confidence: 'high' });
+      } else {
+        covered.push({ status: 'covered', old: old.original, new: newNorm[exactIdx].original });
+      }
       matchedNewIdx.add(exactIdx);
       continue;
     }
 
-    // Fuzzy shoda: stripped cesty (bez parametrů) se shodují ale normalizované ne
-    const oldStripped = stripParams(old.path);
-    const fuzzyIdx = newNorm.findIndex(
-      (n, i) => !matchedNewIdx.has(i) && n.verb === old.verb && stripParams(n.path) === oldStripped
+    // Pass 2: Přejmenování — stejný verb, stejná statická struktura, různé normalizované cesty
+    const oldStripped = stripStaticPath(old.path);
+    const renamedIdx = newNorm.findIndex(
+      (n, i) =>
+        !matchedNewIdx.has(i) &&
+        n.verb === old.verb &&
+        stripStaticPath(n.path) === oldStripped &&
+        n.path !== old.path
     );
-    if (fuzzyIdx >= 0) {
-      renamed.push({ status: 'renamed', old: old.original, new: newNorm[fuzzyIdx].original, confidence: 'high' });
-      matchedNewIdx.add(fuzzyIdx);
+    if (renamedIdx >= 0) {
+      renamed.push({ status: 'renamed', old: old.original, new: newNorm[renamedIdx].original, confidence: 'high' });
+      matchedNewIdx.add(renamedIdx);
       continue;
     }
 

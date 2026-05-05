@@ -4,7 +4,9 @@ import { parseNestjsBackend } from './lib/parse-nestjs';
 import { compareAll } from './lib/comparator';
 import { writeReports } from './lib/report';
 
-const OLD_BACKEND_DIR = path.resolve('C:/Matrix/Matrix/backend');
+const OLD_BACKEND_DIR = process.env.OLD_BACKEND_DIR
+  ? path.resolve(process.env.OLD_BACKEND_DIR)
+  : path.resolve('C:/Matrix/Matrix/backend');
 const NEW_BACKEND_SRC = path.resolve(__dirname, '../../src');
 const JSON_OUTPUT = path.resolve(__dirname, 'output/parity-report.json');
 const MD_OUTPUT = path.resolve(__dirname, '../../../docs/checklist-be.md');
