@@ -47,6 +47,7 @@ export class MongoWorldMembershipRepository
       avatarUrl: doc.avatarUrl as string | undefined,
       characterPath: doc.characterPath as string | undefined,
       group: doc.group as string | undefined,
+      isFree: (doc.isFree as boolean) ?? false,
       akj: (doc.akj as number) ?? 0,
     };
   }

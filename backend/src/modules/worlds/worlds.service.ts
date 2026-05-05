@@ -212,6 +212,18 @@ export class WorldsService {
     return updated;
   }
 
+  async updateMemberFree(membershipId: string, isFree: boolean, requester: RequestUser): Promise<WorldMembership | null> {
+    const membership = await this.membershipRepo.findById(membershipId);
+    if (!membership) throw new NotFoundException('Členství nenalezeno');
+    if (requester.role > UserRole.PJ && membership.worldId !== undefined) {
+      const worldMembership = await this.membershipRepo.findByUserAndWorld(requester.id, membership.worldId);
+      if (!worldMembership || worldMembership.role < WorldRole.PJ) {
+        throw new ForbiddenException('Pouze PJ může měnit isFree');
+      }
+    }
+    return this.membershipRepo.update(membershipId, { isFree });
+  }
+
   async softDelete(id: string, requester: RequestUser): Promise<{ message: string }> {
     const world = await this.findById(id);
     if (!this.canAdminWorld(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');

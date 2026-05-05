@@ -168,6 +168,28 @@ describe('WorldsService', () => {
     });
   });
 
+  describe('updateMemberFree', () => {
+    it('nastaví isFree na true pokud je requester PJ', async () => {
+      const pj = { id: 'pj1', role: UserRole.PJ, username: 'pj' };
+      const membership = { id: 'mem1', worldId: 'w1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
+      mockMembershipRepo.findById.mockResolvedValue(membership);
+      mockMembershipRepo.update.mockResolvedValue({ ...membership, isFree: true });
+
+      const result = await service.updateMemberFree('mem1', true, pj);
+
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('mem1', { isFree: true });
+      expect(result?.isFree).toBe(true);
+    });
+
+    it('hodí ForbiddenException pokud requester není PJ+', async () => {
+      const hrac = { id: 'u1', role: UserRole.Hrac, username: 'u1' };
+      const membership = { id: 'mem1', worldId: 'w1', userId: 'u2', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
+      mockMembershipRepo.findById.mockResolvedValue(membership);
+
+      await expect(service.updateMemberFree('mem1', true, hrac)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
   describe('findMyWorlds', () => {
     it('should use findByIds to avoid N+1', async () => {
       const memberships = [

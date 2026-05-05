@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsIn, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsIn, Min, Max, IsBoolean } from 'class-validator';
 import { WorldRole } from '../interfaces/world-membership.interface';
 
 export class UpdateMemberRoleDto {
@@ -15,4 +15,8 @@ export class UpdateMemberAkjDto {
 
 export class UpdateMemberCharacterDto {
   @IsOptional() @IsString() characterPath?: string;
+}
+
+export class UpdateMemberFreeDto {
+  @IsBoolean() isFree: boolean;
 }

@@ -21,6 +21,7 @@ import {
   UpdateMemberGroupDto,
   UpdateMemberAkjDto,
   UpdateMemberCharacterDto,
+  UpdateMemberFreeDto,
 } from './dto/update-member.dto';
 import { PagesService } from '../pages/pages.service';
 
@@ -148,6 +149,16 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.updateMemberAkj(membershipId, dto.akj, user);
+  }
+
+  @Patch(':worldId/members/:membershipId/free')
+  @UseGuards(JwtAuthGuard)
+  updateMemberFree(
+    @Param('membershipId') membershipId: string,
+    @Body() dto: UpdateMemberFreeDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.updateMemberFree(membershipId, dto.isFree, user);
   }
 
   @Get(':worldId/favorites')

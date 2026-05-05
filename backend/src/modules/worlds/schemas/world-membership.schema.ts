@@ -13,6 +13,7 @@ export class WorldMembershipSchemaClass {
   @Prop() avatarUrl?: string;
   @Prop() characterPath?: string;
   @Prop() group?: string;
+  @Prop({ default: false }) isFree: boolean;
   @Prop({ default: 0 }) akj: number;
 }
 

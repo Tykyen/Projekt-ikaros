@@ -15,5 +15,6 @@ export interface WorldMembership {
   avatarUrl?: string;
   characterPath?: string;
   group?: string;
+  isFree?: boolean;
   akj: number;
 }
