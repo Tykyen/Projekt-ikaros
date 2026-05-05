@@ -523,41 +523,40 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 14 — Vyhledávání ⬜
+## Krok 14 — Vyhledávání ✅
 
-> Full-text search + sémantické embedding search — kombinovaný výsledek.
+### Full-text Search (MeiliSearch)
+- [x] Zvolená technologie: **MeiliSearch**
+- [x] Indexovaná pole: slug, title (titleExact 100, title 15), paragraphs (5), tableTitle (5), headers (3), values (3)
+- [x] Czech tokenizace, typo tolerance, prefix matching
+- [x] Rebuild při startu; inkrementální add/update/delete
 
-### Full-text Search (náhrada za Lucene)
-- [ ] Zvolená technologie: **MeiliSearch** nebo **MongoDB Atlas Search** (rozhodnutí při specifikaci)
-- [ ] Indexovaná pole: id, slug, title (boost 15), paragraphs/plainText (boost 5), headers (boost 3), tableTitle (boost 5), values (boost 3)
-- [ ] Czech tokenizace, partial match (ngram pro title)
-- [ ] Thread-safe rebuild ze všech Pages; inkrementální add/update/delete
-
-### Embedding Search (náhrada za ONNX/Granite)
-- [ ] Zvolená technologie: **OpenAI embeddings** nebo **lokální model** (rozhodnutí při specifikaci)
-- [ ] PageEmbedding schema: pageId, slug, modelKey, pageHash (SHA256 pro detekci změn), chunkId, chunkTitle, chunkPreview, chunkOrder, vector, createdAt
-- [ ] Chunking: 750 znaků s překryvem 250
-- [ ] Hash-skip: přeskoč re-embedding pokud pageHash nezměněn
-- [ ] Async fronta (Queue): Upsert/Delete/Rebuild operace
-- [ ] Stavový automat: Unknown → Starting → Scanning → Embedding → EverythingEmbedded | Rebuilding
+### Embedding Search (ONNX Granite)
+- [x] Zvolená technologie: **onnxruntime-node + Granite modely (sentencepiece-js)**
+- [x] PageEmbedding schema: pageId, slug, modelKey, pageHash, chunkId, chunkTitle, chunkPreview, chunkOrder, vector, createdAt
+- [x] Chunking: 750 znaků s překryvem 250
+- [x] Hash-skip: přeskoč re-embedding pokud pageHash nezměněn
+- [x] Async fronta (EmbeddingQueue): Upsert/Delete/Rebuild + rebuild-backlog
+- [x] Stavový automat: Unknown → Starting → Scanning → Embedding → EverythingEmbedded | Rebuilding
 
 ### SearchCoordinator
-- [ ] Fasáda nad oběma providery
-- [ ] Kombinace výsledků round-robin
-- [ ] Mutations jdou do obou providerů
-- [ ] GET /api/search?q=&count=5&provider=&worldId= (per-world scope)
-- [ ] GET /api/search/providers
-- [ ] POST /api/search/created, /updated, /deleted (webhook pro indexaci)
-- [ ] POST /api/search/reindex `{ slug? | pageId? }`
-- [ ] POST /api/search/rebuild (async, vrátí 202 Accepted)
+- [x] Fasáda nad oběma providery
+- [x] Kombinace výsledků round-robin s deduplikací
+- [x] Mutations jdou do obou providerů
+- [x] GET /api/search?q=&count=5&provider=&worldId=
+- [x] GET /api/search/providers
+- [x] POST /api/search/created, /updated, /deleted
+- [x] POST /api/search/reindex, /rebuild
 
 ### Stats
-- [ ] SearchIndexStats schema: provider, status, processedPages, indexedCount, vectorCount, pendingPages, failedIndexings
-- [ ] IndexingFailure: pageId, slug, error, timestamp
-- [ ] GET /api/stats/search, POST /api/stats/search/rebuild, POST /api/stats/search/reindex
+- [x] SearchIndexStats + IndexingFailure schema
+- [x] GET /api/stats/search, POST /api/stats/search/rebuild, POST /api/stats/search/reindex
 
-**Spec:** —  
-**Plán:** —
+### Integrace
+- [x] PagesService volá SearchCoordinator při create/update/delete (backend-driven)
+
+**Spec:** [docs/superpowers/specs/2026-05-05-krok-14-vyhledavani-design.md](superpowers/specs/2026-05-05-krok-14-vyhledavani-design.md)
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-14-vyhledavani.md](superpowers/plans/2026-05-05-krok-14-vyhledavani.md)
 
 ---
 
@@ -664,6 +663,6 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 12a | Custom Emotes & Image proxy | ✅ |
 | 12b | Sound Database | ✅ |
 | 13 | Push notifikace | ✅ |
-| 14 | Vyhledávání | ⬜ |
+| 14 | Vyhledávání | ✅ |
 | 15 | Admin & Systémové nástroje | ⬜ |
 | 16 | Finalizace & Integrace | ⬜ |
