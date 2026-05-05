@@ -27,3 +27,6 @@ Thumbs.db
 
 # Git worktrees
 .worktrees/
+
+# Parity check output
+backend/scripts/parity-check/output/*.json
