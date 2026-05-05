@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { IkarosNewsService } from './ikaros-news.service';
+import { PushService } from '../push/push.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { IkarosNewsItem } from './interfaces/ikaros-news.interface';
 
@@ -28,6 +29,7 @@ describe('IkarosNewsService', () => {
       providers: [
         IkarosNewsService,
         { provide: 'IIkarosNewsRepository', useValue: mockRepo },
+        { provide: PushService, useValue: { notifyAll: jest.fn().mockResolvedValue(undefined) } },
       ],
     }).compile();
     service = module.get(IkarosNewsService);

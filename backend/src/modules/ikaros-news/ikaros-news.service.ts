@@ -3,11 +3,13 @@ import type { IIkarosNewsRepository } from './interfaces/ikaros-news-repository.
 import type { IkarosNewsItem } from './interfaces/ikaros-news.interface';
 import type { CreateIkarosNewsDto } from './dto/create-ikaros-news.dto';
 import { UserRole } from '../users/interfaces/user.interface';
+import { PushService } from '../push/push.service';
 
 @Injectable()
 export class IkarosNewsService {
   constructor(
     @Inject('IIkarosNewsRepository') private readonly repo: IIkarosNewsRepository,
+    private readonly pushService: PushService,
   ) {}
 
   private assertCanWrite(role: UserRole): void {
@@ -25,7 +27,7 @@ export class IkarosNewsService {
     role: UserRole,
   ): Promise<IkarosNewsItem> {
     this.assertCanWrite(role);
-    return this.repo.create({
+    const item = await this.repo.create({
       title: dto.title,
       content: dto.content,
       authorId,
@@ -33,6 +35,13 @@ export class IkarosNewsService {
       createdAtUtc: new Date(),
       isActive: true,
     });
+
+    void this.pushService.notifyAll({
+      title: 'Nová novinka na Ikarosu',
+      body: item.title.slice(0, 100),
+    }).catch(() => undefined);
+
+    return item;
   }
 
   async delete(id: string, role: UserRole): Promise<void> {
