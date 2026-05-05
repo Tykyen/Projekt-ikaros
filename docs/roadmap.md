@@ -562,31 +562,31 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 15 — Admin & Systémové nástroje ✅
 
-> Admin endpoints, správa obsahu, background jobs, stats.
+> Admin endpoints pro správu uživatelů a stránek, rozšíření world membership workflow, background joby pro údržbu, Socket.io + CORS konfigurace.
 
 ### Admin User Management
-- [x] GET /api/admin/users (filtrování, stránkování)
+- [x] GET /api/admin/users (filtrování dle username/role, stránkování)
 - [x] PATCH /api/admin/users/:id/role (změna role)
 - [x] PATCH /api/admin/users/:id/akj (toggle AKJ flagu)
-- [x] GET /api/admin/recent-pages (posledně upravené stránky)
+- [x] GET /api/admin/recent-pages (Superadmin vidí vše, PJ jen své světy)
 
 ### World Admin
-- [x] GET /api/worlds/:id/members (s filtry role, group)
-- [x] PATCH /api/worlds/:id/members/:membershipId/free (isFree flag)
-- [x] Resolve IkarosMessage: přiřazení role/group/characterPath/isFree při přijetí hráče
+- [x] GET /api/worlds/:id/members (s filtry ?role= a ?group=)
+- [x] PATCH /api/worlds/:id/members/:membershipId/free (isFree — hráč bez postavy)
+- [x] POST /api/ikaros-messages/:id/resolve — rozšíření: přiřazení role/group/characterPath/isFree při přijetí hráče
 
-### Background Jobs (CronService)
+### Background Jobs
 - [x] GameEventCleanupJob: každou hodinu → smaž GameEvents starší než 24h
-- [x] CleanupInactiveUsers: každých 45 min → odpoj neaktivní socket uživatele
-- [x] CleanMessages: každé 2h → smaž chat zprávy starší než 2h (max 100 zachováno)
-- [x] EmbeddingQueueProcessor: continuous → zpracovává frontu embedding operací (Krok 14)
+- [x] CleanupInactiveUsersJob: každou hodinu → odpoj socket uživatele neaktivní > 1h
+- [x] CleanMessagesJob: každé 2h → smaž chat zprávy starší než 2h (zachová posledních 100)
+- [x] EmbeddingQueueProcessor: continuous loop (implementován v Kroku 14)
 
-### Compression & Performance
-- [x] Socket.io max message size: 5 MB (CustomIoAdapter)
-- [x] Konfigurace CORS: localhost:5173/5174 + FRONTEND_URL env
+### Infra
+- [x] CustomIoAdapter: Socket.io maxHttpBufferSize 5 MB + WebSocket CORS
+- [x] CORS: localhost:5173/5174 + FRONTEND_URL env proměnná
 
-**Spec:** `docs/superpowers/specs/2026-05-05-krok-15-admin-systemove-nastroje-design.md`  
-**Plán:** `docs/superpowers/plans/2026-05-05-krok-15-admin-systemove-nastroje.md`
+**Spec:** [docs/superpowers/specs/2026-05-05-krok-15-admin-systemove-nastroje-design.md](superpowers/specs/2026-05-05-krok-15-admin-systemove-nastroje-design.md)
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-15-admin-systemove-nastroje.md](superpowers/plans/2026-05-05-krok-15-admin-systemove-nastroje.md)
 
 ---
 
