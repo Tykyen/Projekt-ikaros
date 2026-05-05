@@ -10,7 +10,27 @@ import { GlobalChatService } from './global-chat.service';
 export class GlobalChatGateway {
   @WebSocketServer() server: Server;
 
+  private readonly connectedUsers = new Map<string, { lastSeen: Date; username: string }>();
+
   constructor(private readonly globalChatService: GlobalChatService) {}
+
+  getConnectedUserCount(): number {
+    return this.connectedUsers.size;
+  }
+
+  cleanupInactive(thresholdMs: number): number {
+    const cutoff = new Date(Date.now() - thresholdMs);
+    let removed = 0;
+    for (const [socketId, info] of this.connectedUsers.entries()) {
+      if (info.lastSeen < cutoff) {
+        const socket = this.server.sockets.sockets.get(socketId);
+        socket?.disconnect(true);
+        this.connectedUsers.delete(socketId);
+        removed++;
+      }
+    }
+    return removed;
+  }
 
   // Clients join room chat:{channelId} via the existing room:join Socket.IO event (AppGateway).
   // This handler only broadcasts the presence event to already-joined clients.
@@ -19,6 +39,7 @@ export class GlobalChatGateway {
     @MessageBody() payload: { username: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    this.connectedUsers.set(client.id, { lastSeen: new Date(), username: payload.username });
     const channelId = this.globalChatService.getGlobalChannelId();
     if (!channelId) return;
     client.to(`chat:${channelId}`).emit('chat:presence', {
@@ -32,6 +53,7 @@ export class GlobalChatGateway {
     @MessageBody() payload: { username: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    this.connectedUsers.delete(client.id);
     const channelId = this.globalChatService.getGlobalChannelId();
     if (!channelId) return;
     client.to(`chat:${channelId}`).emit('chat:presence', {
