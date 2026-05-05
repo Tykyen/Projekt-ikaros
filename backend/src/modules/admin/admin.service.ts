@@ -2,10 +2,17 @@ import { Injectable, Inject } from '@nestjs/common';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import { User, UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 interface AdminUser { id: string; role: UserRole }
+
+type SafeUser = Omit<User, 'passwordHash'>;
+
+function stripPassword(user: User): SafeUser {
+  const { passwordHash: _, ...rest } = user;
+  return rest;
+}
 
 @Injectable()
 export class AdminService {
@@ -16,15 +23,18 @@ export class AdminService {
   ) {}
 
   async getUsers(opts: { username?: string; role?: UserRole; page: number; limit: number }) {
-    return this.usersRepo.findAllPaginated(opts);
+    const result = await this.usersRepo.findAllPaginated(opts);
+    return { items: result.items.map(stripPassword), total: result.total };
   }
 
   async updateUserRole(userId: string, role: UserRole) {
-    return this.usersRepo.update(userId, { role });
+    const user = await this.usersRepo.update(userId, { role });
+    return user ? stripPassword(user) : null;
   }
 
   async updateUserAkj(userId: string, akj: boolean) {
-    return this.usersRepo.update(userId, { akj });
+    const user = await this.usersRepo.update(userId, { akj });
+    return user ? stripPassword(user) : null;
   }
 
   async getRecentPages(requester: AdminUser, limit: number) {

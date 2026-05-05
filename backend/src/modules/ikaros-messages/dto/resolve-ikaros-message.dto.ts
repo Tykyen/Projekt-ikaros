@@ -1,4 +1,5 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { WorldRole } from '../../worlds/interfaces/world-membership.interface';
 
 export class ResolveIkarosMessageDto {
   @IsBoolean()
@@ -7,8 +8,8 @@ export class ResolveIkarosMessageDto {
   @IsOptional() @IsString() @MaxLength(1000)
   reason?: string;
 
-  @IsOptional() @IsNumber()
-  role?: number;
+  @IsOptional() @IsEnum(WorldRole)
+  role?: WorldRole;
 
   @IsOptional() @IsString()
   group?: string;
