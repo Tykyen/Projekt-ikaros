@@ -33,6 +33,7 @@ import { PushModule } from './modules/push/push.module';
 import { GameEventsModule } from './modules/game-events/game-events.module';
 import { SearchModule } from './modules/search/search.module';
 import { StatsModule } from './modules/stats/stats.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -69,6 +70,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     GameEventsModule,
     SearchModule,
     StatsModule,
+    AdminModule,
     GatewaysModule,
   ],
   controllers: [AppController],
