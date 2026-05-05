@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { GameEventSchemaClass, GameEventSchema } from './schemas/game-event.schema';
 import { MongoGameEventRepository } from './repositories/game-event.repository';
 import { GameEventReminderJob } from './game-event-reminder.job';
+import { GameEventCleanupJob } from './game-event-cleanup.job';
 import { WorldsModule } from '../worlds/worlds.module';
 
 @Module({
@@ -14,6 +15,7 @@ import { WorldsModule } from '../worlds/worlds.module';
   ],
   providers: [
     GameEventReminderJob,
+    GameEventCleanupJob,
     { provide: 'IGameEventRepository', useClass: MongoGameEventRepository },
   ],
 })
