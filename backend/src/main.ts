@@ -19,7 +19,7 @@ async function bootstrap() {
       'http://localhost:5174',
     ],
     credentials: true,
-  });
+  }); // WebSocket CORS je nastaven v CustomIoAdapter
 
   await app.listen(process.env.PORT ?? 3000);
 }
