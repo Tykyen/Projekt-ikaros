@@ -175,12 +175,27 @@ describe('UsersService', () => {
 
   // --- updateTheme ---
   describe('updateTheme', () => {
-    it('zavolá update s themeSettings', async () => {
+    it('zavolá update s themeSettings a vrátí sanitizovaný user', async () => {
       mockRepo.findById.mockResolvedValue(mockUser);
       mockRepo.findByUsername.mockResolvedValue(null);
-      mockRepo.update.mockResolvedValue({ ...mockUser, themeSettings: { color: 'dark' } });
-      const result = await service.updateTheme('1', { themeSettings: { color: 'dark' } });
-      expect(mockRepo.update).toHaveBeenCalledWith('1', expect.objectContaining({ themeSettings: expect.any(Object) }));
+      const updatedUser = { ...mockUser, themeSettings: { theme: 'light', fontSize: 14, accentColor: 'red' } };
+      mockRepo.update.mockResolvedValue(updatedUser);
+      const result = await service.updateTheme('1', { themeSettings: { accentColor: 'red' } });
+      expect(mockRepo.update).toHaveBeenCalledWith('1', expect.objectContaining({
+        themeSettings: expect.any(Object),
+      }));
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(result).toHaveProperty('themeSettings');
+    });
+
+    it('zachová existující themeSettings klíče při deep-merge', async () => {
+      mockRepo.findById.mockResolvedValue(mockUser);
+      mockRepo.findByUsername.mockResolvedValue(null);
+      mockRepo.update.mockResolvedValue({ ...mockUser, themeSettings: { theme: 'dark', fontSize: 14 } });
+      await service.updateTheme('1', { themeSettings: { theme: 'dark' } });
+      expect(mockRepo.update).toHaveBeenCalledWith('1', expect.objectContaining({
+        themeSettings: { theme: 'dark', fontSize: 14 },
+      }));
     });
   });
 
