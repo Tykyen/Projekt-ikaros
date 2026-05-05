@@ -683,7 +683,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 12b | Sound Database | ✅ |
 | 13 | Push notifikace | ✅ |
 | 14 | Vyhledávání | ✅ |
-| 15 | Admin & Systémové nástroje | ⬜ |
+| 15 | Admin & Systémové nástroje | ✅ |
 | 16a | Feature Parity Checklist | ⬜ |
 | 16b | Dokumentace API | ⬜ |
 | 17 | Migrace dat | ⬜ |
