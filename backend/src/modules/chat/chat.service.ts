@@ -20,6 +20,7 @@ import type { UpdateChannelDto } from './dto/update-channel.dto';
 import type { CreateMessageDto } from './dto/create-message.dto';
 import type { UpdateMessageDto } from './dto/update-message.dto';
 import type { World } from '../worlds/interfaces/world.interface';
+import { PushService } from '../push/push.service';
 
 @Injectable()
 export class ChatService {
@@ -30,6 +31,7 @@ export class ChatService {
     @Inject('IChannelReadStatusRepository') private readonly readRepo: IChannelReadStatusRepository,
     @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly pushService: PushService,
   ) {}
 
   // ─── Permission helpers ───────────────────────────────────────────────────
@@ -53,6 +55,29 @@ export class ChatService {
     if (!membership || membership.role === WorldRole.Pending) return false;
     if (channel.accessMode === 'all') return true;
     return channel.allowedRoles.includes(membership.role);
+  }
+
+  private async resolveChannelRecipients(
+    channel: ChatChannel,
+    senderUserId: string,
+  ): Promise<string[]> {
+    if (channel.accessMode === 'members') {
+      return channel.allowedMemberIds.filter((id) => id !== senderUserId);
+    }
+
+    const members = await this.membershipRepo.findByWorldId(channel.worldId!);
+    const activeMemberIds = members
+      .filter((m) => m.role !== 0 /* WorldRole.Pending */)
+      .map((m) => m.userId);
+
+    const recipientIds: string[] = [];
+    for (const userId of activeMemberIds) {
+      if (userId === senderUserId) continue;
+      if (await this.hasChannelAccess(channel, userId)) {
+        recipientIds.push(userId);
+      }
+    }
+    return recipientIds;
   }
 
   // ─── Groups ───────────────────────────────────────────────────────────────
@@ -253,6 +278,28 @@ export class ChatService {
     await this.channelRepo.update(channelId, { lastMessageAt: message.createdAt });
     this.eventEmitter.emit('chat.message.created', { channelId, worldId: channel.worldId, message });
     await this.broadcastUnreadUpdate(channel, requester.id);
+
+    // Push notifikace — fire-and-forget
+    void (async () => {
+      try {
+        let recipientIds: string[];
+        if (message.visibleTo && message.visibleTo.length > 0) {
+          // whisper: push jen příjemcům (bez odesílatele)
+          recipientIds = message.visibleTo.filter((id) => id !== requester.id);
+        } else {
+          recipientIds = await this.resolveChannelRecipients(channel, requester.id);
+        }
+        if (recipientIds.length > 0) {
+          await this.pushService.notifyUsers(recipientIds, {
+            title: message.overrideName ?? message.senderName,
+            body: (message.content ?? '').slice(0, 100),
+          });
+        }
+      } catch {
+        // push je best-effort
+      }
+    })();
+
     return message;
   }
 
