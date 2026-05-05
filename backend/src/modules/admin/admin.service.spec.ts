@@ -1,4 +1,7 @@
+jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed'), compare: jest.fn() }));
+import * as bcrypt from 'bcrypt';
 import { Test } from '@nestjs/testing';
+import { ConflictException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
@@ -9,6 +12,9 @@ describe('AdminService', () => {
   const mockUsersRepo = {
     findAllPaginated: jest.fn(),
     update: jest.fn(),
+    findByEmail: jest.fn(),
+    findByUsername: jest.fn(),
+    save: jest.fn(),
   };
   const mockPagesRepo = {
     findRecent: jest.fn(),
@@ -55,6 +61,32 @@ describe('AdminService', () => {
       const result = await service.updateUserAkj('u1', true);
       expect(mockUsersRepo.update).toHaveBeenCalledWith('u1', { akj: true });
       expect(result?.akj).toBe(true);
+    });
+  });
+
+  describe('createUser', () => {
+    it('vytvoří nového uživatele s hashovaným heslem', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.findByUsername.mockResolvedValue(null);
+      mockUsersRepo.save.mockResolvedValue({
+        id: 'new1', email: 'new@test.com', username: 'newuser',
+        passwordHash: 'hashed', role: UserRole.Hrac,
+        akj: false, themeSettings: {}, chatPreferences: {},
+        favoriteDiscussionIds: [], isOnline: false,
+        lastSeenAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
+      });
+      const dto = { email: 'new@test.com', username: 'newuser', password: 'password123', role: UserRole.Hrac };
+      const result = await service.createUser(dto);
+      expect(mockUsersRepo.findByEmail).toHaveBeenCalledWith('new@test.com');
+      expect(mockUsersRepo.save).toHaveBeenCalled();
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(result).toHaveProperty('email', 'new@test.com');
+    });
+
+    it('vyhodí ConflictException pokud email existuje', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue({ id: 'existing' });
+      const dto = { email: 'taken@test.com', username: 'user', password: 'password123', role: UserRole.Hrac };
+      await expect(service.createUser(dto)).rejects.toThrow(ConflictException);
     });
   });
 

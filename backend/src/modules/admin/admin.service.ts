@@ -1,8 +1,10 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, ConflictException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import { User, UserRole } from '../users/interfaces/user.interface';
+import { AdminCreateUserDto } from './dto/create-user.dto';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 interface AdminUser { id: string; role: UserRole }
@@ -35,6 +37,20 @@ export class AdminService {
   async updateUserAkj(userId: string, akj: boolean) {
     const user = await this.usersRepo.update(userId, { akj });
     return user ? stripPassword(user) : null;
+  }
+
+  async createUser(dto: AdminCreateUserDto): Promise<SafeUser> {
+    const existing = await this.usersRepo.findByEmail(dto.email);
+    if (existing) throw new ConflictException('Email již existuje');
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const user = await this.usersRepo.save({
+      email: dto.email,
+      username: dto.username,
+      passwordHash,
+      role: dto.role,
+    });
+    return stripPassword(user);
   }
 
   async getRecentPages(requester: AdminUser, limit: number) {
