@@ -590,7 +590,10 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ---
 
-## Krok 16a — Feature Parity Checklist ⬜
+## Krok 16a — Feature Parity Checklist ✅
+
+**Spec:** [docs/superpowers/specs/2026-05-05-krok-16a-feature-parity-design.md](superpowers/specs/2026-05-05-krok-16a-feature-parity-design.md)  
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-16a-feature-parity.md](superpowers/plans/2026-05-05-krok-16a-feature-parity.md)
 
 > Kontrola feature parity se starým systémem — ověření že nový backend pokrývá vše co starý.
 
@@ -684,6 +687,6 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 13 | Push notifikace | ✅ |
 | 14 | Vyhledávání | ✅ |
 | 15 | Admin & Systémové nástroje | ✅ |
-| 16a | Feature Parity Checklist | ⬜ |
+| 16a | Feature Parity Checklist | ✅ |
 | 16b | Dokumentace API | ⬜ |
 | 17 | Migrace dat | ⬜ |
