@@ -119,6 +119,27 @@ describe('IkarosMessagesService', () => {
   });
 
   describe('resolve', () => {
+    it('resolve accept — aplikuje role/group/isFree na membership', async () => {
+      const msg = {
+        id: 'msg1', recipientId: 'pj1', actionType: 'world_join_request',
+        actionWorldId: 'w1', actionUserId: 'player1', actionResolved: false,
+      };
+      const membership = { id: 'mem1', role: -1, worldId: 'w1', userId: 'player1', akj: 0, joinedAt: new Date() };
+      msgRepo.findById.mockResolvedValue(msg as any);
+      msgRepo.resolveIfPending.mockResolvedValue(true);
+      membershipRepo.findByUserAndWorld.mockResolvedValue(membership as any);
+      membershipRepo.update.mockResolvedValue({ ...membership, role: 1, group: 'Alpha', isFree: false } as any);
+      msgRepo.save.mockResolvedValue({} as any);
+
+      await service.resolve('msg1', { accept: true, role: 1, group: 'Alpha', isFree: false }, 'pj1');
+
+      expect(membershipRepo.update).toHaveBeenCalledWith('mem1', {
+        role: 1,
+        group: 'Alpha',
+        isFree: false,
+      });
+    });
+
     it('hodí ConflictException pokud resolveIfPending vrátí false', async () => {
       msgRepo.findById.mockResolvedValue(makeMsg({
         recipientId: 'pj1',

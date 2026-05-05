@@ -8,6 +8,7 @@ import type { IkarosMessage } from './interfaces/ikaros-message.interface';
 import type { CreateIkarosMessageDto } from './dto/create-ikaros-message.dto';
 import type { ResolveIkarosMessageDto } from './dto/resolve-ikaros-message.dto';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import type { WorldMembership } from '../worlds/interfaces/world-membership.interface';
 
 interface SenderRef { id: string; username: string }
 
@@ -104,10 +105,15 @@ export class IkarosMessagesService {
     if (dto.accept) {
       const membership = await this.membershipRepo.findByUserAndWorld(msg.actionUserId!, msg.actionWorldId!);
       if (membership && membership.role === WorldRole.Pending) {
-        const updatedMembership = await this.membershipRepo.update(membership.id, { role: WorldRole.Hrac });
+        const updates: Partial<WorldMembership> = { role: WorldRole.Hrac };
+        if (dto.role !== undefined) updates.role = dto.role;
+        if (dto.group !== undefined) updates.group = dto.group;
+        if (dto.characterPath !== undefined) updates.characterPath = dto.characterPath;
+        if (dto.isFree !== undefined) updates.isFree = dto.isFree;
+        const updatedMembership = await this.membershipRepo.update(membership.id, updates);
         this.eventEmitter.emit('world.membership.changed', {
           worldId: msg.actionWorldId,
-          membership: updatedMembership ?? { ...membership, role: WorldRole.Hrac },
+          membership: updatedMembership ?? { ...membership, ...updates },
         });
       }
       await this.msgRepo.save({
