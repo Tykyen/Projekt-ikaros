@@ -112,14 +112,16 @@ export class SoundsService {
     const sound = await this.repo.findById(id);
     if (!sound || sound.worldId !== null || sound.status !== 'pending') throw new NotFoundException('Pending nomination nenalezena');
     const updated = await this.repo.updateById(id, { status: 'active', rejectReason: null });
-    return updated!;
+    if (!updated) throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
+    return updated;
   }
 
   async rejectNomination(id: string, reason: string): Promise<Sound> {
     const sound = await this.repo.findById(id);
     if (!sound || sound.worldId !== null || sound.status !== 'pending') throw new NotFoundException('Pending nomination nenalezena');
     const updated = await this.repo.updateById(id, { status: 'rejected', rejectReason: reason });
-    return updated!;
+    if (!updated) throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
+    return updated;
   }
 
   async importToWorld(globalSoundId: string, worldId: string, userId: string): Promise<Sound> {
@@ -162,7 +164,8 @@ export class SoundsService {
     const sound = await this.repo.findById(id);
     if (!sound || sound.worldId !== null) throw new NotFoundException('Globální zvuk nenalezen');
     const updated = await this.repo.updateById(id, dto as Partial<Sound>);
-    return updated!;
+    if (!updated) throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
+    return updated;
   }
 
   async removeWorldSound(id: string, worldId: string): Promise<void> {
