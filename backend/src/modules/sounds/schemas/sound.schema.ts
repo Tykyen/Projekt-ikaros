@@ -17,7 +17,7 @@ export type SoundStatus = 'active' | 'pending' | 'rejected';
 
 @Schema({ timestamps: true, collection: 'sounds' })
 export class SoundSchemaClass {
-  @Prop({ required: false, default: null }) worldId: string | null;
+  @Prop({ type: String, required: false, default: null }) worldId: string | null;
   @Prop({ required: true }) name: string;
   @Prop({ required: true }) youtubeUrl: string;
   @Prop({ enum: SoundMediaType, default: SoundMediaType.music }) mediaType: SoundMediaType;
@@ -36,9 +36,9 @@ export class SoundSchemaClass {
   @Prop({ type: [String], default: [] }) tags: string[];
   @Prop({ default: '' }) notes: string;
   @Prop({ enum: ['active', 'pending', 'rejected'], default: 'active' }) status: SoundStatus;
-  @Prop({ required: false, default: null }) proposedBy: string | null;
-  @Prop({ required: false, default: null }) proposedByWorldId: string | null;
-  @Prop({ required: false, default: null }) rejectReason: string | null;
+  @Prop({ type: String, required: false, default: null }) proposedBy: string | null;
+  @Prop({ type: String, required: false, default: null }) proposedByWorldId: string | null;
+  @Prop({ type: String, required: false, default: null }) rejectReason: string | null;
   @Prop({ required: true }) createdBy: string;
 }
 
