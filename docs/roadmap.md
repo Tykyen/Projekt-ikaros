@@ -650,12 +650,12 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 | 8b | Dungeon Builder | ✅ |
 | 9 | Kampaně | ✅ |
 | 10a | GameEvent | ✅ |
-| 10b | Calendar | ⬜ |
-| 10c | TimelineEvent | ⬜ |
-| 10d | WorldCalendarConfig | ⬜ |
+| 10b | Calendar | ✅ |
+| 10c | TimelineEvent | ✅ |
+| 10d | WorldCalendarConfig | ✅ |
 | 10e | WorldCurrencies | ✅ |
 | 10f | WorldWeather | ✅ |
-| 10g | WorldNews | ⬜ |
+| 10g | WorldNews | ✅ |
 | 11a | IkarosNews | ✅ |
 | 11b | IkarosArticles | ✅ |
 | 11c | IkarosGallery | ✅ |
