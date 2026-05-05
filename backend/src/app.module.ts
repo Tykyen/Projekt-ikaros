@@ -30,6 +30,7 @@ import { EmotesModule } from './modules/emotes/emotes.module';
 import { ImagesModule } from './modules/images/images.module';
 import { SoundsModule } from './modules/sounds/sounds.module';
 import { PushModule } from './modules/push/push.module';
+import { GameEventsModule } from './modules/game-events/game-events.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -63,6 +64,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     EmotesModule,
     ImagesModule,
     SoundsModule,
+    GameEventsModule,
     GatewaysModule,
   ],
   controllers: [AppController],
