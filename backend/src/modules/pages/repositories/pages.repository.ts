@@ -15,6 +15,11 @@ export class MongoPagesRepository
     super(model as never);
   }
 
+  async findAll(): Promise<Page[]> {
+    const docs = await this.model.find({}).sort({ order: 1, createdAt: -1 }).lean().exec();
+    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  }
+
   async findBySlugAndWorld(slug: string, worldId: string): Promise<Page | null> {
     const doc = await this.model.findOne({ slug: slug.toLowerCase(), worldId }).lean().exec();
     return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;

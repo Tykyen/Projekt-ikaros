@@ -1,6 +1,7 @@
 import { Page } from './page.interface';
 
 export interface IPagesRepository {
+  findAll(): Promise<Page[]>;
   findById(id: string): Promise<Page | null>;
   findBySlugAndWorld(slug: string, worldId: string): Promise<Page | null>;
   findByWorld(worldId: string, type?: string): Promise<Page[]>;
