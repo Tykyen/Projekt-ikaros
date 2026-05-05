@@ -2,18 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implementovat skutečné mezery zjištěné analýzou parity — endpointy, které chybí ve NestJS backendu oproti starému C# backendu.
+**Goal:** Implementovat skutečné mezery zjištěné analýzou parity — chybějící endpointy i funkční mezery odhalené hloubkovou analýzou C# vs NestJS kódu.
 
-**Architecture:** Každá funkce sleduje zavedený NestJS pattern: controller → service → repository → schema. Nové endpointy se přidávají do existujících modulů, kde to dává smysl. Kde modul chybí (Events), vytváří se nový kompletní modul.
+**Architecture:** Každá funkce sleduje zavedený NestJS pattern: controller → service → repository → schema. Nové endpointy se přidávají do existujících modulů. Kde modul chybí (Events), vytváří se nový kompletní modul. WebSocket opravy jdou do příslušných gateway souborů.
 
-**Tech Stack:** NestJS, Mongoose, TypeScript, `class-validator`, `@nestjs/jwt`, Jest
+**Tech Stack:** NestJS, Mongoose, TypeScript, `class-validator`, `@nestjs/jwt`, `@nestjs/websockets`, Jest
 
-> **Mimo rozsah tohoto plánu** (vyžadují vlastní design spec — analýza C# backendu):
+> **Mimo rozsah tohoto plánu** (vyžadují vlastní design spec):
 > - CRUD `/api/calenders` (světový kalendář)
 > - CRUD `/api/timeline`
 > - CRUD `/api/news`
 > - `GET/PUT /api/users/getCalendarMonth/:id`
 > - `GET /api/ikaros-chat/room-info`
+> - Migrace dat oblíbených stránek (user → world level)
 
 ---
 
@@ -22,36 +23,51 @@
 ```
 backend/src/modules/
   auth/
-    auth.controller.ts          ← přidat POST /auth/refresh
-    auth.service.ts             ← přidat refreshToken()
+    auth.controller.ts                    ← přidat POST /auth/refresh
+    auth.service.ts                       ← přidat refreshToken()
   users/
-    users.controller.ts         ← přidat GET exists/:username, PUT :id/theme
-    users.service.ts            ← přidat existsByUsername(), updateTheme()
+    users.controller.ts                   ← přidat GET exists/:username, PUT :id/theme
+    users.service.ts                      ← přidat existsByUsername(), updateTheme()
     dto/
-      update-theme.dto.ts       ← nový soubor
+      update-theme.dto.ts                 ← nový soubor
   admin/
-    admin.controller.ts         ← přidat POST /admin/users
-    admin.service.ts            ← přidat createUser()
+    admin.controller.ts                   ← přidat POST /admin/users
+    admin.service.ts                      ← přidat createUser()
     dto/
-      create-user.dto.ts        ← nový soubor
+      create-user.dto.ts                  ← nový soubor
   game-events/
-    game-events.controller.ts   ← nový soubor (CRUD + confirm)
-    game-events.service.ts      ← nový soubor
+    game-events.controller.ts             ← nový soubor (CRUD + confirm)
+    game-events.service.ts                ← nový soubor
     dto/
-      create-game-event.dto.ts  ← nový soubor
-      update-game-event.dto.ts  ← nový soubor
+      create-game-event.dto.ts            ← nový soubor
+      update-game-event.dto.ts            ← nový soubor
     repositories/
-      game-event.repository.ts  ← přidat CRUD metody
+      game-event.repository.ts            ← přidat CRUD metody
     interfaces/
       game-event-repository.interface.ts  ← přidat CRUD metody
-    game-events.module.ts       ← přidat controller + service
+    game-events.module.ts                 ← přidat controller + service
   worlds/
-    worlds.controller.ts        ← přidat PUT :worldId/calendarconfig
-    worlds.service.ts           ← přidat updateCalendarConfig()
+    worlds.controller.ts                  ← přidat PUT :worldId/calendarconfig
+    worlds.service.ts                     ← přidat updateCalendarConfig()
     schemas/
-      world-settings.schema.ts  ← přidat calendarConfig pole
+      world-settings.schema.ts            ← přidat calendarConfig pole
     dto/
-      update-calendar-config.dto.ts  ← nový soubor
+      update-calendar-config.dto.ts       ← nový soubor
+  chat/
+    schemas/
+      chat-channel.schema.ts              ← přidat type pole
+      chat-message.schema.ts              ← přidat customFont pole, opravit soft-delete
+    dto/
+      create-channel.dto.ts               ← přidat type pole
+      create-message.dto.ts               ← přidat customFont pole
+      update-message.dto.ts               ← přidat attachments pole
+    chat.service.ts                       ← opravit soft-delete text, přidat dice protection
+  global-chat/
+    global-chat.gateway.ts                ← přidat LoadHistory, UpdateUserList, RoomStyle, whisper, color
+    schemas/
+      global-chat-message.schema.ts       ← přidat color pole
+    dto/
+      create-global-message.dto.ts        ← přidat color pole
 ```
 
 ---
@@ -824,7 +840,228 @@ git commit -m "feat(worlds): přidat PUT /worlds/:worldId/calendarconfig"
 
 ---
 
-## Task 7: Aktualizace checklist-be.md po implementaci
+---
+
+## Task 7: Chat — chybějící pole (`type`, `customFont`) a opravy soft-delete
+
+**Files:**
+- Modify: `backend/src/modules/chat/schemas/chat-channel.schema.ts`
+- Modify: `backend/src/modules/chat/schemas/chat-message.schema.ts`
+- Modify: `backend/src/modules/chat/dto/create-channel.dto.ts`
+- Modify: `backend/src/modules/chat/dto/create-message.dto.ts`
+- Modify: `backend/src/modules/chat/dto/update-message.dto.ts`
+- Modify: `backend/src/modules/chat/chat.service.ts`
+
+> Před začátkem si přečti aktuální obsah těchto souborů — cesty a pole se mohou lišit.
+
+- [ ] **Step 1: Přidej `type` pole do chat-channel.schema.ts**
+
+Najdi `ChatChannelSchemaClass` a přidej za existující `@Prop` pole:
+
+```typescript
+@Prop({
+  enum: ['team_ic', 'team_ooc', 'team_pj', 'dm', 'inter', 'general'],
+  default: 'general',
+})
+type: string;
+```
+
+- [ ] **Step 2: Přidej `type` do create-channel.dto.ts**
+
+```typescript
+import { IsString, IsOptional, IsIn } from 'class-validator';
+
+// přidej do existující CreateChannelDto třídy:
+@IsString()
+@IsOptional()
+@IsIn(['team_ic', 'team_ooc', 'team_pj', 'dm', 'inter', 'general'])
+type?: string;
+```
+
+- [ ] **Step 3: Přidej `customFont` pole do chat-message.schema.ts**
+
+Najdi `ChatMessageSchemaClass` a přidej za existující `@Prop` pole:
+
+```typescript
+@Prop({ type: String, default: null })
+customFont: string | null;
+```
+
+- [ ] **Step 4: Přidej `customFont` do create-message.dto.ts**
+
+```typescript
+import { IsString, IsOptional } from 'class-validator';
+
+// přidej do existující CreateMessageDto třídy:
+@IsString()
+@IsOptional()
+customFont?: string;
+```
+
+- [ ] **Step 5: Přidej `attachments` editaci do update-message.dto.ts**
+
+Najdi existující `UpdateMessageDto` a přidej pole pro attachments. Zkontroluj jak `ChatAttachmentDto` nebo ekvivalentní typ je definován v modulu, pak přidej:
+
+```typescript
+@IsArray()
+@IsOptional()
+attachments?: ChatAttachmentDto[];
+```
+
+Přidej import `ChatAttachmentDto` ze správného místa v modulu.
+
+- [ ] **Step 6: Oprav soft-delete text v chat.service.ts**
+
+Najdi metodu pro smazání zprávy (hledej `isDeleted = true` nebo `delete`). Změň nastavení `content`:
+
+```typescript
+// PŘED (špatně):
+content: null,
+
+// PO (správně):
+content: '*Zpráva byla smazána autorem*',
+```
+
+- [ ] **Step 7: Přidej ochranu dice rolls v chat.service.ts**
+
+Ve stejné delete metodě přidej check před soft-delete:
+
+```typescript
+// Přidej na začátek delete logiky (zkontroluj jak jsou dice rolls označeny v C# — hledej 'isDiceRoll' nebo 'type === dice' nebo podobné pole):
+if (message.isDiceRoll) {
+  throw new ForbiddenException('Kostky nelze smazat');
+}
+```
+
+> Zkontroluj schéma `ChatMessageSchemaClass` zda má `isDiceRoll` nebo jiné pole označující kostky. Pokud ne, přidej `@Prop({ default: false }) isDiceRoll: boolean;` do schématu a odpovídající pole do `CreateMessageDto`.
+
+- [ ] **Step 8: Spusť testy chatu**
+
+```bash
+cd backend && npx jest chat --no-coverage
+```
+Očekáváno: PASS
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add backend/src/modules/chat/
+git commit -m "feat(chat): přidat type, customFont, opravit soft-delete a ochrana kostek"
+```
+
+---
+
+## Task 8: GlobalChat Gateway — chybějící WS funkce (LoadHistory, UserList, RoomStyle, whisper, color)
+
+**Files:**
+- Modify: `backend/src/modules/global-chat/global-chat.gateway.ts`
+- Modify: `backend/src/modules/global-chat/schemas/` (přidat color pole na zprávy)
+- Modify: `backend/src/modules/global-chat/dto/` (přidat color do CreateMessageDto)
+
+> Před začátkem si přečti celý `global-chat.gateway.ts` a `global-chat.service.ts` — identifikuj existující eventy a metody.
+
+- [ ] **Step 1: Přidej `color` pole do global chat message schématu**
+
+Najdi schéma pro globální chat zprávy (může být `GlobalChatMessageSchemaClass` nebo podobné). Přidej:
+
+```typescript
+@Prop({ type: String, default: null })
+color: string | null;
+```
+
+Přidej `color?: string` do příslušného `CreateMessageDto`.
+
+- [ ] **Step 2: Přidej `LoadHistory` při joinu místnosti**
+
+V `global-chat.gateway.ts` najdi handler pro `chat:hospoda:join`. Rozšiř ho o odeslání historie:
+
+```typescript
+@SubscribeMessage('chat:hospoda:join')
+async handleJoin(
+  @ConnectedSocket() client: Socket,
+  @MessageBody() payload: { username: string },
+) {
+  const roomId = 'hospoda';
+  client.join(roomId);
+
+  // Načti poslední zprávy a pošli volajícímu
+  const history = await this.globalChatService.getRecentMessages(roomId, 50);
+  client.emit('ikaros:load-history', history);
+
+  // Přidej uživatele do přítomných a rozešli seznam
+  await this.globalChatService.addToPresence(roomId, payload.username, client.id);
+  const userList = await this.globalChatService.getPresence(roomId);
+  this.server.to(roomId).emit('ikaros:user-list', userList);
+
+  // Oznám ostatním
+  client.to(roomId).emit('ikaros:user-joined', { username: payload.username });
+}
+```
+
+> `getRecentMessages`, `addToPresence`, `getPresence` — přidej tyto metody do `GlobalChatService` pokud neexistují. Pro presence použij in-memory `Map<string, Set<string>>` nebo existující mechanismus.
+
+- [ ] **Step 3: Přidej `UpdateUserList` při opuštění místnosti**
+
+Najdi handler pro `chat:hospoda:leave` a rozšiř ho:
+
+```typescript
+@SubscribeMessage('chat:hospoda:leave')
+async handleLeave(
+  @ConnectedSocket() client: Socket,
+  @MessageBody() payload: { username: string },
+) {
+  const roomId = 'hospoda';
+  await this.globalChatService.removeFromPresence(roomId, client.id);
+  const userList = await this.globalChatService.getPresence(roomId);
+  this.server.to(roomId).emit('ikaros:user-list', userList);
+  client.to(roomId).emit('ikaros:user-left', { username: payload.username });
+  client.leave(roomId);
+}
+```
+
+- [ ] **Step 4: Přidej `RoomStyleChanged` event**
+
+```typescript
+@SubscribeMessage('ikaros:set-room-style')
+@UseGuards(WsJwtGuard)  // nebo ekvivalentní guard
+async handleSetRoomStyle(
+  @ConnectedSocket() client: Socket,
+  @MessageBody() payload: { roomId: string; style: string },
+) {
+  // Jen PJ/Admin může měnit styl — zkontroluj autorizaci dle existujícího patternu
+  this.server.to(payload.roomId).emit('ikaros:room-style-changed', { style: payload.style });
+}
+```
+
+- [ ] **Step 5: Přidej whisper podporu do `handleDisconnect`**
+
+Najdi `handleDisconnect` v gateway (pokud existuje) a přidej cleanup presence:
+
+```typescript
+async handleDisconnect(client: Socket) {
+  // Existující logika...
+  // Přidej: cleanup presence pro všechny místnosti
+  await this.globalChatService.removeFromPresenceBySocketId(client.id);
+}
+```
+
+- [ ] **Step 6: Spusť testy**
+
+```bash
+cd backend && npx jest global-chat --no-coverage
+```
+Očekáváno: PASS (nebo PASS s novými testy které přidáš pro nové metody service)
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add backend/src/modules/global-chat/
+git commit -m "feat(global-chat): přidat LoadHistory, UserList, RoomStyle WS eventy"
+```
+
+---
+
+## Task 9: Aktualizace checklist-be.md po implementaci
 
 **Files:**
 - Modify: `docs/checklist-be.md`
@@ -845,6 +1082,8 @@ Označ implementované položky jako ✅:
 - Admin create user → ✅
 - Game Events REST → ✅
 - World calendarconfig → ✅
+- Chat type + customFont + soft-delete + kostky → ✅
+- GlobalChat LoadHistory + UserList + RoomStyle → ✅
 
 - [ ] **Step 3: Commit**
 
