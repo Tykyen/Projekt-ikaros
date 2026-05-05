@@ -9,6 +9,7 @@ import {
   Body,
   UseGuards,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { WorldsService } from './worlds.service';
 import type { RequestUser } from './worlds.service';
@@ -89,7 +90,11 @@ export class WorldsController {
     @Query('group') group?: string,
   ) {
     const filters: { role?: number; group?: string } = {};
-    if (role !== undefined) filters.role = Number(role);
+    if (role !== undefined) {
+      const roleNum = Number(role);
+      if (!Number.isInteger(roleNum)) throw new BadRequestException('Neplatná hodnota role');
+      filters.role = roleNum;
+    }
     if (group !== undefined) filters.group = group;
     return this.worldsService.getMembers(id, Object.keys(filters).length ? filters : undefined);
   }
