@@ -212,16 +212,16 @@ export class WorldsService {
     return updated;
   }
 
-  async updateMemberFree(membershipId: string, isFree: boolean, requester: RequestUser): Promise<WorldMembership | null> {
+  async updateMemberFree(membershipId: string, isFree: boolean, requester: RequestUser): Promise<WorldMembership> {
     const membership = await this.membershipRepo.findById(membershipId);
-    if (!membership) throw new NotFoundException('Členství nenalezeno');
-    if (requester.role > UserRole.PJ && membership.worldId !== undefined) {
-      const worldMembership = await this.membershipRepo.findByUserAndWorld(requester.id, membership.worldId);
-      if (!worldMembership || worldMembership.role < WorldRole.PJ) {
-        throw new ForbiddenException('Pouze PJ může měnit isFree');
-      }
-    }
-    return this.membershipRepo.update(membershipId, { isFree });
+    if (!membership) throw new NotFoundException('Membership nenalezeno');
+
+    const world = await this.findById(membership.worldId);
+    if (!this.canManageMembers(requester, world)) throw new ForbiddenException('Nedostatečná oprávnění');
+
+    const updated = await this.membershipRepo.update(membershipId, { isFree });
+    if (!updated) throw new NotFoundException('Membership nenalezeno');
+    return updated;
   }
 
   async softDelete(id: string, requester: RequestUser): Promise<{ message: string }> {

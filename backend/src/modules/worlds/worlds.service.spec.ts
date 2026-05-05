@@ -169,37 +169,37 @@ describe('WorldsService', () => {
   });
 
   describe('updateMemberFree', () => {
-    it('nastaví isFree na true pokud je requester PJ', async () => {
-      const pj = { id: 'pj1', role: UserRole.PJ, username: 'pj' };
-      const membership = { id: 'mem1', worldId: 'w1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
+    it('nastaví isFree na true pokud je requester vlastník světa', async () => {
+      const owner = { id: 'user1', role: UserRole.Hrac, username: 'owner' };
+      const membership = { id: 'mem1', worldId: 'world1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
       mockMembershipRepo.findById.mockResolvedValue(membership);
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // ownerId: 'user1'
       mockMembershipRepo.update.mockResolvedValue({ ...membership, isFree: true });
 
-      const result = await service.updateMemberFree('mem1', true, pj);
+      const result = await service.updateMemberFree('mem1', true, owner);
 
       expect(mockMembershipRepo.update).toHaveBeenCalledWith('mem1', { isFree: true });
-      expect(result?.isFree).toBe(true);
+      expect(result.isFree).toBe(true);
     });
 
-    it('hodí ForbiddenException pokud requester není PJ+', async () => {
-      const hrac = { id: 'u1', role: UserRole.Hrac, username: 'u1' };
-      const membership = { id: 'mem1', worldId: 'w1', userId: 'u2', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
+    it('hodí ForbiddenException pokud requester nemá dostatečná oprávnění', async () => {
+      const hrac = { id: 'u99', role: UserRole.Hrac, username: 'u99' };
+      const membership = { id: 'mem1', worldId: 'world1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
       mockMembershipRepo.findById.mockResolvedValue(membership);
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // ownerId: 'user1', hrac není owner ani admin
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
 
       await expect(service.updateMemberFree('mem1', true, hrac)).rejects.toThrow(ForbiddenException);
     });
 
-    it('povolí změnu isFree pokud má requester PJ členství ve světě', async () => {
-      const hrac = { id: 'u2', role: UserRole.Hrac, username: 'hrac' };
-      const membership = { id: 'mem1', worldId: 'w1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
-      const worldMembership = { id: 'wm2', worldId: 'w1', userId: 'u2', role: WorldRole.PJ, joinedAt: new Date(), akj: 0 };
+    it('hodí NotFoundException pokud membership neexistuje po update', async () => {
+      const owner = { id: 'user1', role: UserRole.Hrac, username: 'owner' };
+      const membership = { id: 'mem1', worldId: 'world1', userId: 'u1', role: WorldRole.Hrac, isFree: false, joinedAt: new Date(), akj: 0 };
       mockMembershipRepo.findById.mockResolvedValue(membership);
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(worldMembership);
-      mockMembershipRepo.update.mockResolvedValue({ ...membership, isFree: true });
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.update.mockResolvedValue(null);
 
-      const result = await service.updateMemberFree('mem1', true, hrac);
-
-      expect(result?.isFree).toBe(true);
+      await expect(service.updateMemberFree('mem1', true, owner)).rejects.toThrow(NotFoundException);
     });
   });
 
