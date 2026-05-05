@@ -12,5 +12,6 @@ export interface ChatChannel {
   lastMessageAt?: Date;
   order: number;
   isDeleted: boolean;
+  type?: string;
   createdAt: Date;
 }

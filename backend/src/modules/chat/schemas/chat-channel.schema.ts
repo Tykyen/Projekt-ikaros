@@ -15,6 +15,8 @@ export class ChatChannelSchemaClass {
   @Prop() lastMessageAt?: Date;
   @Prop({ default: 0 }) order: number;
   @Prop({ default: false }) isDeleted: boolean;
+  @Prop({ enum: ['team_ic', 'team_ooc', 'team_pj', 'dm', 'inter', 'general'], default: 'general' })
+  type: string;
 }
 
 export const ChatChannelSchema = SchemaFactory.createForClass(ChatChannelSchemaClass);

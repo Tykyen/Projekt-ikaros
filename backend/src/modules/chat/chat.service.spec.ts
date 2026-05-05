@@ -185,11 +185,16 @@ describe('ChatService', () => {
   describe('deleteMessage', () => {
     const mockMsg = { id: 'msg1', channelId: 'ch1', worldId: 'world1', senderId: 'user1', senderName: 'user1', content: 'text', isEdited: false, isDeleted: false, reactions: {}, attachments: [], createdAt: new Date(), updatedAt: new Date() };
 
-    it('should soft-delete message (content=null, isDeleted=true)', async () => {
+    it('should soft-delete message with deleted text', async () => {
       mockMessageRepo.findById.mockResolvedValue(mockMsg);
-      mockMessageRepo.update.mockResolvedValue({ ...mockMsg, content: null, isDeleted: true });
+      mockMessageRepo.update.mockResolvedValue({ ...mockMsg, content: '*Zpráva byla smazána autorem*', isDeleted: true });
       await service.deleteMessage('msg1', mockPJ);
-      expect(mockMessageRepo.update).toHaveBeenCalledWith('msg1', { isDeleted: true, content: null });
+      expect(mockMessageRepo.update).toHaveBeenCalledWith('msg1', { isDeleted: true, content: '*Zpráva byla smazána autorem*' });
+    });
+
+    it('should throw ForbiddenException when trying to delete dice roll', async () => {
+      mockMessageRepo.findById.mockResolvedValue({ ...mockMsg, isDiceRoll: true });
+      await expect(service.deleteMessage('msg1', mockPJ)).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw NotFoundException for missing message', async () => {

@@ -345,7 +345,11 @@ export class ChatService {
     const canDelete = msg.senderId === requester.id || (msg.worldId && (await this.canManageChat(requester, msg.worldId)));
     if (!canDelete) throw new ForbiddenException('Nedostatečná oprávnění');
 
-    await this.messageRepo.update(messageId, { isDeleted: true, content: null });
+    if (msg.isDiceRoll) {
+      throw new ForbiddenException('Kostky nelze smazat');
+    }
+
+    await this.messageRepo.update(messageId, { isDeleted: true, content: '*Zpráva byla smazána autorem*' });
     this.eventEmitter.emit('chat.message.deleted', { channelId: msg.channelId, messageId, attachments: msg.attachments });
     return { message: 'Zpráva smazána' };
   }

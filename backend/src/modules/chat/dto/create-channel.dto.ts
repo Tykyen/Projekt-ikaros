@@ -6,4 +6,8 @@ export class CreateChannelDto {
   @IsOptional() @IsArray() @IsNumber({}, { each: true }) allowedRoles?: number[];
   @IsOptional() @IsArray() @IsString({ each: true }) allowedMemberIds?: string[];
   @IsOptional() @IsNumber() @Min(0) order?: number;
+  @IsString()
+  @IsOptional()
+  @IsIn(['team_ic', 'team_ooc', 'team_pj', 'dm', 'inter', 'general'])
+  type?: string;
 }

@@ -26,4 +26,8 @@ export class CreateMessageDto {
 
   @IsOptional() @IsArray() @ValidateNested({ each: true }) @ArrayMaxSize(10) @Type(() => ChatAttachmentDto)
   attachments?: ChatAttachmentDto[];
+
+  @IsOptional()
+  @IsString()
+  customFont?: string;
 }

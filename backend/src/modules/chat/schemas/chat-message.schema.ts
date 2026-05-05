@@ -23,6 +23,10 @@ export class ChatMessageSchemaClass {
   @Prop({ type: Object, default: {} }) reactions: Record<string, string[]>;
   @Prop({ type: [Object], default: [] }) attachments: Record<string, unknown>[];
   @Prop({ type: Date }) expiresAt?: Date;
+  @Prop({ type: String, default: null })
+  customFont: string | null;
+  @Prop({ default: false })
+  isDiceRoll: boolean;
 }
 
 export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessageSchemaClass);

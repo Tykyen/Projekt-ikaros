@@ -20,6 +20,8 @@ export interface ChatMessage {
   reactions: Record<string, string[]>;
   attachments?: ChatAttachment[];
   expiresAt?: Date;
+  customFont?: string | null;
+  isDiceRoll?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
