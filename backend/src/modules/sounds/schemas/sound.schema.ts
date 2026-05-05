@@ -35,7 +35,7 @@ export class SoundSchemaClass {
   @Prop({ enum: SoundCombatEnergy, default: SoundCombatEnergy.none }) combatEnergy: SoundCombatEnergy;
   @Prop({ type: [String], default: [] }) tags: string[];
   @Prop({ default: '' }) notes: string;
-  @Prop({ default: 'active' }) status: SoundStatus;
+  @Prop({ enum: ['active', 'pending', 'rejected'], default: 'active' }) status: SoundStatus;
   @Prop({ required: false, default: null }) proposedBy: string | null;
   @Prop({ required: false, default: null }) proposedByWorldId: string | null;
   @Prop({ required: false, default: null }) rejectReason: string | null;
