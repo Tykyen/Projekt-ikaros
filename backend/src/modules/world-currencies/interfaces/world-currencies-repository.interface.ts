@@ -1,4 +1,7 @@
-import type { WorldCurrencies, WorldCurrencyItem } from './world-currencies.interface';
+import type {
+  WorldCurrencies,
+  WorldCurrencyItem,
+} from './world-currencies.interface';
 
 export interface IWorldCurrenciesRepository {
   findByWorldId(worldId: string): Promise<WorldCurrencies | null>;

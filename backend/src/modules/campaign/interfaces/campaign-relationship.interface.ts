@@ -1,4 +1,8 @@
-export type CampaignRelationshipStatus = 'active' | 'dormant' | 'crisis' | 'closed';
+export type CampaignRelationshipStatus =
+  | 'active'
+  | 'dormant'
+  | 'crisis'
+  | 'closed';
 
 export interface RelationshipShared {
   whatHappened?: string;

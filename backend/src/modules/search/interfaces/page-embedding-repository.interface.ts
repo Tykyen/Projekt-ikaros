@@ -15,7 +15,9 @@ export interface PageEmbedding {
 export interface IPageEmbeddingRepository {
   findByPageId(pageId: string, modelKey: string): Promise<PageEmbedding[]>;
   findByModelKey(modelKey: string): Promise<PageEmbedding[]>;
-  save(embedding: Omit<PageEmbedding, 'id' | 'createdAt'>): Promise<PageEmbedding>;
+  save(
+    embedding: Omit<PageEmbedding, 'id' | 'createdAt'>,
+  ): Promise<PageEmbedding>;
   deleteByPageId(pageId: string, modelKey: string): Promise<void>;
   deleteAll(): Promise<void>;
 }

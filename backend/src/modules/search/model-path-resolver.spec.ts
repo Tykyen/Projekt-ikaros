@@ -5,8 +5,6 @@ import { resolveModelPath } from './model-path-resolver';
 
 jest.mock('fs');
 
-const mockFs = fs as jest.Mocked<typeof fs>;
-
 describe('resolveModelPath', () => {
   const cacheDir = '/tmp/model_cache';
 

@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CampaignChangeLogDocument = HydratedDocument<CampaignChangeLogSchemaClass>;
+export type CampaignChangeLogDocument =
+  HydratedDocument<CampaignChangeLogSchemaClass>;
 
 @Schema({ collection: 'campaignChangeLogs' })
 export class CampaignChangeLogSchemaClass {
@@ -17,7 +18,12 @@ export class CampaignChangeLogSchemaClass {
   @Prop({ default: () => new Date() }) changedAt: Date;
 }
 
-export const CampaignChangeLogSchema = SchemaFactory.createForClass(CampaignChangeLogSchemaClass);
+export const CampaignChangeLogSchema = SchemaFactory.createForClass(
+  CampaignChangeLogSchemaClass,
+);
 CampaignChangeLogSchema.index({ worldId: 1, changedAt: -1 });
 CampaignChangeLogSchema.index({ worldId: 1, isShared: 1, changedAt: -1 });
-CampaignChangeLogSchema.index({ changedAt: 1 }, { expireAfterSeconds: 7776000 }); // 90 dní TTL
+CampaignChangeLogSchema.index(
+  { changedAt: 1 },
+  { expireAfterSeconds: 7776000 },
+); // 90 dní TTL

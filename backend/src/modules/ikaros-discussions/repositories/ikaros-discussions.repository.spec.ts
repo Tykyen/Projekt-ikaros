@@ -2,11 +2,27 @@ import { MongoIkarosDiscussionsRepository } from './ikaros-discussions.repositor
 
 describe('MongoIkarosDiscussionsRepository', () => {
   const mockModel = {
-    find: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }) }),
-    findById: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
+    find: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
+    }),
+    findById: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    }),
     create: jest.fn(),
-    findByIdAndUpdate: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
-    findByIdAndDelete: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
+    findByIdAndUpdate: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    }),
+    findByIdAndDelete: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    }),
   };
 
   it('findPending volá find s isApproved false', async () => {

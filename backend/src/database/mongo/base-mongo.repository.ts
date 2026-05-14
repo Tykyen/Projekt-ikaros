@@ -24,7 +24,11 @@ export abstract class BaseMongoRepository<T> implements IBaseRepository<T> {
   async update(id: string, entity: Partial<T>): Promise<T | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findByIdAndUpdate(id, { $set: entity as Record<string, unknown> }, { new: true })
+      .findByIdAndUpdate(
+        id,
+        { $set: entity as Record<string, unknown> },
+        { new: true },
+      )
       .lean()
       .exec();
     return doc ? this.toEntity(doc) : null;

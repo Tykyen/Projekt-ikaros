@@ -5,7 +5,9 @@ export type NpcTemplateDocument = HydratedDocument<NpcTemplateSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'npcTemplates' })
 export class NpcTemplateSchemaClass {
-  @Prop({ required: false, default: null }) worldId: string | null;
+  @Prop({ type: String, required: false, default: null }) worldId:
+    | string
+    | null;
   @Prop() originTemplateId?: string;
   @Prop({ required: true }) name: string;
   @Prop() imageUrl?: string;
@@ -20,5 +22,7 @@ export class NpcTemplateSchemaClass {
   @Prop({ type: Object, default: {} }) diaryData: Record<string, unknown>;
 }
 
-export const NpcTemplateSchema = SchemaFactory.createForClass(NpcTemplateSchemaClass);
+export const NpcTemplateSchema = SchemaFactory.createForClass(
+  NpcTemplateSchemaClass,
+);
 NpcTemplateSchema.index({ worldId: 1 });

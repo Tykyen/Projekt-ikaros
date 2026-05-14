@@ -8,7 +8,7 @@ export const PAGE_TYPES = {
   Ostatni: 'Ostatní',
 } as const;
 
-export type PageType = typeof PAGE_TYPES[keyof typeof PAGE_TYPES];
+export type PageType = (typeof PAGE_TYPES)[keyof typeof PAGE_TYPES];
 
 export interface AccessRequirement {
   type: 'UserId' | 'AKJ' | 'Role' | 'AKJType';

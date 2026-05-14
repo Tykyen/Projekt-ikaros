@@ -2,7 +2,12 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { IGameEventRepository } from './interfaces/game-event-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { PushService } from '../push/push.service';
+import {
+  HOURS_23_MS,
+  HOURS_25_MS,
+} from '../../common/constants/time.constants';
 
 @Injectable()
 export class GameEventReminderJob {
@@ -19,8 +24,8 @@ export class GameEventReminderJob {
   @Cron(CronExpression.EVERY_HOUR)
   async sendReminders(): Promise<void> {
     const now = new Date();
-    const from = new Date(now.getTime() + 23 * 60 * 60 * 1000);
-    const to = new Date(now.getTime() + 25 * 60 * 60 * 1000);
+    const from = new Date(now.getTime() + HOURS_23_MS);
+    const to = new Date(now.getTime() + HOURS_25_MS);
 
     let events: Awaited<ReturnType<IGameEventRepository['findUpcoming']>>;
     try {
@@ -33,9 +38,17 @@ export class GameEventReminderJob {
     for (const event of events) {
       try {
         const members = await this.membershipRepo.findByWorldId(event.worldId);
-        const userIds = members
-          .filter((m) => m.role !== 0 /* WorldRole.Pending */)
-          .map((m) => m.userId);
+        const eligible = members.filter((m) => m.role !== WorldRole.Pending);
+
+        const recipients = event.groupOnly
+          ? eligible.filter(
+              (m) =>
+                m.role >= WorldRole.PomocnyPJ ||
+                (event.targetGroup !== null && m.group === event.targetGroup),
+            )
+          : eligible;
+
+        const userIds = recipients.map((m) => m.userId);
 
         if (userIds.length > 0) {
           await this.pushService.notifyUsers(userIds, {
@@ -46,7 +59,10 @@ export class GameEventReminderJob {
 
         await this.gameEventRepo.markReminderSent(event.id);
       } catch (err) {
-        this.logger.warn(`GameEventReminderJob: chyba pro event ${event.id}`, err);
+        this.logger.warn(
+          `GameEventReminderJob: chyba pro event ${event.id}`,
+          err,
+        );
       }
     }
   }

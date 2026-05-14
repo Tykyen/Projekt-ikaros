@@ -1,12 +1,29 @@
-# Krok 10b — Calendar: Implementační plán
+# Krok 10b — Calendar: Implementační plán (Fáze 5.2)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Datum vzniku:** 2026-05-04
+> **Aktualizováno:** 2026-05-06 (revize během brainstormingu Fáze 5.2 — auth pattern, DTO validace, anti-leak)
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+> ⚠️ **DŮLEŽITÉ pro implementer subagenty:** Aktualizace 2026-05-06 přidává konzistenci s WorldNews/Timeline/Calendar/Weather patterny:
+> - **Auth pro CalendarsModule** (aggregate, settings) — `assertCanModerate(worldId, requester)`: Admin/Superadmin shortcut **\|** `WorldRole >= PomocnyPJ`. Anti-leak: 403 pro write na neexistující svět, 404 pro read.
+> - **DTO validace** přes class-validator (`@IsString`, `@IsHexColor`, `@IsIn`, `@IsBoolean`, atd.) — `whitelist: true` v ValidationPipe by jinak strippal pole.
+> - **Service signatures**: všechny metody nového `CalendarsService` přijímají `requester: RequestUser` jako parametr; auth se řeší v service (NE v controller decorators).
+> - **`assertSubdocAccess`** je existující helper v `character-subdocs` — použít pro legacy GET/PUT endpointy (vlastník nebo PJ/Admin).
+> - **Pattern reference:** `backend/src/modules/timeline/timeline.service.ts` (assertMember/assertCanWrite), `world-currencies.service.ts` (assertCanAdmin přes worldsRepo+membershipRepo).
 
 **Goal:** Rozšířit existující `character-subdocs` kalendář o nastavení vzhledu, agregovaný PJ pohled, legacy endpoint pro budoucí migraci dat a podporu lokací jako entit s kalendářem.
 
-**Architecture:** Existující `CharacterCalendar` schema dostane `color` + `displaySettings`. `Character` schema dostane `isLocation` flag, který podmíní tvorbu subdokumentů. Nový `CalendarsModule` přidá tři endpointy: agregaci, nastavení (PJ only) a legacy URL. `CharacterSubdocsModule` exportuje svůj service a controller změní `PATCH` → `PUT`.
+**Architecture:** Existující `CharacterCalendar` schema dostane `color` + `displaySettings`. `Character` schema dostane `isLocation` flag, který podmíní tvorbu subdokumentů. Nový `CalendarsModule` přidá tři endpointy: agregaci, nastavení (≥ PomocnyPJ) a legacy URL (assertSubdocAccess). `CharacterSubdocsModule` exportuje svůj service a controller změní `PATCH` → `PUT`.
 
-**Tech Stack:** NestJS, Mongoose, Jest (unit testy), TypeScript
+**Tech Stack:** NestJS 11, Mongoose 9, class-validator, Jest, TypeScript strict.
+
+**Závislosti:**
+- `CharactersModule` — `ICharactersRepository` (slug → characterId, character info)
+- `CharacterSubdocsModule` — `CharacterSubdocsService` (existing methods + nový `getCalendarsByWorldId`)
+- `WorldsModule` — `IWorldMembershipRepository`, `IWorldsRepository` (auth)
+
+**Spec:** [2026-05-04-krok-10b-calendar-design.md](../specs/2026-05-04-krok-10b-calendar-design.md)
 
 ---
 
@@ -609,7 +626,7 @@ describe('CalendarsService', () => {
   });
 
   describe('updateSettings', () => {
-    it('aktualizuje color a displaySettings — jen PJ', async () => {
+    it('aktualizuje color a displaySettings — PJ', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
       mockCharsService.findBySlugRaw.mockResolvedValue(mockChar('char1', 'jan', 'Jan Novák'));
       mockSubdocs.getCalendar.mockResolvedValue(mockCalendar('char1'));
@@ -621,8 +638,18 @@ describe('CalendarsService', () => {
       expect(result.color).toBe('#AABBCC');
     });
 
-    it('vyhodí ForbiddenException pro PomocnýPJ', async () => {
+    it('PomocnyPJ smí updateSettings (per spec 2026-05-06: konzistence s ostatními moduly, ≥ PomocnyPJ)', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PomocnyPJ });
+      mockCharsService.findBySlugRaw.mockResolvedValue(mockChar('char1', 'jan', 'Jan Novák'));
+      mockSubdocs.getCalendar.mockResolvedValue(mockCalendar('char1'));
+      mockSubdocs.updateCalendar.mockResolvedValue({ ...mockCalendar('char1'), color: '#AABBCC' });
+
+      const result = await service.updateSettings('w1', 'jan', { color: '#AABBCC' }, 'pp1');
+      expect(result.color).toBe('#AABBCC');
+    });
+
+    it('vyhodí ForbiddenException pro Korektor (role 1) — pod PomocnyPJ', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Korektor });
       await expect(service.updateSettings('w1', 'jan', { color: '#000' }, 'requester')).rejects.toThrow(ForbiddenException);
     });
 
@@ -774,8 +801,12 @@ export class CalendarsService {
   }
 
   async updateSettings(worldId: string, slug: string, dto: UpdateCalendarSettingsDto, requesterId: string): Promise<CharacterCalendar> {
+    // Per spec 2026-05-06: ≥ PomocnyPJ (konzistence s WorldNews/Timeline/Calendar/Weather)
+    // POZN.: Implementer subagent — pokud chce přidat plný auth pattern (Admin shortcut + anti-leak),
+    // doplnit `requester: RequestUser` parametr a `assertCanModerate` helper. Aktuální zjednodušená verze
+    // nemá Admin shortcut a anti-leak je implicit (membership lookup pro neexistující svět vrátí null → 403).
     const membership = await this.membershipRepo.findByUserAndWorld(requesterId, worldId);
-    if (!membership || membership.role < WorldRole.PJ) {
+    if (!membership || membership.role < WorldRole.PomocnyPJ) {
       throw new ForbiddenException('Přístup odepřen');
     }
 

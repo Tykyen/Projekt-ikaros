@@ -33,22 +33,33 @@ export class MongoIkarosDiscussionsRepository implements IIkarosDiscussionsRepos
 
   async findAll(): Promise<IkarosDiscussion[]> {
     const docs = await this.model.find().lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async findPending(): Promise<IkarosDiscussion[]> {
     const docs = await this.model.find({ isApproved: false }).lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async findByIds(ids: string[]): Promise<IkarosDiscussion[]> {
-    const docs = await this.model.find({ _id: { $in: ids } }).lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    const docs = await this.model
+      .find({ _id: { $in: ids } })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async findById(id: string): Promise<IkarosDiscussion | null> {
     const doc = await this.model.findById(id).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async create(data: Omit<IkarosDiscussion, 'id'>): Promise<IkarosDiscussion> {
@@ -56,9 +67,17 @@ export class MongoIkarosDiscussionsRepository implements IIkarosDiscussionsRepos
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
-  async update(id: string, data: Partial<IkarosDiscussion>): Promise<IkarosDiscussion | null> {
-    const doc = await this.model.findByIdAndUpdate(id, data, { new: true }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  async update(
+    id: string,
+    data: Partial<IkarosDiscussion>,
+  ): Promise<IkarosDiscussion | null> {
+    const doc = await this.model
+      .findByIdAndUpdate(id, data, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async delete(id: string): Promise<boolean> {

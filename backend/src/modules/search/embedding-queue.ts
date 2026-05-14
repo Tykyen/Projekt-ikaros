@@ -49,7 +49,9 @@ export class EmbeddingQueue {
   private async processLoop(): Promise<void> {
     while (this.isRunning) {
       if (this.queue.length === 0) {
-        await new Promise<void>((r) => { this.resolver = r; });
+        await new Promise<void>((r) => {
+          this.resolver = r;
+        });
         this.resolver = null;
         continue;
       }

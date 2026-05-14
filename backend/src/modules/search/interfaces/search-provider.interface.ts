@@ -1,5 +1,8 @@
 import type { Page } from '../../pages/interfaces/page.interface';
-import type { SearchResult, SearchProviderInfo } from './search-result.interface';
+import type {
+  SearchResult,
+  SearchProviderInfo,
+} from './search-result.interface';
 
 export interface ISearchProvider {
   readonly providerKey: string;

@@ -5,9 +5,15 @@ import VPTree from 'vptree';
 import { ModelRuntime } from './model-runtime';
 import { EmbeddingQueue, QueueOperation } from './embedding-queue';
 import { resolveModelPath } from './model-path-resolver';
-import type { ISearchProvider, SearchProviderInfo } from './interfaces/search-provider.interface';
+import type {
+  ISearchProvider,
+  SearchProviderInfo,
+} from './interfaces/search-provider.interface';
 import type { SearchResult } from './interfaces/search-result.interface';
-import type { IPageEmbeddingRepository, PageEmbedding } from './interfaces/page-embedding-repository.interface';
+import type {
+  IPageEmbeddingRepository,
+  PageEmbedding,
+} from './interfaces/page-embedding-repository.interface';
 import type { ISearchStatsRepository } from './interfaces/search-stats-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { Page } from '../pages/interfaces/page.interface';
@@ -40,16 +46,21 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
   private readonly chunkOverlap: number;
 
   constructor(
-    @Inject('IPageEmbeddingRepository') private readonly embeddingRepo: IPageEmbeddingRepository,
-    @Inject('ISearchStatsRepository') private readonly statsRepo: ISearchStatsRepository,
+    @Inject('IPageEmbeddingRepository')
+    private readonly embeddingRepo: IPageEmbeddingRepository,
+    @Inject('ISearchStatsRepository')
+    private readonly statsRepo: ISearchStatsRepository,
     @Inject('IPagesRepository') private readonly pagesRepo: IPagesRepository,
     private readonly config: ConfigService,
   ) {
-    this.cacheDir = this.config.get<string>('EMBEDDING_MODEL_CACHE_DIR', 'data/model_cache');
+    this.cacheDir = this.config.get<string>(
+      'EMBEDDING_MODEL_CACHE_DIR',
+      'data/model_cache',
+    );
     this.chunkSize = this.config.get<number>('EMBEDDING_CHUNK_SIZE', 750);
     this.chunkOverlap = this.config.get<number>('EMBEDDING_CHUNK_OVERLAP', 250);
 
-    this.queue = new EmbeddingQueue(this.handleOperation.bind(this));
+    this.queue = new EmbeddingQueue((op) => this.handleOperation(op));
   }
 
   async onModuleInit(): Promise<void> {
@@ -64,7 +75,10 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     for (const cfg of modelConfigs) {
       try {
         const onnxPath = await resolveModelPath(cfg.onnxUrl, this.cacheDir);
-        const tokenizerPath = await resolveModelPath(cfg.tokenizerUrl, this.cacheDir);
+        const tokenizerPath = await resolveModelPath(
+          cfg.tokenizerUrl,
+          this.cacheDir,
+        );
         const runtime = new ModelRuntime({
           key: cfg.key,
           onnxPath,
@@ -93,7 +107,10 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
 
       try {
         const queryVec = await runtime.embed(query);
-        const nearest = index.tree.search(queryVec, count) as Array<{ i: number; d: number }>;
+        const nearest = index.tree.search(queryVec, count) as Array<{
+          i: number;
+          d: number;
+        }>;
 
         for (const { i, d } of nearest) {
           const emb = index.embeddings[i];
@@ -114,18 +131,23 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     return results.sort((a, b) => b.score - a.score).slice(0, count);
   }
 
+  // ISearchProvider kontrakt vyžaduje Promise<void> — enqueue je sync, ale meili-search verze awaituje.
+  // eslint-disable-next-line @typescript-eslint/require-await
   async addPageToIndex(page: Page): Promise<void> {
     this.queue.enqueue({ type: 'Upsert', page });
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async updatePageInIndex(page: Page): Promise<void> {
     this.queue.enqueue({ type: 'Upsert', page });
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async deletePageFromIndex(slug: string): Promise<void> {
     this.queue.enqueue({ type: 'Delete', slug });
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async rebuildIndex(): Promise<void> {
     this.queue.enqueue({ type: 'Rebuild' });
   }
@@ -143,7 +165,10 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
   private async indexPage(page: Page): Promise<void> {
     for (const runtime of this.runtimes) {
       const newHash = this.computePageHash(page);
-      const existing = await this.embeddingRepo.findByPageId(page.id, runtime.key);
+      const existing = await this.embeddingRepo.findByPageId(
+        page.id,
+        runtime.key,
+      );
       if (existing.length > 0 && existing[0].pageHash === newHash) continue;
 
       await this.embeddingRepo.deleteByPageId(page.id, runtime.key);
@@ -159,7 +184,9 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
             pageHash: newHash,
             chunkId: `${page.id}-${i}`,
             chunkTitle: i === 0 ? page.title : `${page.title} (část ${i + 1})`,
-            chunkPreview: chunks[i].text.slice(0, 200) + (chunks[i].text.length > 200 ? '…' : ''),
+            chunkPreview:
+              chunks[i].text.slice(0, 200) +
+              (chunks[i].text.length > 200 ? '…' : ''),
             chunkOrder: i,
             vector,
           });
@@ -197,14 +224,20 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     }
 
     const pages = await this.pagesRepo.findAll();
-    await this.statsRepo.update({ totalPages: pages.length, processedPages: 0 });
+    await this.statsRepo.update({
+      totalPages: pages.length,
+      processedPages: 0,
+    });
 
     for (let pi = 0; pi < pages.length; pi++) {
       await this.indexPage(pages[pi]);
       await this.statsRepo.update({ processedPages: pi + 1 });
     }
 
-    const total = [...this.indices.values()].reduce((s, idx) => s + idx.embeddings.length, 0);
+    const total = [...this.indices.values()].reduce(
+      (s, idx) => s + idx.embeddings.length,
+      0,
+    );
     await this.statsRepo.update({
       status: 'Everything embedded',
       vectorCount: total,
@@ -213,15 +246,15 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
   }
 
   private async loadExistingEmbeddings(): Promise<void> {
-    await this.statsRepo.update({ status: 'Scanning pages for outdated embeddings' });
+    await this.statsRepo.update({
+      status: 'Scanning pages for outdated embeddings',
+    });
 
     for (const runtime of this.runtimes) {
       const embeddings = await this.embeddingRepo.findByModelKey(runtime.key);
       const normalized = embeddings.map((e) => e.vector);
       const tree =
-        embeddings.length > 0
-          ? VPTree.build(normalized as unknown as number[][], cosineDistance)
-          : null;
+        embeddings.length > 0 ? VPTree.build(normalized, cosineDistance) : null;
       this.indices.set(runtime.key, { embeddings, tree });
     }
 
@@ -234,7 +267,10 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     for (const page of pages) {
       const newHash = this.computePageHash(page);
       for (const runtime of this.runtimes) {
-        const existing = await this.embeddingRepo.findByPageId(page.id, runtime.key);
+        const existing = await this.embeddingRepo.findByPageId(
+          page.id,
+          runtime.key,
+        );
         if (existing.length === 0 || existing[0].pageHash !== newHash) {
           this.queue.enqueue({ type: 'Upsert', page });
           break;
@@ -247,11 +283,12 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     const embeddings = await this.embeddingRepo.findByModelKey(modelKey);
     const normalized = embeddings.map((e) => e.vector);
     const tree =
-      embeddings.length > 0
-        ? VPTree.build(normalized as unknown as number[][], cosineDistance)
-        : null;
+      embeddings.length > 0 ? VPTree.build(normalized, cosineDistance) : null;
     this.indices.set(modelKey, { embeddings, tree });
-    const total = [...this.indices.values()].reduce((s, idx) => s + idx.embeddings.length, 0);
+    const total = [...this.indices.values()].reduce(
+      (s, idx) => s + idx.embeddings.length,
+      0,
+    );
     await this.statsRepo.update({ vectorCount: total });
   }
 
@@ -270,21 +307,23 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     const lines: string[] = [`# ${page.title}`];
     if (page.plainText) lines.push(page.plainText);
     if (page.table) {
-      const { headers = [], values = [] } = page.table as any;
-      headers.forEach((h: string, i: number) => {
+      const { headers = [], values = [] } = page.table;
+      headers.forEach((h, i) => {
         const val = (values[i] ?? '').replace(/<[^>]*>/g, '');
         if (h || val) lines.push(`${h}: ${val}`);
       });
     }
     const fullText = lines.join('\n');
-    return this.chunkText(fullText, this.chunkSize, this.chunkOverlap).map((text) => ({ text }));
+    return this.chunkText(fullText, this.chunkSize, this.chunkOverlap).map(
+      (text) => ({ text }),
+    );
   }
 
   computePageHash(page: Page): string {
     const data = JSON.stringify({
       title: page.title,
       plainText: page.plainText,
-      table: (page as any).table,
+      table: page.table,
       accessRequirements: page.accessRequirements,
     });
     return crypto.createHash('sha256').update(data).digest('hex').slice(0, 8);
@@ -303,8 +342,14 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
           'EMBEDDING_GRANITE107_TOKENIZER_URL',
           'https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_107/sentencepiece.bpe.model',
         ),
-        dimension: this.config.get<number>('EMBEDDING_GRANITE107_DIMENSION', 384),
-        sequenceLength: this.config.get<number>('EMBEDDING_GRANITE107_SEQUENCE_LENGTH', 128),
+        dimension: this.config.get<number>(
+          'EMBEDDING_GRANITE107_DIMENSION',
+          384,
+        ),
+        sequenceLength: this.config.get<number>(
+          'EMBEDDING_GRANITE107_SEQUENCE_LENGTH',
+          128,
+        ),
         enabled: true,
       });
     }
@@ -319,8 +364,14 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
           'EMBEDDING_GRANITE278_TOKENIZER_URL',
           'https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_278/sentencepiece.bpe.model',
         ),
-        dimension: this.config.get<number>('EMBEDDING_GRANITE278_DIMENSION', 768),
-        sequenceLength: this.config.get<number>('EMBEDDING_GRANITE278_SEQUENCE_LENGTH', 128),
+        dimension: this.config.get<number>(
+          'EMBEDDING_GRANITE278_DIMENSION',
+          768,
+        ),
+        sequenceLength: this.config.get<number>(
+          'EMBEDDING_GRANITE278_SEQUENCE_LENGTH',
+          128,
+        ),
         enabled: true,
       });
     }

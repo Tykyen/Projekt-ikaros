@@ -1,4 +1,8 @@
-import type { IkarosArticle, ArticleStatus, ArticleRating } from './ikaros-article.interface';
+import type {
+  IkarosArticle,
+  ArticleStatus,
+  ArticleRating,
+} from './ikaros-article.interface';
 
 export interface IIkarosArticlesRepository {
   findPublished(): Promise<IkarosArticle[]>;
@@ -7,8 +11,16 @@ export interface IIkarosArticlesRepository {
   findByAuthor(authorId: string): Promise<IkarosArticle[]>;
   findById(id: string): Promise<IkarosArticle | null>;
   create(data: Omit<IkarosArticle, 'id'>): Promise<IkarosArticle>;
-  update(id: string, data: Partial<IkarosArticle>): Promise<IkarosArticle | null>;
-  upsertRating(id: string, rating: ArticleRating): Promise<IkarosArticle | null>;
+  update(
+    id: string,
+    data: Partial<IkarosArticle>,
+  ): Promise<IkarosArticle | null>;
+  upsertRating(
+    id: string,
+    rating: ArticleRating,
+  ): Promise<IkarosArticle | null>;
   delete(id: string): Promise<boolean>;
-  countByAuthorAndStatus(authorId: string): Promise<Record<ArticleStatus, number>>;
+  countByAuthorAndStatus(
+    authorId: string,
+  ): Promise<Record<ArticleStatus, number>>;
 }

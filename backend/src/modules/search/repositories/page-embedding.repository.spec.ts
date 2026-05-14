@@ -15,7 +15,10 @@ describe('MongoPageEmbeddingRepository', () => {
     const module = await Test.createTestingModule({
       providers: [
         MongoPageEmbeddingRepository,
-        { provide: getModelToken(PageEmbeddingSchemaClass.name), useValue: mockModel },
+        {
+          provide: getModelToken(PageEmbeddingSchemaClass.name),
+          useValue: mockModel,
+        },
       ],
     }).compile();
     repo = module.get(MongoPageEmbeddingRepository);
@@ -23,11 +26,21 @@ describe('MongoPageEmbeddingRepository', () => {
 
   it('findByModelKey — vrátí embeddingy pro daný model', async () => {
     const doc = {
-      _id: 'id1', pageId: 'p1', slug: 's1', modelKey: 'granite-107',
-      pageHash: 'abc', chunkId: 'p1-0', chunkTitle: 'Title',
-      chunkPreview: 'Preview', chunkOrder: 0, vector: [0.1, 0.2], createdAt: new Date(),
+      _id: 'id1',
+      pageId: 'p1',
+      slug: 's1',
+      modelKey: 'granite-107',
+      pageHash: 'abc',
+      chunkId: 'p1-0',
+      chunkTitle: 'Title',
+      chunkPreview: 'Preview',
+      chunkOrder: 0,
+      vector: [0.1, 0.2],
+      createdAt: new Date(),
     };
-    mockModel.find.mockReturnValue({ lean: () => ({ exec: () => Promise.resolve([doc]) }) });
+    mockModel.find.mockReturnValue({
+      lean: () => ({ exec: () => Promise.resolve([doc]) }),
+    });
     const result = await repo.findByModelKey('granite-107');
     expect(result).toHaveLength(1);
     expect(result[0].modelKey).toBe('granite-107');

@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
+import { HOUR_MS } from '../../common/constants/time.constants';
 
 @Injectable()
 export class PresenceService {
@@ -10,8 +11,11 @@ export class PresenceService {
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
     private readonly configService: ConfigService,
   ) {
-    const hours = this.configService.get<number>('PRESENCE_THRESHOLD_HOURS', 25);
-    this.thresholdMs = hours * 60 * 60 * 1000;
+    const hours = this.configService.get<number>(
+      'PRESENCE_THRESHOLD_HOURS',
+      25,
+    );
+    this.thresholdMs = hours * HOUR_MS;
   }
 
   async getOnlineUserIds(): Promise<string[]> {

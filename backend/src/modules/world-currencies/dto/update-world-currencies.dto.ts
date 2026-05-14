@@ -1,4 +1,11 @@
-import { IsArray, IsNumber, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class WorldCurrencyItemDto {
@@ -10,6 +17,8 @@ export class WorldCurrencyItemDto {
 }
 
 export class UpdateWorldCurrenciesDto {
-  @IsArray() @ValidateNested({ each: true }) @Type(() => WorldCurrencyItemDto)
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WorldCurrencyItemDto)
   items: WorldCurrencyItemDto[];
 }

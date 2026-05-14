@@ -36,7 +36,12 @@ describe('MeiliSearchService', () => {
         MeiliSearchService,
         {
           provide: ConfigService,
-          useValue: { get: (k: string, d?: unknown) => ({ MEILI_HOST: 'http://localhost:7700', MEILI_API_KEY: 'test' }[k] ?? d) },
+          useValue: {
+            get: (k: string, d?: unknown) =>
+              ({ MEILI_HOST: 'http://localhost:7700', MEILI_API_KEY: 'test' })[
+                k
+              ] ?? d,
+          },
         },
         {
           provide: 'IPagesRepository',
@@ -53,10 +58,18 @@ describe('MeiliSearchService', () => {
   });
 
   it('addPageToIndex — zavolá addDocuments s mapovanými poli', async () => {
-    const page = { id: 'p1', slug: 'test-page', title: 'Test Page', plainText: 'Hello world', table: null } as any;
+    const page = {
+      id: 'p1',
+      slug: 'test-page',
+      title: 'Test Page',
+      plainText: 'Hello world',
+      table: null,
+    } as any;
     await service.addPageToIndex(page);
     expect(mockIndex.addDocuments).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ slug: 'test-page', title: 'Test Page' })]),
+      expect.arrayContaining([
+        expect.objectContaining({ slug: 'test-page', title: 'Test Page' }),
+      ]),
     );
   });
 

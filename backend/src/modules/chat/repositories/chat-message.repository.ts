@@ -11,7 +11,10 @@ export class MongoChatMessageRepository
   extends BaseMongoRepository<ChatMessage>
   implements IChatMessageRepository
 {
-  constructor(@InjectModel(ChatMessageSchemaClass.name) model: Model<ChatMessageSchemaClass>) {
+  constructor(
+    @InjectModel(ChatMessageSchemaClass.name)
+    model: Model<ChatMessageSchemaClass>,
+  ) {
     super(model as never);
   }
 
@@ -29,13 +32,19 @@ export class MongoChatMessageRepository
       .limit(opts.limit)
       .lean()
       .exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>)).reverse();
+    return docs
+      .map((d) => this.toEntity(d as unknown as Record<string, unknown>))
+      .reverse();
   }
 
   async countAfter(channelId: string, messageId: string): Promise<number> {
     if (!Types.ObjectId.isValid(messageId)) return 0;
     return this.model
-      .countDocuments({ channelId, isDeleted: { $ne: true }, _id: { $gt: new Types.ObjectId(messageId) } })
+      .countDocuments({
+        channelId,
+        isDeleted: { $ne: true },
+        _id: { $gt: new Types.ObjectId(messageId) },
+      })
       .exec();
   }
 
@@ -51,7 +60,11 @@ export class MongoChatMessageRepository
       .exec();
   }
 
-  async addReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null> {
+  async addReaction(
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ): Promise<ChatMessage | null> {
     if (!Types.ObjectId.isValid(messageId)) return null;
     const doc = await this.model
       .findByIdAndUpdate(
@@ -61,10 +74,16 @@ export class MongoChatMessageRepository
       )
       .lean()
       .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async removeReaction(messageId: string, emoji: string, userId: string): Promise<ChatMessage | null> {
+  async removeReaction(
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ): Promise<ChatMessage | null> {
     if (!Types.ObjectId.isValid(messageId)) return null;
     const doc = await this.model
       .findByIdAndUpdate(
@@ -74,10 +93,16 @@ export class MongoChatMessageRepository
       )
       .lean()
       .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async pruneChannel(channelId: string, olderThan: Date, keepLast: number): Promise<number> {
+  async pruneChannel(
+    channelId: string,
+    olderThan: Date,
+    keepLast: number,
+  ): Promise<number> {
     const recent = await this.model
       .find({ channelId })
       .sort({ createdAt: -1 })
@@ -115,8 +140,13 @@ export class MongoChatMessageRepository
       replyToSenderName: doc.replyToSenderName as string | undefined,
       visibleTo: doc.visibleTo as string[] | undefined,
       reactions: (doc.reactions as Record<string, string[]>) ?? {},
-      attachments: (doc.attachments as import('../interfaces/chat-attachment.interface').ChatAttachment[]) ?? [],
+      attachments:
+        (doc.attachments as import('../interfaces/chat-attachment.interface').ChatAttachment[]) ??
+        [],
       expiresAt: doc.expiresAt as Date | undefined,
+      customFont: (doc.customFont as string | null) ?? null,
+      color: (doc.color as string | null) ?? null,
+      isDiceRoll: (doc.isDiceRoll as boolean) ?? false,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

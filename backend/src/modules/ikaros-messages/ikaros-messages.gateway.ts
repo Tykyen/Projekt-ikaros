@@ -1,9 +1,15 @@
-import { WebSocketGateway, WebSocketServer, OnGatewayConnection } from '@nestjs/websockets';
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  OnGatewayConnection,
+} from '@nestjs/websockets';
 import { OnEvent } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 
-@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' } })
+@WebSocketGateway({
+  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
+})
 export class IkarosMessagesGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
 
@@ -13,7 +19,7 @@ export class IkarosMessagesGateway implements OnGatewayConnection {
     try {
       const token = client.handshake.auth?.token as string | undefined;
       if (!token) return;
-      const payload = this.jwtService.verify(token) as { sub?: string };
+      const payload = this.jwtService.verify<{ sub?: string }>(token);
       if (!payload?.sub) return;
       void client.join(`user:${payload.sub}`);
     } catch {

@@ -1,12 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { PushSubscriptionSchemaClass } from '../schemas/push-subscription.schema';
 import type { PushSubscription } from '../interfaces/push-subscription.interface';
 import type { IPushSubscriptionRepository } from '../interfaces/push-subscription-repository.interface';
 
+/**
+ * Pokud `findAll` vrátí víc subscription než tento threshold, emit warning.
+ * `notifyAll` ji volá pro broadcast push notifikace — limit by rozbil funkci,
+ * ale loud signál nás upozorní, že nastal čas na batch/stream pattern.
+ */
+const SCALE_WARNING_THRESHOLD = 1_000;
+
 @Injectable()
 export class MongoPushSubscriptionRepository implements IPushSubscriptionRepository {
+  private readonly logger = new Logger(MongoPushSubscriptionRepository.name);
+
   constructor(
     @InjectModel(PushSubscriptionSchemaClass.name)
     private readonly model: Model<PushSubscriptionSchemaClass>,
@@ -14,12 +23,21 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
 
   async findByUserId(userId: string): Promise<PushSubscription[]> {
     const docs = await this.model.find({ userId }).lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async findAll(): Promise<PushSubscription[]> {
     const docs = await this.model.find().lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    if (docs.length > SCALE_WARNING_THRESHOLD) {
+      this.logger.warn(
+        `findAll vrátil ${docs.length} subscriptions — překročen práh ${SCALE_WARNING_THRESHOLD}. Zvážit batch/stream pattern v notifyAll.`,
+      );
+    }
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async upsertByEndpoint(

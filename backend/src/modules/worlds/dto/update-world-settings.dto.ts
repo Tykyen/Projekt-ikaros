@@ -1,4 +1,13 @@
-import { IsOptional, IsArray, IsBoolean, IsObject, IsString, IsNumber, Min, ValidateNested } from 'class-validator';
+import {
+  IsOptional,
+  IsArray,
+  IsBoolean,
+  IsObject,
+  IsString,
+  IsNumber,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class WorldCurrencyItemDto {
@@ -23,7 +32,10 @@ export class MenuTemplateItemDto {
 
 export class MenuTemplateDto {
   @IsString() name: string;
-  @IsArray() @ValidateNested({ each: true }) @Type(() => MenuTemplateItemDto) items: MenuTemplateItemDto[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MenuTemplateItemDto)
+  items: MenuTemplateItemDto[];
 }
 
 export class SchemaBlockDto {
@@ -38,9 +50,25 @@ export class UpdateWorldSettingsDto {
   @IsOptional() @IsArray() hiddenNavItems?: string[];
   @IsOptional() @IsArray() customGroups?: string[];
   @IsOptional() @IsObject() groupColors?: Record<string, string>;
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => WorldCurrencyItemDto) currencies?: WorldCurrencyItemDto[];
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WorldCurrencyItemDto)
+  currencies?: WorldCurrencyItemDto[];
   @IsOptional() @IsBoolean() hideDefaultWeather?: boolean;
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => AkjTypeDto) akjTypes?: AkjTypeDto[];
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => MenuTemplateDto) menuTemplates?: MenuTemplateDto[];
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => SchemaBlockDto) diarySchema?: SchemaBlockDto[];
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AkjTypeDto)
+  akjTypes?: AkjTypeDto[];
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MenuTemplateDto)
+  menuTemplates?: MenuTemplateDto[];
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SchemaBlockDto)
+  diarySchema?: SchemaBlockDto[];
 }

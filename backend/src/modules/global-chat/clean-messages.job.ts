@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import { GlobalChatService } from './global-chat.service';
+import { HOURS_2_MS } from '../../common/constants/time.constants';
 
 @Injectable()
 export class CleanMessagesJob {
@@ -17,9 +18,13 @@ export class CleanMessagesJob {
   async clean(): Promise<void> {
     const channelId = this.globalChatService.getGlobalChannelId();
     if (!channelId) return;
-    const olderThan = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const olderThan = new Date(Date.now() - HOURS_2_MS);
     try {
-      const deleted = await this.messageRepo.pruneChannel(channelId, olderThan, 100);
+      const deleted = await this.messageRepo.pruneChannel(
+        channelId,
+        olderThan,
+        100,
+      );
       if (deleted > 0) {
         this.logger.log(`CleanMessages: smazáno ${deleted} zpráv z hospody`);
       }

@@ -26,6 +26,7 @@ export interface CharacterDirectoryEntry {
   name: string;
   imageUrl?: string;
   isNpc: boolean;
+  isLocation: boolean;
 }
 
 export interface Character {
@@ -35,6 +36,7 @@ export interface Character {
   worldId: string;
   userId?: string;
   isNpc: boolean;
+  isLocation: boolean;
   imageUrl?: string;
 
   // Veřejná část

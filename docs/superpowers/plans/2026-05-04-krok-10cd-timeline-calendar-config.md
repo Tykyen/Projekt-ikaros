@@ -1,903 +1,161 @@
-# WorldCalendarConfig & TimelineEvent Implementation Plan
+# TimelineEvent — Implementation Plan (Fáze 3.2)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Datum vzniku:** 2026-05-04 (původně sdružený plán 10c+10d)
+> **Aktualizováno:** 2026-05-06 (timeline-only scope; calendar config přesunut do Fáze 4.1)
 
-**Goal:** Implementovat dva nové moduly — `WorldCalendarConfigModule` (konfigurace fantasy kalendáře světa s nebeými tělesy) a `TimelineModule` (historická časová osa světa s automatickým výpočtem stavů nebeských těles).
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Architecture:** `WorldCalendarConfigModule` je nezávislý — ukládá konfiguraci kalendáře a exportuje `WorldCalendarConfigService` s logikou výpočtu nebeských těles. `TimelineModule` závisí na `WorldCalendarConfigModule` — při každém GET obohacuje události o vypočtené `celestialStates`. Výpočetní logika žije v izolovaném `world-calendar-config.utils.ts` pro snadné testování.
+**Goal:** Implementovat modul `timeline` (NestJS/Mongoose) — auth-required GET `/api/timeline`, role-gated write endpointy, base64 stripping per parity. Bez calendar config (přijde v Fázi 4.1).
 
-**Tech Stack:** NestJS, Mongoose, TypeScript, Jest. Žádné nové npm závislosti — ID generuje `crypto.randomUUID()`.
+**Architecture:** Standalone modul `backend/src/modules/timeline/` se schématem `timeline_events`. `worldId required` (timeline je vždy per-svět). Service implementuje auth checks (Admin/Superadmin shortcut + `WorldRole≥PomocnyPJ` pro write, `>= Hrac` pro read) — pattern viz `world-news.service.ts`. Importuje `IWorldMembershipRepository` a `IWorldsRepository` z `WorldsModule`. Bez `WorldCalendarConfigService` — `celestialStates: []` placeholder.
+
+**Tech Stack:** NestJS 11, Mongoose 9, class-validator, Jest (unit), TypeScript strict.
+
+**Závislosti:** `WorldsModule` (exportuje `IWorldMembershipRepository`, `IWorldsRepository`).
+
+**Spec:** [2026-05-04-krok-10cd-timeline-calendar-config-design.md](../specs/2026-05-04-krok-10cd-timeline-calendar-config-design.md)
 
 ---
 
-## Struktura souborů
+## File Structure
 
-**Nové soubory:**
 ```
-backend/src/modules/world-calendar-config/
-├── dto/upsert-world-calendar-config.dto.ts
-├── interfaces/world-calendar-config.interface.ts
-├── interfaces/world-calendar-config-repository.interface.ts
-├── repositories/world-calendar-config.repository.ts
-├── schemas/world-calendar-config.schema.ts
-├── world-calendar-config.controller.ts
-├── world-calendar-config.module.ts
-├── world-calendar-config.service.ts
-├── world-calendar-config.service.spec.ts
-├── world-calendar-config.utils.ts
-└── world-calendar-config.utils.spec.ts
-
 backend/src/modules/timeline/
-├── dto/create-timeline-event.dto.ts
-├── dto/update-timeline-event.dto.ts
-├── interfaces/timeline-event.interface.ts
-├── interfaces/timeline-repository.interface.ts
-├── repositories/timeline.repository.ts
-├── schemas/timeline-event.schema.ts
-├── timeline.controller.ts
-├── timeline.module.ts
-├── timeline.service.ts
-└── timeline.service.spec.ts
-```
+├── timeline.module.ts                         # NEW
+├── timeline.controller.ts                     # NEW
+├── timeline.service.ts                        # NEW
+├── timeline.service.spec.ts                   # NEW
+├── schemas/
+│   └── timeline-event.schema.ts               # NEW
+├── repositories/
+│   └── timeline.repository.ts                 # NEW
+├── dto/
+│   ├── create-timeline-event.dto.ts           # NEW
+│   ├── update-timeline-event.dto.ts           # NEW
+│   └── query-timeline-event.dto.ts            # NEW
+└── interfaces/
+    ├── timeline-event.interface.ts            # NEW
+    └── timeline-repository.interface.ts       # NEW
 
-**Upravené soubory:**
-- `backend/src/app.module.ts` — registrace obou modulů
-
----
-
-## Task 1: WorldCalendarConfig — interfaces a schema
-
-**Files:**
-- Create: `backend/src/modules/world-calendar-config/interfaces/world-calendar-config.interface.ts`
-- Create: `backend/src/modules/world-calendar-config/interfaces/world-calendar-config-repository.interface.ts`
-- Create: `backend/src/modules/world-calendar-config/schemas/world-calendar-config.schema.ts`
-
-- [ ] Vytvoř soubor s interfacy:
-
-```typescript
-// backend/src/modules/world-calendar-config/interfaces/world-calendar-config.interface.ts
-export type CelestialBodyType = 'moon' | 'sun' | 'planet' | 'comet' | 'other';
-
-export interface MoonConfig { cycleLength: number; phases: string[]; }
-export interface SunConfig { riseHour: number[]; setHour: number[]; }
-export interface PlanetConfig { orbitalPeriod: number; constellations: string[]; }
-export interface CometConfig { periodYears: number; apparitionDurationYears: number; }
-export interface OtherConfig { cycleLength: number; states: string[]; }
-
-export interface CelestialBody {
-  id: string;
-  name: string;
-  type: CelestialBodyType;
-  config: MoonConfig | SunConfig | PlanetConfig | CometConfig | OtherConfig;
-  referenceState: string;
-}
-
-export interface CalendarMonth { name: string; daysCount: number; }
-export interface CalendarReferenceDate { year: number; month: number; day: number; hour: number; }
-
-export interface CelestialState {
-  bodyId: string;
-  name: string;
-  type: CelestialBodyType;
-  state: string;
-  isManualOverride: boolean;
-}
-
-export interface CelestialOverride { bodyId: string; value: string; }
-
-export interface WorldCalendarConfig {
-  id: string;
-  worldId: string;
-  hoursPerDay: number;
-  daysOfWeek: string[];
-  months: CalendarMonth[];
-  celestialBodies: CelestialBody[];
-  referenceDate: CalendarReferenceDate | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-```
-
-- [ ] Vytvoř repository interface:
-
-```typescript
-// backend/src/modules/world-calendar-config/interfaces/world-calendar-config-repository.interface.ts
-import { WorldCalendarConfig } from './world-calendar-config.interface';
-
-export interface IWorldCalendarConfigRepository {
-  findByWorldId(worldId: string): Promise<WorldCalendarConfig | null>;
-  upsert(
-    worldId: string,
-    data: Omit<WorldCalendarConfig, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>,
-  ): Promise<WorldCalendarConfig>;
-}
-```
-
-- [ ] Vytvoř schema:
-
-```typescript
-// backend/src/modules/world-calendar-config/schemas/world-calendar-config.schema.ts
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type WorldCalendarConfigDocument = HydratedDocument<WorldCalendarConfigSchemaClass>;
-
-@Schema({ timestamps: true, collection: 'world_calendar_configs' })
-export class WorldCalendarConfigSchemaClass {
-  @Prop({ required: true, unique: true }) worldId: string;
-  @Prop({ default: 24 }) hoursPerDay: number;
-  @Prop({ type: [String], default: [] }) daysOfWeek: string[];
-  @Prop({ type: [Object], default: [] }) months: Record<string, unknown>[];
-  @Prop({ type: [Object], default: [] }) celestialBodies: Record<string, unknown>[];
-  @Prop({ type: Object, default: null }) referenceDate: Record<string, unknown> | null;
-}
-
-export const WorldCalendarConfigSchema = SchemaFactory.createForClass(WorldCalendarConfigSchemaClass);
-WorldCalendarConfigSchema.index({ worldId: 1 }, { unique: true });
-```
-
-- [ ] Commit:
-
-```bash
-git add backend/src/modules/world-calendar-config/
-git commit -m "feat(world-calendar-config): interfaces and schema"
+backend/src/app.module.ts                      # MODIFY (přidat TimelineModule)
+docs/roadmap2.md                               # MODIFY (Fáze 3.2 → splněno)
 ```
 
 ---
 
-## Task 2: WorldCalendarConfig — repository
+## Pre-flight checks
 
-**Files:**
-- Create: `backend/src/modules/world-calendar-config/repositories/world-calendar-config.repository.ts`
-
-- [ ] Vytvoř repository:
-
-```typescript
-// backend/src/modules/world-calendar-config/repositories/world-calendar-config.repository.ts
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { WorldCalendarConfigSchemaClass } from '../schemas/world-calendar-config.schema';
-import { IWorldCalendarConfigRepository } from '../interfaces/world-calendar-config-repository.interface';
-import {
-  WorldCalendarConfig, CelestialBody, CalendarMonth, CalendarReferenceDate,
-} from '../interfaces/world-calendar-config.interface';
-
-@Injectable()
-export class MongoWorldCalendarConfigRepository implements IWorldCalendarConfigRepository {
-  constructor(
-    @InjectModel(WorldCalendarConfigSchemaClass.name)
-    private readonly model: Model<WorldCalendarConfigSchemaClass>,
-  ) {}
-
-  async findByWorldId(worldId: string): Promise<WorldCalendarConfig | null> {
-    const doc = await this.model.findOne({ worldId }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
-  }
-
-  async upsert(
-    worldId: string,
-    data: Omit<WorldCalendarConfig, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>,
-  ): Promise<WorldCalendarConfig> {
-    const doc = await this.model
-      .findOneAndUpdate({ worldId }, { $set: { worldId, ...data } }, { upsert: true, new: true })
-      .lean()
-      .exec();
-    return this.toEntity(doc as unknown as Record<string, unknown>);
-  }
-
-  private toEntity(doc: Record<string, unknown>): WorldCalendarConfig {
-    return {
-      id: String(doc._id),
-      worldId: doc.worldId as string,
-      hoursPerDay: (doc.hoursPerDay as number) ?? 24,
-      daysOfWeek: (doc.daysOfWeek as string[]) ?? [],
-      months: (doc.months as CalendarMonth[]) ?? [],
-      celestialBodies: (doc.celestialBodies as CelestialBody[]) ?? [],
-      referenceDate: (doc.referenceDate as CalendarReferenceDate | null) ?? null,
-      createdAt: doc.createdAt as Date,
-      updatedAt: doc.updatedAt as Date,
-    };
-  }
-}
-```
-
-- [ ] Commit:
+- [ ] **Step 0.1:** Ověř baseline buildu
 
 ```bash
-git add backend/src/modules/world-calendar-config/repositories/
-git commit -m "feat(world-calendar-config): repository"
+cd backend && npm run typecheck && npm run lint:check && npm test -- --testPathIgnorePatterns=parity-check 2>&1 | tail -5
 ```
+
+Expected: vše PASS, ~593 testů.
 
 ---
 
-## Task 3: Výpočetní utils (TDD)
-
-**Files:**
-- Create: `backend/src/modules/world-calendar-config/world-calendar-config.utils.ts`
-- Create: `backend/src/modules/world-calendar-config/world-calendar-config.utils.spec.ts`
-
-- [ ] Napiš spec PŘED implementací:
-
-```typescript
-// backend/src/modules/world-calendar-config/world-calendar-config.utils.spec.ts
-import { absoluteDay, calculateCelestialStates, totalDaysPerYear } from './world-calendar-config.utils';
-import { WorldCalendarConfig } from './interfaces/world-calendar-config.interface';
-
-const base: WorldCalendarConfig = {
-  id: '1', worldId: 'w1', hoursPerDay: 24, daysOfWeek: [],
-  months: [
-    { name: 'Leden', daysCount: 30 },
-    { name: 'Únor', daysCount: 30 },
-    { name: 'Březen', daysCount: 30 },
-  ],
-  celestialBodies: [],
-  referenceDate: { year: 0, month: 1, day: 1, hour: 0 },
-  createdAt: new Date(), updatedAt: new Date(),
-};
-
-describe('totalDaysPerYear', () => {
-  it('vrátí součet dní všech měsíců', () => {
-    expect(totalDaysPerYear(base)).toBe(90);
-  });
-});
-
-describe('absoluteDay', () => {
-  it('rok 0, měsíc 1, den 1 = 1', () => {
-    expect(absoluteDay(0, 1, 1, base)).toBe(1);
-  });
-  it('rok 0, měsíc 2, den 1 = 31', () => {
-    expect(absoluteDay(0, 2, 1, base)).toBe(31);
-  });
-  it('rok 1, měsíc 1, den 1 = 91', () => {
-    expect(absoluteDay(1, 1, 1, base)).toBe(91);
-  });
-});
-
-describe('calculateCelestialStates', () => {
-  it('vrátí [] když chybí referenceDate', () => {
-    const cfg = { ...base, referenceDate: null };
-    expect(calculateCelestialStates(1, 1, 1, cfg, [])).toEqual([]);
-  });
-
-  it('vrátí [] když nejsou žádná tělesa', () => {
-    expect(calculateCelestialStates(1, 1, 1, base, [])).toEqual([]);
-  });
-
-  it('moon: stejné datum jako reference vrátí referenceState fázi', () => {
-    const cfg = {
-      ...base,
-      celestialBodies: [{
-        id: 'm1', name: 'Měsíc', type: 'moon' as const,
-        config: { cycleLength: 28, phases: ['nový', 'dorůstající', 'úplněk', 'couvající'] },
-        referenceState: 'nový',
-      }],
-    };
-    const result = calculateCelestialStates(0, 1, 1, cfg, []);
-    expect(result[0].state).toBe('nový');
-    expect(result[0].isManualOverride).toBe(false);
-  });
-
-  it('moon: 7 dní po novém = dorůstající (¼ cyklu 28 dní)', () => {
-    const cfg = {
-      ...base,
-      celestialBodies: [{
-        id: 'm1', name: 'Měsíc', type: 'moon' as const,
-        config: { cycleLength: 28, phases: ['nový', 'dorůstající', 'úplněk', 'couvající'] },
-        referenceState: 'nový',
-      }],
-    };
-    // den 8 = delta 7
-    const result = calculateCelestialStates(0, 1, 8, cfg, []);
-    expect(result[0].state).toBe('dorůstající');
-  });
-
-  it('záporné delta: 14 dní PŘED referencí s nový → úplněk', () => {
-    const cfg = {
-      ...base,
-      referenceDate: { year: 0, month: 1, day: 15, hour: 0 },
-      celestialBodies: [{
-        id: 'm1', name: 'Měsíc', type: 'moon' as const,
-        config: { cycleLength: 28, phases: ['nový', 'dorůstající', 'úplněk', 'couvající'] },
-        referenceState: 'nový',
-      }],
-    };
-    // den 1 = delta -14 od reference (den 15)
-    const result = calculateCelestialStates(0, 1, 1, cfg, []);
-    expect(result[0].state).toBe('úplněk');
-  });
-
-  it('manuální override přebíjí výpočet', () => {
-    const cfg = {
-      ...base,
-      celestialBodies: [{
-        id: 'm1', name: 'Měsíc', type: 'moon' as const,
-        config: { cycleLength: 28, phases: ['nový', 'dorůstající', 'úplněk', 'couvající'] },
-        referenceState: 'nový',
-      }],
-    };
-    const result = calculateCelestialStates(0, 1, 1, cfg, [{ bodyId: 'm1', value: 'úplněk' }]);
-    expect(result[0].state).toBe('úplněk');
-    expect(result[0].isManualOverride).toBe(true);
-  });
-
-  it('sun: vrátí hodiny východu/západu pro daný měsíc', () => {
-    const cfg = {
-      ...base,
-      celestialBodies: [{
-        id: 's1', name: 'Slunce', type: 'sun' as const,
-        config: { riseHour: [6, 5, 6], setHour: [18, 19, 18] },
-        referenceState: '',
-      }],
-    };
-    const result = calculateCelestialStates(0, 2, 1, cfg, []);
-    expect(result[0].state).toBe('vychod: 5:00, zapad: 19:00');
-  });
-
-  it('comet: viditelná v průletovém okně', () => {
-    const cfg = {
-      ...base,
-      celestialBodies: [{
-        id: 'c1', name: 'Kometa', type: 'comet' as const,
-        config: { periodYears: 10, apparitionDurationYears: 1 },
-        referenceState: 'viditelná',
-      }],
-    };
-    // 45 dní po referenci (apparition = 1 rok = 90 dní)
-    const result = calculateCelestialStates(0, 1, 46, cfg, []);
-    expect(result[0].state).toBe('viditelná');
-  });
-
-  it('comet: neviditelná po skončení průletu', () => {
-    const cfg = {
-      ...base,
-      celestialBodies: [{
-        id: 'c1', name: 'Kometa', type: 'comet' as const,
-        config: { periodYears: 10, apparitionDurationYears: 1 },
-        referenceState: 'viditelná',
-      }],
-    };
-    // 95 dní po referenci (apparition = 90 dní)
-    const result = calculateCelestialStates(0, 2, 6, cfg, []);
-    expect(result[0].state).toBe('neviditelná');
-  });
-});
-```
-
-- [ ] Spusť spec — ověř, že SELHÁVÁ:
-
-```bash
-cd backend && npx jest --testPathPattern="world-calendar-config.utils" --no-coverage
-```
-
-Očekáváno: FAIL — `Cannot find module`
-
-- [ ] Vytvoř utils implementaci:
-
-```typescript
-// backend/src/modules/world-calendar-config/world-calendar-config.utils.ts
-import {
-  WorldCalendarConfig, CelestialBody, CelestialState, CelestialOverride,
-  MoonConfig, SunConfig, PlanetConfig, CometConfig, OtherConfig,
-} from './interfaces/world-calendar-config.interface';
-
-export function totalDaysPerYear(config: Pick<WorldCalendarConfig, 'months'>): number {
-  return config.months.reduce((sum, m) => sum + m.daysCount, 0);
-}
-
-export function absoluteDay(
-  year: number,
-  month: number,
-  day: number,
-  config: Pick<WorldCalendarConfig, 'months'>,
-): number {
-  const yearDays = totalDaysPerYear(config);
-  const daysBeforeMonth = config.months.slice(0, month - 1).reduce((sum, m) => sum + m.daysCount, 0);
-  return year * yearDays + daysBeforeMonth + day;
-}
-
-function getReferenceOffset(body: CelestialBody, yearDays: number): number {
-  const { type, config: cfg, referenceState } = body;
-  if (type === 'moon') {
-    const c = cfg as MoonConfig;
-    const idx = Math.max(0, c.phases.indexOf(referenceState));
-    return idx * (c.cycleLength / c.phases.length);
-  }
-  if (type === 'other') {
-    const c = cfg as OtherConfig;
-    const idx = Math.max(0, c.states.indexOf(referenceState));
-    return idx * (c.cycleLength / c.states.length);
-  }
-  if (type === 'planet') {
-    const c = cfg as PlanetConfig;
-    const idx = Math.max(0, c.constellations.indexOf(referenceState));
-    return idx * (c.orbitalPeriod / c.constellations.length);
-  }
-  if (type === 'comet') {
-    const c = cfg as CometConfig;
-    const apparitionDays = c.apparitionDurationYears * yearDays;
-    return referenceState === 'viditelná' ? 0 : apparitionDays;
-  }
-  return 0; // sun
-}
-
-function calculateBodyState(
-  body: CelestialBody,
-  delta: number,
-  yearDays: number,
-  month: number,
-): string {
-  const refOffset = getReferenceOffset(body, yearDays);
-  const { type, config: cfg } = body;
-
-  if (type === 'moon') {
-    const c = cfg as MoonConfig;
-    const pos = ((delta + refOffset) % c.cycleLength + c.cycleLength) % c.cycleLength;
-    const idx = Math.floor(pos / (c.cycleLength / c.phases.length));
-    return c.phases[Math.min(idx, c.phases.length - 1)];
-  }
-  if (type === 'other') {
-    const c = cfg as OtherConfig;
-    const pos = ((delta + refOffset) % c.cycleLength + c.cycleLength) % c.cycleLength;
-    const idx = Math.floor(pos / (c.cycleLength / c.states.length));
-    return c.states[Math.min(idx, c.states.length - 1)];
-  }
-  if (type === 'planet') {
-    const c = cfg as PlanetConfig;
-    const deg = (((delta + refOffset) % c.orbitalPeriod) / c.orbitalPeriod * 360 + 360) % 360;
-    const idx = Math.floor(deg / (360 / c.constellations.length));
-    return c.constellations[Math.min(idx, c.constellations.length - 1)];
-  }
-  if (type === 'comet') {
-    const c = cfg as CometConfig;
-    const totalPeriodDays = c.periodYears * yearDays;
-    const apparitionDays = c.apparitionDurationYears * yearDays;
-    const pos = ((delta + refOffset) % totalPeriodDays + totalPeriodDays) % totalPeriodDays;
-    return pos < apparitionDays ? 'viditelná' : 'neviditelná';
-  }
-  if (type === 'sun') {
-    const c = cfg as SunConfig;
-    const rise = c.riseHour[month - 1] ?? c.riseHour[0];
-    const set = c.setHour[month - 1] ?? c.setHour[0];
-    return `vychod: ${rise}:00, zapad: ${set}:00`;
-  }
-  return '';
-}
-
-export function calculateCelestialStates(
-  year: number,
-  month: number,
-  day: number,
-  config: WorldCalendarConfig,
-  overrides: CelestialOverride[],
-): CelestialState[] {
-  if (!config.referenceDate || config.celestialBodies.length === 0) return [];
-
-  const yearDays = totalDaysPerYear(config);
-  const refDay = absoluteDay(
-    config.referenceDate.year,
-    config.referenceDate.month,
-    config.referenceDate.day,
-    config,
-  );
-  const targetDay = absoluteDay(year, month, day, config);
-  const delta = targetDay - refDay;
-
-  return config.celestialBodies.map((body) => {
-    const override = overrides.find((o) => o.bodyId === body.id);
-    if (override) {
-      return { bodyId: body.id, name: body.name, type: body.type, state: override.value, isManualOverride: true };
-    }
-    const state = calculateBodyState(body, delta, yearDays, month);
-    return { bodyId: body.id, name: body.name, type: body.type, state, isManualOverride: false };
-  });
-}
-```
-
-- [ ] Spusť spec — ověř, že PROCHÁZÍ:
-
-```bash
-cd backend && npx jest --testPathPattern="world-calendar-config.utils" --no-coverage
-```
-
-Očekáváno: všechny testy PASS
-
-- [ ] Commit:
-
-```bash
-git add backend/src/modules/world-calendar-config/world-calendar-config.utils.ts
-git add backend/src/modules/world-calendar-config/world-calendar-config.utils.spec.ts
-git commit -m "feat(world-calendar-config): celestial calculation utils with tests"
-```
-
----
-
-## Task 4: WorldCalendarConfigService (TDD)
-
-**Files:**
-- Create: `backend/src/modules/world-calendar-config/dto/upsert-world-calendar-config.dto.ts`
-- Create: `backend/src/modules/world-calendar-config/world-calendar-config.service.spec.ts`
-- Create: `backend/src/modules/world-calendar-config/world-calendar-config.service.ts`
-
-- [ ] Vytvoř DTO:
-
-```typescript
-// backend/src/modules/world-calendar-config/dto/upsert-world-calendar-config.dto.ts
-export class UpsertWorldCalendarConfigDto {
-  hoursPerDay?: number;
-  daysOfWeek?: string[];
-  months?: { name: string; daysCount: number }[];
-  celestialBodies?: {
-    id?: string;
-    name: string;
-    type: 'moon' | 'sun' | 'planet' | 'comet' | 'other';
-    config: Record<string, unknown>;
-    referenceState: string;
-  }[];
-  referenceDate?: { year: number; month: number; day: number; hour: number } | null;
-}
-```
-
-- [ ] Napiš spec PŘED implementací:
-
-```typescript
-// backend/src/modules/world-calendar-config/world-calendar-config.service.spec.ts
-import { Test } from '@nestjs/testing';
-import { ForbiddenException, BadRequestException } from '@nestjs/common';
-import { WorldCalendarConfigService } from './world-calendar-config.service';
-import { UserRole } from '../users/interfaces/user.interface';
-import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-
-const mockRepo = { findByWorldId: jest.fn(), upsert: jest.fn() };
-const mockMembershipRepo = { findByUserAndWorld: jest.fn() };
-
-describe('WorldCalendarConfigService', () => {
-  let service: WorldCalendarConfigService;
-
-  beforeEach(async () => {
-    jest.clearAllMocks();
-    const module = await Test.createTestingModule({
-      providers: [
-        WorldCalendarConfigService,
-        { provide: 'IWorldCalendarConfigRepository', useValue: mockRepo },
-        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
-      ],
-    }).compile();
-    service = module.get(WorldCalendarConfigService);
-  });
-
-  describe('getConfig', () => {
-    it('vrátí config pokud existuje', async () => {
-      const cfg = { id: '1', worldId: 'w1' };
-      mockRepo.findByWorldId.mockResolvedValue(cfg);
-      expect(await service.getConfig('w1')).toBe(cfg);
-    });
-
-    it('vrátí null když config neexistuje', async () => {
-      mockRepo.findByWorldId.mockResolvedValue(null);
-      expect(await service.getConfig('w1')).toBeNull();
-    });
-  });
-
-  describe('upsertConfig', () => {
-    const dto = { months: [{ name: 'Leden', daysCount: 30 }], celestialBodies: [] };
-
-    it('vyhodí ForbiddenException pro Hráče', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Hrac });
-      await expect(service.upsertConfig('w1', dto, 'u1', UserRole.Hrac)).rejects.toThrow(ForbiddenException);
-    });
-
-    it('povolí Adminovi bez kontroly členství', async () => {
-      mockRepo.upsert.mockResolvedValue({ id: '1' });
-      await service.upsertConfig('w1', dto, 'admin1', UserRole.Admin);
-      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
-    });
-
-    it('povolí PJ s platným členstvím', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      mockRepo.upsert.mockResolvedValue({ id: '1' });
-      await service.upsertConfig('w1', dto, 'pj1', UserRole.Hrac);
-      expect(mockRepo.upsert).toHaveBeenCalled();
-    });
-
-    it('vyhodí BadRequestException když riseHour délka neodpovídá počtu měsíců', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      const badDto = {
-        months: [{ name: 'Leden', daysCount: 30 }],
-        celestialBodies: [{
-          name: 'Slunce', type: 'sun' as const,
-          config: { riseHour: [6, 7], setHour: [18] },
-          referenceState: '',
-        }],
-      };
-      await expect(service.upsertConfig('w1', badDto, 'pj1', UserRole.Hrac)).rejects.toThrow(BadRequestException);
-    });
-
-    it('přiřadí UUID nebeským tělesům bez id', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      mockRepo.upsert.mockImplementation((_, data) => Promise.resolve({ id: '1', ...data }));
-      const dtoWithBody = {
-        months: [{ name: 'Leden', daysCount: 30 }],
-        celestialBodies: [{
-          name: 'Měsíc', type: 'moon' as const,
-          config: { cycleLength: 28, phases: ['nový'] },
-          referenceState: 'nový',
-        }],
-      };
-      await service.upsertConfig('w1', dtoWithBody, 'pj1', UserRole.Hrac);
-      const saved = mockRepo.upsert.mock.calls[0][1];
-      expect(typeof saved.celestialBodies[0].id).toBe('string');
-      expect(saved.celestialBodies[0].id.length).toBeGreaterThan(0);
-    });
-  });
-});
-```
-
-- [ ] Spusť spec — ověř, že SELHÁVÁ:
-
-```bash
-cd backend && npx jest --testPathPattern="world-calendar-config.service.spec" --no-coverage
-```
-
-Očekáváno: FAIL — `Cannot find module`
-
-- [ ] Vytvoř service implementaci:
-
-```typescript
-// backend/src/modules/world-calendar-config/world-calendar-config.service.ts
-import { Injectable, Inject, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { IWorldCalendarConfigRepository } from './interfaces/world-calendar-config-repository.interface';
-import { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import {
-  WorldCalendarConfig, CelestialState, CelestialOverride, SunConfig,
-} from './interfaces/world-calendar-config.interface';
-import { UpsertWorldCalendarConfigDto } from './dto/upsert-world-calendar-config.dto';
-import { UserRole } from '../users/interfaces/user.interface';
-import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { calculateCelestialStates } from './world-calendar-config.utils';
-
-@Injectable()
-export class WorldCalendarConfigService {
-  constructor(
-    @Inject('IWorldCalendarConfigRepository')
-    private readonly repo: IWorldCalendarConfigRepository,
-    @Inject('IWorldMembershipRepository')
-    private readonly membershipRepo: IWorldMembershipRepository,
-  ) {}
-
-  async getConfig(worldId: string): Promise<WorldCalendarConfig | null> {
-    return this.repo.findByWorldId(worldId);
-  }
-
-  async upsertConfig(
-    worldId: string,
-    dto: UpsertWorldCalendarConfigDto,
-    userId: string,
-    userRole: UserRole,
-  ): Promise<WorldCalendarConfig> {
-    await this.assertPjOnly(userId, userRole, worldId);
-
-    const monthCount = dto.months?.length ?? 0;
-    for (const body of dto.celestialBodies ?? []) {
-      if (body.type === 'sun') {
-        const sun = body.config as unknown as SunConfig;
-        if ((sun.riseHour?.length ?? 0) !== monthCount || (sun.setHour?.length ?? 0) !== monthCount) {
-          throw new BadRequestException('SunConfig riseHour a setHour musí odpovídat počtu měsíců');
-        }
-      }
-    }
-
-    const bodies = (dto.celestialBodies ?? []).map((b) => ({
-      ...b,
-      id: b.id ?? crypto.randomUUID(),
-    }));
-
-    return this.repo.upsert(worldId, {
-      hoursPerDay: dto.hoursPerDay ?? 24,
-      daysOfWeek: dto.daysOfWeek ?? [],
-      months: dto.months ?? [],
-      celestialBodies: bodies as WorldCalendarConfig['celestialBodies'],
-      referenceDate: dto.referenceDate ?? null,
-    });
-  }
-
-  calculateCelestialStates(
-    year: number,
-    month: number,
-    day: number,
-    config: WorldCalendarConfig,
-    overrides: CelestialOverride[],
-  ): CelestialState[] {
-    return calculateCelestialStates(year, month, day, config, overrides);
-  }
-
-  private async assertPjOnly(userId: string, userRole: UserRole, worldId: string): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
-    if (!membership || membership.role < WorldRole.PJ) {
-      throw new ForbiddenException('Vyžaduje roli PJ nebo Admin');
-    }
-  }
-}
-```
-
-- [ ] Spusť spec — ověř, že PROCHÁZÍ:
-
-```bash
-cd backend && npx jest --testPathPattern="world-calendar-config.service.spec" --no-coverage
-```
-
-Očekáváno: všechny testy PASS
-
-- [ ] Commit:
-
-```bash
-git add backend/src/modules/world-calendar-config/dto/
-git add backend/src/modules/world-calendar-config/world-calendar-config.service.ts
-git add backend/src/modules/world-calendar-config/world-calendar-config.service.spec.ts
-git commit -m "feat(world-calendar-config): service with TDD"
-```
-
----
-
-## Task 5: WorldCalendarConfigController + Module + registrace
-
-**Files:**
-- Create: `backend/src/modules/world-calendar-config/world-calendar-config.controller.ts`
-- Create: `backend/src/modules/world-calendar-config/world-calendar-config.module.ts`
-- Modify: `backend/src/app.module.ts`
-
-- [ ] Vytvoř controller:
-
-```typescript
-// backend/src/modules/world-calendar-config/world-calendar-config.controller.ts
-import { Controller, Get, Put, Param, Body, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
-import { WorldCalendarConfigService } from './world-calendar-config.service';
-import { UpsertWorldCalendarConfigDto } from './dto/upsert-world-calendar-config.dto';
-
-interface RequestUser { id: string; role: UserRole }
-
-@UseGuards(JwtAuthGuard)
-@Controller('worlds/:worldId/calendar-config')
-export class WorldCalendarConfigController {
-  constructor(private readonly service: WorldCalendarConfigService) {}
-
-  @Get()
-  getConfig(@Param('worldId') worldId: string) {
-    return this.service.getConfig(worldId);
-  }
-
-  @Put()
-  upsertConfig(
-    @Param('worldId') worldId: string,
-    @Body() dto: UpsertWorldCalendarConfigDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.service.upsertConfig(worldId, dto, user.id, user.role);
-  }
-}
-```
-
-- [ ] Vytvoř modul:
-
-```typescript
-// backend/src/modules/world-calendar-config/world-calendar-config.module.ts
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { WorldCalendarConfigSchemaClass, WorldCalendarConfigSchema } from './schemas/world-calendar-config.schema';
-import { WorldCalendarConfigController } from './world-calendar-config.controller';
-import { WorldCalendarConfigService } from './world-calendar-config.service';
-import { MongoWorldCalendarConfigRepository } from './repositories/world-calendar-config.repository';
-import { WorldsModule } from '../worlds/worlds.module';
-
-@Module({
-  imports: [
-    MongooseModule.forFeature([
-      { name: WorldCalendarConfigSchemaClass.name, schema: WorldCalendarConfigSchema },
-    ]),
-    WorldsModule,
-  ],
-  controllers: [WorldCalendarConfigController],
-  providers: [
-    WorldCalendarConfigService,
-    { provide: 'IWorldCalendarConfigRepository', useClass: MongoWorldCalendarConfigRepository },
-  ],
-  exports: [WorldCalendarConfigService],
-})
-export class WorldCalendarConfigModule {}
-```
-
-- [ ] Přidej do `backend/src/app.module.ts`:
-
-Import na začátek souboru:
-```typescript
-import { WorldCalendarConfigModule } from './modules/world-calendar-config/world-calendar-config.module';
-```
-
-Do pole `imports` (za `DungeonMapsModule`):
-```typescript
-WorldCalendarConfigModule,
-```
-
-- [ ] Commit:
-
-```bash
-git add backend/src/modules/world-calendar-config/
-git add backend/src/app.module.ts
-git commit -m "feat(world-calendar-config): controller, module, app registration"
-```
-
----
-
-## Task 6: TimelineEvent — interfaces a schema
+## Task 1: Interfaces
 
 **Files:**
 - Create: `backend/src/modules/timeline/interfaces/timeline-event.interface.ts`
 - Create: `backend/src/modules/timeline/interfaces/timeline-repository.interface.ts`
-- Create: `backend/src/modules/timeline/schemas/timeline-event.schema.ts`
 
-- [ ] Vytvoř interfacy:
+- [ ] **Step 1.1:** Entity interface
 
-```typescript
-// backend/src/modules/timeline/interfaces/timeline-event.interface.ts
-import { CelestialState, CelestialOverride } from '../../world-calendar-config/interfaces/world-calendar-config.interface';
-
-export { CelestialOverride };
+`backend/src/modules/timeline/interfaces/timeline-event.interface.ts`:
+```ts
+export interface CelestialOverride {
+  bodyId: string;
+  value: string;
+}
 
 export interface TimelineEvent {
   id: string;
   worldId: string;
   year: number;
-  month: number;
-  day: number;
-  hour?: number;
+  month: number;          // 1-based
+  day: number;            // 1-based
+  hour?: number;          // 0..23
   title: string;
   text: string;
-  imageUrl?: string | null;
-  link?: string | null;
+  imageUrl: string | null;
+  link: string | null;
   celestialOverrides: CelestialOverride[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface TimelineEventWithStates extends TimelineEvent {
-  celestialStates: CelestialState[];
+// Response s placeholder celestialStates (Fáze 4.1 ho začne plnit)
+export interface CelestialState {
+  bodyId: string;
+  name: string;
+  type: 'moon' | 'sun' | 'planet' | 'comet' | 'other';
+  state: string;
+  isManualOverride: boolean;
+}
+
+export interface TimelineEventResponse extends TimelineEvent {
+  celestialStates: CelestialState[];   // Fáze 3.2: vždy []
 }
 ```
 
-- [ ] Vytvoř repository interface:
+- [ ] **Step 1.2:** Repository interface
 
-```typescript
-// backend/src/modules/timeline/interfaces/timeline-repository.interface.ts
-import { TimelineEvent } from './timeline-event.interface';
+`backend/src/modules/timeline/interfaces/timeline-repository.interface.ts`:
+```ts
+import type { TimelineEvent } from './timeline-event.interface';
 
-export interface TimelineListFilters {
-  limit?: number;
+export interface TimelineFindOptions {
+  worldId: string;
+  limit: number;          // clamped 1..500, default 100
   fromYear?: number;
   toYear?: number;
 }
 
 export interface ITimelineRepository {
-  findByWorld(worldId: string, filters: TimelineListFilters): Promise<TimelineEvent[]>;
+  findMany(opts: TimelineFindOptions): Promise<TimelineEvent[]>;
   findById(id: string): Promise<TimelineEvent | null>;
-  create(data: Omit<TimelineEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<TimelineEvent>;
+  create(
+    data: Omit<TimelineEvent, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<TimelineEvent>;
   update(
     id: string,
-    data: Partial<Omit<TimelineEvent, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>>,
+    patch: Partial<Omit<TimelineEvent, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>>,
   ): Promise<TimelineEvent | null>;
   delete(id: string): Promise<boolean>;
 }
 ```
 
-- [ ] Vytvoř schema:
+- [ ] **Step 1.3:** Verify
 
-```typescript
-// backend/src/modules/timeline/schemas/timeline-event.schema.ts
+```bash
+cd backend && npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 1.4:** Commit
+
+```bash
+git add backend/src/modules/timeline/interfaces
+git commit -m "feat(timeline): interfaces (entity + response + repository)"
+```
+
+---
+
+## Task 2: Mongoose schema
+
+**Files:**
+- Create: `backend/src/modules/timeline/schemas/timeline-event.schema.ts`
+
+- [ ] **Step 2.1:** Vytvoř schema
+
+`backend/src/modules/timeline/schemas/timeline-event.schema.ts`:
+```ts
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import type { CelestialOverride } from '../interfaces/timeline-event.interface';
 
 export type TimelineEventDocument = HydratedDocument<TimelineEventSchemaClass>;
 
@@ -905,44 +163,61 @@ export type TimelineEventDocument = HydratedDocument<TimelineEventSchemaClass>;
 export class TimelineEventSchemaClass {
   @Prop({ required: true }) worldId: string;
   @Prop({ required: true }) year: number;
-  @Prop({ required: true }) month: number;
-  @Prop({ required: true }) day: number;
+  @Prop({ required: true, min: 1 }) month: number;
+  @Prop({ required: true, min: 1 }) day: number;
   @Prop({ default: null }) hour: number | null;
-  @Prop({ required: true }) title: string;
-  @Prop({ required: true }) text: string;
+  @Prop({ required: true, maxlength: 200 }) title: string;
+  @Prop({ required: true, maxlength: 50000 }) text: string;
   @Prop({ default: null }) imageUrl: string | null;
   @Prop({ default: null }) link: string | null;
-  @Prop({ type: [Object], default: [] }) celestialOverrides: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] })
+  celestialOverrides: CelestialOverride[];
 }
 
-export const TimelineEventSchema = SchemaFactory.createForClass(TimelineEventSchemaClass);
+export const TimelineEventSchema = SchemaFactory.createForClass(
+  TimelineEventSchemaClass,
+);
 TimelineEventSchema.index({ worldId: 1, year: 1, month: 1, day: 1 });
 ```
 
-- [ ] Commit:
+- [ ] **Step 2.2:** Verify
 
 ```bash
-git add backend/src/modules/timeline/
-git commit -m "feat(timeline): interfaces and schema"
+cd backend && npm run typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 2.3:** Commit
+
+```bash
+git add backend/src/modules/timeline/schemas
+git commit -m "feat(timeline): mongoose schema + chronological index"
 ```
 
 ---
 
-## Task 7: TimelineRepository
+## Task 3: Repository
 
 **Files:**
 - Create: `backend/src/modules/timeline/repositories/timeline.repository.ts`
 
-- [ ] Vytvoř repository:
+- [ ] **Step 3.1:** Vytvoř repository
 
-```typescript
-// backend/src/modules/timeline/repositories/timeline.repository.ts
+`backend/src/modules/timeline/repositories/timeline.repository.ts`:
+```ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
+import type {
+  ITimelineRepository,
+  TimelineFindOptions,
+} from '../interfaces/timeline-repository.interface';
+import type {
+  TimelineEvent,
+  CelestialOverride,
+} from '../interfaces/timeline-event.interface';
 import { TimelineEventSchemaClass } from '../schemas/timeline-event.schema';
-import { ITimelineRepository, TimelineListFilters } from '../interfaces/timeline-repository.interface';
-import { TimelineEvent, CelestialOverride } from '../interfaces/timeline-event.interface';
 
 @Injectable()
 export class MongoTimelineRepository implements ITimelineRepository {
@@ -950,42 +225,6 @@ export class MongoTimelineRepository implements ITimelineRepository {
     @InjectModel(TimelineEventSchemaClass.name)
     private readonly model: Model<TimelineEventSchemaClass>,
   ) {}
-
-  async findByWorld(worldId: string, filters: TimelineListFilters): Promise<TimelineEvent[]> {
-    const query: Record<string, unknown> = { worldId };
-    if (filters.fromYear !== undefined) query.year = { ...((query.year as object) ?? {}), $gte: filters.fromYear };
-    if (filters.toYear !== undefined) query.year = { ...((query.year as object) ?? {}), $lte: filters.toYear };
-    let q = this.model.find(query).sort({ year: 1, month: 1, day: 1 });
-    if (filters.limit) q = q.limit(filters.limit);
-    const docs = await q.lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
-  }
-
-  async findById(id: string): Promise<TimelineEvent | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await this.model.findById(id).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
-  }
-
-  async create(data: Omit<TimelineEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<TimelineEvent> {
-    const doc = await this.model.create(data);
-    return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
-  }
-
-  async update(
-    id: string,
-    data: Partial<Omit<TimelineEvent, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>>,
-  ): Promise<TimelineEvent | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await this.model.findByIdAndUpdate(id, { $set: data }, { new: true }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
-  }
-
-  async delete(id: string): Promise<boolean> {
-    if (!Types.ObjectId.isValid(id)) return false;
-    const result = await this.model.findByIdAndDelete(id).lean().exec();
-    return !!result;
-  }
 
   private toEntity(doc: Record<string, unknown>): TimelineEvent {
     return {
@@ -999,245 +238,939 @@ export class MongoTimelineRepository implements ITimelineRepository {
       text: doc.text as string,
       imageUrl: (doc.imageUrl as string | null) ?? null,
       link: (doc.link as string | null) ?? null,
-      celestialOverrides: (doc.celestialOverrides as CelestialOverride[]) ?? [],
+      celestialOverrides:
+        (doc.celestialOverrides as CelestialOverride[]) ?? [],
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };
   }
+
+  async findMany(opts: TimelineFindOptions): Promise<TimelineEvent[]> {
+    const filter: Record<string, unknown> = { worldId: opts.worldId };
+    if (opts.fromYear !== undefined || opts.toYear !== undefined) {
+      const yearFilter: Record<string, number> = {};
+      if (opts.fromYear !== undefined) yearFilter.$gte = opts.fromYear;
+      if (opts.toYear !== undefined) yearFilter.$lte = opts.toYear;
+      filter.year = yearFilter;
+    }
+    const docs = await this.model
+      .find(filter)
+      .sort({ year: 1, month: 1, day: 1, hour: 1 })
+      .limit(opts.limit)
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async findById(id: string): Promise<TimelineEvent | null> {
+    if (!isValidObjectId(id)) return null;
+    const doc = await this.model.findById(id).lean().exec();
+    if (!doc) return null;
+    return this.toEntity(doc as unknown as Record<string, unknown>);
+  }
+
+  async create(
+    data: Omit<TimelineEvent, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<TimelineEvent> {
+    const doc = await this.model.create(data);
+    return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
+  }
+
+  async update(
+    id: string,
+    patch: Partial<
+      Omit<TimelineEvent, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>
+    >,
+  ): Promise<TimelineEvent | null> {
+    if (!isValidObjectId(id)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(id, patch, { new: true })
+      .lean()
+      .exec();
+    if (!doc) return null;
+    return this.toEntity(doc as unknown as Record<string, unknown>);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    if (!isValidObjectId(id)) return false;
+    const result = await this.model.findByIdAndDelete(id).exec();
+    return result !== null;
+  }
 }
 ```
 
-- [ ] Commit:
+- [ ] **Step 3.2:** Verify
 
 ```bash
-git add backend/src/modules/timeline/repositories/
-git commit -m "feat(timeline): repository"
+cd backend && npm run typecheck && npm run lint:check
+```
+
+Expected: PASS.
+
+- [ ] **Step 3.3:** Commit
+
+```bash
+git add backend/src/modules/timeline/repositories
+git commit -m "feat(timeline): mongo repository (find/create/update/delete + year-range filter)"
 ```
 
 ---
 
-## Task 8: TimelineService (TDD)
+## Task 4: DTOs
 
 **Files:**
 - Create: `backend/src/modules/timeline/dto/create-timeline-event.dto.ts`
 - Create: `backend/src/modules/timeline/dto/update-timeline-event.dto.ts`
-- Create: `backend/src/modules/timeline/timeline.service.spec.ts`
-- Create: `backend/src/modules/timeline/timeline.service.ts`
+- Create: `backend/src/modules/timeline/dto/query-timeline-event.dto.ts`
 
-- [ ] Vytvoř DTOs:
+- [ ] **Step 4.1:** Create DTO
 
-```typescript
-// backend/src/modules/timeline/dto/create-timeline-event.dto.ts
+`backend/src/modules/timeline/dto/create-timeline-event.dto.ts`:
+```ts
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsInt,
+  IsArray,
+  ValidateNested,
+  Min,
+  Max,
+  MaxLength,
+  Matches,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CelestialOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  bodyId: string;
+
+  @IsString()
+  value: string;
+}
+
+// imageUrl může být buď URL (http/https) nebo data: URI
+const URL_OR_DATA = /^(https?:\/\/|data:)/;
+
 export class CreateTimelineEventDto {
+  @IsString()
+  @IsNotEmpty()
   worldId: string;
+
+  @IsInt()
+  // Záporné hodnoty povoleny — fantasy "BC era" / retroaktivní dějiny.
+  // Žádné @Min(0). Rozhodnutí 2026-05-06 (per dluhy.md final code review Fáze 3.2).
   year: number;
+
+  @IsInt()
+  @Min(1)
   month: number;
+
+  @IsInt()
+  @Min(1)
   day: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(23)
   hour?: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
   title: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50000)
   text: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(URL_OR_DATA, {
+    message: 'imageUrl musí být http(s):// URL nebo data: URI',
+  })
   imageUrl?: string | null;
-  link?: string | null;
-  celestialOverrides?: { bodyId: string; value: string }[];
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^https?:\/\//, { message: 'link musí začínat http(s)://' })
+  link?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CelestialOverrideDto)
+  celestialOverrides?: CelestialOverrideDto[];
 }
 ```
 
-```typescript
-// backend/src/modules/timeline/dto/update-timeline-event.dto.ts
+- [ ] **Step 4.2:** Update DTO
+
+`backend/src/modules/timeline/dto/update-timeline-event.dto.ts`:
+```ts
+import {
+  IsString,
+  IsOptional,
+  IsInt,
+  IsArray,
+  ValidateNested,
+  IsNotEmpty,
+  Min,
+  Max,
+  MaxLength,
+  Matches,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CelestialOverrideDto {
+  @IsString()
+  @IsNotEmpty()
+  bodyId: string;
+
+  @IsString()
+  value: string;
+}
+
+const URL_OR_DATA = /^(https?:\/\/|data:)/;
+
+/**
+ * worldId zde NENÍ — je immutable (defense-in-depth check v service).
+ */
 export class UpdateTimelineEventDto {
+  @IsOptional()
+  @IsInt()
   year?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   month?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   day?: number;
-  hour?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hour?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
   title?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50000)
   text?: string;
+
+  // imageUrl: null = "zachovat stávající" (per parity); jinak nahradit
+  @IsOptional()
+  @IsString()
+  @Matches(/^(https?:\/\/|data:)/, {
+    message: 'imageUrl musí být http(s):// URL nebo data: URI',
+  })
   imageUrl?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^https?:\/\//, { message: 'link musí začínat http(s)://' })
   link?: string | null;
-  celestialOverrides?: { bodyId: string; value: string }[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CelestialOverrideDto)
+  celestialOverrides?: CelestialOverrideDto[];
 }
 ```
 
-- [ ] Napiš spec PŘED implementací:
+> Pozn.: `imageUrl: null` projde validaci (`@IsOptional()` se aplikuje na `null` value také). Service pak rozlišuje `dto.imageUrl === null` (zachovat) vs. string (nahradit) vs. nezadané (nech nedotčené).
 
-```typescript
-// backend/src/modules/timeline/timeline.service.spec.ts
+- [ ] **Step 4.3:** Query DTO
+
+`backend/src/modules/timeline/dto/query-timeline-event.dto.ts`:
+```ts
+import { IsOptional, IsString, IsInt, Min, Max, IsNotEmpty } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class QueryTimelineEventDto {
+  @IsString()
+  @IsNotEmpty()
+  worldId: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  fromYear?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  toYear?: number;
+}
+```
+
+- [ ] **Step 4.4:** Verify
+
+```bash
+cd backend && npm run typecheck && npm run lint:check
+```
+
+Expected: PASS.
+
+- [ ] **Step 4.5:** Commit
+
+```bash
+git add backend/src/modules/timeline/dto
+git commit -m "feat(timeline): DTOs (create/update/query) s class-validator"
+```
+
+---
+
+## Task 5: Service — read path (TDD)
+
+**Files:**
+- Create: `backend/src/modules/timeline/timeline.service.ts`
+- Create: `backend/src/modules/timeline/timeline.service.spec.ts`
+
+- [ ] **Step 5.1:** Napiš failing test
+
+`backend/src/modules/timeline/timeline.service.spec.ts`:
+```ts
 import { Test } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { TimelineService } from './timeline.service';
-import { WorldCalendarConfigService } from '../world-calendar-config/world-calendar-config.service';
-import { UserRole } from '../users/interfaces/user.interface';
-import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import type { TimelineEvent } from './interfaces/timeline-event.interface';
 
-const mockRepo = {
-  findByWorld: jest.fn(), findById: jest.fn(),
-  create: jest.fn(), update: jest.fn(), delete: jest.fn(),
-};
-const mockMembershipRepo = { findByUserAndWorld: jest.fn() };
-const mockCalendarService = { getConfig: jest.fn(), calculateCelestialStates: jest.fn() };
-
-const mockEvent = {
-  id: 'ev1', worldId: 'w1', year: 100, month: 1, day: 5,
-  title: 'Bitva', text: 'Popis', imageUrl: null, link: null,
-  celestialOverrides: [], createdAt: new Date(), updatedAt: new Date(),
-};
+const mockEvent = (
+  overrides: Partial<TimelineEvent> = {},
+): TimelineEvent => ({
+  id: 'ev1',
+  worldId: 'W1',
+  year: 100,
+  month: 1,
+  day: 5,
+  title: 'Bitva',
+  text: 'Popis bitvy',
+  imageUrl: null,
+  link: null,
+  celestialOverrides: [],
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+  ...overrides,
+});
 
 describe('TimelineService', () => {
   let service: TimelineService;
 
+  const mockRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+  const mockMembership = { findByUserAndWorld: jest.fn() };
+  const mockWorlds = { findById: jest.fn() };
+
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockCalendarService.getConfig.mockResolvedValue(null);
-    mockCalendarService.calculateCelestialStates.mockReturnValue([]);
     const module = await Test.createTestingModule({
       providers: [
         TimelineService,
         { provide: 'ITimelineRepository', useValue: mockRepo },
-        { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
-        { provide: WorldCalendarConfigService, useValue: mockCalendarService },
+        { provide: 'IWorldMembershipRepository', useValue: mockMembership },
+        { provide: 'IWorldsRepository', useValue: mockWorlds },
       ],
     }).compile();
     service = module.get(TimelineService);
   });
 
-  describe('findAll', () => {
-    it('vrátí události s prázdnými celestialStates když config neexistuje', async () => {
-      mockRepo.findByWorld.mockResolvedValue([mockEvent]);
-      const result = await service.findAll('w1', {});
+  describe('findMany (read path)', () => {
+    const Hrac = { id: 'u1', role: 5, username: 'h' } as const;
+
+    it('member světa: vrátí events s placeholder celestialStates', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({
+        userId: 'u1',
+        worldId: 'W1',
+        role: 0, // Hrac
+      });
+      mockRepo.findMany.mockResolvedValue([mockEvent()]);
+      const result = await service.findMany({ worldId: 'W1', limit: 100 }, Hrac);
+      expect(result).toHaveLength(1);
       expect(result[0].celestialStates).toEqual([]);
     });
 
-    it('stripuje base64 imageUrl v listu', async () => {
-      mockRepo.findByWorld.mockResolvedValue([{ ...mockEvent, imageUrl: 'data:image/png;base64,abc' }]);
-      const result = await service.findAll('w1', {});
+    it('non-member: 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findMany({ worldId: 'W1', limit: 100 }, Hrac),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('Pending (role -1): 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({ role: -1 });
+      await expect(
+        service.findMany({ worldId: 'W1', limit: 100 }, Hrac),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('Admin: bez kontroly členství, vrátí events', async () => {
+      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      mockRepo.findMany.mockResolvedValue([mockEvent()]);
+      const result = await service.findMany(
+        { worldId: 'W1', limit: 100 },
+        Admin,
+      );
+      expect(result).toHaveLength(1);
+      expect(mockMembership.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('neexistující svět: 404', async () => {
+      mockWorlds.findById.mockResolvedValue(null);
+      await expect(
+        service.findMany({ worldId: 'fake', limit: 100 }, Hrac),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('default limit je 100, max 500 clamp', async () => {
+      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      mockRepo.findMany.mockResolvedValue([]);
+      await service.findMany({ worldId: 'W1' }, Admin);
+      expect(mockRepo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 100 }),
+      );
+      jest.clearAllMocks();
+      mockRepo.findMany.mockResolvedValue([]);
+      await service.findMany({ worldId: 'W1', limit: 999 }, Admin);
+      expect(mockRepo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ limit: 500 }),
+      );
+    });
+
+    it('strippe data: imageUrl v list response', async () => {
+      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      mockRepo.findMany.mockResolvedValue([
+        mockEvent({ imageUrl: 'data:image/png;base64,abc' }),
+      ]);
+      const result = await service.findMany({ worldId: 'W1' }, Admin);
       expect(result[0].imageUrl).toBeNull();
     });
 
-    it('zachová normální URL v listu', async () => {
-      mockRepo.findByWorld.mockResolvedValue([{ ...mockEvent, imageUrl: 'https://cdn.example.com/img.png' }]);
-      const result = await service.findAll('w1', {});
+    it('zachová normal URL v list response', async () => {
+      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      mockRepo.findMany.mockResolvedValue([
+        mockEvent({ imageUrl: 'https://cdn.example.com/img.png' }),
+      ]);
+      const result = await service.findMany({ worldId: 'W1' }, Admin);
       expect(result[0].imageUrl).toBe('https://cdn.example.com/img.png');
     });
   });
 
-  describe('findOne', () => {
-    it('zachová base64 imageUrl v detailu', async () => {
-      mockRepo.findById.mockResolvedValue({ ...mockEvent, imageUrl: 'data:image/png;base64,abc' });
-      const result = await service.findOne('ev1');
+  describe('findById (detail)', () => {
+    const Admin = { id: 'a', role: 2, username: 'a' } as const;
+
+    it('zachová data: imageUrl v detail response', async () => {
+      mockRepo.findById.mockResolvedValue(
+        mockEvent({ imageUrl: 'data:image/png;base64,abc' }),
+      );
+      const result = await service.findById('ev1', Admin);
       expect(result.imageUrl).toBe('data:image/png;base64,abc');
+      expect(result.celestialStates).toEqual([]);
     });
 
-    it('vyhodí NotFoundException pro neexistující událost', async () => {
+    it('non-existing: 404', async () => {
       mockRepo.findById.mockResolvedValue(null);
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('create', () => {
-    it('vyhodí ForbiddenException pro Hráče', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Hrac });
-      await expect(
-        service.create({ worldId: 'w1', year: 1, month: 1, day: 1, title: 'T', text: 'T' }, 'u1', UserRole.Hrac),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('vytvoří událost pro PJ', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      mockRepo.create.mockResolvedValue(mockEvent);
-      const result = await service.create(
-        { worldId: 'w1', year: 1, month: 1, day: 1, title: 'T', text: 'T' }, 'pj1', UserRole.Hrac,
+      await expect(service.findById('missing', Admin)).rejects.toThrow(
+        NotFoundException,
       );
-      expect(result).toBe(mockEvent);
     });
 
-    it('Admin vytvoří bez kontroly členství', async () => {
-      mockRepo.create.mockResolvedValue(mockEvent);
-      await service.create(
-        { worldId: 'w1', year: 1, month: 1, day: 1, title: 'T', text: 'T' }, 'admin1', UserRole.Admin,
-      );
-      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('update', () => {
-    it('zachová imageUrl při přijetí null v dto', async () => {
-      mockRepo.findById.mockResolvedValue({ ...mockEvent, imageUrl: 'https://cdn.example.com/img.png' });
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      mockRepo.update.mockResolvedValue({ ...mockEvent, imageUrl: 'https://cdn.example.com/img.png' });
-      await service.update('ev1', { imageUrl: null }, 'pj1', UserRole.Hrac);
-      expect(mockRepo.update.mock.calls[0][1].imageUrl).toBe('https://cdn.example.com/img.png');
+    it('member světa události: 200', async () => {
+      const Hrac = { id: 'u1', role: 5, username: 'h' } as const;
+      mockRepo.findById.mockResolvedValue(mockEvent());
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({ role: 0 });
+      const result = await service.findById('ev1', Hrac);
+      expect(result.id).toBe('ev1');
     });
 
-    it('vyhodí NotFoundException pro neexistující událost', async () => {
-      mockRepo.findById.mockResolvedValue(null);
-      await expect(service.update('missing', {}, 'pj1', UserRole.Admin)).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('delete', () => {
-    it('vyhodí ForbiddenException pro Hráče', async () => {
-      mockRepo.findById.mockResolvedValue(mockEvent);
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Hrac });
-      await expect(service.delete('ev1', 'u1', UserRole.Hrac)).rejects.toThrow(ForbiddenException);
-    });
-
-    it('Admin smaže bez kontroly členství', async () => {
-      mockRepo.findById.mockResolvedValue(mockEvent);
-      mockRepo.delete.mockResolvedValue(true);
-      await service.delete('ev1', 'admin1', UserRole.Admin);
-      expect(mockRepo.delete).toHaveBeenCalledWith('ev1');
-      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    it('non-member světa události: 403', async () => {
+      const Hrac = { id: 'u1', role: 5, username: 'h' } as const;
+      mockRepo.findById.mockResolvedValue(mockEvent());
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(service.findById('ev1', Hrac)).rejects.toMatchObject({
+        status: 403,
+      });
     });
   });
 });
 ```
 
-- [ ] Spusť spec — ověř, že SELHÁVÁ:
+- [ ] **Step 5.2:** Spusť test — musí selhat
 
 ```bash
-cd backend && npx jest --testPathPattern="timeline.service.spec" --no-coverage
+cd backend && npx jest timeline.service.spec --no-coverage
 ```
 
-Očekáváno: FAIL — `Cannot find module`
+Expected: FAIL — `Cannot find module './timeline.service'`.
 
-- [ ] Vytvoř service implementaci:
+- [ ] **Step 5.3:** Implementuj minimum service pro read path
 
-```typescript
-// backend/src/modules/timeline/timeline.service.ts
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { ITimelineRepository, TimelineListFilters } from './interfaces/timeline-repository.interface';
-import { TimelineEvent, TimelineEventWithStates } from './interfaces/timeline-event.interface';
-import { CreateTimelineEventDto } from './dto/create-timeline-event.dto';
-import { UpdateTimelineEventDto } from './dto/update-timeline-event.dto';
-import { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import { WorldCalendarConfigService } from '../world-calendar-config/world-calendar-config.service';
-import { WorldCalendarConfig } from '../world-calendar-config/interfaces/world-calendar-config.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+`backend/src/modules/timeline/timeline.service.ts`:
+```ts
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { ITimelineRepository } from './interfaces/timeline-repository.interface';
+import type {
+  TimelineEvent,
+  TimelineEventResponse,
+} from './interfaces/timeline-event.interface';
+import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 500;
+
+interface FindManyArgs {
+  worldId: string;
+  limit?: number;
+  fromYear?: number;
+  toYear?: number;
+}
+
+export interface TimelineRequester {
+  id: string;
+  role: UserRole;
+  username: string;
+}
+
+function stripBase64(url: string | null): string | null {
+  if (typeof url === 'string' && url.startsWith('data:')) return null;
+  return url;
+}
+
+function toResponse(
+  event: TimelineEvent,
+  preserveImageUrl: boolean,
+): TimelineEventResponse {
+  return {
+    ...event,
+    imageUrl: preserveImageUrl ? event.imageUrl : stripBase64(event.imageUrl),
+    celestialStates: [], // Fáze 3.2 placeholder; Fáze 4.1 ho začne plnit
+  };
+}
 
 @Injectable()
 export class TimelineService {
   constructor(
-    @Inject('ITimelineRepository') private readonly repo: ITimelineRepository,
-    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
-    private readonly calendarConfigService: WorldCalendarConfigService,
+    @Inject('ITimelineRepository')
+    private readonly repo: ITimelineRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldsRepository')
+    private readonly worldsRepo: IWorldsRepository,
   ) {}
 
-  async findAll(worldId: string, filters: TimelineListFilters): Promise<TimelineEventWithStates[]> {
-    const events = await this.repo.findByWorld(worldId, filters);
-    const config = await this.calendarConfigService.getConfig(worldId);
-    return events.map((event) => this.enrich(event, config, false));
+  async findMany(
+    args: FindManyArgs,
+    requester: TimelineRequester,
+  ): Promise<TimelineEventResponse[]> {
+    await this.assertMember(args.worldId, requester);
+    const limit = Math.max(
+      1,
+      Math.min(args.limit ?? DEFAULT_LIMIT, MAX_LIMIT),
+    );
+    const events = await this.repo.findMany({
+      worldId: args.worldId,
+      limit,
+      fromYear: args.fromYear,
+      toYear: args.toYear,
+    });
+    return events.map((e) => toResponse(e, false));
   }
 
-  async findOne(id: string): Promise<TimelineEventWithStates> {
+  async findById(
+    id: string,
+    requester: TimelineRequester,
+  ): Promise<TimelineEventResponse> {
     const event = await this.repo.findById(id);
-    if (!event) throw new NotFoundException('Timeline event not found');
-    const config = await this.calendarConfigService.getConfig(event.worldId);
-    return this.enrich(event, config, true);
+    if (!event) throw new NotFoundException('Událost nenalezena');
+    await this.assertMember(event.worldId, requester);
+    return toResponse(event, true);
   }
 
-  async create(dto: CreateTimelineEventDto, userId: string, userRole: UserRole): Promise<TimelineEvent> {
-    await this.assertPjOnly(userId, userRole, dto.worldId);
-    return this.repo.create({
+  /**
+   * Read access: member světa (jakákoli role >= Hrac, tj. Pending je vyloučen).
+   * Admin/Superadmin shortcut bez membership lookupu.
+   * Neexistující svět = 404 (auth-required GET, leak světa není kritický).
+   */
+  private async assertMember(
+    worldId: string,
+    requester: TimelineRequester,
+  ): Promise<void> {
+    if (requester.role <= UserRole.Admin) return;
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world) throw new NotFoundException('Svět nenalezen');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership) throw new ForbiddenException('Nejsi členem tohoto světa');
+    if (membership.role < WorldRole.Hrac) {
+      throw new ForbiddenException('Pending členství nemá přístup');
+    }
+  }
+}
+```
+
+- [ ] **Step 5.4:** Spusť test — read tests musí projít
+
+```bash
+cd backend && npx jest timeline.service.spec --no-coverage
+```
+
+Expected: read describe bloky PASS. Write tests přijdou v Tasku 6.
+
+- [ ] **Step 5.5:** Commit
+
+```bash
+git add backend/src/modules/timeline/timeline.service.ts backend/src/modules/timeline/timeline.service.spec.ts
+git commit -m "feat(timeline): service read path (findMany, findById, base64 stripping)"
+```
+
+---
+
+## Task 6: Service — write path + autorizace (TDD)
+
+**Files:**
+- Modify: `backend/src/modules/timeline/timeline.service.ts`
+- Modify: `backend/src/modules/timeline/timeline.service.spec.ts`
+
+- [ ] **Step 6.1:** Rozšiř test o write path scénáře
+
+Přidej **na konec** describe bloku v `timeline.service.spec.ts`:
+
+```ts
+  describe('create — autorizace', () => {
+    const Superadmin = { id: 'u1', role: 1, username: 'sa' } as const;
+    const Admin = { id: 'u2', role: 2, username: 'a' } as const;
+    const PJ = { id: 'u3', role: 3, username: 'pj' } as const;
+    const Hrac = { id: 'u4', role: 5, username: 'h' } as const;
+
+    const baseDto = {
+      worldId: 'W1',
+      year: 100,
+      month: 1,
+      day: 5,
+      title: 'Bitva',
+      text: 'Popis',
+    };
+
+    it('Admin smí vytvořit', async () => {
+      mockRepo.create.mockResolvedValue(mockEvent());
+      const result = await service.create(baseDto, Admin);
+      expect(result.id).toBe('ev1');
+    });
+
+    it('Superadmin smí vytvořit', async () => {
+      mockRepo.create.mockResolvedValue(mockEvent());
+      await service.create(baseDto, Superadmin);
+      expect(mockRepo.create).toHaveBeenCalled();
+    });
+
+    it('PJ světa W1 smí vytvořit v W1', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({
+        userId: 'u3',
+        worldId: 'W1',
+        role: 3, // WorldRole.PJ
+      });
+      mockRepo.create.mockResolvedValue(mockEvent());
+      await service.create(baseDto, PJ);
+      expect(mockRepo.create).toHaveBeenCalled();
+    });
+
+    it('PomocnyPJ (role 2) smí vytvořit', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({
+        userId: 'u4',
+        worldId: 'W1',
+        role: 2, // PomocnyPJ
+      });
+      mockRepo.create.mockResolvedValue(mockEvent());
+      await service.create(baseDto, Hrac);
+      expect(mockRepo.create).toHaveBeenCalled();
+    });
+
+    it('Korektor (role 1) NESMÍ vytvořit → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({
+        userId: 'u4',
+        worldId: 'W1',
+        role: 1,
+      });
+      await expect(service.create(baseDto, Hrac)).rejects.toMatchObject({
+        status: 403,
+      });
+    });
+
+    it('PJ světa W1 nesmí vytvořit v W2 → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W2' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.create({ ...baseDto, worldId: 'W2' }, PJ),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('neexistující svět → 403 (anti-leak)', async () => {
+      mockWorlds.findById.mockResolvedValue(null);
+      await expect(
+        service.create({ ...baseDto, worldId: 'fake' }, PJ),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('default celestialOverrides je []', async () => {
+      mockRepo.create.mockImplementation(async (data) => ({
+        id: 'x',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...data,
+      }));
+      await service.create(baseDto, Admin);
+      expect(mockRepo.create.mock.calls[0][0].celestialOverrides).toEqual([]);
+    });
+
+    it('default imageUrl/link je null', async () => {
+      mockRepo.create.mockImplementation(async (data) => ({
+        id: 'x',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...data,
+      }));
+      await service.create(baseDto, Admin);
+      expect(mockRepo.create.mock.calls[0][0].imageUrl).toBeNull();
+      expect(mockRepo.create.mock.calls[0][0].link).toBeNull();
+    });
+  });
+
+  describe('update — partial + immutable worldId + imageUrl null preserve', () => {
+    const Admin = { id: 'u2', role: 2, username: 'a' } as const;
+
+    it('partial update — title', async () => {
+      mockRepo.findById.mockResolvedValue(mockEvent());
+      mockRepo.update.mockResolvedValue(mockEvent({ title: 'nový' }));
+      const result = await service.update('ev1', { title: 'nový' }, Admin);
+      expect(result.title).toBe('nový');
+    });
+
+    it('imageUrl: null v body → zachová stávající (per parity)', async () => {
+      mockRepo.findById.mockResolvedValue(
+        mockEvent({ imageUrl: 'https://cdn.example.com/img.png' }),
+      );
+      mockRepo.update.mockImplementation(async (id, patch) => ({
+        ...mockEvent({ imageUrl: 'https://cdn.example.com/img.png' }),
+        ...patch,
+      }));
+      await service.update('ev1', { imageUrl: null }, Admin);
+      const updateCall = mockRepo.update.mock.calls[0][1];
+      expect(updateCall.imageUrl).toBe('https://cdn.example.com/img.png');
+    });
+
+    it('imageUrl: nový string → nahradí', async () => {
+      mockRepo.findById.mockResolvedValue(mockEvent({ imageUrl: 'old' }));
+      mockRepo.update.mockResolvedValue(mockEvent({ imageUrl: 'new' }));
+      await service.update('ev1', { imageUrl: 'https://new.com/x' }, Admin);
+      expect(mockRepo.update.mock.calls[0][1].imageUrl).toBe(
+        'https://new.com/x',
+      );
+    });
+
+    it('worldId v body → 400 (immutability)', async () => {
+      mockRepo.findById.mockResolvedValue(mockEvent());
+      await expect(
+        service.update(
+          'ev1',
+          { worldId: 'W2' } as unknown as Parameters<typeof service.update>[1],
+          Admin,
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+    });
+
+    it('non-existing :id → 404', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.update('missing', { title: 't' }, Admin),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('běžný User nesmí upravit → 403', async () => {
+      const Hrac = { id: 'u4', role: 5, username: 'h' } as const;
+      mockRepo.findById.mockResolvedValue(mockEvent());
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue({ role: 0 });
+      await expect(
+        service.update('ev1', { title: 't' }, Hrac),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
+  describe('delete', () => {
+    const Admin = { id: 'u2', role: 2, username: 'a' } as const;
+
+    it('non-existing :id → 404', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(service.delete('missing', Admin)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('Admin smí smazat', async () => {
+      mockRepo.findById.mockResolvedValue(mockEvent());
+      mockRepo.delete.mockResolvedValue(true);
+      await service.delete('ev1', Admin);
+      expect(mockRepo.delete).toHaveBeenCalledWith('ev1');
+    });
+  });
+```
+
+- [ ] **Step 6.2:** Spusť test — write tests musí FAIL
+
+```bash
+cd backend && npx jest timeline.service.spec --no-coverage
+```
+
+Expected: read PASS, write FAIL — `service.create is not a function`.
+
+- [ ] **Step 6.3:** Rozšiř service o write path
+
+Přepiš celý `backend/src/modules/timeline/timeline.service.ts`:
+
+```ts
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import type { ITimelineRepository } from './interfaces/timeline-repository.interface';
+import type {
+  TimelineEvent,
+  TimelineEventResponse,
+} from './interfaces/timeline-event.interface';
+import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
+import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
+import type { CreateTimelineEventDto } from './dto/create-timeline-event.dto';
+import type { UpdateTimelineEventDto } from './dto/update-timeline-event.dto';
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 500;
+
+interface FindManyArgs {
+  worldId: string;
+  limit?: number;
+  fromYear?: number;
+  toYear?: number;
+}
+
+export interface TimelineRequester {
+  id: string;
+  role: UserRole;
+  username: string;
+}
+
+function stripBase64(url: string | null): string | null {
+  if (typeof url === 'string' && url.startsWith('data:')) return null;
+  return url;
+}
+
+function toResponse(
+  event: TimelineEvent,
+  preserveImageUrl: boolean,
+): TimelineEventResponse {
+  return {
+    ...event,
+    imageUrl: preserveImageUrl ? event.imageUrl : stripBase64(event.imageUrl),
+    celestialStates: [], // Fáze 3.2 placeholder; 4.1 začne plnit
+  };
+}
+
+@Injectable()
+export class TimelineService {
+  constructor(
+    @Inject('ITimelineRepository')
+    private readonly repo: ITimelineRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldsRepository')
+    private readonly worldsRepo: IWorldsRepository,
+  ) {}
+
+  async findMany(
+    args: FindManyArgs,
+    requester: TimelineRequester,
+  ): Promise<TimelineEventResponse[]> {
+    await this.assertMember(args.worldId, requester);
+    const limit = Math.max(
+      1,
+      Math.min(args.limit ?? DEFAULT_LIMIT, MAX_LIMIT),
+    );
+    const events = await this.repo.findMany({
+      worldId: args.worldId,
+      limit,
+      fromYear: args.fromYear,
+      toYear: args.toYear,
+    });
+    return events.map((e) => toResponse(e, false));
+  }
+
+  async findById(
+    id: string,
+    requester: TimelineRequester,
+  ): Promise<TimelineEventResponse> {
+    const event = await this.repo.findById(id);
+    if (!event) throw new NotFoundException('Událost nenalezena');
+    await this.assertMember(event.worldId, requester);
+    return toResponse(event, true);
+  }
+
+  async create(
+    dto: CreateTimelineEventDto,
+    requester: TimelineRequester,
+  ): Promise<TimelineEventResponse> {
+    await this.assertCanWrite(dto.worldId, requester);
+    const created = await this.repo.create({
       worldId: dto.worldId,
       year: dto.year,
       month: dto.month,
@@ -1249,154 +1182,273 @@ export class TimelineService {
       link: dto.link ?? null,
       celestialOverrides: dto.celestialOverrides ?? [],
     });
+    return toResponse(created, true);
   }
 
   async update(
     id: string,
     dto: UpdateTimelineEventDto,
-    userId: string,
-    userRole: UserRole,
-  ): Promise<TimelineEventWithStates> {
-    const event = await this.repo.findById(id);
-    if (!event) throw new NotFoundException('Timeline event not found');
-    await this.assertPjOnly(userId, userRole, event.worldId);
-    const imageUrl = dto.imageUrl === null ? event.imageUrl : dto.imageUrl;
-    const updated = await this.repo.update(id, { ...dto, imageUrl });
-    const config = await this.calendarConfigService.getConfig(event.worldId);
-    return this.enrich(updated!, config, true);
+    requester: TimelineRequester,
+  ): Promise<TimelineEventResponse> {
+    const existing = await this.repo.findById(id);
+    if (!existing) throw new NotFoundException('Událost nenalezena');
+
+    // Defense-in-depth proti DTO whitelist bypassu
+    if ('worldId' in (dto as Record<string, unknown>)) {
+      throw new BadRequestException(
+        'worldId je immutable — smaž a vytvoř novou událost pro změnu světa',
+      );
+    }
+
+    await this.assertCanWrite(existing.worldId, requester);
+
+    // imageUrl: null v body znamená "zachovat stávající" (per parity).
+    // Jinak (string nebo undefined) projde standardně.
+    const patch: Partial<
+      Omit<TimelineEvent, 'id' | 'worldId' | 'createdAt' | 'updatedAt'>
+    > = {
+      ...(dto.title !== undefined && { title: dto.title }),
+      ...(dto.text !== undefined && { text: dto.text }),
+      ...(dto.year !== undefined && { year: dto.year }),
+      ...(dto.month !== undefined && { month: dto.month }),
+      ...(dto.day !== undefined && { day: dto.day }),
+      ...(dto.hour !== undefined && { hour: dto.hour }),
+      ...(dto.link !== undefined && { link: dto.link }),
+      ...(dto.celestialOverrides !== undefined && {
+        celestialOverrides: dto.celestialOverrides,
+      }),
+    };
+    if (dto.imageUrl !== undefined) {
+      patch.imageUrl = dto.imageUrl === null ? existing.imageUrl : dto.imageUrl;
+    }
+
+    const updated = await this.repo.update(id, patch);
+    if (!updated) throw new NotFoundException('Událost nenalezena');
+    return toResponse(updated, true);
   }
 
-  async delete(id: string, userId: string, userRole: UserRole): Promise<void> {
-    const event = await this.repo.findById(id);
-    if (!event) throw new NotFoundException('Timeline event not found');
-    await this.assertPjOnly(userId, userRole, event.worldId);
-    await this.repo.delete(id);
+  async delete(id: string, requester: TimelineRequester): Promise<void> {
+    const existing = await this.repo.findById(id);
+    if (!existing) throw new NotFoundException('Událost nenalezena');
+    await this.assertCanWrite(existing.worldId, requester);
+    const deleted = await this.repo.delete(id);
+    if (!deleted) throw new NotFoundException('Událost nenalezena');
   }
 
-  private enrich(
-    event: TimelineEvent,
-    config: WorldCalendarConfig | null,
-    preserveImageUrl: boolean,
-  ): TimelineEventWithStates {
-    const celestialStates = config
-      ? this.calendarConfigService.calculateCelestialStates(
-          event.year, event.month, event.day, config, event.celestialOverrides,
-        )
-      : [];
-    const imageUrl = preserveImageUrl ? event.imageUrl : stripBase64(event.imageUrl);
-    return { ...event, imageUrl, celestialStates };
+  /**
+   * Read access: member světa (Hrac+, Pending vyloučen).
+   * Neexistující svět = 404 (auth-required GET, leak světa není kritický).
+   */
+  private async assertMember(
+    worldId: string,
+    requester: TimelineRequester,
+  ): Promise<void> {
+    if (requester.role <= UserRole.Admin) return;
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world) throw new NotFoundException('Svět nenalezen');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership) throw new ForbiddenException('Nejsi členem tohoto světa');
+    if (membership.role < WorldRole.Hrac) {
+      throw new ForbiddenException('Pending členství nemá přístup');
+    }
   }
 
-  private async assertPjOnly(userId: string, userRole: UserRole, worldId: string): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
-    if (!membership || membership.role < WorldRole.PJ) {
-      throw new ForbiddenException('Vyžaduje roli PJ nebo Admin');
+  /**
+   * Write access: Admin/Superadmin shortcut, jinak WorldRole >= PomocnyPJ.
+   * Neexistující svět = 403 (anti-leak per WorldNews precedent).
+   */
+  private async assertCanWrite(
+    worldId: string,
+    requester: TimelineRequester,
+  ): Promise<void> {
+    if (requester.role <= UserRole.Admin) return;
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership) throw new ForbiddenException('Nedostatečná oprávnění');
+    if (membership.role < WorldRole.PomocnyPJ) {
+      throw new ForbiddenException('Nedostatečná oprávnění');
     }
   }
 }
-
-function stripBase64(imageUrl: string | null | undefined): string | null {
-  if (typeof imageUrl === 'string' && imageUrl.startsWith('data:')) return null;
-  return imageUrl ?? null;
-}
 ```
 
-- [ ] Spusť spec — ověř, že PROCHÁZÍ:
+- [ ] **Step 6.4:** Spusť test — vše PASS
 
 ```bash
-cd backend && npx jest --testPathPattern="timeline.service.spec" --no-coverage
+cd backend && npx jest timeline.service.spec --no-coverage
 ```
 
-Očekáváno: všechny testy PASS
+Expected: vše PASS.
 
-- [ ] Commit:
+- [ ] **Step 6.5:** Commit
 
 ```bash
-git add backend/src/modules/timeline/
-git commit -m "feat(timeline): service with TDD"
+git add backend/src/modules/timeline/timeline.service.ts backend/src/modules/timeline/timeline.service.spec.ts
+git commit -m "feat(timeline): service write path s autorizací (Admin/Superadmin/PomocnyPJ+) + parity imageUrl null preserve"
 ```
 
 ---
 
-## Task 9: TimelineController + Module + registrace
+## Task 7: Controller
 
 **Files:**
 - Create: `backend/src/modules/timeline/timeline.controller.ts`
-- Create: `backend/src/modules/timeline/timeline.module.ts`
-- Modify: `backend/src/app.module.ts`
 
-- [ ] Vytvoř controller:
+- [ ] **Step 7.1:** Vytvoř controller
 
-```typescript
-// backend/src/modules/timeline/timeline.controller.ts
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+`backend/src/modules/timeline/timeline.controller.ts`:
+```ts
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { TimelineService } from './timeline.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
-import { TimelineService } from './timeline.service';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { CreateTimelineEventDto } from './dto/create-timeline-event.dto';
 import { UpdateTimelineEventDto } from './dto/update-timeline-event.dto';
+import { QueryTimelineEventDto } from './dto/query-timeline-event.dto';
 
-interface RequestUser { id: string; role: UserRole }
-
+@ApiTags('Timeline')
 @UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 @Controller('timeline')
 export class TimelineController {
   constructor(private readonly service: TimelineService) {}
 
   @Get()
-  findAll(
-    @Query('worldId') worldId: string,
-    @Query('limit') limit?: string,
-    @Query('fromYear') fromYear?: string,
-    @Query('toYear') toYear?: string,
+  @ApiOperation({
+    summary:
+      'Seznam událostí světa (member světa). Sort year/month/day/hour ASC.',
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404, description: 'Svět neexistuje' })
+  findMany(
+    @Query() query: QueryTimelineEventDto,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.service.findAll(worldId, {
-      limit: limit ? parseInt(limit, 10) : undefined,
-      fromYear: fromYear ? parseInt(fromYear, 10) : undefined,
-      toYear: toYear ? parseInt(toYear, 10) : undefined,
-    });
+    return this.service.findMany(
+      {
+        worldId: query.worldId,
+        limit: query.limit,
+        fromYear: query.fromYear,
+        toYear: query.toYear,
+      },
+      user,
+    );
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  @ApiOperation({ summary: 'Detail události (member světa)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
+  findById(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.service.findById(id, user);
   }
 
   @Post()
-  create(@Body() dto: CreateTimelineEventDto, @CurrentUser() user: RequestUser) {
-    return this.service.create(dto, user.id, user.role);
+  @ApiOperation({
+    summary: 'Vytvoř událost (Admin/Superadmin/PJ/PomocnyPJ světa)',
+  })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 403 })
+  create(
+    @Body() dto: CreateTimelineEventDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.create(dto, user);
   }
 
   @Put(':id')
+  @ApiOperation({ summary: 'Aktualizuj událost (partial)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 400, description: 'worldId v body zakázán' })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
   update(
     @Param('id') id: string,
     @Body() dto: UpdateTimelineEventDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.update(id, dto, user.id, user.role);
+    return this.service.update(id, dto, user);
   }
 
   @Delete(':id')
-  delete(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    return this.service.delete(id, user.id, user.role);
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Smaž událost' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<void> {
+    await this.service.delete(id, user);
   }
 }
 ```
 
-- [ ] Vytvoř modul:
+- [ ] **Step 7.2:** Verify
 
-```typescript
-// backend/src/modules/timeline/timeline.module.ts
+```bash
+cd backend && npm run typecheck && npm run lint:check
+```
+
+Expected: PASS.
+
+- [ ] **Step 7.3:** Commit
+
+```bash
+git add backend/src/modules/timeline/timeline.controller.ts
+git commit -m "feat(timeline): controller s 5 endpointy (auth-required GET, gated write)"
+```
+
+---
+
+## Task 8: Module wiring + AppModule
+
+**Files:**
+- Create: `backend/src/modules/timeline/timeline.module.ts`
+- Modify: `backend/src/app.module.ts`
+
+- [ ] **Step 8.1:** Vytvoř modul
+
+`backend/src/modules/timeline/timeline.module.ts`:
+```ts
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { TimelineEventSchemaClass, TimelineEventSchema } from './schemas/timeline-event.schema';
-import { TimelineController } from './timeline.controller';
-import { TimelineService } from './timeline.service';
+import {
+  TimelineEventSchemaClass,
+  TimelineEventSchema,
+} from './schemas/timeline-event.schema';
 import { MongoTimelineRepository } from './repositories/timeline.repository';
+import { TimelineService } from './timeline.service';
+import { TimelineController } from './timeline.controller';
 import { WorldsModule } from '../worlds/worlds.module';
-import { WorldCalendarConfigModule } from '../world-calendar-config/world-calendar-config.module';
 
 @Module({
   imports: [
@@ -1404,7 +1456,6 @@ import { WorldCalendarConfigModule } from '../world-calendar-config/world-calend
       { name: TimelineEventSchemaClass.name, schema: TimelineEventSchema },
     ]),
     WorldsModule,
-    WorldCalendarConfigModule,
   ],
   controllers: [TimelineController],
   providers: [
@@ -1415,30 +1466,82 @@ import { WorldCalendarConfigModule } from '../world-calendar-config/world-calend
 export class TimelineModule {}
 ```
 
-- [ ] Přidej do `backend/src/app.module.ts`:
+- [ ] **Step 8.2:** Přidej do `AppModule`
 
-Import na začátek souboru:
-```typescript
+V `backend/src/app.module.ts`:
+
+1. Najdi řádek `import { WorldNewsModule } from './modules/world-news/world-news.module';` a přidej **pod něj**:
+```ts
 import { TimelineModule } from './modules/timeline/timeline.module';
 ```
 
-Do pole `imports` (za `WorldCalendarConfigModule`):
-```typescript
-TimelineModule,
-```
+2. V `imports[]` array najdi `WorldNewsModule,` (přidaný v Fázi 3.1) a vlož `TimelineModule,` **za něj** (před `GatewaysModule`).
 
-- [ ] Spusť všechny nové testy najednou — ověř, že vše PROCHÁZÍ:
+- [ ] **Step 8.3:** Verify
 
 ```bash
-cd backend && npx jest --testPathPattern="world-calendar-config|timeline" --no-coverage
+cd backend && npm run typecheck && npm run lint:check && npm test -- --testPathIgnorePatterns=parity-check 2>&1 | tail -5
 ```
 
-Očekáváno: všechny testy PASS
+Expected: PASS, žádné DI errory.
 
-- [ ] Commit:
+- [ ] **Step 8.4:** Commit
 
 ```bash
-git add backend/src/modules/timeline/
-git add backend/src/app.module.ts
-git commit -m "feat(timeline): controller, module, app registration"
+git add backend/src/modules/timeline/timeline.module.ts backend/src/app.module.ts
+git commit -m "feat(timeline): wire modul do AppModule"
 ```
+
+---
+
+## Task 9: Final verification + roadmap update
+
+- [ ] **Step 9.1:** Spusť celou test suite
+
+```bash
+cd backend && npm run typecheck && npm run lint:check && npm test -- --testPathIgnorePatterns=parity-check 2>&1 | tail -10
+```
+
+Expected: vše PASS.
+
+- [ ] **Step 9.2:** Production build
+
+```bash
+cd backend && npm run build
+```
+
+Expected: PASS.
+
+- [ ] **Step 9.3:** Update roadmapy
+
+V `docs/roadmap2.md`:
+
+1. Najdi sekci `### 3.2 TimelineEvent (Krok 10c) ⬜`. Přepiš nadpis na `### 3.2 TimelineEvent (Krok 10c) ✅ **(hotovo 2026-05-06)**`. Změň všechny `- [ ]` na `- [x]`. Aktualizuj checklist tak, aby odrážel co bylo doopravdy implementováno (path `/api/timeline`, auth required GET, role-gated write `≥PomocnyPJ`, base64 stripping, `celestialStates: []` placeholder do 4.1).
+2. V tabulce "Pořadí prací" najdi řádek `| 7 | Fáze 3.2 — TimelineEvent | parity | 1–2 dny |` a přepiš na `| ✅ | Fáze 3.2 — TimelineEvent | hotovo (2026-05-06) | — |`.
+
+- [ ] **Step 9.4:** Commit
+
+```bash
+git add docs/roadmap2.md
+git commit -m "docs(roadmap): Fáze 3.2 TimelineEvent — splněno"
+```
+
+- [ ] **Step 9.5:** Verifikuj git stav
+
+```bash
+git log --oneline | head -15
+git status
+```
+
+Expected: 8+ commitů z tasků, čistý working tree.
+
+---
+
+## Mimo scope (per spec)
+
+- **Calendar config integration** — Fáze 4.1 přidá `WorldCalendarConfigService` a začne plnit `celestialStates` polem reálnými výpočty
+- **Range validation `month` proti `months.length`** — také 4.1
+- **WebSocket broadcast** nových events
+- **Markdown rendering** v `text`
+- **Image upload integration** — frontend pošle `data:` URI nebo URL z existing image module
+- **Search/full-text** v `text`

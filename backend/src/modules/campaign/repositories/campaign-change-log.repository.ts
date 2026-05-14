@@ -9,7 +9,10 @@ const MAX_LOGS_PER_WORLD = 200;
 
 @Injectable()
 export class MongoCampaignChangeLogRepository implements ICampaignChangeLogRepository {
-  constructor(@InjectModel(CampaignChangeLogSchemaClass.name) model: Model<CampaignChangeLogSchemaClass>) {
+  constructor(
+    @InjectModel(CampaignChangeLogSchemaClass.name)
+    model: Model<CampaignChangeLogSchemaClass>,
+  ) {
     this.model = model;
   }
 
@@ -17,7 +20,9 @@ export class MongoCampaignChangeLogRepository implements ICampaignChangeLogRepos
 
   async append(entry: Omit<CampaignChangeLog, 'id'>): Promise<void> {
     await this.model.create(entry);
-    const count = await this.model.countDocuments({ worldId: entry.worldId }).exec();
+    const count = await this.model
+      .countDocuments({ worldId: entry.worldId })
+      .exec();
     if (count > MAX_LOGS_PER_WORLD) {
       const excess = count - MAX_LOGS_PER_WORLD;
       const oldest = await this.model
@@ -32,20 +37,28 @@ export class MongoCampaignChangeLogRepository implements ICampaignChangeLogRepos
     }
   }
 
-  async findMany(filter: Record<string, unknown>, limit: number): Promise<CampaignChangeLog[]> {
-    const docs = await this.model.find(filter).sort({ changedAt: -1 }).limit(limit).lean().exec();
+  async findMany(
+    filter: Record<string, unknown>,
+    limit: number,
+  ): Promise<CampaignChangeLog[]> {
+    const docs = await this.model
+      .find(filter)
+      .sort({ changedAt: -1 })
+      .limit(limit)
+      .lean()
+      .exec();
     return docs.map((doc) => ({
       id: String(doc._id),
-      worldId: doc.worldId as string,
-      ownerId: doc.ownerId as string,
-      isShared: (doc.isShared as boolean) ?? false,
+      worldId: doc.worldId,
+      ownerId: doc.ownerId,
+      isShared: doc.isShared ?? false,
       entityType: doc.entityType as CampaignChangeLog['entityType'],
-      entityId: doc.entityId as string,
-      entityName: doc.entityName as string,
+      entityId: doc.entityId,
+      entityName: doc.entityName,
       changeType: doc.changeType as CampaignChangeLog['changeType'],
-      changedByUserId: doc.changedByUserId as string,
-      changedByName: doc.changedByName as string,
-      changedAt: doc.changedAt as Date,
+      changedByUserId: doc.changedByUserId,
+      changedByName: doc.changedByName,
+      changedAt: doc.changedAt,
     }));
   }
 }

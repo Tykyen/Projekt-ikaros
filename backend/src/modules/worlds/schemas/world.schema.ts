@@ -13,12 +13,15 @@ export class WorldSchemaClass {
   @Prop({ type: [String], default: [] }) tones: string[];
   @Prop() playersWanted?: string;
   @Prop({ default: 0 }) playerCount: number;
+  @Prop({ type: Number, required: false, default: null, min: 1, max: 999 })
+  maxPlayers?: number | null;
   @Prop({ type: [String], default: [] }) dice: string[];
   @Prop({ default: 'matrix' }) system: string;
   @Prop({ required: true }) ownerId: string;
   @Prop({ default: true }) isActive: boolean;
   @Prop({ default: 'private' }) accessMode: string;
-  @Prop({ type: [{ slug: String, name: String }], default: [] }) offeredCharacters: { slug: string; name: string }[];
+  @Prop({ type: [{ slug: String, name: String }], default: [] })
+  offeredCharacters: { slug: string; name: string }[];
   @Prop({ type: Object }) calendarConfig?: Record<string, unknown>;
   @Prop({ type: [String], default: [] }) favoritePageSlugs: string[];
 }

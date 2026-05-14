@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { IkarosMessageSchemaClass } from '../schemas/ikaros-message.schema';
-import { IkarosMessage, IkarosMessageActionType } from '../interfaces/ikaros-message.interface';
+import {
+  IkarosMessage,
+  IkarosMessageActionType,
+} from '../interfaces/ikaros-message.interface';
 import { IIkarosMessagesRepository } from '../interfaces/ikaros-messages-repository.interface';
 
 @Injectable()
@@ -21,11 +24,19 @@ export class MongoIkarosMessagesRepository
   async findById(id: string): Promise<IkarosMessage | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model.findById(id).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async findInbox(recipientId: string, opts: { limit: number; before?: string }): Promise<IkarosMessage[]> {
-    const filter: Record<string, unknown> = { recipientId, deletedByRecipient: false };
+  async findInbox(
+    recipientId: string,
+    opts: { limit: number; before?: string },
+  ): Promise<IkarosMessage[]> {
+    const filter: Record<string, unknown> = {
+      recipientId,
+      deletedByRecipient: false,
+    };
     if (opts.before && Types.ObjectId.isValid(opts.before)) {
       filter['_id'] = { $lt: new Types.ObjectId(opts.before) };
     }
@@ -35,11 +46,19 @@ export class MongoIkarosMessagesRepository
       .limit(opts.limit)
       .lean()
       .exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
-  async findSent(senderId: string, opts: { limit: number; before?: string }): Promise<IkarosMessage[]> {
-    const filter: Record<string, unknown> = { senderId, deletedBySender: false };
+  async findSent(
+    senderId: string,
+    opts: { limit: number; before?: string },
+  ): Promise<IkarosMessage[]> {
+    const filter: Record<string, unknown> = {
+      senderId,
+      deletedBySender: false,
+    };
     if (opts.before && Types.ObjectId.isValid(opts.before)) {
       filter['_id'] = { $lt: new Types.ObjectId(opts.before) };
     }
@@ -49,25 +68,31 @@ export class MongoIkarosMessagesRepository
       .limit(opts.limit)
       .lean()
       .exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async countUnreadMessages(recipientId: string): Promise<number> {
-    return this.model.countDocuments({
-      recipientId,
-      isRead: false,
-      deletedByRecipient: false,
-      actionType: '',
-    }).exec();
+    return this.model
+      .countDocuments({
+        recipientId,
+        isRead: false,
+        deletedByRecipient: false,
+        actionType: '',
+      })
+      .exec();
   }
 
   async countPendingRequests(recipientId: string): Promise<number> {
-    return this.model.countDocuments({
-      recipientId,
-      actionResolved: false,
-      deletedByRecipient: false,
-      actionType: 'world_join_request',
-    }).exec();
+    return this.model
+      .countDocuments({
+        recipientId,
+        actionResolved: false,
+        deletedByRecipient: false,
+        actionType: 'world_join_request',
+      })
+      .exec();
   }
 
   async resolveIfPending(id: string): Promise<boolean> {
@@ -85,7 +110,9 @@ export class MongoIkarosMessagesRepository
   async save(msg: Partial<IkarosMessage>): Promise<IkarosMessage> {
     const created = new this.model(msg);
     const saved = await created.save();
-    return this.toEntity(saved.toObject() as unknown as Record<string, unknown>);
+    return this.toEntity(
+      saved.toObject() as unknown as Record<string, unknown>,
+    );
   }
 
   protected toEntity(doc: Record<string, unknown>): IkarosMessage {

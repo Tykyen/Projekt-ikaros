@@ -14,13 +14,22 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
 
   async findByWorldId(worldId: string): Promise<WorldSettings | null> {
     const doc = await this.model.findOne({ worldId }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async upsert(worldId: string, data: Partial<WorldSettings>): Promise<WorldSettings> {
+  async upsert(
+    worldId: string,
+    data: Partial<WorldSettings>,
+  ): Promise<WorldSettings> {
     const update = { ...data, worldId, updatedAt: new Date() };
     const doc = await this.model
-      .findOneAndUpdate({ worldId }, { $set: update }, { new: true, upsert: true })
+      .findOneAndUpdate(
+        { worldId },
+        { $set: update },
+        { new: true, upsert: true },
+      )
       .lean()
       .exec();
     return this.toEntity(doc as unknown as Record<string, unknown>);
@@ -33,11 +42,13 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
       hiddenNavItems: (doc.hiddenNavItems as string[]) ?? [],
       customGroups: (doc.customGroups as string[]) ?? [],
       groupColors: (doc.groupColors as Record<string, string>) ?? {},
-      customHeadline: (doc.customHeadline as WorldSettings['customHeadline']) ?? [],
+      customHeadline:
+        (doc.customHeadline as WorldSettings['customHeadline']) ?? [],
       currencies: (doc.currencies as WorldSettings['currencies']) ?? [],
       hideDefaultWeather: (doc.hideDefaultWeather as boolean) ?? false,
       akjTypes: (doc.akjTypes as WorldSettings['akjTypes']) ?? [],
-      menuTemplates: (doc.menuTemplates as WorldSettings['menuTemplates']) ?? [],
+      menuTemplates:
+        (doc.menuTemplates as WorldSettings['menuTemplates']) ?? [],
       diarySchema: (doc.diarySchema as WorldSettings['diarySchema']) ?? [],
       updatedAt: doc.updatedAt as Date,
     };

@@ -8,7 +8,10 @@ describe('WorldsGateway', () => {
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
-      providers: [WorldsGateway, { provide: EventEmitter2, useValue: new EventEmitter2() }],
+      providers: [
+        WorldsGateway,
+        { provide: EventEmitter2, useValue: new EventEmitter2() },
+      ],
     }).compile();
     gateway = module.get(WorldsGateway);
     (gateway as unknown as { server: typeof mockServer }).server = mockServer;

@@ -254,7 +254,7 @@
 - `GET /api/health`
 - `GET /api/admin/users`
 - `PATCH /api/admin/users/:id/role`
-- `PATCH /api/admin/users/:id/akj`
+- ~~`PATCH /api/admin/users/:id/akj`~~ _(zrušeno 2026-05-05 — AKJ je per-world)_
 - `GET /api/admin/recent-pages`
 - `POST /api/auth/register`
 - `GET /api/campaign/changelog`
@@ -739,3 +739,5 @@ Ověřeno:
 - Matrix world seed: ✅
 - Chat skupiny (6): ❌ (seed soubor nepokrývá chat skupiny samostatně)
 - Šablony stránek (5 per svět): ❌ (seed soubor nepokrývá šablony stránek)
+
+Opraven kroky 17 a,b,c,d - viz roadmap.md

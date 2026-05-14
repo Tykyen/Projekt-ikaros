@@ -2,21 +2,33 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { UniverseMapSchemaClass } from '../schemas/universe-map.schema';
-import type { UniverseMap, UniverseNode, UniverseLink, UniverseNodeType } from '../interfaces/universe-map.interface';
+import type {
+  UniverseMap,
+  UniverseNode,
+  UniverseLink,
+  UniverseNodeType,
+} from '../interfaces/universe-map.interface';
 import type { IUniverseRepository } from '../interfaces/universe-repository.interface';
 
 @Injectable()
 export class MongoUniverseRepository implements IUniverseRepository {
   constructor(
-    @InjectModel(UniverseMapSchemaClass.name) private readonly model: Model<UniverseMapSchemaClass>,
+    @InjectModel(UniverseMapSchemaClass.name)
+    private readonly model: Model<UniverseMapSchemaClass>,
   ) {}
 
   async findByWorld(worldId: string): Promise<UniverseMap | null> {
     const doc = await this.model.findOne({ worldId }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async upsert(worldId: string, nodes: UniverseNode[], links: UniverseLink[]): Promise<UniverseMap> {
+  async upsert(
+    worldId: string,
+    nodes: UniverseNode[],
+    links: UniverseLink[],
+  ): Promise<UniverseMap> {
     const doc = await this.model
       .findOneAndUpdate(
         { worldId },
@@ -37,20 +49,27 @@ export class MongoUniverseRepository implements IUniverseRepository {
     const doc = await this.model.findOne({ worldId }).lean().exec();
     if (!doc) return null;
 
-    const nodes = (doc.nodes as Record<string, unknown>[]) ?? [];
+    const nodes = doc.nodes ?? [];
     const nodeIndex = nodes.findIndex((n) => n['id'] === nodeId);
     if (nodeIndex === -1) return null;
 
     const updated = await this.model
       .findOneAndUpdate(
         { worldId, 'nodes.id': nodeId },
-        { $set: { 'nodes.$.isPublic': isPublic, 'nodes.$.visibleToPlayerIds': visibleToPlayerIds } },
+        {
+          $set: {
+            'nodes.$.isPublic': isPublic,
+            'nodes.$.visibleToPlayerIds': visibleToPlayerIds,
+          },
+        },
         { new: true },
       )
       .lean()
       .exec();
 
-    return updated ? this.toEntity(updated as unknown as Record<string, unknown>) : null;
+    return updated
+      ? this.toEntity(updated as unknown as Record<string, unknown>)
+      : null;
   }
 
   private toEntity(doc: Record<string, unknown>): UniverseMap {

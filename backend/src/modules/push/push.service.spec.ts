@@ -8,7 +8,9 @@ import type { PushSubscription } from './interfaces/push-subscription.interface'
 jest.mock('web-push');
 import * as webpush from 'web-push';
 
-const makeSub = (overrides: Partial<PushSubscription> = {}): PushSubscription => ({
+const makeSub = (
+  overrides: Partial<PushSubscription> = {},
+): PushSubscription => ({
   id: 'sub1',
   userId: 'user1',
   endpoint: 'https://push.example.com/sub1',
@@ -29,7 +31,7 @@ describe('PushService', () => {
       upsertByEndpoint: jest.fn(),
       deleteByEndpoint: jest.fn(),
       deleteByEndpointOnly: jest.fn(),
-    } as jest.Mocked<IPushSubscriptionRepository>;
+    };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -52,7 +54,9 @@ describe('PushService', () => {
     }).compile();
 
     service = module.get(PushService);
-    (webpush.sendNotification as jest.Mock).mockResolvedValue({ statusCode: 201 });
+    (webpush.sendNotification as jest.Mock).mockResolvedValue({
+      statusCode: 201,
+    });
   });
 
   it('notify — odešle push na všechny subscriptions usera', async () => {
@@ -69,34 +73,61 @@ describe('PushService', () => {
 
   it('notifyUsers — odešle push každému userId', async () => {
     repo.findByUserId.mockResolvedValue([makeSub()]);
-    await service.notifyUsers(['user1', 'user2'], { title: 'Test', body: 'Ahoj' });
+    await service.notifyUsers(['user1', 'user2'], {
+      title: 'Test',
+      body: 'Ahoj',
+    });
     expect(repo.findByUserId).toHaveBeenCalledTimes(2);
   });
 
   it('notifyAll — odešle push všem subscriptions', async () => {
-    repo.findAll.mockResolvedValue([makeSub(), makeSub({ id: 'sub2', userId: 'user2', endpoint: 'https://push.example.com/sub2' })]);
+    repo.findAll.mockResolvedValue([
+      makeSub(),
+      makeSub({
+        id: 'sub2',
+        userId: 'user2',
+        endpoint: 'https://push.example.com/sub2',
+      }),
+    ]);
     await service.notifyAll({ title: 'Test', body: 'Ahoj' });
     expect(webpush.sendNotification).toHaveBeenCalledTimes(2);
   });
 
   it('auto-cleanup — smaže subscription při 410', async () => {
     repo.findByUserId.mockResolvedValue([makeSub()]);
-    (webpush.sendNotification as jest.Mock).mockRejectedValue({ statusCode: 410 });
+    (webpush.sendNotification as jest.Mock).mockRejectedValue({
+      statusCode: 410,
+    });
     await service.notify('user1', { title: 'Test', body: 'Ahoj' });
-    expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith('https://push.example.com/sub1');
+    expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith(
+      'https://push.example.com/sub1',
+    );
   });
 
   it('auto-cleanup — smaže subscription při 404', async () => {
     repo.findByUserId.mockResolvedValue([makeSub()]);
-    (webpush.sendNotification as jest.Mock).mockRejectedValue({ statusCode: 404 });
+    (webpush.sendNotification as jest.Mock).mockRejectedValue({
+      statusCode: 404,
+    });
     await service.notify('user1', { title: 'Test', body: 'Ahoj' });
-    expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith('https://push.example.com/sub1');
+    expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith(
+      'https://push.example.com/sub1',
+    );
   });
 
   it('subscribe — upsertne subscription', async () => {
     repo.upsertByEndpoint.mockResolvedValue(makeSub());
-    await service.subscribe('user1', { endpoint: 'https://...', p256dh: 'k', auth: 'a' });
-    expect(repo.upsertByEndpoint).toHaveBeenCalledWith({ userId: 'user1', endpoint: 'https://...', p256dh: 'k', auth: 'a' });
+    await service.subscribe('user1', {
+      endpoint: 'https://...',
+      p256dh: 'k',
+      auth: 'a',
+    });
+    expect(repo.upsertByEndpoint).toHaveBeenCalledWith({
+      userId: 'user1',
+      endpoint: 'https://...',
+      p256dh: 'k',
+      auth: 'a',
+    });
   });
 
   it('unsubscribe — smaže subscription', async () => {

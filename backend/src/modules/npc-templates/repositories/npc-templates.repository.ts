@@ -5,14 +5,17 @@ import { BaseMongoRepository } from '../../../database/mongo/base-mongo.reposito
 import { NpcTemplateSchemaClass } from '../schemas/npc-template.schema';
 import type { NpcTemplate } from '../interfaces/npc-template.interface';
 import type { INpcTemplatesRepository } from '../interfaces/npc-templates-repository.interface';
-import type { TagValue, SchemaBlock } from '../../characters/interfaces/character.interface';
+import type { SchemaBlock } from '../../characters/interfaces/character.interface';
 
 @Injectable()
 export class MongoNpcTemplatesRepository
   extends BaseMongoRepository<NpcTemplate>
   implements INpcTemplatesRepository
 {
-  constructor(@InjectModel(NpcTemplateSchemaClass.name) model: Model<NpcTemplateSchemaClass>) {
+  constructor(
+    @InjectModel(NpcTemplateSchemaClass.name)
+    model: Model<NpcTemplateSchemaClass>,
+  ) {
     super(model as never);
   }
 
@@ -23,26 +26,38 @@ export class MongoNpcTemplatesRepository
 
   async findByWorld(worldId: string): Promise<NpcTemplate[]> {
     const docs = await this.model.find({ worldId }).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
   async findGlobal(): Promise<NpcTemplate[]> {
     const docs = await this.model.find({ worldId: null }).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
-  async updateByIdAndWorld(id: string, worldId: string, data: Partial<NpcTemplate>): Promise<NpcTemplate | null> {
+  async updateByIdAndWorld(
+    id: string,
+    worldId: string,
+    data: Partial<NpcTemplate>,
+  ): Promise<NpcTemplate | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findOneAndUpdate({ _id: id, worldId }, { $set: data as Record<string, unknown> }, { new: true })
+      .findOneAndUpdate({ _id: id, worldId }, { $set: data }, { new: true })
       .lean()
       .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async deleteByIdAndWorld(id: string, worldId: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(id)) return false;
-    const result = await this.model.findOneAndDelete({ _id: id, worldId }).exec();
+    const result = await this.model
+      .findOneAndDelete({ _id: id, worldId })
+      .exec();
     return result !== null;
   }
 
@@ -59,10 +74,12 @@ export class MongoNpcTemplatesRepository
       injury: (doc.injury as number) ?? 0,
       movement: (doc.movement as number) ?? 5,
       initiativeBase: (doc.initiativeBase as number) ?? 0,
-      abilities: ((doc.abilities as Record<string, unknown>[]) ?? []).map((a) => ({
-        label: a.label as string,
-        value: a.value as string,
-      } as TagValue)),
+      abilities: ((doc.abilities as Record<string, unknown>[]) ?? []).map(
+        (a) => ({
+          label: a.label as string,
+          value: a.value as string,
+        }),
+      ),
       diarySchema: (doc.diarySchema as SchemaBlock[]) ?? [],
       diaryData: (doc.diaryData as Record<string, unknown>) ?? {},
       createdAt: doc.createdAt as Date,

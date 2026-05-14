@@ -1,5 +1,11 @@
 export type ArticleStatus = 'Draft' | 'Pending' | 'Published' | 'Rejected';
-export type ArticleCategory = 'Povidky' | 'Poezie' | 'Uvahy' | 'Recenze' | 'Postavy' | 'Ostatni';
+export type ArticleCategory =
+  | 'Povidky'
+  | 'Poezie'
+  | 'Uvahy'
+  | 'Recenze'
+  | 'Postavy'
+  | 'Ostatni';
 
 export interface ArticleRating {
   userId: string;

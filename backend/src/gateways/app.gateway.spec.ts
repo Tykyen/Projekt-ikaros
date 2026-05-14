@@ -11,7 +11,10 @@ describe('AppGateway', () => {
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
-      providers: [AppGateway, { provide: EventEmitter2, useValue: new EventEmitter2() }],
+      providers: [
+        AppGateway,
+        { provide: EventEmitter2, useValue: new EventEmitter2() },
+      ],
     }).compile();
     gateway = module.get(AppGateway);
     (gateway as unknown as { server: typeof mockServer }).server = mockServer;

@@ -5,6 +5,10 @@ export interface INpcTemplatesRepository {
   findGlobal(): Promise<NpcTemplate[]>;
   findById(id: string): Promise<NpcTemplate | null>;
   create(data: Partial<NpcTemplate>): Promise<NpcTemplate>;
-  updateByIdAndWorld(id: string, worldId: string, data: Partial<NpcTemplate>): Promise<NpcTemplate | null>;
+  updateByIdAndWorld(
+    id: string,
+    worldId: string,
+    data: Partial<NpcTemplate>,
+  ): Promise<NpcTemplate | null>;
   deleteByIdAndWorld(id: string, worldId: string): Promise<boolean>;
 }

@@ -23,9 +23,32 @@ export class ChatMessageSchemaClass {
   @Prop({ type: Object, default: {} }) reactions: Record<string, string[]>;
   @Prop({ type: [Object], default: [] }) attachments: Record<string, unknown>[];
   @Prop({ type: Date }) expiresAt?: Date;
+
+  @Prop({ type: String, default: null }) customFont: string | null;
+
+  @Prop({
+    enum: [
+      'red',
+      'blue',
+      'green',
+      'yellow',
+      'purple',
+      'orange',
+      'pink',
+      'cyan',
+      'default',
+    ],
+    default: null,
+    type: String,
+  })
+  color: string | null;
+
+  @Prop({ default: false }) isDiceRoll: boolean;
 }
 
-export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessageSchemaClass);
+export const ChatMessageSchema = SchemaFactory.createForClass(
+  ChatMessageSchemaClass,
+);
 ChatMessageSchema.index({ channelId: 1, createdAt: -1 });
 ChatMessageSchema.index({ worldId: 1 });
 ChatMessageSchema.index({ senderId: 1 });

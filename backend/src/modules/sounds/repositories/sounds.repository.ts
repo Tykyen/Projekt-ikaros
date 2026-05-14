@@ -3,7 +3,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { SoundSchemaClass } from '../schemas/sound.schema';
-import type { Sound, SoundMediaType, SoundPrimaryFunction, SoundEnvironment, SoundEmotionalTone, SoundOnsetProfile, SoundOutroProfile, SoundFactionStyle, SoundTechLevel, SoundMagicLevel, SoundCombatEnergy, SoundStatus } from '../interfaces/sound.interface';
+import type {
+  Sound,
+  SoundMediaType,
+  SoundPrimaryFunction,
+  SoundEnvironment,
+  SoundEmotionalTone,
+  SoundOnsetProfile,
+  SoundOutroProfile,
+  SoundFactionStyle,
+  SoundTechLevel,
+  SoundMagicLevel,
+  SoundCombatEnergy,
+  SoundStatus,
+} from '../interfaces/sound.interface';
 import type { ISoundsRepository } from '../interfaces/sounds-repository.interface';
 
 @Injectable()
@@ -11,37 +24,63 @@ export class MongoSoundsRepository
   extends BaseMongoRepository<Sound>
   implements ISoundsRepository
 {
-  constructor(@InjectModel(SoundSchemaClass.name) model: Model<SoundSchemaClass>) {
+  constructor(
+    @InjectModel(SoundSchemaClass.name) model: Model<SoundSchemaClass>,
+  ) {
     super(model as never);
   }
 
   async findByWorld(worldId: string): Promise<Sound[]> {
     const docs = await this.model.find({ worldId }).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
   async findGlobal(): Promise<Sound[]> {
-    const docs = await this.model.find({ worldId: null, status: 'active' }).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+    const docs = await this.model
+      .find({ worldId: null, status: 'active' })
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
   async findGlobalPending(): Promise<Sound[]> {
-    const docs = await this.model.find({ worldId: null, status: 'pending' }).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+    const docs = await this.model
+      .find({ worldId: null, status: 'pending' })
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
-  async findGlobalByUrlOrName(url: string, name: string): Promise<Sound | null> {
+  async findGlobalByUrlOrName(
+    url: string,
+    name: string,
+  ): Promise<Sound | null> {
     const doc = await this.model
       .findOne({
         worldId: null,
         $or: [
           { youtubeUrl: url },
-          { name: { $regex: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } },
+          {
+            name: {
+              $regex: new RegExp(
+                `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+                'i',
+              ),
+            },
+          },
         ],
       })
       .lean()
       .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async create(data: Partial<Sound>): Promise<Sound> {
@@ -52,19 +91,27 @@ export class MongoSoundsRepository
   async updateById(id: string, data: Partial<Sound>): Promise<Sound | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findByIdAndUpdate(id, { $set: data as Record<string, unknown> }, { new: true })
+      .findByIdAndUpdate(id, { $set: data }, { new: true })
       .lean()
       .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async updateByIdAndWorld(id: string, worldId: string, data: Partial<Sound>): Promise<Sound | null> {
+  async updateByIdAndWorld(
+    id: string,
+    worldId: string,
+    data: Partial<Sound>,
+  ): Promise<Sound | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findOneAndUpdate({ _id: id, worldId }, { $set: data as Record<string, unknown> }, { new: true })
+      .findOneAndUpdate({ _id: id, worldId }, { $set: data }, { new: true })
       .lean()
       .exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async deleteById(id: string): Promise<boolean> {
@@ -75,7 +122,9 @@ export class MongoSoundsRepository
 
   async deleteByIdAndWorld(id: string, worldId: string): Promise<boolean> {
     if (!Types.ObjectId.isValid(id)) return false;
-    const result = await this.model.findOneAndDelete({ _id: id, worldId }).exec();
+    const result = await this.model
+      .findOneAndDelete({ _id: id, worldId })
+      .exec();
     return result !== null;
   }
 

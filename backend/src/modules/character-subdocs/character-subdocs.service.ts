@@ -17,6 +17,7 @@ interface CharacterCreatedPayload {
   worldId: string;
   userId?: string;
   isNpc: boolean;
+  isLocation?: boolean;
 }
 
 interface CharacterConvertedPayload {
@@ -29,29 +30,42 @@ interface CharacterConvertedPayload {
 @Injectable()
 export class CharacterSubdocsService {
   constructor(
-    @Inject('ICharacterDiaryRepository') private readonly diaryRepo: CharacterDiaryRepository,
-    @Inject('ICharacterCalendarRepository') private readonly calendarRepo: CharacterCalendarRepository,
-    @Inject('ICharacterFinanceRepository') private readonly financeRepo: CharacterFinanceRepository,
-    @Inject('ICharacterInventoryRepository') private readonly inventoryRepo: CharacterInventoryRepository,
-    @Inject('ICharacterNotesRepository') private readonly notesRepo: CharacterNotesRepository,
+    @Inject('ICharacterDiaryRepository')
+    private readonly diaryRepo: CharacterDiaryRepository,
+    @Inject('ICharacterCalendarRepository')
+    private readonly calendarRepo: CharacterCalendarRepository,
+    @Inject('ICharacterFinanceRepository')
+    private readonly financeRepo: CharacterFinanceRepository,
+    @Inject('ICharacterInventoryRepository')
+    private readonly inventoryRepo: CharacterInventoryRepository,
+    @Inject('ICharacterNotesRepository')
+    private readonly notesRepo: CharacterNotesRepository,
   ) {}
 
   @OnEvent('character.created')
   async onCharacterCreated(payload: CharacterCreatedPayload): Promise<void> {
-    const { characterId, worldId, isNpc } = payload;
-    await Promise.all([
-      this.diaryRepo.create(characterId, worldId),
-      this.calendarRepo.create(characterId, worldId),
-      this.notesRepo.create(characterId),
-      ...(!isNpc ? [
-        this.financeRepo.create(characterId),
-        this.inventoryRepo.create(characterId),
-      ] : []),
-    ]);
+    const { characterId, worldId, isNpc, isLocation } = payload;
+
+    await this.calendarRepo.create(characterId, worldId);
+
+    if (!isLocation) {
+      await Promise.all([
+        this.diaryRepo.create(characterId, worldId),
+        this.notesRepo.create(characterId),
+        ...(!isNpc
+          ? [
+              this.financeRepo.create(characterId),
+              this.inventoryRepo.create(characterId),
+            ]
+          : []),
+      ]);
+    }
   }
 
   @OnEvent('character.converted')
-  async onCharacterConverted(payload: CharacterConvertedPayload): Promise<void> {
+  async onCharacterConverted(
+    payload: CharacterConvertedPayload,
+  ): Promise<void> {
     const { characterId, toNpc } = payload;
     if (toNpc) {
       await Promise.all([
@@ -80,7 +94,10 @@ export class CharacterSubdocsService {
     return diary;
   }
 
-  async updateDiary(characterId: string, data: Partial<CharacterDiary>): Promise<CharacterDiary> {
+  async updateDiary(
+    characterId: string,
+    data: Partial<CharacterDiary>,
+  ): Promise<CharacterDiary> {
     const updated = await this.diaryRepo.update(characterId, data);
     if (!updated) throw new NotFoundException('Deník nenalezen');
     return updated;
@@ -92,10 +109,17 @@ export class CharacterSubdocsService {
     return calendar;
   }
 
-  async updateCalendar(characterId: string, data: Partial<CharacterCalendar>): Promise<CharacterCalendar> {
+  async updateCalendar(
+    characterId: string,
+    data: Partial<CharacterCalendar>,
+  ): Promise<CharacterCalendar> {
     const updated = await this.calendarRepo.update(characterId, data);
     if (!updated) throw new NotFoundException('Kalendář nenalezen');
     return updated;
+  }
+
+  async getCalendarsByWorldId(worldId: string): Promise<CharacterCalendar[]> {
+    return this.calendarRepo.findByWorldId(worldId);
   }
 
   async getFinance(characterId: string): Promise<CharacterFinance> {
@@ -104,7 +128,10 @@ export class CharacterSubdocsService {
     return finance;
   }
 
-  async updateFinance(characterId: string, data: Partial<CharacterFinance>): Promise<CharacterFinance> {
+  async updateFinance(
+    characterId: string,
+    data: Partial<CharacterFinance>,
+  ): Promise<CharacterFinance> {
     const updated = await this.financeRepo.update(characterId, data);
     if (!updated) throw new NotFoundException('Finance nenalezeny');
     return updated;
@@ -115,7 +142,12 @@ export class CharacterSubdocsService {
     if (!finance) throw new NotFoundException('Finance nenalezeny');
 
     const delta = finance.entries.reduce((sum, e) => sum + e.amount, 0);
-    const transaction = { id: randomUUID(), date: new Date(), delta, description: 'měsíční zúčtování' };
+    const transaction = {
+      id: randomUUID(),
+      date: new Date(),
+      delta,
+      description: 'měsíční zúčtování',
+    };
 
     const updated = await this.financeRepo.update(characterId, {
       balance: finance.balance + delta,
@@ -144,7 +176,10 @@ export class CharacterSubdocsService {
     return inventory;
   }
 
-  async updateInventory(characterId: string, data: Partial<CharacterInventory>): Promise<CharacterInventory> {
+  async updateInventory(
+    characterId: string,
+    data: Partial<CharacterInventory>,
+  ): Promise<CharacterInventory> {
     const updated = await this.inventoryRepo.update(characterId, data);
     if (!updated) throw new NotFoundException('Výbava nenalezena');
     return updated;
@@ -156,7 +191,10 @@ export class CharacterSubdocsService {
     return notes;
   }
 
-  async updateNotes(characterId: string, data: Partial<CharacterNotes>): Promise<CharacterNotes> {
+  async updateNotes(
+    characterId: string,
+    data: Partial<CharacterNotes>,
+  ): Promise<CharacterNotes> {
     const updated = await this.notesRepo.update(characterId, data);
     if (!updated) throw new NotFoundException('Poznámky nenalezeny');
     return updated;

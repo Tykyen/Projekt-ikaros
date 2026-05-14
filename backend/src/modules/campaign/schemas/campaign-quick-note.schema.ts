@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CampaignQuickNoteDocument = HydratedDocument<CampaignQuickNoteSchemaClass>;
+export type CampaignQuickNoteDocument =
+  HydratedDocument<CampaignQuickNoteSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'campaignQuickNotes' })
 export class CampaignQuickNoteSchemaClass {
@@ -16,7 +17,9 @@ export class CampaignQuickNoteSchemaClass {
   @Prop({ type: [String], default: [] }) storylineIds: string[];
 }
 
-export const CampaignQuickNoteSchema = SchemaFactory.createForClass(CampaignQuickNoteSchemaClass);
+export const CampaignQuickNoteSchema = SchemaFactory.createForClass(
+  CampaignQuickNoteSchemaClass,
+);
 CampaignQuickNoteSchema.index({ worldId: 1, ownerId: 1 });
 CampaignQuickNoteSchema.index({ worldId: 1, isShared: 1 });
 CampaignQuickNoteSchema.index({ worldId: 1, pinned: 1 });

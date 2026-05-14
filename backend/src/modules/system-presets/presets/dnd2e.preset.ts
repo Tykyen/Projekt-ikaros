@@ -1,0 +1,51 @@
+import type { SystemPreset } from '../interfaces/system-preset.interface';
+
+export const dnd2ePreset: SystemPreset = {
+  system: 'dnd2e',
+  displayName: 'D&D 2e',
+  schema: [
+    { key: 'level', label: 'Úroveň', type: 'number', order: 1 },
+    { key: 'class', label: 'Povolání', type: 'text', order: 2 },
+    { key: 'race', label: 'Rasa', type: 'text', order: 3 },
+    { key: 'alignment', label: 'Přesvědčení', type: 'text', order: 4 },
+    { key: 'hpMax', label: 'Životy max', type: 'number', order: 5 },
+    { key: 'hpCurrent', label: 'Životy aktuální', type: 'number', order: 6 },
+    { key: 'ac', label: 'AC (descending)', type: 'number', order: 7 },
+    { key: 'thac0', label: 'THAC0', type: 'number', order: 8 },
+    { key: 'hitDice', label: 'Hit Dice', type: 'text', order: 9 },
+    { key: 'str', label: 'Síla', type: 'number', order: 10 },
+    { key: 'dex', label: 'Obratnost', type: 'number', order: 11 },
+    { key: 'con', label: 'Odolnost', type: 'number', order: 12 },
+    { key: 'int', label: 'Inteligence', type: 'number', order: 13 },
+    { key: 'wis', label: 'Moudrost', type: 'number', order: 14 },
+    { key: 'cha', label: 'Charisma', type: 'number', order: 15 },
+    {
+      key: 'savingParalyze',
+      label: 'Save: Paralyze/Death',
+      type: 'number',
+      order: 16,
+    },
+    {
+      key: 'savingRod',
+      label: 'Save: Rod/Staff/Wand',
+      type: 'number',
+      order: 17,
+    },
+    {
+      key: 'savingPetrify',
+      label: 'Save: Petrification',
+      type: 'number',
+      order: 18,
+    },
+    {
+      key: 'savingBreath',
+      label: 'Save: Breath Weapon',
+      type: 'number',
+      order: 19,
+    },
+    { key: 'savingSpell', label: 'Save: Spell', type: 'number', order: 20 },
+    { key: 'languages', label: 'Jazyky', type: 'textarea', order: 21 },
+    { key: 'equipment', label: 'Vybavení', type: 'textarea', order: 22 },
+    { key: 'notes', label: 'Poznámky', type: 'textarea', order: 23 },
+  ],
+};

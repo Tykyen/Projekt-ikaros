@@ -5,24 +5,77 @@ import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 
 const mockSubject = {
-  id: 'sub1', worldId: 'w1', ownerId: 'user1', isShared: false,
-  type: 'NPC' as const, name: 'Goblin', tags: [], status: 'active' as const,
-  createdAt: new Date(), updatedAt: new Date(),
+  id: 'sub1',
+  worldId: 'w1',
+  ownerId: 'user1',
+  isShared: false,
+  type: 'NPC' as const,
+  name: 'Goblin',
+  tags: [],
+  status: 'active' as const,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
-const mockSubjectShared = { ...mockSubject, id: 'sub2', isShared: true, ownerId: 'pj1' };
+const mockSubjectShared = {
+  ...mockSubject,
+  id: 'sub2',
+  isShared: true,
+  ownerId: 'pj1',
+};
 
 describe('CampaignService', () => {
   let service: CampaignService;
 
-  const mockSubjectRepo = { findMany: jest.fn(), findById: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() };
-  const mockRelRepo = { findMany: jest.fn(), findById: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() };
-  const mockStorylineRepo = { findMany: jest.fn(), findById: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() };
-  const mockScenarioRepo = { findMany: jest.fn(), findById: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), maxOrder: jest.fn() };
-  const mockNoteRepo = { findMany: jest.fn(), findById: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn() };
-  const mockShopRepo = { findMany: jest.fn(), findById: jest.fn(), create: jest.fn(), update: jest.fn(), delete: jest.fn(), pullLinkedItem: jest.fn() };
+  const mockSubjectRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+  const mockRelRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+  const mockStorylineRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+  const mockScenarioRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    maxOrder: jest.fn(),
+  };
+  const mockNoteRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
+  const mockShopRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    pullLinkedItem: jest.fn(),
+  };
   const mockLogRepo = { append: jest.fn(), findMany: jest.fn() };
-  const mockMembershipRepo = { findByUserAndWorld: jest.fn(), findByWorldId: jest.fn() };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(),
+    findByWorldId: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -31,7 +84,10 @@ describe('CampaignService', () => {
         CampaignService,
         { provide: 'ICampaignSubjectRepository', useValue: mockSubjectRepo },
         { provide: 'ICampaignRelationshipRepository', useValue: mockRelRepo },
-        { provide: 'ICampaignStorylineRepository', useValue: mockStorylineRepo },
+        {
+          provide: 'ICampaignStorylineRepository',
+          useValue: mockStorylineRepo,
+        },
         { provide: 'ICampaignScenarioRepository', useValue: mockScenarioRepo },
         { provide: 'ICampaignQuickNoteRepository', useValue: mockNoteRepo },
         { provide: 'ICampaignShopItemRepository', useValue: mockShopRepo },
@@ -50,7 +106,9 @@ describe('CampaignService', () => {
     });
 
     it('vrátí WorldRole z membership', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PomocnyPJ });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PomocnyPJ,
+      });
       const role = await service.getWorldRole('user1', UserRole.Hrac, 'w1');
       expect(role).toBe(WorldRole.PomocnyPJ);
     });
@@ -70,7 +128,10 @@ describe('CampaignService', () => {
 
     it('PomocnýPJ vidí vlastní + sdílená', () => {
       const filter = service.resolveScope('pj2', WorldRole.PomocnyPJ, 'w1');
-      expect(filter).toEqual({ worldId: 'w1', $or: [{ ownerId: 'pj2' }, { isShared: true }] });
+      expect(filter).toEqual({
+        worldId: 'w1',
+        $or: [{ ownerId: 'pj2' }, { isShared: true }],
+      });
     });
 
     it('PJ vidí vše ve světě', () => {
@@ -81,19 +142,27 @@ describe('CampaignService', () => {
 
   describe('canModify', () => {
     it('vlastník může modifikovat', () => {
-      expect(service.canModify(mockSubject, 'user1', WorldRole.Hrac)).toBe(true);
+      expect(service.canModify(mockSubject, 'user1', WorldRole.Hrac)).toBe(
+        true,
+      );
     });
 
     it('cizí hráč nemůže modifikovat', () => {
-      expect(service.canModify(mockSubject, 'user2', WorldRole.Hrac)).toBe(false);
+      expect(service.canModify(mockSubject, 'user2', WorldRole.Hrac)).toBe(
+        false,
+      );
     });
 
     it('PomocnýPJ může modifikovat sdílenou entitu', () => {
-      expect(service.canModify(mockSubjectShared, 'pj2', WorldRole.PomocnyPJ)).toBe(true);
+      expect(
+        service.canModify(mockSubjectShared, 'pj2', WorldRole.PomocnyPJ),
+      ).toBe(true);
     });
 
     it('PomocnýPJ nemůže modifikovat cizí nesdílený subjekt', () => {
-      expect(service.canModify(mockSubject, 'pj2', WorldRole.PomocnyPJ)).toBe(false);
+      expect(service.canModify(mockSubject, 'pj2', WorldRole.PomocnyPJ)).toBe(
+        false,
+      );
     });
 
     it('PJ může modifikovat cokoliv', () => {
@@ -104,7 +173,12 @@ describe('CampaignService', () => {
   describe('subjects', () => {
     it('findSubjects volá repo s resolveScope filtrem', async () => {
       mockSubjectRepo.findMany.mockResolvedValue([mockSubject]);
-      const result = await service.findSubjects('user1', WorldRole.Hrac, 'w1', {});
+      const result = await service.findSubjects(
+        'user1',
+        WorldRole.Hrac,
+        'w1',
+        {},
+      );
       expect(mockSubjectRepo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ worldId: 'w1', ownerId: 'user1' }),
       );
@@ -114,28 +188,59 @@ describe('CampaignService', () => {
     it('createSubject zapíše changelog', async () => {
       mockSubjectRepo.create.mockResolvedValue(mockSubject);
       mockLogRepo.append.mockResolvedValue(undefined);
-      await service.createSubject('user1', 'UserName', WorldRole.Hrac, 'w1', false, { name: 'Goblin', type: 'NPC' });
+      await service.createSubject(
+        'user1',
+        'UserName',
+        WorldRole.Hrac,
+        'w1',
+        false,
+        { name: 'Goblin', type: 'NPC' },
+      );
       // Give fire-and-forget time to run
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       expect(mockLogRepo.append).toHaveBeenCalledWith(
-        expect.objectContaining({ changeType: 'created', entityType: 'subject', entityName: 'Goblin' }),
+        expect.objectContaining({
+          changeType: 'created',
+          entityType: 'subject',
+          entityName: 'Goblin',
+        }),
       );
     });
 
     it('deleteSubject vyhodí ForbiddenException pro cizího vlastníka', async () => {
       mockSubjectRepo.findById.mockResolvedValue(mockSubject);
-      await expect(service.deleteSubject('sub1', 'user2', WorldRole.Hrac, 'user2Name')).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.deleteSubject('sub1', 'user2', WorldRole.Hrac, 'user2Name'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('deleteSubject vyhodí NotFoundException pokud subjekt neexistuje', async () => {
       mockSubjectRepo.findById.mockResolvedValue(null);
-      await expect(service.deleteSubject('sub1', 'user1', WorldRole.PJ, 'pjName')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deleteSubject('sub1', 'user1', WorldRole.PJ, 'pjName'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('shopitems cascade delete', () => {
     it('deleteShopItem volá pullLinkedItem pro kaskádové mazání', async () => {
-      const mockItem = { id: 'item1', worldId: 'w1', ownerId: 'user1', isShared: false, name: 'Meč', group: 'zbrane', description: undefined, subgroup: undefined, price: 0, currencyCode: '', linkedItemIds: [], referenceLink: undefined, isRecommended: false, createdAt: new Date(), updatedAt: new Date() };
+      const mockItem = {
+        id: 'item1',
+        worldId: 'w1',
+        ownerId: 'user1',
+        isShared: false,
+        name: 'Meč',
+        group: 'zbrane',
+        description: undefined,
+        subgroup: undefined,
+        price: 0,
+        currencyCode: '',
+        linkedItemIds: [],
+        referenceLink: undefined,
+        isRecommended: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       mockShopRepo.findById.mockResolvedValue(mockItem);
       mockShopRepo.delete.mockResolvedValue(true);
       mockShopRepo.pullLinkedItem.mockResolvedValue(undefined);
@@ -171,7 +276,7 @@ describe('CampaignService', () => {
       ]);
       const result = await service.getPlayers('pj1', 'w1');
       expect(result).toHaveLength(2);
-      expect(result.find(r => r.userId === 'pj1')).toBeUndefined();
+      expect(result.find((r) => r.userId === 'pj1')).toBeUndefined();
     });
   });
 });

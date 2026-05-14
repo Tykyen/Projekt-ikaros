@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CampaignSubjectDocument = HydratedDocument<CampaignSubjectSchemaClass>;
+export type CampaignSubjectDocument =
+  HydratedDocument<CampaignSubjectSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'campaignSubjects' })
 export class CampaignSubjectSchemaClass {
@@ -18,7 +19,9 @@ export class CampaignSubjectSchemaClass {
   @Prop() notes?: string;
 }
 
-export const CampaignSubjectSchema = SchemaFactory.createForClass(CampaignSubjectSchemaClass);
+export const CampaignSubjectSchema = SchemaFactory.createForClass(
+  CampaignSubjectSchemaClass,
+);
 CampaignSubjectSchema.index({ worldId: 1, ownerId: 1 });
 CampaignSubjectSchema.index({ worldId: 1, isShared: 1 });
 CampaignSubjectSchema.index({ worldId: 1, updatedAt: -1 });

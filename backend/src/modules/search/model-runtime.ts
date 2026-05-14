@@ -2,6 +2,13 @@ import * as ort from 'onnxruntime-node';
 import SentencePiece from 'sentencepiece-js';
 import { Logger } from '@nestjs/common';
 
+// sentencepiece-js nemá oficiální typy — minimální shape co používáme.
+interface SentencePieceInstance {
+  load(path: string): Promise<void>;
+  encode(text: string): number[];
+}
+type SentencePieceConstructor = new () => SentencePieceInstance;
+
 export interface ModelRuntimeConfig {
   key: string;
   onnxPath: string;
@@ -13,7 +20,7 @@ export interface ModelRuntimeConfig {
 export class ModelRuntime {
   private readonly logger: Logger;
   private session: ort.InferenceSession | null = null;
-  private tokenizer: InstanceType<typeof SentencePiece> | null = null;
+  private tokenizer: SentencePieceInstance | null = null;
 
   constructor(private readonly config: ModelRuntimeConfig) {
     this.logger = new Logger(`ModelRuntime[${config.key}]`);
@@ -24,7 +31,8 @@ export class ModelRuntime {
     this.session = await ort.InferenceSession.create(this.config.onnxPath);
 
     this.logger.log('Načítám tokenizer...');
-    this.tokenizer = new SentencePiece();
+    const Ctor = SentencePiece as unknown as SentencePieceConstructor;
+    this.tokenizer = new Ctor();
     await this.tokenizer.load(this.config.tokenizerPath);
     this.logger.log('ModelRuntime inicializován.');
   }
@@ -46,19 +54,33 @@ export class ModelRuntime {
     }
 
     const feeds: Record<string, ort.Tensor> = {
-      input_ids: new ort.Tensor('int64', BigInt64Array.from(inputIds.map(BigInt)), [1, seq]),
-      attention_mask: new ort.Tensor('int64', BigInt64Array.from(attentionMask.map(BigInt)), [1, seq]),
+      input_ids: new ort.Tensor(
+        'int64',
+        BigInt64Array.from(inputIds.map(BigInt)),
+        [1, seq],
+      ),
+      attention_mask: new ort.Tensor(
+        'int64',
+        BigInt64Array.from(attentionMask.map(BigInt)),
+        [1, seq],
+      ),
     };
 
     const results = await this.session.run(feeds);
-    const outputKey = results['sentence_embedding'] ? 'sentence_embedding' : Object.keys(results)[0];
+    const outputKey = results['sentence_embedding']
+      ? 'sentence_embedding'
+      : Object.keys(results)[0];
     const raw = Array.from(results[outputKey].data as Float32Array);
 
     return l2Normalize(raw);
   }
 
-  get key(): string { return this.config.key; }
-  get dimension(): number { return this.config.dimension; }
+  get key(): string {
+    return this.config.key;
+  }
+  get dimension(): number {
+    return this.config.dimension;
+  }
 }
 
 function l2Normalize(vector: number[]): number[] {

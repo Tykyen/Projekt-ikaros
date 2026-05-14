@@ -14,8 +14,17 @@ export interface DungeonWallEdges {
 }
 
 export interface DungeonCell {
-  type: 'empty' | 'floor' | 'wall' | 'door' | 'door-locked'
-      | 'stairs-up' | 'stairs-down' | 'water' | 'lava' | 'pit';
+  type:
+    | 'empty'
+    | 'floor'
+    | 'wall'
+    | 'door'
+    | 'door-locked'
+    | 'stairs-up'
+    | 'stairs-down'
+    | 'water'
+    | 'lava'
+    | 'pit';
   wallEdges: DungeonWallEdges;
   floorVariant?: string;
 }

@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsArray, IsBoolean, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsBoolean,
+  IsIn,
+} from 'class-validator';
 import type { CampaignQuickNoteStatus } from '../interfaces/campaign-quick-note.interface';
 
 export class CreateCampaignQuickNoteDto {

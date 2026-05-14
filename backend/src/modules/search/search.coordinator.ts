@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { ISearchProvider, SearchProviderInfo } from './interfaces/search-provider.interface';
+import type {
+  ISearchProvider,
+  SearchProviderInfo,
+} from './interfaces/search-provider.interface';
 import type { SearchResult } from './interfaces/search-result.interface';
 import type { Page } from '../pages/interfaces/page.interface';
 
@@ -7,16 +10,27 @@ import type { Page } from '../pages/interfaces/page.interface';
 export class SearchCoordinator {
   constructor(private readonly providers: ISearchProvider[]) {}
 
-  async search(query: string, count: number, providerKey?: string): Promise<SearchResult[]> {
+  async search(
+    query: string,
+    count: number,
+    providerKey?: string,
+  ): Promise<SearchResult[]> {
     if (providerKey && providerKey !== 'combined') {
-      const provider = this.providers.find((p) => p.providerKey === providerKey);
+      const provider = this.providers.find(
+        (p) => p.providerKey === providerKey,
+      );
       return provider ? provider.search(query, count) : [];
     }
     return this.combineResults(query, count);
   }
 
-  private async combineResults(query: string, count: number): Promise<SearchResult[]> {
-    const allResults = await Promise.all(this.providers.map((p) => p.search(query, count)));
+  private async combineResults(
+    query: string,
+    count: number,
+  ): Promise<SearchResult[]> {
+    const allResults = await Promise.all(
+      this.providers.map((p) => p.search(query, count)),
+    );
     const combined: SearchResult[] = [];
     const seen = new Set<string>();
     let round = 0;

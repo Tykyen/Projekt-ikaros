@@ -5,16 +5,37 @@ import { CharactersService } from './characters.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 const mockCharacter = {
-  id: 'char1', slug: 'medak', name: 'Měďák', worldId: 'world1',
-  userId: 'user1', isNpc: false,
-  publicBio: '<p>veřejné</p>', publicInfoBlocks: [],
-  privateBio: '<p>soukromé</p>', privateInfoBlocks: [],
-  accessRequirements: [], createdAt: new Date(),
+  id: 'char1',
+  slug: 'medak',
+  name: 'Měďák',
+  worldId: 'world1',
+  userId: 'user1',
+  isNpc: false,
+  publicBio: '<p>veřejné</p>',
+  publicInfoBlocks: [],
+  privateBio: '<p>soukromé</p>',
+  privateInfoBlocks: [],
+  accessRequirements: [],
+  createdAt: new Date(),
 };
 
-const mockNpc = { ...mockCharacter, id: 'char2', slug: 'agent-smith', name: 'Agent Smith', userId: undefined, isNpc: true };
+const mockNpc = {
+  ...mockCharacter,
+  id: 'char2',
+  slug: 'agent-smith',
+  name: 'Agent Smith',
+  userId: undefined,
+  isNpc: true,
+};
 
-const mockMembership = { id: 'mem1', userId: 'user1', worldId: 'world1', role: WorldRole.Hrac, akj: 5, joinedAt: new Date() };
+const mockMembership = {
+  id: 'mem1',
+  userId: 'user1',
+  worldId: 'world1',
+  role: WorldRole.Hrac,
+  akj: 5,
+  joinedAt: new Date(),
+};
 const mockPjMembership = { ...mockMembership, role: WorldRole.PJ };
 
 describe('CharactersService', () => {
@@ -74,7 +95,10 @@ describe('CharactersService', () => {
 
     it('vrátí jen veřejnou část CP pro cizího hráče', async () => {
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(mockCharacter);
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ ...mockMembership, userId: 'jiny-user' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        userId: 'jiny-user',
+      });
       const result = await service.findBySlug('medak', 'world1', 'jiny-user');
       expect(result).toHaveProperty('publicBio');
       expect(result).not.toHaveProperty('privateBio');
@@ -82,44 +106,114 @@ describe('CharactersService', () => {
 
     it('vyhodí NotFoundException pokud postava neexistuje', async () => {
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(null);
-      await expect(service.findBySlug('neexistuje', 'world1', 'user1')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.findBySlug('neexistuje', 'world1', 'user1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('create', () => {
     it('vyhodí ConflictException pokud slug existuje', async () => {
       mockCharRepo.existsBySlugAndWorld.mockResolvedValue(true);
-      await expect(service.create({ slug: 'medak', name: 'Měďák', isNpc: false }, 'world1')).rejects.toThrow(ConflictException);
+      await expect(
+        service.create(
+          { slug: 'medak', name: 'Měďák', isNpc: false },
+          'world1',
+        ),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('emituje character.created po vytvoření', async () => {
       mockCharRepo.existsBySlugAndWorld.mockResolvedValue(false);
       mockCharRepo.save.mockResolvedValue(mockCharacter);
-      await service.create({ slug: 'medak', name: 'Měďák', isNpc: false }, 'world1');
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith('character.created', expect.objectContaining({ characterId: 'char1', isNpc: false }));
+      await service.create(
+        { slug: 'medak', name: 'Měďák', isNpc: false },
+        'world1',
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'character.created',
+        expect.objectContaining({ characterId: 'char1', isNpc: false }),
+      );
+    });
+
+    it('emituje isLocation=true v character.created pro lokaci', async () => {
+      const mockLocation = {
+        ...mockCharacter,
+        id: 'loc1',
+        slug: 'hospoda',
+        isNpc: true,
+        isLocation: true,
+      };
+      mockCharRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockCharRepo.save.mockResolvedValue(mockLocation);
+      await service.create(
+        { slug: 'hospoda', name: 'Hospoda', isNpc: true, isLocation: true },
+        'world1',
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'character.created',
+        expect.objectContaining({ characterId: 'loc1', isLocation: true }),
+      );
+    });
+
+    it('emituje isLocation=false pro běžnou postavu', async () => {
+      mockCharRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockCharRepo.save.mockResolvedValue({
+        ...mockCharacter,
+        isLocation: false,
+      });
+      await service.create(
+        { slug: 'medak', name: 'Měďák', isNpc: false },
+        'world1',
+      );
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'character.created',
+        expect.objectContaining({ isLocation: false }),
+      );
     });
   });
 
   describe('convert', () => {
     it('CP → NPC: smaže userId, nastaví isNpc=true', async () => {
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(mockCharacter);
-      mockCharRepo.update.mockResolvedValue({ ...mockCharacter, userId: undefined, isNpc: true });
+      mockCharRepo.update.mockResolvedValue({
+        ...mockCharacter,
+        userId: undefined,
+        isNpc: true,
+      });
       await service.convert('medak', 'world1', {});
-      expect(mockCharRepo.update).toHaveBeenCalledWith('char1', expect.objectContaining({ userId: undefined, isNpc: true }));
+      expect(mockCharRepo.update).toHaveBeenCalledWith(
+        'char1',
+        expect.objectContaining({ userId: undefined, isNpc: true }),
+      );
     });
 
     it('NPC → CP: nastaví userId, nastaví isNpc=false', async () => {
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(mockNpc);
-      mockCharRepo.update.mockResolvedValue({ ...mockNpc, userId: 'user2', isNpc: false });
+      mockCharRepo.update.mockResolvedValue({
+        ...mockNpc,
+        userId: 'user2',
+        isNpc: false,
+      });
       await service.convert('agent-smith', 'world1', { userId: 'user2' });
-      expect(mockCharRepo.update).toHaveBeenCalledWith('char2', expect.objectContaining({ userId: 'user2', isNpc: false }));
+      expect(mockCharRepo.update).toHaveBeenCalledWith(
+        'char2',
+        expect.objectContaining({ userId: 'user2', isNpc: false }),
+      );
     });
 
     it('emituje character.converted', async () => {
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(mockCharacter);
-      mockCharRepo.update.mockResolvedValue({ ...mockCharacter, userId: undefined, isNpc: true });
+      mockCharRepo.update.mockResolvedValue({
+        ...mockCharacter,
+        userId: undefined,
+        isNpc: true,
+      });
       await service.convert('medak', 'world1', {});
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith('character.converted', expect.objectContaining({ characterId: 'char1' }));
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'character.converted',
+        expect.objectContaining({ characterId: 'char1' }),
+      );
     });
   });
 
@@ -152,9 +246,16 @@ describe('CharactersService', () => {
 
   describe('update diaryData merge', () => {
     it('merguje diaryData — zachová existující klíče, přidá nové', async () => {
-      const existingChar = { ...mockCharacter, diaryData: { hp: 10, mana: 5 }, extraBlocks: [] };
+      const existingChar = {
+        ...mockCharacter,
+        diaryData: { hp: 10, mana: 5 },
+        extraBlocks: [],
+      };
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(existingChar);
-      mockCharRepo.update.mockResolvedValue({ ...existingChar, diaryData: { hp: 20, mana: 5 } });
+      mockCharRepo.update.mockResolvedValue({
+        ...existingChar,
+        diaryData: { hp: 20, mana: 5 },
+      });
       await service.update('medak', 'world1', { diaryData: { hp: 20 } });
       expect(mockCharRepo.update).toHaveBeenCalledWith(
         'char1',
@@ -164,12 +265,26 @@ describe('CharactersService', () => {
 
     it('extraBlocks se přepíše celé — existující bloky se zahazují', async () => {
       const oldBlock = { key: 'old', label: 'Starý', type: 'text', order: 0 };
-      const newBlock = { key: 'skills', label: 'Dovednosti', type: 'tagvalue', order: 1 };
-      const existingChar = { ...mockCharacter, diaryData: {}, extraBlocks: [oldBlock] };
+      const newBlock = {
+        key: 'skills',
+        label: 'Dovednosti',
+        type: 'tagvalue',
+        order: 1,
+      };
+      const existingChar = {
+        ...mockCharacter,
+        diaryData: {},
+        extraBlocks: [oldBlock],
+      };
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(existingChar);
-      mockCharRepo.update.mockResolvedValue({ ...existingChar, extraBlocks: [newBlock] });
+      mockCharRepo.update.mockResolvedValue({
+        ...existingChar,
+        extraBlocks: [newBlock],
+      });
       await service.update('medak', 'world1', { extraBlocks: [newBlock] });
-      const callArgs = mockCharRepo.update.mock.calls[0][1] as { extraBlocks: unknown[] };
+      const callArgs = mockCharRepo.update.mock.calls[0][1] as {
+        extraBlocks: unknown[];
+      };
       expect(callArgs.extraBlocks).toEqual([newBlock]);
       expect(callArgs.extraBlocks).not.toContainEqual(oldBlock);
     });

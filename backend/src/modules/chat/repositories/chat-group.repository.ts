@@ -11,13 +11,21 @@ export class MongoChatGroupRepository
   extends BaseMongoRepository<ChatGroup>
   implements IChatGroupRepository
 {
-  constructor(@InjectModel(ChatGroupSchemaClass.name) model: Model<ChatGroupSchemaClass>) {
+  constructor(
+    @InjectModel(ChatGroupSchemaClass.name) model: Model<ChatGroupSchemaClass>,
+  ) {
     super(model as never);
   }
 
   async findByWorldId(worldId: string): Promise<ChatGroup[]> {
-    const docs = await this.model.find({ worldId }).sort({ order: 1 }).lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    const docs = await this.model
+      .find({ worldId })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async countByWorldId(worldId: string): Promise<number> {

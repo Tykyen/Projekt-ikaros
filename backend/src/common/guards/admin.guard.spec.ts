@@ -25,11 +25,15 @@ describe('AdminGuard', () => {
   });
 
   it('should deny PJ (role=3)', () => {
-    expect(() => guard.canActivate(makeContext(UserRole.PJ))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(makeContext(UserRole.PJ))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should deny Hrac (role=5)', () => {
-    expect(() => guard.canActivate(makeContext(UserRole.Hrac))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(makeContext(UserRole.Hrac))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('should deny missing user', () => {

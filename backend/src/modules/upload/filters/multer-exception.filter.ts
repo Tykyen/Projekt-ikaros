@@ -8,7 +8,10 @@ export class MulterExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     if (error.code === 'LIMIT_FILE_SIZE') {
-      response.status(413).json({ statusCode: 413, message: 'Soubor je příliš velký (max 50 MB)' });
+      response.status(413).json({
+        statusCode: 413,
+        message: 'Soubor je příliš velký (max 50 MB)',
+      });
     } else {
       response.status(400).json({ statusCode: 400, message: error.message });
     }

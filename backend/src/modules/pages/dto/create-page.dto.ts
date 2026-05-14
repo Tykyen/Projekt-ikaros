@@ -8,7 +8,7 @@ import {
   IsIn,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { PAGE_TYPES } from '../interfaces/page.interface';
+import { PAGE_TYPES, type PageType } from '../interfaces/page.interface';
 
 export class AccessRequirementDto {
   @IsIn(['UserId', 'AKJ', 'Role'])
@@ -101,7 +101,7 @@ export class CreatePageDto {
   slug: string;
 
   @IsIn(Object.values(PAGE_TYPES))
-  type: string;
+  type: PageType;
 
   @IsString()
   title: string;

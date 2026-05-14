@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { DungeonMapSchemaClass, DungeonMapSchema } from './schemas/dungeon-map.schema';
+import {
+  DungeonMapSchemaClass,
+  DungeonMapSchema,
+} from './schemas/dungeon-map.schema';
 import { MongoDungeonMapsRepository } from './repositories/dungeon-maps.repository';
 import { DungeonMapsService } from './dungeon-maps.service';
 import { DungeonMapsController } from './dungeon-maps.controller';

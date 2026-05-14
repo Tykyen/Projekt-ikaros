@@ -2,11 +2,29 @@ import { MongoIkarosGalleryRepository } from './ikaros-gallery.repository';
 
 describe('MongoIkarosGalleryRepository', () => {
   const mockModel = {
-    find: jest.fn().mockReturnValue({ sort: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }) }) }),
-    findById: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
+    find: jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnValue({
+        lean: jest
+          .fn()
+          .mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
+      }),
+    }),
+    findById: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    }),
     create: jest.fn(),
-    findByIdAndUpdate: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
-    findByIdAndDelete: jest.fn().mockReturnValue({ lean: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
+    findByIdAndUpdate: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    }),
+    findByIdAndDelete: jest.fn().mockReturnValue({
+      lean: jest
+        .fn()
+        .mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    }),
     aggregate: jest.fn().mockResolvedValue([]),
   };
 

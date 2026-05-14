@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { ForbiddenException, ConflictException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { IkarosMessagesService } from './ikaros-messages.service';
 import type { IIkarosMessagesRepository } from './interfaces/ikaros-messages-repository.interface';
@@ -42,7 +42,7 @@ describe('IkarosMessagesService', () => {
       save: jest.fn(),
       update: jest.fn(),
       resolveIfPending: jest.fn(),
-    } as jest.Mocked<IIkarosMessagesRepository>;
+    };
 
     membershipRepo = {
       findByWorldId: jest.fn(),
@@ -50,10 +50,14 @@ describe('IkarosMessagesService', () => {
       findByUserId: jest.fn(),
       findById: jest.fn(),
       countByWorldId: jest.fn(),
+      countByUserId: jest.fn(),
+      countsByUserIds: jest.fn(),
+      countByRoleAcrossWorlds: jest.fn(),
+      findPaginatedByRoleAcrossWorlds: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
-    } as jest.Mocked<IWorldMembershipRepository>;
+    };
 
     eventEmitter = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
 
@@ -75,14 +79,22 @@ describe('IkarosMessagesService', () => {
       const saved = makeMsg();
       msgRepo.save.mockResolvedValue(saved);
       const result = await service.create(
-        { subject: 'Ahoj', body: 'Jak se máš?', recipientId: 'recipient1', recipientName: 'Bob' },
+        {
+          subject: 'Ahoj',
+          body: 'Jak se máš?',
+          recipientId: 'recipient1',
+          recipientName: 'Bob',
+        },
         { id: 'sender1', username: 'Alice' },
       );
       expect(result.senderId).toBe('sender1');
-      expect(eventEmitter.emit).toHaveBeenCalledWith('ikaros.message.created', expect.objectContaining({
-        recipientId: 'recipient1',
-        messageId: saved.id,
-      }));
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'ikaros.message.created',
+        expect.objectContaining({
+          recipientId: 'recipient1',
+          messageId: saved.id,
+        }),
+      );
     });
   });
 
@@ -101,7 +113,9 @@ describe('IkarosMessagesService', () => {
       msgRepo.findById.mockResolvedValue(msg);
       msgRepo.update.mockResolvedValue({ ...msg, deletedByRecipient: true });
       await service.softDelete('msg1', 'u1');
-      expect(msgRepo.update).toHaveBeenCalledWith('msg1', { deletedByRecipient: true });
+      expect(msgRepo.update).toHaveBeenCalledWith('msg1', {
+        deletedByRecipient: true,
+      });
     });
 
     it('nastaví deletedBySender pokud je volající sender', async () => {
@@ -109,65 +123,118 @@ describe('IkarosMessagesService', () => {
       msgRepo.findById.mockResolvedValue(msg);
       msgRepo.update.mockResolvedValue({ ...msg, deletedBySender: true });
       await service.softDelete('msg1', 'u2');
-      expect(msgRepo.update).toHaveBeenCalledWith('msg1', { deletedBySender: true });
+      expect(msgRepo.update).toHaveBeenCalledWith('msg1', {
+        deletedBySender: true,
+      });
     });
 
     it('hodí ForbiddenException pro cizího uživatele', async () => {
       msgRepo.findById.mockResolvedValue(makeMsg());
-      await expect(service.softDelete('msg1', 'cizi')).rejects.toThrow(ForbiddenException);
+      await expect(service.softDelete('msg1', 'cizi')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
   describe('resolve', () => {
     it('resolve accept — aplikuje role/group/isFree na membership', async () => {
       const msg = {
-        id: 'msg1', recipientId: 'pj1', actionType: 'world_join_request',
-        actionWorldId: 'w1', actionUserId: 'player1', actionResolved: false,
+        id: 'msg1',
+        recipientId: 'pj1',
+        actionType: 'world_join_request',
+        actionWorldId: 'w1',
+        actionUserId: 'player1',
+        actionResolved: false,
       };
-      const membership = { id: 'mem1', role: -1, worldId: 'w1', userId: 'player1', akj: 0, joinedAt: new Date() };
+      const membership = {
+        id: 'mem1',
+        role: 0, // WorldRole.Zadatel (D-053: -1 → 0)
+        worldId: 'w1',
+        userId: 'player1',
+        akj: 0,
+        joinedAt: new Date(),
+      };
       msgRepo.findById.mockResolvedValue(msg as any);
       msgRepo.resolveIfPending.mockResolvedValue(true);
-      membershipRepo.findByUserAndWorld.mockResolvedValue(membership as any);
-      membershipRepo.update.mockResolvedValue({ ...membership, role: 1, group: 'Alpha', isFree: false } as any);
+      membershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+      membershipRepo.update.mockResolvedValue({
+        ...membership,
+        role: 3, // WorldRole.Korektor (D-053: 1 → 3)
+        group: 'Alpha',
+        isFree: false,
+      });
       msgRepo.save.mockResolvedValue({} as any);
 
-      await service.resolve('msg1', { accept: true, role: 1, group: 'Alpha', isFree: false }, 'pj1');
+      await service.resolve(
+        'msg1',
+        { accept: true, role: 3, group: 'Alpha', isFree: false },
+        'pj1',
+      );
 
       expect(membershipRepo.update).toHaveBeenCalledWith('mem1', {
-        role: 1,
+        role: 3,
         group: 'Alpha',
         isFree: false,
       });
     });
 
     it('hodí ConflictException pokud resolveIfPending vrátí false', async () => {
-      msgRepo.findById.mockResolvedValue(makeMsg({
-        recipientId: 'pj1',
-        actionType: 'world_join_request',
-        actionResolved: true,
-        actionWorldId: 'w1',
-        actionUserId: 'req1',
-      }));
+      msgRepo.findById.mockResolvedValue(
+        makeMsg({
+          recipientId: 'pj1',
+          actionType: 'world_join_request',
+          actionResolved: true,
+          actionWorldId: 'w1',
+          actionUserId: 'req1',
+        }),
+      );
       msgRepo.resolveIfPending.mockResolvedValue(false);
-      await expect(service.resolve('msg1', { accept: true }, 'pj1')).rejects.toThrow(ConflictException);
+      await expect(
+        service.resolve('msg1', { accept: true }, 'pj1'),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('hodí ForbiddenException pokud volající není recipient', async () => {
-      msgRepo.findById.mockResolvedValue(makeMsg({
-        recipientId: 'pj1',
-        actionType: 'world_join_request',
-        actionResolved: false,
-      }));
-      await expect(service.resolve('msg1', { accept: true }, 'jiny')).rejects.toThrow(ForbiddenException);
+      msgRepo.findById.mockResolvedValue(
+        makeMsg({
+          recipientId: 'pj1',
+          actionType: 'world_join_request',
+          actionResolved: false,
+        }),
+      );
+      await expect(
+        service.resolve('msg1', { accept: true }, 'jiny'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('handleJoinRequest', () => {
     it('vytvoří zprávu pro každého PJ a PomocnyPJ světa', async () => {
       membershipRepo.findByWorldId.mockResolvedValue([
-        { id: 'm1', userId: 'pj1', worldId: 'w1', role: WorldRole.PJ, joinedAt: new Date(), akj: 0 },
-        { id: 'm2', userId: 'pj2', worldId: 'w1', role: WorldRole.PomocnyPJ, joinedAt: new Date(), akj: 0 },
-        { id: 'm3', userId: 'hrac1', worldId: 'w1', role: WorldRole.Hrac, joinedAt: new Date(), akj: 0 },
+        {
+          id: 'm1',
+          userId: 'pj1',
+          worldId: 'w1',
+          role: WorldRole.PJ,
+          joinedAt: new Date(),
+          akj: 0,
+        },
+        {
+          id: 'm2',
+          userId: 'pj2',
+          worldId: 'w1',
+          role: WorldRole.PomocnyPJ,
+          joinedAt: new Date(),
+          akj: 0,
+        },
+        {
+          id: 'm3',
+          userId: 'hrac1',
+          worldId: 'w1',
+          role: WorldRole.Hrac,
+          joinedAt: new Date(),
+          akj: 0,
+        },
       ]);
       msgRepo.save.mockResolvedValue(makeMsg());
 
@@ -180,8 +247,14 @@ describe('IkarosMessagesService', () => {
 
       expect(msgRepo.save).toHaveBeenCalledTimes(2);
       const calls = msgRepo.save.mock.calls;
-      expect(calls[0][0]).toMatchObject({ recipientId: 'pj1', actionType: 'world_join_request' });
-      expect(calls[1][0]).toMatchObject({ recipientId: 'pj2', actionType: 'world_join_request' });
+      expect(calls[0][0]).toMatchObject({
+        recipientId: 'pj1',
+        actionType: 'world_join_request',
+      });
+      expect(calls[1][0]).toMatchObject({
+        recipientId: 'pj2',
+        actionType: 'world_join_request',
+      });
     });
   });
 });

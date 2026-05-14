@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CharacterFinanceDocument = HydratedDocument<CharacterFinanceSchemaClass>;
+export type CharacterFinanceDocument =
+  HydratedDocument<CharacterFinanceSchemaClass>;
 
 @Schema({ collection: 'character_finances' })
 export class CharacterFinanceSchemaClass {
@@ -13,8 +14,13 @@ export class CharacterFinanceSchemaClass {
   @Prop() lastSyncDate?: Date;
   @Prop({ default: 0 }) balance: number;
   @Prop({ type: [Object], default: [] }) entries: Record<string, unknown>[];
-  @Prop({ type: [Object], default: [] }) transactions: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] }) transactions: Record<
+    string,
+    unknown
+  >[];
 }
 
-export const CharacterFinanceSchema = SchemaFactory.createForClass(CharacterFinanceSchemaClass);
+export const CharacterFinanceSchema = SchemaFactory.createForClass(
+  CharacterFinanceSchemaClass,
+);
 CharacterFinanceSchema.index({ characterId: 1 }, { unique: true });

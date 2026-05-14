@@ -1,6 +1,7 @@
 import { IsString, IsNotEmpty } from 'class-validator';
 
 export class InviteUserDto {
-  @IsString() @IsNotEmpty()
+  @IsString()
+  @IsNotEmpty()
   userId: string;
 }

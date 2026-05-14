@@ -1,0 +1,80 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, isValidObjectId } from 'mongoose';
+import type {
+  IWorldNewsRepository,
+  FindOptions,
+} from '../interfaces/world-news-repository.interface';
+import type {
+  WorldNewsItem,
+  WorldNewsType,
+} from '../interfaces/world-news.interface';
+import { WorldNewsSchemaClass } from '../schemas/world-news.schema';
+
+@Injectable()
+export class MongoWorldNewsRepository implements IWorldNewsRepository {
+  constructor(
+    @InjectModel(WorldNewsSchemaClass.name)
+    private readonly model: Model<WorldNewsSchemaClass>,
+  ) {}
+
+  private toEntity(doc: Record<string, unknown>): WorldNewsItem {
+    return {
+      id: String(doc._id),
+      worldId: (doc.worldId as string | null) ?? null,
+      title: doc.title as string,
+      content: doc.content as string,
+      date: doc.date as string,
+      type: doc.type as WorldNewsType,
+      link: doc.link as string | undefined,
+      createdBy: doc.createdBy as string | undefined,
+    };
+  }
+
+  async findMany(opts: FindOptions): Promise<WorldNewsItem[]> {
+    const filter =
+      opts.worldId === undefined
+        ? {}
+        : { worldId: { $in: [opts.worldId, null] } };
+    const docs = await this.model
+      .find(filter)
+      .sort({ date: -1 })
+      .limit(opts.limit)
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async findById(id: string): Promise<WorldNewsItem | null> {
+    if (!isValidObjectId(id)) return null;
+    const doc = await this.model.findById(id).lean().exec();
+    if (!doc) return null;
+    return this.toEntity(doc as unknown as Record<string, unknown>);
+  }
+
+  async create(data: Omit<WorldNewsItem, 'id'>): Promise<WorldNewsItem> {
+    const doc = await this.model.create(data);
+    return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
+  }
+
+  async update(
+    id: string,
+    patch: Partial<Omit<WorldNewsItem, 'id' | 'worldId'>>,
+  ): Promise<WorldNewsItem | null> {
+    if (!isValidObjectId(id)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(id, patch, { new: true })
+      .lean()
+      .exec();
+    if (!doc) return null;
+    return this.toEntity(doc as unknown as Record<string, unknown>);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    if (!isValidObjectId(id)) return false;
+    const result = await this.model.findByIdAndDelete(id).exec();
+    return result !== null;
+  }
+}

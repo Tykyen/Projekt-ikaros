@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { CharacterSchemaClass, CharacterSchema } from './schemas/character.schema';
+import {
+  CharacterSchemaClass,
+  CharacterSchema,
+} from './schemas/character.schema';
 import { MongoCharactersRepository } from './repositories/characters.repository';
 import { CharactersService } from './characters.service';
 import { CharactersController } from './characters.controller';
@@ -9,7 +12,9 @@ import { PopulateProfileImagesService } from './populate-profile-images.service'
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: CharacterSchemaClass.name, schema: CharacterSchema }]),
+    MongooseModule.forFeature([
+      { name: CharacterSchemaClass.name, schema: CharacterSchema },
+    ]),
     WorldsModule,
   ],
   controllers: [CharactersController],

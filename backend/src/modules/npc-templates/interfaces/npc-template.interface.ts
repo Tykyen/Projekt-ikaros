@@ -1,4 +1,7 @@
-import type { TagValue, SchemaBlock } from '../../characters/interfaces/character.interface';
+import type {
+  TagValue,
+  SchemaBlock,
+} from '../../characters/interfaces/character.interface';
 
 export interface NpcTemplate {
   id: string;

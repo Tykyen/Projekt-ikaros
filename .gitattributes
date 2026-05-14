@@ -1,0 +1,11 @@
+# Default: text files use LF in repo, autocrlf nezasahuje.
+* text=auto eol=lf
+
+# Binární soubory (žádný diff/merge ani EOL konverze)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary

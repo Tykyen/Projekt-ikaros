@@ -1,7 +1,13 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MapSceneSchemaClass, MapSceneSchema } from './schemas/map-scene.schema';
-import { MapTemplateSchemaClass, MapTemplateSchema } from './schemas/map-template.schema';
+import {
+  MapSceneSchemaClass,
+  MapSceneSchema,
+} from './schemas/map-scene.schema';
+import {
+  MapTemplateSchemaClass,
+  MapTemplateSchema,
+} from './schemas/map-template.schema';
 import { MongoMapsRepository } from './repositories/maps.repository';
 import { MongoMapTemplatesRepository } from './repositories/map-templates.repository';
 import { MapsService } from './maps.service';
@@ -25,7 +31,10 @@ import { CharactersModule } from '../characters/characters.module';
     MapsService,
     MapsGateway,
     { provide: 'IMapsRepository', useClass: MongoMapsRepository },
-    { provide: 'IMapTemplatesRepository', useClass: MongoMapTemplatesRepository },
+    {
+      provide: 'IMapTemplatesRepository',
+      useClass: MongoMapTemplatesRepository,
+    },
   ],
   exports: ['IMapsRepository', 'IMapTemplatesRepository'],
 })

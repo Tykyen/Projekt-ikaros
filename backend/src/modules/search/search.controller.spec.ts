@@ -4,7 +4,9 @@ import { SearchCoordinator } from './search.coordinator';
 
 const mockCoordinator = {
   search: jest.fn().mockResolvedValue([]),
-  getProviders: jest.fn().mockReturnValue([{ key: 'combined', displayName: 'Combined' }]),
+  getProviders: jest
+    .fn()
+    .mockReturnValue([{ key: 'combined', displayName: 'Combined' }]),
   addPageToIndex: jest.fn().mockResolvedValue(undefined),
   updatePageInIndex: jest.fn().mockResolvedValue(undefined),
   deletePageFromIndex: jest.fn().mockResolvedValue(undefined),
@@ -22,7 +24,9 @@ describe('SearchController', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     mockCoordinator.search.mockResolvedValue([]);
-    mockCoordinator.getProviders.mockReturnValue([{ key: 'combined', displayName: 'Combined' }]);
+    mockCoordinator.getProviders.mockReturnValue([
+      { key: 'combined', displayName: 'Combined' },
+    ]);
     mockPagesRepo.findAll.mockResolvedValue([]);
     mockPagesRepo.findByWorld.mockResolvedValue([]);
 
@@ -37,7 +41,16 @@ describe('SearchController', () => {
   });
 
   it('search — volá coordinator.search se správnými parametry', async () => {
-    mockCoordinator.search.mockResolvedValueOnce([{ slug: 'test', id: 't1', title: 'Test', score: 1, providerKey: 'meili', providerName: 'MeiliSearch' }]);
+    mockCoordinator.search.mockResolvedValueOnce([
+      {
+        slug: 'test',
+        id: 't1',
+        title: 'Test',
+        score: 1,
+        providerKey: 'meili',
+        providerName: 'MeiliSearch',
+      },
+    ]);
     mockPagesRepo.findByWorld.mockResolvedValueOnce([{ slug: 'test' }]);
     const result = await controller.search('hello', 5, undefined, 'world1');
     expect(mockCoordinator.search).toHaveBeenCalledWith('hello', 5, undefined);

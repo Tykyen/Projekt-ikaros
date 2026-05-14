@@ -17,14 +17,26 @@ export class HttpExceptionFilter implements ExceptionFilter {
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const exceptionResponse = exception.getResponse();
-    const message =
-      typeof exceptionResponse === 'string'
-        ? exceptionResponse
-        : (exceptionResponse as Record<string, unknown>).message ?? 'Error';
+    const isObject =
+      typeof exceptionResponse === 'object' && exceptionResponse !== null;
+
+    const message = isObject
+      ? ((exceptionResponse as Record<string, unknown>).message ?? 'Error')
+      : exceptionResponse;
+
+    // Custom doménový code (např. 'EMAIL_TAKEN', 'USERNAME_TAKEN') přepíše
+    // default HTTP status name (CONFLICT, BAD_REQUEST, …). Umožňuje FE
+    // mapovat field-level chyby bez parsování textových hlášek.
+    const customCode = isObject
+      ? (exceptionResponse as Record<string, unknown>).code
+      : undefined;
 
     response.status(status).json({
       error: {
-        code: HttpStatus[status] ?? 'UNKNOWN_ERROR',
+        code:
+          typeof customCode === 'string'
+            ? customCode
+            : (HttpStatus[status] ?? 'UNKNOWN_ERROR'),
         message,
         timestamp: new Date().toISOString(),
       },

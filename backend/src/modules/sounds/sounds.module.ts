@@ -9,7 +9,9 @@ import { WorldsModule } from '../worlds/worlds.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: SoundSchemaClass.name, schema: SoundSchema }]),
+    MongooseModule.forFeature([
+      { name: SoundSchemaClass.name, schema: SoundSchema },
+    ]),
     WorldsModule,
   ],
   controllers: [SoundsController, WorldSoundsController],

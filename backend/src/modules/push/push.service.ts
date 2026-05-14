@@ -34,7 +34,10 @@ export class PushService implements OnModuleInit {
     return this.config.get<string>('VAPID_PUBLIC_KEY')!;
   }
 
-  async subscribe(userId: string, data: { endpoint: string; p256dh: string; auth: string }): Promise<PushSubscription> {
+  async subscribe(
+    userId: string,
+    data: { endpoint: string; p256dh: string; auth: string },
+  ): Promise<PushSubscription> {
     return this.repo.upsertByEndpoint({ userId, ...data });
   }
 
@@ -56,13 +59,19 @@ export class PushService implements OnModuleInit {
     await this.sendToSubscriptions(subs, payload);
   }
 
-  private async sendToSubscriptions(subs: PushSubscription[], payload: PushPayload): Promise<void> {
+  private async sendToSubscriptions(
+    subs: PushSubscription[],
+    payload: PushPayload,
+  ): Promise<void> {
     const body = JSON.stringify(payload);
     await Promise.all(
       subs.map(async (sub) => {
         try {
           await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth },
+            },
             body,
           );
         } catch (err: unknown) {

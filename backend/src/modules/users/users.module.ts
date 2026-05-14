@@ -7,7 +7,11 @@ import { UsersController } from './users.controller';
 
 @Global()
 @Module({
-  imports: [MongooseModule.forFeature([{ name: UserSchemaClass.name, schema: UserSchema }])],
+  imports: [
+    MongooseModule.forFeature([
+      { name: UserSchemaClass.name, schema: UserSchema },
+    ]),
+  ],
   controllers: [UsersController],
   providers: [
     UsersService,

@@ -6,22 +6,37 @@ import { CharacterNotes } from '../interfaces/character-notes.interface';
 
 @Injectable()
 export class CharacterNotesRepository {
-  constructor(@InjectModel(CharacterNotesSchemaClass.name) private readonly model: Model<CharacterNotesSchemaClass>) {}
+  constructor(
+    @InjectModel(CharacterNotesSchemaClass.name)
+    private readonly model: Model<CharacterNotesSchemaClass>,
+  ) {}
 
   async findByCharacterId(characterId: string): Promise<CharacterNotes | null> {
     const doc = await this.model.findOne({ characterId }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async create(characterId: string): Promise<CharacterNotes> {
     const created = new this.model({ characterId, content: '' });
     const saved = await created.save();
-    return this.toEntity(saved.toObject() as unknown as Record<string, unknown>);
+    return this.toEntity(
+      saved.toObject() as unknown as Record<string, unknown>,
+    );
   }
 
-  async update(characterId: string, data: Partial<CharacterNotes>): Promise<CharacterNotes | null> {
-    const doc = await this.model.findOneAndUpdate({ characterId }, { $set: data }, { new: true }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+  async update(
+    characterId: string,
+    data: Partial<CharacterNotes>,
+  ): Promise<CharacterNotes | null> {
+    const doc = await this.model
+      .findOneAndUpdate({ characterId }, { $set: data }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   private toEntity(doc: Record<string, unknown>): CharacterNotes {

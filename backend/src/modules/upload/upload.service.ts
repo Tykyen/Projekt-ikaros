@@ -1,4 +1,8 @@
-import { Injectable, UnsupportedMediaTypeException, BadGatewayException } from '@nestjs/common';
+import {
+  Injectable,
+  UnsupportedMediaTypeException,
+  BadGatewayException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v2 as cloudinary } from 'cloudinary';
@@ -17,10 +21,13 @@ const ALLOWED_MIME_TYPES: Record<string, 'image' | 'video' | 'document'> = {
   'text/plain': 'document',
   'text/markdown': 'document',
   'application/msword': 'document',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+    'document',
 };
 
-function getResourceType(type: 'image' | 'video' | 'document'): 'image' | 'video' | 'raw' {
+function getResourceType(
+  type: 'image' | 'video' | 'document',
+): 'image' | 'video' | 'raw' {
   if (type === 'image') return 'image';
   if (type === 'video') return 'video';
   return 'raw';
@@ -43,7 +50,9 @@ export class UploadService {
   ): Promise<ChatAttachment> {
     const type = ALLOWED_MIME_TYPES[file.mimetype];
     if (!type) {
-      throw new UnsupportedMediaTypeException(`Nepodporovaný typ souboru: ${file.mimetype}`);
+      throw new UnsupportedMediaTypeException(
+        `Nepodporovaný typ souboru: ${file.mimetype}`,
+      );
     }
 
     const resourceType = getResourceType(type);
@@ -53,16 +62,26 @@ export class UploadService {
       result = await new Promise((resolve, reject) => {
         cloudinary.uploader
           .upload_stream(
-            { folder: `chat/${worldId}/${channelId}`, resource_type: resourceType },
+            {
+              folder: `chat/${worldId}/${channelId}`,
+              resource_type: resourceType,
+            },
             (err, res) => {
-              if (err || !res) reject(err ?? new Error('Cloudinary: no response'));
-              else resolve(res as { secure_url: string; public_id: string });
+              if (err || !res)
+                reject(
+                  err instanceof Error
+                    ? err
+                    : new Error(err?.message ?? 'Cloudinary: no response'),
+                );
+              else resolve(res);
             },
           )
           .end(file.buffer);
       });
     } catch {
-      throw new BadGatewayException('Chyba při nahrávání souboru na Cloudinary');
+      throw new BadGatewayException(
+        'Chyba při nahrávání souboru na Cloudinary',
+      );
     }
 
     return {
@@ -75,10 +94,20 @@ export class UploadService {
     };
   }
 
-  async uploadGalleryImage(file: Express.Multer.File): Promise<{ url: string; publicId: string }> {
-    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+  async uploadGalleryImage(
+    file: Express.Multer.File,
+  ): Promise<{ url: string; publicId: string }> {
+    const allowedImageTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml',
+    ];
     if (!allowedImageTypes.includes(file.mimetype)) {
-      throw new UnsupportedMediaTypeException(`Nepodporovaný typ souboru: ${file.mimetype}`);
+      throw new UnsupportedMediaTypeException(
+        `Nepodporovaný typ souboru: ${file.mimetype}`,
+      );
     }
 
     let result: { secure_url: string; public_id: string };
@@ -88,26 +117,39 @@ export class UploadService {
           .upload_stream(
             { folder: 'gallery', resource_type: 'image' },
             (err, res) => {
-              if (err || !res) reject(err ?? new Error('Cloudinary: no response'));
-              else resolve(res as { secure_url: string; public_id: string });
+              if (err || !res)
+                reject(
+                  err instanceof Error
+                    ? err
+                    : new Error(err?.message ?? 'Cloudinary: no response'),
+                );
+              else resolve(res);
             },
           )
           .end(file.buffer);
       });
     } catch {
-      throw new BadGatewayException('Chyba při nahrávání obrázku na Cloudinary');
+      throw new BadGatewayException(
+        'Chyba při nahrávání obrázku na Cloudinary',
+      );
     }
 
     return { url: result.secure_url, publicId: result.public_id };
   }
 
   @OnEvent('chat.message.deleted')
-  async handleMessageDeleted(payload: { attachments?: ChatAttachment[] }): Promise<void> {
+  async handleMessageDeleted(payload: {
+    attachments?: ChatAttachment[];
+  }): Promise<void> {
     for (const att of payload.attachments ?? []) {
       try {
-        await cloudinary.uploader.destroy(att.publicId, { resource_type: getResourceType(att.type) });
+        await cloudinary.uploader.destroy(att.publicId, {
+          resource_type: getResourceType(att.type),
+        });
       } catch {
-        console.error(`[UploadService] Failed to delete Cloudinary asset: ${att.publicId}`);
+        console.error(
+          `[UploadService] Failed to delete Cloudinary asset: ${att.publicId}`,
+        );
       }
     }
   }

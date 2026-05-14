@@ -8,7 +8,9 @@ jest.mock('onnxruntime-node', () => ({
       }),
     }),
   },
-  Tensor: jest.fn().mockImplementation((type, data, dims) => ({ type, data, dims })),
+  Tensor: jest
+    .fn()
+    .mockImplementation((type, data, dims) => ({ type, data, dims })),
 }));
 
 jest.mock('sentencepiece-js', () => {

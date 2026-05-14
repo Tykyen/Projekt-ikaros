@@ -1,4 +1,12 @@
-import { IsIn, IsInt, IsString, IsUrl, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsString,
+  IsUrl,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class ChatAttachmentDto {
   @IsUrl() url: string;

@@ -1,4 +1,9 @@
-import { Injectable, OnApplicationBootstrap, Logger, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  OnApplicationBootstrap,
+  Logger,
+  Inject,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import type { IWorldsRepository } from '../../modules/worlds/interfaces/worlds-repository.interface';
 import type { IUsersRepository } from '../../modules/users/interfaces/users-repository.interface';
@@ -14,7 +19,8 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
   constructor(
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
-    @Inject('IWorldSettingsRepository') private readonly settingsRepo: IWorldSettingsRepository,
+    @Inject('IWorldSettingsRepository')
+    private readonly settingsRepo: IWorldSettingsRepository,
   ) {}
 
   async onApplicationBootstrap() {
@@ -22,7 +28,9 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
       const existing = await this.worldsRepo.findById(MATRIX_WORLD_ID);
       if (existing) return;
 
-      const superadmin = await this.usersRepo.findFirstByRole(UserRole.Superadmin);
+      const superadmin = await this.usersRepo.findFirstByRole(
+        UserRole.Superadmin,
+      );
       if (!superadmin) {
         this.logger.warn('No Superadmin found — Matrix World seed skipped.');
         return;
@@ -42,8 +50,8 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
       this.logger.log('Matrix World seeded.');
       await this.settingsRepo.upsert(MATRIX_WORLD_ID, {
         akjTypes: [
-          { key: 'akj',      name: 'AKJ',           level: 5 },
-          { key: 'woodwide', name: 'Wood Wide Web',  level: 7 },
+          { key: 'akj', name: 'AKJ', level: 5 },
+          { key: 'woodwide', name: 'Wood Wide Web', level: 7 },
         ],
       });
       this.logger.log('Matrix World AKJ types seeded.');

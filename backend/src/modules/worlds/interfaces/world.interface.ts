@@ -20,6 +20,16 @@ export interface WorldCalendarConfig {
   celestialBodies: CelestialBody[];
 }
 
+/**
+ * Spec 2.4 — public owner summary populated do `World.owner` při `findById` /
+ * `findBySlug`. Žádné citlivé pole (žádný email, lastLoginAt, role…).
+ */
+export interface PublicOwnerSummary {
+  id: string;
+  username: string;
+  avatarUrl?: string;
+}
+
 export interface World {
   id: string;
   name: string;
@@ -30,6 +40,8 @@ export interface World {
   tones?: string[];
   playersWanted?: string;
   playerCount: number;
+  /** 2.2 — volitelná max kapacita světa (pro sort "volná místa" + 2.3 wizard). */
+  maxPlayers?: number | null;
   dice?: string[];
   system: string;
   ownerId: string;
@@ -40,4 +52,6 @@ export interface World {
   favoritePageSlugs: string[];
   createdAt: Date;
   updatedAt: Date;
+  /** Spec 2.4 — populated jen při `findById` / `findBySlug` (controller endpointy). */
+  owner?: PublicOwnerSummary;
 }

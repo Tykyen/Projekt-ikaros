@@ -4,7 +4,9 @@ import { Server } from 'socket.io';
 import type { World } from './interfaces/world.interface';
 import type { WorldMembership } from './interfaces/world-membership.interface';
 
-@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' } })
+@WebSocketGateway({
+  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
+})
 export class WorldsGateway {
   @WebSocketServer() server: Server;
 
@@ -19,12 +21,19 @@ export class WorldsGateway {
   }
 
   @OnEvent('world.membership.changed')
-  handleMembershipChanged(payload: { worldId: string; membership: WorldMembership }) {
-    this.server.to(`world:${payload.worldId}`).emit('world:membership:changed', payload.membership);
+  handleMembershipChanged(payload: {
+    worldId: string;
+    membership: WorldMembership;
+  }) {
+    this.server
+      .to(`world:${payload.worldId}`)
+      .emit('world:membership:changed', payload.membership);
   }
 
   @OnEvent('world.membership.removed')
   handleMembershipRemoved(payload: { worldId: string; membershipId: string }) {
-    this.server.to(`world:${payload.worldId}`).emit('world:membership:removed', payload.membershipId);
+    this.server
+      .to(`world:${payload.worldId}`)
+      .emit('world:membership:removed', payload.membershipId);
   }
 }

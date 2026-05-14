@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type SearchIndexStatsDocument = HydratedDocument<SearchIndexStatsSchemaClass>;
+export type SearchIndexStatsDocument =
+  HydratedDocument<SearchIndexStatsSchemaClass>;
 
 @Schema({ collection: 'search_index_stats' })
 export class SearchIndexStatsSchemaClass {
@@ -17,9 +18,12 @@ export class SearchIndexStatsSchemaClass {
   @Prop() lastEmbeddedAtUtc?: Date;
 }
 
-export const SearchIndexStatsSchema = SchemaFactory.createForClass(SearchIndexStatsSchemaClass);
+export const SearchIndexStatsSchema = SchemaFactory.createForClass(
+  SearchIndexStatsSchemaClass,
+);
 
-export type IndexingFailureDocument = HydratedDocument<IndexingFailureSchemaClass>;
+export type IndexingFailureDocument =
+  HydratedDocument<IndexingFailureSchemaClass>;
 
 @Schema({ collection: 'indexing_failures', timestamps: true })
 export class IndexingFailureSchemaClass {
@@ -29,4 +33,6 @@ export class IndexingFailureSchemaClass {
   @Prop({ default: Date.now }) timestamp: Date;
 }
 
-export const IndexingFailureSchema = SchemaFactory.createForClass(IndexingFailureSchemaClass);
+export const IndexingFailureSchema = SchemaFactory.createForClass(
+  IndexingFailureSchemaClass,
+);

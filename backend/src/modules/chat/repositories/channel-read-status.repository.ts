@@ -12,17 +12,34 @@ export class MongoChannelReadStatusRepository implements IChannelReadStatusRepos
     private readonly model: Model<ChannelReadStatusSchemaClass>,
   ) {}
 
-  async findByUserAndChannel(userId: string, channelId: string): Promise<ChannelReadStatus | null> {
+  async findByUserAndChannel(
+    userId: string,
+    channelId: string,
+  ): Promise<ChannelReadStatus | null> {
     const doc = await this.model.findOne({ userId, channelId }).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async findByUserAndChannels(userId: string, channelIds: string[]): Promise<ChannelReadStatus[]> {
-    const docs = await this.model.find({ userId, channelId: { $in: channelIds } }).lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+  async findByUserAndChannels(
+    userId: string,
+    channelIds: string[],
+  ): Promise<ChannelReadStatus[]> {
+    const docs = await this.model
+      .find({ userId, channelId: { $in: channelIds } })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
-  async upsert(userId: string, channelId: string, lastReadMessageId: string): Promise<ChannelReadStatus> {
+  async upsert(
+    userId: string,
+    channelId: string,
+    lastReadMessageId: string,
+  ): Promise<ChannelReadStatus> {
     const doc = await this.model
       .findOneAndUpdate(
         { userId, channelId },

@@ -8,7 +8,11 @@ export interface ISoundsRepository {
   findGlobalByUrlOrName(url: string, name: string): Promise<Sound | null>;
   create(data: Partial<Sound>): Promise<Sound>;
   updateById(id: string, data: Partial<Sound>): Promise<Sound | null>;
-  updateByIdAndWorld(id: string, worldId: string, data: Partial<Sound>): Promise<Sound | null>;
+  updateByIdAndWorld(
+    id: string,
+    worldId: string,
+    data: Partial<Sound>,
+  ): Promise<Sound | null>;
   deleteById(id: string): Promise<boolean>;
   deleteByIdAndWorld(id: string, worldId: string): Promise<boolean>;
 }

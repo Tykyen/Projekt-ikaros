@@ -6,9 +6,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
   imports: [
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('MONGODB_URI') ?? 'mongodb://localhost:27017/ikaros',
-      }),
+      useFactory: (config: ConfigService) => {
+        const uri = config.get<string>('MONGODB_URI');
+        if (!uri) {
+          if (config.get<string>('NODE_ENV') === 'production') {
+            throw new Error(
+              'MONGODB_URI musí být v production prostředí explicitně nastaven.',
+            );
+          }
+          return { uri: 'mongodb://localhost:27017/ikaros' };
+        }
+        return { uri };
+      },
       inject: [ConfigService],
     }),
   ],

@@ -1,16 +1,28 @@
 import { SearchCoordinator } from './search.coordinator';
 import type { ISearchProvider } from './interfaces/search-provider.interface';
 
-const makeProvider = (key: string, results: Array<{ slug: string; score: number }>) => ({
-  providerKey: key,
-  displayName: key,
-  search: jest.fn().mockResolvedValue(results.map((r) => ({ ...r, id: r.slug, title: r.slug, providerKey: key, providerName: key }))),
-  addPageToIndex: jest.fn().mockResolvedValue(undefined),
-  updatePageInIndex: jest.fn().mockResolvedValue(undefined),
-  deletePageFromIndex: jest.fn().mockResolvedValue(undefined),
-  rebuildIndex: jest.fn().mockResolvedValue(undefined),
-  getInfo: () => ({ key, displayName: key }),
-} as unknown as ISearchProvider);
+const makeProvider = (
+  key: string,
+  results: Array<{ slug: string; score: number }>,
+) =>
+  ({
+    providerKey: key,
+    displayName: key,
+    search: jest.fn().mockResolvedValue(
+      results.map((r) => ({
+        ...r,
+        id: r.slug,
+        title: r.slug,
+        providerKey: key,
+        providerName: key,
+      })),
+    ),
+    addPageToIndex: jest.fn().mockResolvedValue(undefined),
+    updatePageInIndex: jest.fn().mockResolvedValue(undefined),
+    deletePageFromIndex: jest.fn().mockResolvedValue(undefined),
+    rebuildIndex: jest.fn().mockResolvedValue(undefined),
+    getInfo: () => ({ key, displayName: key }),
+  }) as unknown as ISearchProvider;
 
 describe('SearchCoordinator', () => {
   let coordinator: SearchCoordinator;
@@ -18,8 +30,14 @@ describe('SearchCoordinator', () => {
   let embedding: ISearchProvider;
 
   beforeEach(() => {
-    meili = makeProvider('meili', [{ slug: 'a', score: 0.9 }, { slug: 'b', score: 0.7 }]);
-    embedding = makeProvider('embedding', [{ slug: 'c', score: 0.8 }, { slug: 'a', score: 0.6 }]);
+    meili = makeProvider('meili', [
+      { slug: 'a', score: 0.9 },
+      { slug: 'b', score: 0.7 },
+    ]);
+    embedding = makeProvider('embedding', [
+      { slug: 'c', score: 0.8 },
+      { slug: 'a', score: 0.6 },
+    ]);
     coordinator = new SearchCoordinator([meili, embedding]);
   });
 

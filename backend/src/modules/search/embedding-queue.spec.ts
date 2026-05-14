@@ -9,13 +9,17 @@ describe('EmbeddingQueue', () => {
     queue.enqueue({ type: 'Upsert', page: { id: 'p1' } as any });
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ type: 'Upsert' }));
+    expect(handler).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'Upsert' }),
+    );
     queue.stop();
   });
 
   it('enqueue — Upsert během Rebuild jde do backlogu', async () => {
     let rebuildResolve!: () => void;
-    const rebuildPromise = new Promise<void>((r) => { rebuildResolve = r; });
+    const rebuildPromise = new Promise<void>((r) => {
+      rebuildResolve = r;
+    });
 
     const handler = jest.fn().mockImplementation((op: QueueOperation) => {
       if (op.type === 'Rebuild') return rebuildPromise;

@@ -12,6 +12,12 @@ export class UserSchemaClass {
   @Prop({ required: true, unique: true })
   username: string;
 
+  // Lowercase derivát username pro case-insensitive lookup. Derivuje se v repository při save.
+  // Existující záznamy jsou backfillovány při bootu (UsersService.onModuleInit).
+  // Není required (kvůli pre-migration záznamům); backfill garantuje že po onModuleInit je vždy nastaveno.
+  @Prop({ unique: true, sparse: true, lowercase: true, index: true })
+  usernameLower?: string;
+
   @Prop({ required: true })
   passwordHash: string;
 

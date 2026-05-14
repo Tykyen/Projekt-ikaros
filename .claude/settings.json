@@ -14,7 +14,9 @@
       "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" add backend/src/modules/calendars/calendars.service.spec.ts)",
       "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"test\\(calendar\\): přidat test updateSharing pro null membership\")",
       "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"fix\\(calendar\\): whitelistovat pouze events v PUT calendar endpointu\" backend/src/modules/character-subdocs/character-subdocs.controller.ts)",
-      "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"docs\\(roadmap\\): aktualizovat Krok 10b — přidat sdílení kalendáře\" docs/roadmap.md)"
+      "Bash(git -C \"c:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\.worktrees\\\\krok-10b\" commit -m \"docs\\(roadmap\\): aktualizovat Krok 10b — přidat sdílení kalendáře\" docs/roadmap.md)",
+      "PowerShell(head -20)",
+      "PowerShell(Get-ChildItem -Recurse -Path \"C:\\\\Matrix\\\\ProjektIkaros\\\\Projekt-ikaros\\\\backend\\\\src\\\\modules\" -Directory | Where-Object { $_.Name -match \"weather|news|currency|calendar\" } | Select-Object -ExpandProperty Name)"
     ],
     "additionalDirectories": [
       "C:\\Matrix\\ProjektIkaros\\Projekt-ikaros\\.git"

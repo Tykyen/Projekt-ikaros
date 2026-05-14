@@ -15,9 +15,12 @@ export class ChatChannelSchemaClass {
   @Prop() lastMessageAt?: Date;
   @Prop({ default: 0 }) order: number;
   @Prop({ default: false }) isDeleted: boolean;
+  @Prop({ type: String, default: 'all' }) type: string;
 }
 
-export const ChatChannelSchema = SchemaFactory.createForClass(ChatChannelSchemaClass);
+export const ChatChannelSchema = SchemaFactory.createForClass(
+  ChatChannelSchemaClass,
+);
 ChatChannelSchema.index({ worldId: 1, groupId: 1 });
 ChatChannelSchema.index({ worldId: 1, lastMessageAt: -1 });
 ChatChannelSchema.index({ isGlobal: 1 });

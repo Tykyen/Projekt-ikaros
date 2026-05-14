@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
-@Schema({ collection: 'custom_emotes', timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: 'custom_emotes',
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class CustomEmoteDocument extends Document {
   @Prop({ type: Types.ObjectId, default: null })
   worldId: Types.ObjectId | null;
@@ -21,5 +24,6 @@ export class CustomEmoteDocument extends Document {
   createdAt: Date;
 }
 
-export const CustomEmoteSchema = SchemaFactory.createForClass(CustomEmoteDocument);
+export const CustomEmoteSchema =
+  SchemaFactory.createForClass(CustomEmoteDocument);
 CustomEmoteSchema.index({ worldId: 1, shortcode: 1 }, { unique: true });

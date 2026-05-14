@@ -10,5 +10,7 @@ export class UniverseMapSchemaClass {
   @Prop({ type: [Object], default: [] }) links: Record<string, unknown>[];
 }
 
-export const UniverseMapSchema = SchemaFactory.createForClass(UniverseMapSchemaClass);
+export const UniverseMapSchema = SchemaFactory.createForClass(
+  UniverseMapSchemaClass,
+);
 UniverseMapSchema.index({ worldId: 1 }, { unique: true });

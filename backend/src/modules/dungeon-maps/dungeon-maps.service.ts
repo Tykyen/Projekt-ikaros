@@ -1,4 +1,9 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import type { IDungeonMapsRepository } from './interfaces/dungeon-maps-repository.interface';
 import type { DungeonMap } from './interfaces/dungeon-map.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -10,16 +15,27 @@ import { UserRole } from '../users/interfaces/user.interface';
 @Injectable()
 export class DungeonMapsService {
   constructor(
-    @Inject('IDungeonMapsRepository') private readonly repo: IDungeonMapsRepository,
-    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
-    @Inject('IMapTemplatesRepository') private readonly templateRepo: IMapTemplatesRepository,
+    @Inject('IDungeonMapsRepository')
+    private readonly repo: IDungeonMapsRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IMapTemplatesRepository')
+    private readonly templateRepo: IMapTemplatesRepository,
     @Inject('IMapsRepository') private readonly mapsRepo: IMapsRepository,
   ) {}
 
-  async assertCanManage(userId: string, userRole: UserRole, worldId: string): Promise<void> {
+  async assertCanManage(
+    userId: string,
+    userRole: UserRole,
+    worldId: string,
+  ): Promise<void> {
     if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
-    if (!membership || membership.role < WorldRole.PJ) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership || membership.role < WorldRole.PJ)
+      throw new ForbiddenException('Nedostatečná oprávnění');
   }
 
   async findByWorld(worldId: string): Promise<DungeonMap[]> {
@@ -32,16 +48,28 @@ export class DungeonMapsService {
     return dungeon;
   }
 
-  async create(dto: Partial<DungeonMap>, userId: string, userRole: UserRole): Promise<DungeonMap> {
+  async create(
+    dto: Partial<DungeonMap>,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<DungeonMap> {
     await this.assertCanManage(userId, userRole, dto.worldId ?? '');
     return this.repo.create(dto);
   }
 
-  async replace(id: string, dto: Partial<DungeonMap>, userId: string, userRole: UserRole): Promise<DungeonMap> {
+  async replace(
+    id: string,
+    dto: Partial<DungeonMap>,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<DungeonMap> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon) throw new NotFoundException('Dungeon nenalezen');
     await this.assertCanManage(userId, userRole, dungeon.worldId);
-    const updated = await this.repo.replace(id, { ...dto, worldId: dungeon.worldId });
+    const updated = await this.repo.replace(id, {
+      ...dto,
+      worldId: dungeon.worldId,
+    });
     return updated!;
   }
 
@@ -64,7 +92,12 @@ export class DungeonMapsService {
     const template = await this.templateRepo.create({
       name: dungeon.name,
       imageUrl,
-      config: { size: dungeon.cellSize, originX: 0, originY: 0, showGrid: true },
+      config: {
+        size: dungeon.cellSize,
+        originX: 0,
+        originY: 0,
+        showGrid: true,
+      },
       npcTemplates: [],
       tokens: [],
       effects: [],
@@ -88,7 +121,12 @@ export class DungeonMapsService {
       name: dungeon.name,
       imageUrl,
       worldId: dungeon.worldId,
-      config: { size: dungeon.cellSize, originX: 0, originY: 0, showGrid: true },
+      config: {
+        size: dungeon.cellSize,
+        originX: 0,
+        originY: 0,
+        showGrid: true,
+      },
       tokens: [],
       npcTemplates: [],
       effects: [],

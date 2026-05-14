@@ -2,7 +2,9 @@ import { Test } from '@nestjs/testing';
 import { StatsController } from './stats.controller';
 
 const mockStatsRepo = {
-  get: jest.fn().mockResolvedValue({ status: 'Everything embedded', vectorCount: 42 }),
+  get: jest
+    .fn()
+    .mockResolvedValue({ status: 'Everything embedded', vectorCount: 42 }),
 };
 
 const mockCoordinator = {
@@ -19,7 +21,10 @@ describe('StatsController', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    mockStatsRepo.get.mockResolvedValue({ status: 'Everything embedded', vectorCount: 42 });
+    mockStatsRepo.get.mockResolvedValue({
+      status: 'Everything embedded',
+      vectorCount: 42,
+    });
     mockCoordinator.rebuildIndex.mockResolvedValue(undefined);
 
     const module = await Test.createTestingModule({

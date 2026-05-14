@@ -9,9 +9,30 @@ const mockMap: UniverseMap = {
   id: 'map1',
   worldId: 'world1',
   nodes: [
-    { id: 'Midgard', name: 'Midgard', color: '#ffffff', size: 8, isPublic: true, visibleToPlayerIds: [] },
-    { id: 'Asgard', name: 'Asgard', color: '#ffee00', size: 6, isPublic: false, visibleToPlayerIds: ['player1'] },
-    { id: 'Niflheim', name: 'Niflheim', color: '#00bfff', size: 6, isPublic: false, visibleToPlayerIds: [] },
+    {
+      id: 'Midgard',
+      name: 'Midgard',
+      color: '#ffffff',
+      size: 8,
+      isPublic: true,
+      visibleToPlayerIds: [],
+    },
+    {
+      id: 'Asgard',
+      name: 'Asgard',
+      color: '#ffee00',
+      size: 6,
+      isPublic: false,
+      visibleToPlayerIds: ['player1'],
+    },
+    {
+      id: 'Niflheim',
+      name: 'Niflheim',
+      color: '#00bfff',
+      size: 6,
+      isPublic: false,
+      visibleToPlayerIds: [],
+    },
   ],
   links: [
     { source: 'Midgard', target: 'Asgard', isOrbit: false },
@@ -75,7 +96,9 @@ describe('UniverseService', () => {
       const result = await service.findByWorld('world1', 'player1', false);
       // Midgard (isPublic) + Asgard (player1 v visibleToPlayerIds)
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes.map((n) => n.id)).toEqual(expect.arrayContaining(['Midgard', 'Asgard']));
+      expect(result.nodes.map((n) => n.id)).toEqual(
+        expect.arrayContaining(['Midgard', 'Asgard']),
+      );
     });
 
     it('hráč nevidí uzly kde není ani isPublic ani v visibleToPlayerIds', async () => {
@@ -104,8 +127,15 @@ describe('UniverseService', () => {
   describe('update', () => {
     it('uloží celou mapu a vrátí výsledek', async () => {
       mockRepo.upsert.mockResolvedValue(mockMap);
-      const result = await service.update('world1', { nodes: mockMap.nodes, links: mockMap.links });
-      expect(mockRepo.upsert).toHaveBeenCalledWith('world1', mockMap.nodes, mockMap.links);
+      const result = await service.update('world1', {
+        nodes: mockMap.nodes,
+        links: mockMap.links,
+      });
+      expect(mockRepo.upsert).toHaveBeenCalledWith(
+        'world1',
+        mockMap.nodes,
+        mockMap.links,
+      );
       expect(result).toBeDefined();
     });
   });
@@ -113,37 +143,55 @@ describe('UniverseService', () => {
   describe('updateNodeVisibility', () => {
     it('vrátí aktualizovanou mapu při úspěchu', async () => {
       mockRepo.updateNodeVisibility.mockResolvedValue(mockMap);
-      const result = await service.updateNodeVisibility('world1', 'Midgard', { isPublic: false, visibleToPlayerIds: ['p1'] });
+      const result = await service.updateNodeVisibility('world1', 'Midgard', {
+        isPublic: false,
+        visibleToPlayerIds: ['p1'],
+      });
       expect(result).toBeDefined();
     });
 
     it('vyhodí NotFoundException pokud nodeId neexistuje', async () => {
       mockRepo.updateNodeVisibility.mockResolvedValue(null);
       await expect(
-        service.updateNodeVisibility('world1', 'NEEXISTUJE', { isPublic: true, visibleToPlayerIds: [] }),
+        service.updateNodeVisibility('world1', 'NEEXISTUJE', {
+          isPublic: true,
+          visibleToPlayerIds: [],
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('assertCanManage', () => {
     it('propustí Admina bez kontroly membershipu', async () => {
-      await expect(service.assertCanManage('admin1', UserRole.Admin, 'world1')).resolves.toBeUndefined();
+      await expect(
+        service.assertCanManage('admin1', UserRole.Admin, 'world1'),
+      ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });
 
     it('propustí PJ', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      await expect(service.assertCanManage('pj1', UserRole.Hrac, 'world1')).resolves.toBeUndefined();
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      await expect(
+        service.assertCanManage('pj1', UserRole.Hrac, 'world1'),
+      ).resolves.toBeUndefined();
     });
 
     it('odmítne hráče s ForbiddenException', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Hrac });
-      await expect(service.assertCanManage('user1', UserRole.Hrac, 'world1')).rejects.toThrow(ForbiddenException);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.assertCanManage('user1', UserRole.Hrac, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('odmítne pokud membership neexistuje', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
-      await expect(service.assertCanManage('user1', UserRole.Hrac, 'world1')).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.assertCanManage('user1', UserRole.Hrac, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

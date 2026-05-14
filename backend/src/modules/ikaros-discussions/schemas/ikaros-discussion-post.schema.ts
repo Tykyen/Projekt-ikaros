@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type IkarosDiscussionPostDocument = HydratedDocument<IkarosDiscussionPostSchemaClass>;
+export type IkarosDiscussionPostDocument =
+  HydratedDocument<IkarosDiscussionPostSchemaClass>;
 
 @Schema({ collection: 'ikaros_discussion_posts' })
 export class IkarosDiscussionPostSchemaClass {
@@ -12,5 +13,7 @@ export class IkarosDiscussionPostSchemaClass {
   @Prop({ default: () => new Date() }) createdAtUtc: Date;
 }
 
-export const IkarosDiscussionPostSchema = SchemaFactory.createForClass(IkarosDiscussionPostSchemaClass);
+export const IkarosDiscussionPostSchema = SchemaFactory.createForClass(
+  IkarosDiscussionPostSchemaClass,
+);
 IkarosDiscussionPostSchema.index({ discussionId: 1, createdAtUtc: 1 });

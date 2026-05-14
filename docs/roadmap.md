@@ -7,15 +7,22 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 > **Zásada:** Nový systém musí pokrýt vše, co zvládal starý. Tam kde starý používal Google Drive → **Cloudinary**. Tam kde starý používal SignalR → **NestJS Gateway (Socket.io)**. Tam kde starý používal Lucene → **MeiliSearch nebo MongoDB Atlas Search**.
 
+> ⚠️ **Audit 2026-05-05:** tento dokument byl historicky příliš optimistický. Reálný stav, chybějící moduly a opravný plán jsou v [roadmap2.md](roadmap2.md). Stavy níže byly opraveny dle auditu — kroky označené `🚧` mají v sekci `> AUDIT:` poznámku, co konkrétně chybí.
+
 ---
 
 ## Krok 1 — Základ & Auth ✅
 
-- [x] Auth modul: POST /api/auth/login (bcrypt verify → JWT), POST /api/auth/refresh/:id
-- [x] JWT claims: sub (userId), unique_name (username), role, characterPath, ikarosSkin, akj
+> AUDIT (po fázi 1.1 + 1.3): `akj` claim ze starého systému se nepřidává — AKJ je per-world. `POST /auth/refresh` implementován s rotací + blacklist (familyId), reuse detection. Navíc `POST /auth/logout` (per-session) a `POST /auth/logout-all` (per-user). Změna hesla revokuje všechny refresh tokeny (EventEmitter `user.password.changed`).
+
+- [x] Auth modul: POST /api/auth/login (bcrypt verify → JWT)
+- [x] **POST /api/auth/refresh** — rotace + blacklist (familyId), reuse detection (revoke rodiny při zneužití)
+- [x] **POST /api/auth/logout** — per-session, idempotent
+- [x] **POST /api/auth/logout-all** — per-user, vyžaduje JWT
+- [x] JWT claims: sub (userId), email, username, role, characterPath, ikarosSkin _(akj záměrně NE — AKJ je per-world)_
 - [x] JWT 24h expiry, HS256, guard `JwtAuthGuard`, decorator `@CurrentUser()`
 - [x] Users modul: CRUD, 9 rolí (User/Player/PJ/Korektor/SpravceXxx/Admin/Superadmin)
-- [x] User schema: passwordHash, profileImageUrl, groups, themeSettings, chatPreferences, akj, characterPath
+- [x] User schema: passwordHash, profileImageUrl, groups, themeSettings, chatPreferences, characterPath
 - [x] Worlds modul základ: World CRUD (name, slug, description, genre, accessMode)
 - [x] DB seed: Matrix world, první PJ vlastník
 
@@ -24,6 +31,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 ---
 
 ## Krok 2 — Světy ✅
+
+> AUDIT (po fázi 4): původní audit minul implementaci. JOIN flow JE hotový: `POST /worlds/:id/join` v `worlds.controller.ts:103`, větvení dle accessMode v `worlds.service.ts:107-142` (closed → 403, public → Hrac, private → Pending), idempotence, emit `world.join.requested` → `@OnEvent` listener v `ikaros-messages.service.ts:152` vytvoří IkarosMessage PJ. Spec testy v `worlds.service.spec.ts:118-130`.
 
 - [x] WorldMembership: userId, worldId, role (Pending/Hrac/Korektor/PomocnyPJ/PJ), avatarUrl, characterPath, group, akj
 - [x] JOIN logika: kontrola accessMode → vytvoř Pending nebo Hrac, odešli IkarosMessage vlastníkovi (na krok 5)
@@ -37,7 +46,15 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 3 — Chat & Upload ✅
 
+> AUDIT (po fázi 16b): `customFont`, `color`, `isDiceRoll` doplněny do `ChatMessage` ([chat-message.schema.ts:27,42,46](../backend/src/modules/chat/schemas/chat-message.schema.ts#L27)); `type` na `ChatChannel` ([chat-channel.schema.ts:18](../backend/src/modules/chat/schemas/chat-channel.schema.ts#L18)).
+
 ### 3a — Chat core ✅
+- [x] **ChatChannel.type** (team_ic/ooc/pj/dm/...) — schema field
+- [x] **ChatMessage.customFont** + **color** + **isDiceRoll**
+- [x] Soft-delete vrací `'*Zpráva byla smazána autorem*'`
+- [x] Blokování smazání kostek (`isDiceRoll` guard)
+- [x] Editace příloh (`attachmentsToAdd` / `attachmentsToRemove` v UpdateMessageDto)
+
 - [x] ChatGroup schema: id, worldId, name, icon, background, color, order, access
 - [x] Seed: 6 Matrix skupin (Globální, Evropani, Lumíci, MI6, Komunikace Hráči, Komunikace s PJ)
 - [x] ChatChannel typy: team_ic/ooc/pj, dm, pj_dm/group, inter
@@ -75,12 +92,12 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 > Dokončení user modelu — vše bez závislosti na Pages nebo jiných pozdějších modulech.
 
-- [x] **AKJ flag**: boolean na user schema; zahrnuto v JWT claims (`akj`)
+- [x] ~~**AKJ flag**~~ _(zrušeno 2026-05-05 — AKJ je per-world přes `WorldMembership.akj`, ne globální per-user)_
 - [x] **ThemeSettings**: volný JSON blob `Record<string, unknown>` na user schema
 - [x] **ChatPreferences**: volný JSON blob `Record<string, unknown>` na user schema
 - [x] **LastSeenAt v JwtAuthGuard**: fire-and-forget `updateLastSeen` při každém úspěšném JWT; `isOnline` se nenastavuje (řeší Krok 5 Presence)
 - [x] **PublicUser interface + GET /api/users/profile/:id**: veřejný subset (id, username, displayName, avatarUrl, characterPath, role, createdAt), bez JWT
-- [x] **JWT claims rozšíření**: přidán `akj` claim
+- [x] **JWT claims rozšíření**: sub, email, username, role, characterPath, ikarosSkin _(akj záměrně NE)_
 - [x] **Merge logika v PATCH**: `themeSettings` a `chatPreferences` deep-merge, ostatní přímé přepsání; `username` jen Superadmin
 - [x] **PUT /api/users/password**: vlastní změna hesla (bcrypt verify + hash)
 - [x] **PUT /api/users/:id/reset-password**: Superadmin reset bez ověření starého hesla
@@ -178,6 +195,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 7c — Universe Map ✅
 
+> AUDIT (po fázi 4): visibility filter ověřen — `isPublic`/`visibleToPlayerIds` na DTO + repository + 3 spec testy v `universe.service.spec.ts:65-100` (hráč vidí jen public + own visibility, anon jen public).
+
 > 3D vesmírná mapa světa — uzly, spoje, postupné odhalování, real-time sync, legacy seed pro Matrix.
 
 - [x] **UniverseMap schema**: worldId, nodes (id/name/type/color/size/img/alliance/x/y/z/isPublic/visibleToPlayerIds), links (source/target/isOrbit)
@@ -193,6 +212,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 ---
 
 ## Krok 7d — RPG System Presets ✅
+
+> AUDIT (aktualizováno 2026-05-07): modul [system-presets/](../backend/src/modules/system-presets/) implementován s 13 statickými presety, controller + service, integrace `SystemPresetsService` ve [worlds.service.ts:51](../backend/src/modules/worlds/worlds.service.ts#L51) (auto-seed `diarySchema` při POST /worlds dle `world.system`).
 
 > Konfigurace CharacterSheet šablon per RPG systém; auto-seed WorldSettings.diarySchema při vytvoření/změně světa; verzování schémat.
 
@@ -293,6 +314,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 10a — GameEvent ✅
 
+> AUDIT (aktualizováno 2026-05-07): controller + service plně implementovány, [game-events.controller.ts](../backend/src/modules/game-events/game-events.controller.ts) má 10 endpointů (CRUD + confirm + comments CRUD + react). Schema doplněno o `confirmable`, `confirmedBy`, `comments`, `reactions`, `groupOnly`, `imageUrl`.
+
 > Herní události světa s RSVP potvrzením, skupinovou viditelností, diskusí a automatickým mazáním starých.
 
 - [x] Schema: worldId, title, date (ISO string, sort key), targetGroup, groupOnly, imageUrl, description, confirmable (RSVP toggle), confirmedBy (EventConfirmation: userId/userName), comments (EventComment[])
@@ -312,6 +335,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 10b — Calendar ✅
 
+> AUDIT (aktualizováno 2026-05-07): standalone modul [calendars/](../backend/src/modules/calendars/) (controller + legacy-calenders pro zpětnou kompatibilitu).
+
 > Per-postava herní deník — osobní kalendář událostí.
 
 - [x] Schema: worldId, slug (key = characterSlug), events (CalendarEvent: id/title/description/start/end/hourStart/hourEnd/allDay)
@@ -328,6 +353,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 10c — TimelineEvent ✅
 
+> AUDIT (aktualizováno 2026-05-07): standalone modul [timeline/](../backend/src/modules/timeline/) implementován (schema, repositories, controller, service, spec).
+
 > Historická časová osa světa s fantasy datumovými formáty.
 
 - [x] Schema: worldId, year/month/day (1-based číselné indexy), text, imageUrl, link, celestialOverrides
@@ -341,6 +368,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 ---
 
 ## Krok 10d — WorldCalendarConfig ✅
+
+> AUDIT (aktualizováno 2026-05-07): standalone modul [world-calendar-config/](../backend/src/modules/world-calendar-config/) (samostatná kolekce, schema, repository, controller, service, utils).
 
 > Konfigurace fantasy kalendáře světa (dny, měsíce, nebeská tělesa).
 
@@ -370,6 +399,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 10f — WorldWeather ✅
 
+> AUDIT (aktualizováno 2026-05-07): standalone modul [world-weather/](../backend/src/modules/world-weather/) implementován (schema, repository, controller, service, spec).
+
 > Generátor počasí per world s konfigurovatelnou logikou a broadcast do chatu/mapy.
 
 - [x] WeatherGenerator schema: config (tempMin/Max, weatherTypes, wind, pressure, humidity, customFields), currentWeather
@@ -386,6 +417,8 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 ---
 
 ## Krok 10g — WorldNews ✅
+
+> AUDIT (aktualizováno 2026-05-07): standalone modul [world-news/](../backend/src/modules/world-news/) implementován (schema, repository, controller, service, spec).
 
 > Světové novinky (globální i per-world) viditelné pro anonymní uživatele.
 
@@ -431,14 +464,16 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Krok 11c — IkarosGallery ✅
 
+> AUDIT: roadmapa měla checkboxy ⬜, ale modul je **plně implementovaný** (`backend/src/modules/ikaros-gallery/` má schema, service, controller, multipart upload, workflow, /rate, role `SpravceGalerie`). Checkboxy opraveny.
+
 > Galerie obrázků se schvalovacím tokem — stejný workflow jako Articles.
 
-- [ ] Schema: title, description, imageUrl (Cloudinary public ID), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings, averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
-- [ ] Upload: multipart/form-data (file, title, description, submit bool) → UploadService → Cloudinary ID uložen
-- [ ] Stejný workflow a notifikace jako Articles
-- [ ] Admin zahrnuje i SpravceGalerie roli
-- [ ] GET, GET /my, GET /pending, POST (multipart), PUT (jen title/description), DELETE
-- [ ] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
+- [x] Schema: title, description, imageUrl (Cloudinary public ID), authorId, authorName, status (Draft/Pending/Published/Rejected), rejectReason, ratings, averageRating, createdAtUtc, updatedAtUtc, publishedAtUtc
+- [x] Upload: multipart/form-data (file, title, description, submit bool) → UploadService → Cloudinary ID uložen
+- [x] Stejný workflow a notifikace jako Articles
+- [x] Admin zahrnuje i SpravceGalerie roli
+- [x] GET, GET /my, GET /pending, POST (multipart), PUT (jen title/description), DELETE
+- [x] POST /:id/submit, POST /:id/approve, POST /:id/reject, POST /:id/rate
 
 **Spec:** [docs/superpowers/specs/2026-05-04-krok-11c-ikaros-gallery-design.md](superpowers/specs/2026-05-04-krok-11c-ikaros-gallery-design.md)  
 **Plán:** [docs/superpowers/plans/2026-05-04-krok-11c-ikaros-gallery.md](superpowers/plans/2026-05-04-krok-11c-ikaros-gallery.md)
@@ -567,7 +602,7 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 ### Admin User Management
 - [x] GET /api/admin/users (filtrování dle username/role, stránkování)
 - [x] PATCH /api/admin/users/:id/role (změna role)
-- [x] PATCH /api/admin/users/:id/akj (toggle AKJ flagu)
+- [x] ~~PATCH /api/admin/users/:id/akj~~ _(zrušeno 2026-05-05 — AKJ je per-world, viz cleanup spec)_
 - [x] GET /api/admin/recent-pages (Superadmin vidí vše, PJ jen své světy)
 
 ### World Admin
@@ -598,45 +633,101 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 > Kontrola feature parity se starým systémem — ověření že nový backend pokrývá vše co starý.
 
 ### Feature Parity Checklist
-- [ ] Všechny MongoDB kolekce přítomny: Users, Pages, Characters, Calenders, ChatMessages, ChatChannels, ChatGroups, PageEmbeddings, GameEvents, News, TimelineEvents, ChannelReadStatuses, MapScenes, NpcTemplates, MapTemplates, IkarosArticles, IkarosDiscussions, IkarosGallery, IkarosNews, UniverseMaps, Worlds, WorldMemberships, CampaignSubjects, CampaignRelationships, CampaignStorylines, CampaignQuickNotes, CampaignShopItems, CampaignScenarios, Sounds, CustomEmotes, PushSubscriptions, SearchStats, FailedIndexings, IkarosMessages
-- [ ] Všechny 3 real-time huby funkční: ChatGateway, MapGateway, IkarosChatGateway
-- [ ] JWT claims identické: sub, unique_name, role, characterPath, ikarosSkin, akj
-- [ ] Seed data: Matrix world, 6 chat skupin, 5 šablon stránek per nový svět
-- [ ] Všechny RPG systémy mají SystemPreset konfiguraci
-- [ ] Push notifikace dorazí při každé chat zprávě (per channel type)
-- [ ] Vyhledávání pokrývá Pages fulltext + embeddings
-- [ ] Admin může dělat vše co v starém systému
+- [x] Všechny MongoDB kolekce přítomny
+- [x] Všechny 3 real-time huby funkční: ChatGateway, MapGateway, GlobalChatGateway
+- [x] JWT claims: sub, unique_name, role, characterPath, ikarosSkin _(akj záměrně NE — AKJ je per-world, vědomá odchylka od starého kontraktu)_
+- [x] Seed data: Matrix world, 6 chat skupin, 5 šablon stránek per nový svět
+- [x] Všechny RPG systémy mají SystemPreset konfiguraci
+- [x] Push notifikace dorazí při každé chat zprávě (per channel type)
+- [x] Vyhledávání pokrývá Pages fulltext + embeddings
+- [x] Admin může dělat vše co v starém systému
 
-**Spec:** —  
-**Plán:** —
+**Analýza:** [docs/checklist-be.md](../checklist-be.md)
 
 ---
 
-## Krok 16b — Dokumentace API ⬜
+## Krok 16b — Feature Parity Implementace ✅
+
+> AUDIT (aktualizováno 2026-05-07): všechny mezery zaplněny. Chat fields (`type` na ChatChannel, `customFont`/`color`/`isDiceRoll` na ChatMessage), GlobalChat WS události, `POST /auth/refresh`, `GET /users/exists/:username`, `PUT /users/:id/theme`, `POST /admin/users`, GameEvents CRUD (Krok 10a), `PUT /worlds/:worldId/calendarconfig`.
+
+- [x] **Chat** — `type` (team_ic/ooc/pj) na `ChatChannel` ([chat-channel.schema.ts:18](../backend/src/modules/chat/schemas/chat-channel.schema.ts#L18))
+- [x] **Chat** — `customFont` + `color` + `isDiceRoll` na `ChatMessage` ([chat-message.schema.ts:27,42,46](../backend/src/modules/chat/schemas/chat-message.schema.ts#L27))
+- [x] **Chat** — soft-delete vrací `"*Zpráva byla smazána autorem*"` ([chat.service.ts:536](../backend/src/modules/chat/chat.service.ts#L536))
+- [x] **Chat** — blokování smazání kostek (`isDiceRoll` guard, [chat.service.ts:516](../backend/src/modules/chat/chat.service.ts#L516))
+- [x] **Chat** — editace příloh v `UpdateMessageDto` (`attachmentsToAdd` / `attachmentsToRemove`)
+- [x] **GlobalChat WS** — `ikaros:load-history` při joinu místnosti
+- [x] **GlobalChat WS** — `ikaros:user-list` presence seznam
+- [x] **GlobalChat WS** — `ikaros:room-style-changed` + `ikaros:set-room-style`
+- [x] **GlobalChat WS** — `handleDisconnect` presence cleanup
+- [x] **GlobalChat** — `color` pole na globálních zprávách
+- [x] **Auth** — `POST /api/auth/refresh` ([auth.controller.ts:55](../backend/src/modules/auth/auth.controller.ts#L55))
+- [x] **Users** — `GET /api/users/exists/:username` ([users.controller.ts:96](../backend/src/modules/users/users.controller.ts#L96))
+- [x] **Users** — `PUT /api/users/:id/theme` ([users.controller.ts:121](../backend/src/modules/users/users.controller.ts#L121))
+- [x] **Admin** — `POST /api/admin/users` ([admin.controller.ts:68](../backend/src/modules/admin/admin.controller.ts#L68))
+- [x] **Game Events** — plný CRUD `/api/events` + `POST /:id/confirm` (viz Krok 10a)
+- [x] **Worlds** — `PUT /api/worlds/:worldId/calendarconfig` ([worlds.controller.ts:172](../backend/src/modules/worlds/worlds.controller.ts#L172))
+
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-16b-feature-parity-implementation.md](superpowers/plans/2026-05-05-krok-16b-feature-parity-implementation.md)
+
+---
+
+## Krok 18 — Dokumentace API ✅
 
 > Swagger/OpenAPI dokumentace všech endpointů + WebSocket event dokumentace.
 
 ### Swagger / OpenAPI
-- [ ] Swagger/OpenAPI pro všechny REST endpointy
-- [ ] Každý endpoint má popsané request/response typy, auth požadavky a příklady
+- [x] Swagger/OpenAPI pro všechny REST endpointy
+- [x] Každý endpoint má popsané request/response typy, auth požadavky a příklady
 
 ### WebSocket dokumentace
-- [ ] WebSocket event dokumentace (Gateway events in/out)
-- [ ] Popis všech emitovaných a přijímaných událostí pro ChatGateway, MapGateway, IkarosChatGateway
+- [x] WebSocket event dokumentace (Gateway events in/out)
+- [x] Popis všech emitovaných a přijímaných událostí pro ChatGateway, MapGateway, GlobalChatGateway
 
 **Spec:** —  
 **Plán:** —
 
 ---
 
-## Krok 17 — Migrace dat ⬜
+## Krok 17 — Opravy Feature Parity ✅
 
-> Přenos dat ze starého systému do nového.
+> AUDIT (po fázi 4): všechny 4 opravy ověřeny — 17c `GET /api/global-chat/room-info` v `global-chat.controller.ts:23`, 17d `GET /users/getCalendarMonth/:id` (řádek 39) + `PUT /users/updateCalendarMonth/:id` (řádek 58).
 
-### Migrace
+> Čtyři konkrétní opravy zjištěné po Kroku 16b — broken whisper routing, chybějící WS handlery, room-info endpoint a user calendar-month endpointy.
+
+### 17a — Fix `chat:hospoda:join` userId tracking ✅
+- [x] Přidat `userId` do payloadu `chat:hospoda:join`
+- [x] Socket se připojí do místnosti `user:${userId}` (oprava broken whisper routing)
+- [x] Přidat veřejnou metodu `getPresence()` na gateway
+
+### 17b — `ikaros:whisper` WS handler ✅
+- [x] Přidat `sendWhisper()` metodu do `GlobalChatService`
+- [x] Přidat `@SubscribeMessage('ikaros:whisper')` handler do gateway
+
+### 17c — GET /api/global-chat/room-info ✅
+- [x] Injektovat `GlobalChatGateway` do `GlobalChatController`
+- [x] Přidat endpoint vracející `{ channelId, users[] }`
+
+### 17d — User calendar-month endpointy ✅
+- [x] `GET /api/users/getCalendarMonth/:id` — čte z `themeSettings.calendarMonth`
+- [x] `PUT /api/users/updateCalendarMonth/:id` — ukládá přes existující `update()` merge
+
+**Plán:** [docs/superpowers/plans/2026-05-05-krok-17-opravy-feature-parity.md](superpowers/plans/2026-05-05-krok-17-opravy-feature-parity.md)
+
+---
+
+## Krok 19 — Migrace dat ⬜
+
+> Přenos dat ze starého systému do nového + vyřešení breaking changes.
+
+### Datová migrace
 - [ ] Export script: starý MongoDB → JSON dump
 - [ ] Import script: JSON dump → nový schéma (transformace polí)
 - [ ] Ověření: počty dokumentů, ukázkové queries
+
+### Breaking changes k řešení
+- [ ] **Pages favorites**: starý systém ukládal oblíbené stránky na `User.FavoritePagesSlugs` (cross-world); nový ukládá per-world na `World.favoritePageSlugs` — nutná migrace nebo compatibility layer
+- [ ] **Chat kanály**: starý `/api/chat/channels` → nový `/api/worlds/:worldId/chat/channels` — URL změna
+- [ ] **NPC Templates**: globální → world-scoped s importem — migrace dat
 
 **Spec:** —  
 **Plán:** —
@@ -656,37 +747,44 @@ Vychází z analýzy starého systému (`C:\Matrix\Matrix`) + `docs/old/`.
 
 ## Přehled stavu
 
-| Krok | Název | Stav |
-|------|-------|------|
-| 1 | Základ & Auth | ✅ |
-| 2 | Světy | ✅ |
-| 3 | Chat & Upload | ✅ |
-| 4 | Users rozšíření | ✅ |
-| 5 | Presence & IkarosMessages | ✅ |
-| 6 | Pages (Wiki) | ✅ |
-| 7a | Characters RPG rozšíření | ✅ |
-| 7b | NPC Templates | ✅ |
-| 7c | Universe Map | ✅ |
-| 7d | RPG System Presets | ✅ |
-| 8a | Taktická mapa | ✅ |
-| 8b | Dungeon Builder | ✅ |
-| 9 | Kampaně | ✅ |
-| 10a | GameEvent | ✅ |
-| 10b | Calendar | ✅ |
-| 10c | TimelineEvent | ✅ |
-| 10d | WorldCalendarConfig | ✅ |
-| 10e | WorldCurrencies | ✅ |
-| 10f | WorldWeather | ✅ |
-| 10g | WorldNews | ✅ |
-| 11a | IkarosNews | ✅ |
-| 11b | IkarosArticles | ✅ |
-| 11c | IkarosGallery | ✅ |
-| 11d | IkarosDiscussions | ✅ |
-| 12a | Custom Emotes & Image proxy | ✅ |
-| 12b | Sound Database | ✅ |
-| 13 | Push notifikace | ✅ |
-| 14 | Vyhledávání | ✅ |
-| 15 | Admin & Systémové nástroje | ✅ |
-| 16a | Feature Parity Checklist | ✅ |
-| 16b | Dokumentace API | ⬜ |
-| 17 | Migrace dat | ⬜ |
+| Krok | Název | Stav | Audit poznámka |
+|------|-------|------|----------------|
+| 1 | Základ & Auth | ✅ | refresh + logout + logout-all hotové (rotace + blacklist) |
+| 2 | Světy | ✅ | JOIN flow ověřen ve fázi 4 |
+| 3 | Chat & Upload | ✅ | chat fields doplněny ve fázi 16b |
+| 4 | Users rozšíření | ✅ | |
+| 5 | Presence & IkarosMessages | ✅ | |
+| 6 | Pages (Wiki) | ✅ | |
+| 7a | Characters RPG rozšíření | ✅ | |
+| 7b | NPC Templates | ✅ | |
+| 7c | Universe Map | ✅ | visibility filter + 3 spec testy |
+| 7d | RPG System Presets | ✅ | 13 presetů + auto-seed |
+| 8a | Taktická mapa | ✅ | |
+| 8b | Dungeon Builder | ✅ | |
+| 9 | Kampaně | ✅ | |
+| 10a | GameEvent | ✅ | controller + service hotové |
+| 10b | Calendar | ✅ | standalone modul `calendars/` |
+| 10c | TimelineEvent | ✅ | standalone modul `timeline/` |
+| 10d | WorldCalendarConfig | ✅ | standalone modul + samostatná kolekce |
+| 10e | WorldCurrencies | ✅ | |
+| 10f | WorldWeather | ✅ | standalone modul `world-weather/` |
+| 10g | WorldNews | ✅ | standalone modul `world-news/` |
+| 11a | IkarosNews | ✅ | |
+| 11b | IkarosArticles | ✅ | |
+| 11c | IkarosGallery | ✅ | (roadmapa původně lhala opačně) |
+| 11d | IkarosDiscussions | ✅ | |
+| 12a | Custom Emotes & Image proxy | ✅ | |
+| 12b | Sound Database | ✅ | |
+| 13 | Push notifikace | ✅ | |
+| 14 | Vyhledávání | ✅ | |
+| 15 | Admin & Systémové nástroje | ✅ | CustomIoAdapter 5MB+CORS ověřen |
+| 16a | Feature Parity Checklist | ✅ | |
+| 16b | Feature Parity Implementace | ✅ | všechny mezery zaplněny |
+| 17a | Oprava: hospoda:join userId | ✅ | |
+| 17b | Oprava: ikaros:whisper handler | ✅ | |
+| 17c | Oprava: room-info endpoint | ✅ | |
+| 17d | Oprava: calendar-month endpointy | ✅ | |
+| 18 | Dokumentace API | ✅ | websocket-api.md (163 řádků, 8 sekcí) |
+| 19 | Migrace dat | ⬜ | |
+
+**Souhrn po auditu 2026-05-07:** ✅ 34 / 🚧 0 / ⬜ 1 (z 35 kroků). Zbývá pouze Krok 19 — Migrace dat ze starého systému. Opravný plán → [roadmap2.md](roadmap2.md).

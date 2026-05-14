@@ -1,5 +1,11 @@
 // backend/src/modules/sounds/sounds.service.ts
-import { Injectable, Inject, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import type { ISoundsRepository } from './interfaces/sounds-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { Sound } from './interfaces/sound.interface';
@@ -12,15 +18,26 @@ import type { UpdateSoundDto } from './dto/update-sound.dto';
 export class SoundsService {
   constructor(
     @Inject('ISoundsRepository') private readonly repo: ISoundsRepository,
-    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
   ) {}
 
-  async assertCanManageWorld(userId: string, userRole: UserRole, worldId: string): Promise<void> {
+  async assertCanManageWorld(
+    userId: string,
+    userRole: UserRole,
+    worldId: string,
+  ): Promise<void> {
     if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
-    if (!membership || membership.role < WorldRole.PomocnyPJ) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership || membership.role < WorldRole.PomocnyPJ)
+      throw new ForbiddenException('Nedostatečná oprávnění');
   }
 
+  // Sync logika, ale držíme Promise<void> kontrakt — testy spoléhají na .rejects.toThrow.
+  // eslint-disable-next-line @typescript-eslint/require-await
   async assertIsAdmin(userRole: UserRole): Promise<void> {
     if (userRole <= UserRole.Admin) return;
     throw new ForbiddenException('Pouze Admin nebo Superadmin');
@@ -40,17 +57,23 @@ export class SoundsService {
 
   async findOne(id: string, worldId: string): Promise<Sound> {
     const sound = await this.repo.findById(id);
-    if (!sound || sound.worldId !== worldId) throw new NotFoundException('Zvuk nenalezen');
+    if (!sound || sound.worldId !== worldId)
+      throw new NotFoundException('Zvuk nenalezen');
     return sound;
   }
 
   async findGlobalById(id: string): Promise<Sound> {
     const sound = await this.repo.findById(id);
-    if (!sound || sound.worldId !== null) throw new NotFoundException('Globální zvuk nenalezen');
+    if (!sound || sound.worldId !== null)
+      throw new NotFoundException('Globální zvuk nenalezen');
     return sound;
   }
 
-  async createWorldSound(dto: CreateSoundDto, worldId: string, userId: string): Promise<Sound> {
+  async createWorldSound(
+    dto: CreateSoundDto,
+    worldId: string,
+    userId: string,
+  ): Promise<Sound> {
     return this.repo.create({
       ...dto,
       worldId,
@@ -63,8 +86,14 @@ export class SoundsService {
   }
 
   async createGlobalSound(dto: CreateSoundDto, userId: string): Promise<Sound> {
-    const duplicate = await this.repo.findGlobalByUrlOrName(dto.youtubeUrl, dto.name);
-    if (duplicate) throw new ConflictException(`Duplicitní zvuk: ${duplicate.name} (${duplicate.id})`);
+    const duplicate = await this.repo.findGlobalByUrlOrName(
+      dto.youtubeUrl,
+      dto.name,
+    );
+    if (duplicate)
+      throw new ConflictException(
+        `Duplicitní zvuk: ${duplicate.name} (${duplicate.id})`,
+      );
     return this.repo.create({
       ...dto,
       worldId: null,
@@ -76,11 +105,22 @@ export class SoundsService {
     });
   }
 
-  async nominateToGlobal(soundId: string, worldId: string, userId: string): Promise<Sound> {
+  async nominateToGlobal(
+    soundId: string,
+    worldId: string,
+    userId: string,
+  ): Promise<Sound> {
     const sound = await this.repo.findById(soundId);
-    if (!sound || sound.worldId !== worldId) throw new NotFoundException('Zvuk nenalezen');
-    const duplicate = await this.repo.findGlobalByUrlOrName(sound.youtubeUrl, sound.name);
-    if (duplicate) throw new ConflictException(`Duplicitní zvuk v globální DB: ${duplicate.name} (${duplicate.id})`);
+    if (!sound || sound.worldId !== worldId)
+      throw new NotFoundException('Zvuk nenalezen');
+    const duplicate = await this.repo.findGlobalByUrlOrName(
+      sound.youtubeUrl,
+      sound.name,
+    );
+    if (duplicate)
+      throw new ConflictException(
+        `Duplicitní zvuk v globální DB: ${duplicate.name} (${duplicate.id})`,
+      );
     return this.repo.create({
       worldId: null,
       name: sound.name,
@@ -110,23 +150,38 @@ export class SoundsService {
 
   async approveNomination(id: string): Promise<Sound> {
     const sound = await this.repo.findById(id);
-    if (!sound || sound.worldId !== null || sound.status !== 'pending') throw new NotFoundException('Pending nomination nenalezena');
-    const updated = await this.repo.updateById(id, { status: 'active', rejectReason: null });
-    if (!updated) throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
+    if (!sound || sound.worldId !== null || sound.status !== 'pending')
+      throw new NotFoundException('Pending nomination nenalezena');
+    const updated = await this.repo.updateById(id, {
+      status: 'active',
+      rejectReason: null,
+    });
+    if (!updated)
+      throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
     return updated;
   }
 
   async rejectNomination(id: string, reason: string): Promise<Sound> {
     const sound = await this.repo.findById(id);
-    if (!sound || sound.worldId !== null || sound.status !== 'pending') throw new NotFoundException('Pending nomination nenalezena');
-    const updated = await this.repo.updateById(id, { status: 'rejected', rejectReason: reason });
-    if (!updated) throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
+    if (!sound || sound.worldId !== null || sound.status !== 'pending')
+      throw new NotFoundException('Pending nomination nenalezena');
+    const updated = await this.repo.updateById(id, {
+      status: 'rejected',
+      rejectReason: reason,
+    });
+    if (!updated)
+      throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
     return updated;
   }
 
-  async importToWorld(globalSoundId: string, worldId: string, userId: string): Promise<Sound> {
+  async importToWorld(
+    globalSoundId: string,
+    worldId: string,
+    userId: string,
+  ): Promise<Sound> {
     const sound = await this.repo.findById(globalSoundId);
-    if (!sound || sound.worldId !== null || sound.status !== 'active') throw new NotFoundException('Globální zvuk nenalezen nebo není schválen');
+    if (!sound || sound.worldId !== null || sound.status !== 'active')
+      throw new NotFoundException('Globální zvuk nenalezen nebo není schválen');
     return this.repo.create({
       worldId,
       name: sound.name,
@@ -154,17 +209,23 @@ export class SoundsService {
     });
   }
 
-  async updateWorldSound(id: string, worldId: string, dto: UpdateSoundDto): Promise<Sound> {
-    const updated = await this.repo.updateByIdAndWorld(id, worldId, dto as Partial<Sound>);
+  async updateWorldSound(
+    id: string,
+    worldId: string,
+    dto: UpdateSoundDto,
+  ): Promise<Sound> {
+    const updated = await this.repo.updateByIdAndWorld(id, worldId, dto);
     if (!updated) throw new NotFoundException('Zvuk nenalezen');
     return updated;
   }
 
   async updateGlobalSound(id: string, dto: UpdateSoundDto): Promise<Sound> {
     const sound = await this.repo.findById(id);
-    if (!sound || sound.worldId !== null) throw new NotFoundException('Globální zvuk nenalezen');
-    const updated = await this.repo.updateById(id, dto as Partial<Sound>);
-    if (!updated) throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
+    if (!sound || sound.worldId !== null)
+      throw new NotFoundException('Globální zvuk nenalezen');
+    const updated = await this.repo.updateById(id, dto);
+    if (!updated)
+      throw new NotFoundException('Zvuk byl odstraněn před dokončením operace');
     return updated;
   }
 
@@ -175,7 +236,8 @@ export class SoundsService {
 
   async removeGlobalSound(id: string): Promise<void> {
     const sound = await this.repo.findById(id);
-    if (!sound || sound.worldId !== null) throw new NotFoundException('Globální zvuk nenalezen');
+    if (!sound || sound.worldId !== null)
+      throw new NotFoundException('Globální zvuk nenalezen');
     await this.repo.deleteById(id);
   }
 }

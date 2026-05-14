@@ -1,11 +1,33 @@
-import { IsString, IsOptional, IsEnum, IsNumber, IsBoolean, IsArray, Min, Max } from 'class-validator';
-import { SoundMediaType, SoundPrimaryFunction, SoundEnvironment, SoundEmotionalTone, SoundOnsetProfile, SoundOutroProfile, SoundFactionStyle, SoundTechLevel, SoundMagicLevel, SoundCombatEnergy } from '../schemas/sound.schema';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  Min,
+  Max,
+} from 'class-validator';
+import {
+  SoundMediaType,
+  SoundPrimaryFunction,
+  SoundEnvironment,
+  SoundEmotionalTone,
+  SoundOnsetProfile,
+  SoundOutroProfile,
+  SoundFactionStyle,
+  SoundTechLevel,
+  SoundMagicLevel,
+  SoundCombatEnergy,
+} from '../schemas/sound.schema';
 
 export class CreateSoundDto {
   @IsString() name: string;
   @IsString() youtubeUrl: string;
   @IsOptional() @IsEnum(SoundMediaType) mediaType?: SoundMediaType;
-  @IsOptional() @IsEnum(SoundPrimaryFunction) primaryFunction?: SoundPrimaryFunction;
+  @IsOptional()
+  @IsEnum(SoundPrimaryFunction)
+  primaryFunction?: SoundPrimaryFunction;
   @IsOptional() @IsEnum(SoundEnvironment) environment?: SoundEnvironment;
   @IsOptional() @IsEnum(SoundEmotionalTone) emotionalTone?: SoundEmotionalTone;
   @IsOptional() @IsNumber() @Min(1) @Max(5) intensity?: number;

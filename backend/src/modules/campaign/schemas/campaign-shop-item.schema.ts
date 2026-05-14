@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CampaignShopItemDocument = HydratedDocument<CampaignShopItemSchemaClass>;
+export type CampaignShopItemDocument =
+  HydratedDocument<CampaignShopItemSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'campaignShopItems' })
 export class CampaignShopItemSchemaClass {
@@ -19,7 +20,9 @@ export class CampaignShopItemSchemaClass {
   @Prop({ default: false }) isRecommended: boolean;
 }
 
-export const CampaignShopItemSchema = SchemaFactory.createForClass(CampaignShopItemSchemaClass);
+export const CampaignShopItemSchema = SchemaFactory.createForClass(
+  CampaignShopItemSchemaClass,
+);
 CampaignShopItemSchema.index({ worldId: 1, ownerId: 1 });
 CampaignShopItemSchema.index({ worldId: 1, isShared: 1 });
 CampaignShopItemSchema.index({ worldId: 1, group: 1 });

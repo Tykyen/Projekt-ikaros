@@ -35,7 +35,9 @@ describe('MongoUsersRepository', () => {
   });
 
   it('should find user by email', async () => {
-    mockModel.findOne.mockReturnValue({ lean: () => ({ exec: () => mockUser }) });
+    mockModel.findOne.mockReturnValue({
+      lean: () => ({ exec: () => mockUser }),
+    });
     const user = await repository.findByEmail('test@test.com');
     expect(user).not.toBeNull();
     expect(user!.email).toBe('test@test.com');
@@ -46,6 +48,16 @@ describe('MongoUsersRepository', () => {
     mockModel.findOne.mockReturnValue({ lean: () => ({ exec: () => null }) });
     const user = await repository.findByEmail('unknown@test.com');
     expect(user).toBeNull();
+  });
+
+  it('findByUsername používá usernameLower (case-insensitive lookup)', async () => {
+    mockModel.findOne.mockReturnValue({
+      lean: () => ({ exec: () => mockUser }),
+    });
+    await repository.findByUsername('KAREL');
+    expect(mockModel.findOne).toHaveBeenCalledWith({
+      $or: [{ usernameLower: 'karel' }, { username: 'KAREL' }],
+    });
   });
 });
 
@@ -72,6 +84,8 @@ describe('MongoUsersRepository.findByRoles', () => {
   it('volá find s $in query pro zadané role', async () => {
     mockModel.find.mockReturnValue({ lean: () => ({ exec: () => [] }) });
     await repository.findByRoles([UserRole.Admin, UserRole.PJ]);
-    expect(mockModel.find).toHaveBeenCalledWith({ role: { $in: [UserRole.Admin, UserRole.PJ] } });
+    expect(mockModel.find).toHaveBeenCalledWith({
+      role: { $in: [UserRole.Admin, UserRole.PJ] },
+    });
   });
 });

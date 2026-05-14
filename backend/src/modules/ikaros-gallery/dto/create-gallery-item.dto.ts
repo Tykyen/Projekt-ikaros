@@ -1,12 +1,23 @@
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateGalleryItemDto {
-  @IsString() @IsNotEmpty() @MaxLength(300)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
   title: string;
 
-  @IsString() @IsOptional() @MaxLength(2000)
+  @IsString()
+  @IsOptional()
+  @MaxLength(2000)
   description?: string;
 
-  @IsBoolean() @IsOptional()
+  @IsBoolean()
+  @IsOptional()
   submit?: boolean;
 }

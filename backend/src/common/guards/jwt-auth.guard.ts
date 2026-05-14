@@ -15,11 +15,15 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const result = (await super.canActivate(context)) as boolean;
     if (result) {
-      const request = context.switchToHttp().getRequest<{ user?: { sub?: string } }>();
+      const request = context
+        .switchToHttp()
+        .getRequest<{ user?: { sub?: string } }>();
       const userId = request.user?.sub;
       if (userId) {
         void this.usersRepo.updateLastSeen(userId).catch((err: Error) => {
-          this.logger.warn(`updateLastSeen failed for ${userId}: ${err.message}`);
+          this.logger.warn(
+            `updateLastSeen failed for ${userId}: ${err.message}`,
+          );
         });
       }
     }

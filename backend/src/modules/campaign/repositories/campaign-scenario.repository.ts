@@ -11,18 +11,35 @@ export class MongoCampaignScenarioRepository
   extends BaseMongoRepository<CampaignScenario>
   implements ICampaignScenarioRepository
 {
-  constructor(@InjectModel(CampaignScenarioSchemaClass.name) model: Model<CampaignScenarioSchemaClass>) {
+  constructor(
+    @InjectModel(CampaignScenarioSchemaClass.name)
+    model: Model<CampaignScenarioSchemaClass>,
+  ) {
     super(model as never);
   }
 
-  async findMany(filter: Record<string, unknown>, sort: Record<string, unknown> = { order: 1 }): Promise<CampaignScenario[]> {
-    const docs = await this.model.find(filter).sort(sort as never).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  async findMany(
+    filter: Record<string, unknown>,
+    sort: Record<string, unknown> = { order: 1 },
+  ): Promise<CampaignScenario[]> {
+    const docs = await this.model
+      .find(filter)
+      .sort(sort as never)
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
   async maxOrder(filter: Record<string, unknown>): Promise<number> {
-    const doc = await this.model.findOne(filter).sort({ order: -1 }).select('order').lean().exec();
-    return doc ? (doc.order as number) ?? 0 : 0;
+    const doc = await this.model
+      .findOne(filter)
+      .sort({ order: -1 })
+      .select('order')
+      .lean()
+      .exec();
+    return doc ? (doc.order ?? 0) : 0;
   }
 
   async create(data: Partial<CampaignScenario>): Promise<CampaignScenario> {
@@ -30,12 +47,18 @@ export class MongoCampaignScenarioRepository
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
-  async update(id: string, data: Partial<CampaignScenario>): Promise<CampaignScenario | null> {
+  async update(
+    id: string,
+    data: Partial<CampaignScenario>,
+  ): Promise<CampaignScenario | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findByIdAndUpdate(id, { $set: data as Record<string, unknown> }, { new: true })
-      .lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async delete(id: string): Promise<boolean> {

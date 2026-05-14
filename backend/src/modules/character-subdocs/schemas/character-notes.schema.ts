@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CharacterNotesDocument = HydratedDocument<CharacterNotesSchemaClass>;
+export type CharacterNotesDocument =
+  HydratedDocument<CharacterNotesSchemaClass>;
 
 @Schema({ collection: 'character_notes' })
 export class CharacterNotesSchemaClass {
@@ -9,5 +10,7 @@ export class CharacterNotesSchemaClass {
   @Prop({ default: '' }) content: string;
 }
 
-export const CharacterNotesSchema = SchemaFactory.createForClass(CharacterNotesSchemaClass);
+export const CharacterNotesSchema = SchemaFactory.createForClass(
+  CharacterNotesSchemaClass,
+);
 CharacterNotesSchema.index({ characterId: 1 }, { unique: true });

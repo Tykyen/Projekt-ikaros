@@ -3,7 +3,10 @@ import { HydratedDocument } from 'mongoose';
 
 export type PageEmbeddingDocument = HydratedDocument<PageEmbeddingSchemaClass>;
 
-@Schema({ collection: 'page_embeddings', timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: 'page_embeddings',
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class PageEmbeddingSchemaClass {
   @Prop({ required: true, index: true }) pageId: string;
   @Prop({ required: true }) slug: string;
@@ -17,5 +20,7 @@ export class PageEmbeddingSchemaClass {
   createdAt: Date;
 }
 
-export const PageEmbeddingSchema = SchemaFactory.createForClass(PageEmbeddingSchemaClass);
+export const PageEmbeddingSchema = SchemaFactory.createForClass(
+  PageEmbeddingSchemaClass,
+);
 PageEmbeddingSchema.index({ pageId: 1, modelKey: 1 });

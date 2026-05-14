@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException, BadRequestException } from '@nestjs/common';
 import { IkarosDiscussionsService } from './ikaros-discussions.service';
 import { UserRole } from '../users/interfaces/user.interface';
 
@@ -61,7 +61,10 @@ describe('IkarosDiscussionsService', () => {
       providers: [
         IkarosDiscussionsService,
         { provide: 'IIkarosDiscussionsRepository', useValue: mockRepo },
-        { provide: 'IIkarosDiscussionPostsRepository', useValue: mockPostsRepo },
+        {
+          provide: 'IIkarosDiscussionPostsRepository',
+          useValue: mockPostsRepo,
+        },
         { provide: 'IUsersRepository', useValue: mockUsersRepo },
         { provide: 'IkarosMessagesService', useValue: mockMsgService },
       ],
@@ -70,25 +73,49 @@ describe('IkarosDiscussionsService', () => {
   });
 
   describe('isAdmin', () => {
-    it('SpravceDisukzi je admin', () => expect(service.isAdmin(UserRole.SpravceDisukzi, 'nekdo')).toBe(true));
-    it('Tyky je admin', () => expect(service.isAdmin(UserRole.Hrac, 'Tyky')).toBe(true));
-    it('Hráč není admin', () => expect(service.isAdmin(UserRole.Hrac, 'nekdo')).toBe(false));
+    it('SpravceDisukzi je admin', () =>
+      expect(service.isAdmin(UserRole.SpravceDisukzi, 'nekdo')).toBe(true));
+    it('Tyky je admin', () =>
+      expect(service.isAdmin(UserRole.Hrac, 'Tyky')).toBe(true));
+    it('Hráč není admin', () =>
+      expect(service.isAdmin(UserRole.Hrac, 'nekdo')).toBe(false));
   });
 
   describe('create', () => {
     it('admin vytvoří diskuzi rovnou schválenou', async () => {
-      mockRepo.create.mockResolvedValue({ ...mockDiscussion, isApproved: true });
-      const result = await service.create({ title: 'X', description: 'Y' }, 'user1', 'Admin', UserRole.Admin, 'Admin');
-      expect(mockRepo.create).toHaveBeenCalledWith(expect.objectContaining({ isApproved: true }));
+      mockRepo.create.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+      });
+      const result = await service.create(
+        { title: 'X', description: 'Y' },
+        'user1',
+        'Admin',
+        UserRole.Admin,
+        'Admin',
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ isApproved: true }),
+      );
       expect(result.isApproved).toBe(true);
     });
 
     it('non-admin vytvoří neschválenou diskuzi a notifikuje adminy', async () => {
       mockRepo.create.mockResolvedValue(mockDiscussion);
-      mockUsersRepo.findByRoles.mockResolvedValue([{ id: 'a1', username: 'Admin' }]);
+      mockUsersRepo.findByRoles.mockResolvedValue([
+        { id: 'a1', username: 'Admin' },
+      ]);
       mockUsersRepo.findByUsername.mockResolvedValue(null);
-      await service.create({ title: 'X', description: 'Y' }, 'user1', 'Hráč', UserRole.Hrac, 'hrac');
-      expect(mockRepo.create).toHaveBeenCalledWith(expect.objectContaining({ isApproved: false }));
+      await service.create(
+        { title: 'X', description: 'Y' },
+        'user1',
+        'Hráč',
+        UserRole.Hrac,
+        'hrac',
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ isApproved: false }),
+      );
       expect(mockMsgService.create).toHaveBeenCalled();
     });
 
@@ -96,22 +123,45 @@ describe('IkarosDiscussionsService', () => {
       mockRepo.create.mockResolvedValue(mockDiscussion);
       mockUsersRepo.findByRoles.mockResolvedValue([]);
       mockUsersRepo.findByUsername.mockResolvedValue(null);
-      await service.create({ title: 'X', description: 'Y' }, 'user1', 'Hráč', UserRole.Hrac, 'hrac');
-      expect(mockRepo.create).toHaveBeenCalledWith(expect.objectContaining({ managerIds: ['user1'] }));
+      await service.create(
+        { title: 'X', description: 'Y' },
+        'user1',
+        'Hráč',
+        UserRole.Hrac,
+        'hrac',
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ managerIds: ['user1'] }),
+      );
     });
   });
 
   describe('findAll', () => {
     it('admin vidí vše', async () => {
-      const all = [mockDiscussion, { ...mockDiscussion, id: 'disc2', isApproved: false }];
+      const all = [
+        mockDiscussion,
+        { ...mockDiscussion, id: 'disc2', isApproved: false },
+      ];
       mockRepo.findAll.mockResolvedValue(all);
       const result = await service.findAll('admin', UserRole.Admin, 'Admin');
       expect(result).toHaveLength(2);
     });
 
     it('hráč vidí jen schválené otevřené nebo kde má přístup', async () => {
-      const openApproved = { ...mockDiscussion, isApproved: true, isOpen: true };
-      const closedNotInvited = { ...mockDiscussion, id: 'd2', isApproved: true, isOpen: false, invitedUserIds: [], managerIds: [], creatorId: 'other' };
+      const openApproved = {
+        ...mockDiscussion,
+        isApproved: true,
+        isOpen: true,
+      };
+      const closedNotInvited = {
+        ...mockDiscussion,
+        id: 'd2',
+        isApproved: true,
+        isOpen: false,
+        invitedUserIds: [],
+        managerIds: [],
+        creatorId: 'other',
+      };
       mockRepo.findAll.mockResolvedValue([openApproved, closedNotInvited]);
       const result = await service.findAll('user1', UserRole.Hrac, 'hrac');
       expect(result).toHaveLength(1);
@@ -122,11 +172,19 @@ describe('IkarosDiscussionsService', () => {
   describe('approve', () => {
     it('admin schválí diskuzi, notifikuje tvůrce', async () => {
       mockRepo.findById.mockResolvedValue(mockDiscussion);
-      mockRepo.update.mockResolvedValue({ ...mockDiscussion, isApproved: true });
+      mockRepo.update.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+      });
       await service.approve('disc1', UserRole.Admin, 'Admin');
-      expect(mockRepo.update).toHaveBeenCalledWith('disc1', { isApproved: true });
+      expect(mockRepo.update).toHaveBeenCalledWith('disc1', {
+        isApproved: true,
+      });
       expect(mockMsgService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ subject: 'Vaše diskuze byla schválena', recipientId: 'user1' }),
+        expect.objectContaining({
+          subject: 'Vaše diskuze byla schválena',
+          recipientId: 'user1',
+        }),
         expect.anything(),
       );
     });
@@ -141,47 +199,76 @@ describe('IkarosDiscussionsService', () => {
       expect(mockPostsRepo.deleteByDiscussion).toHaveBeenCalledWith('disc1');
       expect(mockRepo.delete).toHaveBeenCalledWith('disc1');
       expect(mockMsgService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ subject: 'Vaše diskuze byla zamítnuta', recipientId: 'user1' }),
+        expect.objectContaining({
+          subject: 'Vaše diskuze byla zamítnuta',
+          recipientId: 'user1',
+        }),
         expect.anything(),
       );
     });
 
     it('hodí ForbiddenException pro non-admina', async () => {
-      await expect(service.reject('disc1', undefined, UserRole.Hrac, 'nekdo')).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.reject('disc1', undefined, UserRole.Hrac, 'nekdo'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('toggleFavorite', () => {
     it('přidá diskuzi do oblíbených pokud tam není', async () => {
-      mockUsersRepo.findById.mockResolvedValue({ id: 'user1', favoriteDiscussionIds: [] });
-      mockUsersRepo.update.mockResolvedValue({ id: 'user1', favoriteDiscussionIds: ['disc1'] });
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'user1',
+        favoriteDiscussionIds: [],
+      });
+      mockUsersRepo.update.mockResolvedValue({
+        id: 'user1',
+        favoriteDiscussionIds: ['disc1'],
+      });
       const result = await service.toggleFavorite('disc1', 'user1');
       expect(result).toEqual({ isFavorite: true });
-      expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', { favoriteDiscussionIds: ['disc1'] });
+      expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', {
+        favoriteDiscussionIds: ['disc1'],
+      });
     });
 
     it('odebere diskuzi z oblíbených pokud tam je', async () => {
-      mockUsersRepo.findById.mockResolvedValue({ id: 'user1', favoriteDiscussionIds: ['disc1'] });
-      mockUsersRepo.update.mockResolvedValue({ id: 'user1', favoriteDiscussionIds: [] });
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'user1',
+        favoriteDiscussionIds: ['disc1'],
+      });
+      mockUsersRepo.update.mockResolvedValue({
+        id: 'user1',
+        favoriteDiscussionIds: [],
+      });
       const result = await service.toggleFavorite('disc1', 'user1');
       expect(result).toEqual({ isFavorite: false });
-      expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', { favoriteDiscussionIds: [] });
+      expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', {
+        favoriteDiscussionIds: [],
+      });
     });
   });
 
   describe('addPost', () => {
     it('hodí BadRequestException pokud diskuze není schválena', async () => {
       mockRepo.findById.mockResolvedValue(mockDiscussion); // isApproved: false
-      await expect(service.addPost('disc1', 'Obsah', 'user2', 'Autor')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.addPost('disc1', 'Obsah', 'user2', 'Autor'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('vytvoří příspěvek a inkrementuje postCount', async () => {
-      mockRepo.findById.mockResolvedValue({ ...mockDiscussion, isApproved: true });
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+      });
       mockPostsRepo.create.mockResolvedValue(mockPost);
       mockRepo.update.mockResolvedValue({ ...mockDiscussion, postCount: 1 });
       const result = await service.addPost('disc1', 'Obsah', 'user2', 'Autor');
       expect(mockPostsRepo.create).toHaveBeenCalled();
-      expect(mockRepo.update).toHaveBeenCalledWith('disc1', expect.objectContaining({ postCount: 1 }));
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'disc1',
+        expect.objectContaining({ postCount: 1 }),
+      );
       expect(result).toEqual(mockPost);
     });
   });
@@ -189,24 +276,46 @@ describe('IkarosDiscussionsService', () => {
   describe('deletePost', () => {
     it('autor smí smazat vlastní příspěvek', async () => {
       mockPostsRepo.findById.mockResolvedValue(mockPost);
-      mockRepo.findById.mockResolvedValue({ ...mockDiscussion, isApproved: true });
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+      });
       mockPostsRepo.delete.mockResolvedValue(true);
       mockRepo.update.mockResolvedValue({ ...mockDiscussion, postCount: 0 });
-      await expect(service.deletePost('disc1', 'post1', 'user2', UserRole.Hrac, 'Autor')).resolves.toBeUndefined();
+      await expect(
+        service.deletePost('disc1', 'post1', 'user2', UserRole.Hrac, 'Autor'),
+      ).resolves.toBeUndefined();
     });
 
     it('manager smí smazat cizí příspěvek', async () => {
       mockPostsRepo.findById.mockResolvedValue(mockPost);
-      mockRepo.findById.mockResolvedValue({ ...mockDiscussion, isApproved: true, managerIds: ['manager1'] });
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+        managerIds: ['manager1'],
+      });
       mockPostsRepo.delete.mockResolvedValue(true);
       mockRepo.update.mockResolvedValue({ ...mockDiscussion, postCount: 0 });
-      await expect(service.deletePost('disc1', 'post1', 'manager1', UserRole.Hrac, 'Manager')).resolves.toBeUndefined();
+      await expect(
+        service.deletePost(
+          'disc1',
+          'post1',
+          'manager1',
+          UserRole.Hrac,
+          'Manager',
+        ),
+      ).resolves.toBeUndefined();
     });
 
     it('cizí uživatel bez práv nesmí smazat příspěvek', async () => {
       mockPostsRepo.findById.mockResolvedValue(mockPost);
-      mockRepo.findById.mockResolvedValue({ ...mockDiscussion, isApproved: true });
-      await expect(service.deletePost('disc1', 'post1', 'jiny', UserRole.Hrac, 'nekdo')).rejects.toThrow(ForbiddenException);
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+      });
+      await expect(
+        service.deletePost('disc1', 'post1', 'jiny', UserRole.Hrac, 'nekdo'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

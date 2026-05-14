@@ -1,4 +1,9 @@
-import { Injectable, Inject, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import type { INpcTemplatesRepository } from './interfaces/npc-templates-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { NpcTemplate } from './interfaces/npc-template.interface';
@@ -23,14 +28,24 @@ export interface CreateNpcTemplateInput {
 @Injectable()
 export class NpcTemplatesService {
   constructor(
-    @Inject('INpcTemplatesRepository') private readonly repo: INpcTemplatesRepository,
-    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('INpcTemplatesRepository')
+    private readonly repo: INpcTemplatesRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
   ) {}
 
-  async assertCanManage(userId: string, userRole: UserRole, worldId: string): Promise<void> {
+  async assertCanManage(
+    userId: string,
+    userRole: UserRole,
+    worldId: string,
+  ): Promise<void> {
     if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
-    if (!membership || membership.role < WorldRole.PJ) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership || membership.role < WorldRole.PJ)
+      throw new ForbiddenException('Nedostatečná oprávnění');
   }
 
   async findAll(worldId: string): Promise<NpcTemplate[]> {
@@ -43,11 +58,15 @@ export class NpcTemplatesService {
 
   async findOne(id: string, worldId: string): Promise<NpcTemplate> {
     const template = await this.repo.findById(id);
-    if (!template || template.worldId !== worldId) throw new NotFoundException('NPC šablona nenalezena');
+    if (!template || template.worldId !== worldId)
+      throw new NotFoundException('NPC šablona nenalezena');
     return template;
   }
 
-  async create(dto: CreateNpcTemplateInput, worldId: string): Promise<NpcTemplate> {
+  async create(
+    dto: CreateNpcTemplateInput,
+    worldId: string,
+  ): Promise<NpcTemplate> {
     return this.repo.create({
       worldId,
       name: dto.name,
@@ -59,13 +78,22 @@ export class NpcTemplatesService {
       movement: dto.movement ?? 5,
       initiativeBase: dto.initiativeBase ?? 0,
       abilities: dto.abilities ?? [],
-      diarySchema: (dto.diarySchema as unknown as NpcTemplate['diarySchema']) ?? [],
+      diarySchema:
+        (dto.diarySchema as unknown as NpcTemplate['diarySchema']) ?? [],
       diaryData: dto.diaryData ?? {},
     });
   }
 
-  async update(id: string, worldId: string, dto: Partial<CreateNpcTemplateInput>): Promise<NpcTemplate> {
-    const result = await this.repo.updateByIdAndWorld(id, worldId, dto as Partial<NpcTemplate>);
+  async update(
+    id: string,
+    worldId: string,
+    dto: Partial<CreateNpcTemplateInput>,
+  ): Promise<NpcTemplate> {
+    const result = await this.repo.updateByIdAndWorld(
+      id,
+      worldId,
+      dto as Partial<NpcTemplate>,
+    );
     if (!result) throw new NotFoundException('NPC šablona nenalezena');
     return result;
   }
@@ -75,7 +103,10 @@ export class NpcTemplatesService {
     if (!deleted) throw new NotFoundException('NPC šablona nenalezena');
   }
 
-  async importToWorld(templateId: string, worldId: string): Promise<NpcTemplate> {
+  async importToWorld(
+    templateId: string,
+    worldId: string,
+  ): Promise<NpcTemplate> {
     const tpl = await this.repo.findById(templateId);
     if (!tpl) throw new NotFoundException('Globální šablona nenalezena');
     return this.repo.create({
@@ -92,6 +123,6 @@ export class NpcTemplatesService {
       abilities: tpl.abilities,
       diarySchema: tpl.diarySchema,
       diaryData: tpl.diaryData,
-    } as Partial<NpcTemplate>);
+    });
   }
 }

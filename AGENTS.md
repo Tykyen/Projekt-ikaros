@@ -1,3 +1,15 @@
+# Sourozenecké repo — Frontend
+
+Tento repozitář je **backend** Projektu Ikaros. Frontend žije v samostatném repu:
+
+- **FE:** `c:\Matrix\ProjektIkaros\Projekt-ikaros-FE` (Vite + React 19 + TS)
+- **GitHub:** https://github.com/Tykyen/Projekt-Ikaros-FE
+- **Dev port:** `5173` (BE běží na `3000`)
+
+API kontrakty (DTO, REST endpointy) drží **BE** — pokud FE potřebuje něco jinak, mění se nejdřív tady. CORS pro `http://localhost:5173` musí být povolen v BE pro dev.
+
+---
+
 # Zdroje znalostí o herním systému
 
 Při zjišťování jak funguje daný princip, feature nebo herní mechanika v existujícím systému čti z obou zdrojů:

@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type CharacterDiaryDocument = HydratedDocument<CharacterDiarySchemaClass>;
+export type CharacterDiaryDocument =
+  HydratedDocument<CharacterDiarySchemaClass>;
 
 @Schema({ collection: 'character_diaries' })
 export class CharacterDiarySchemaClass {
@@ -12,5 +13,7 @@ export class CharacterDiarySchemaClass {
   @Prop({ type: Object, default: {} }) customData: Record<string, unknown>;
 }
 
-export const CharacterDiarySchema = SchemaFactory.createForClass(CharacterDiarySchemaClass);
+export const CharacterDiarySchema = SchemaFactory.createForClass(
+  CharacterDiarySchemaClass,
+);
 CharacterDiarySchema.index({ characterId: 1 }, { unique: true });

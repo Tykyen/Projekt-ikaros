@@ -1,8 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { SearchIndexStatsSchemaClass, IndexingFailureSchemaClass } from '../schemas/search-index-stats.schema';
-import type { ISearchStatsRepository, SearchIndexStats, IndexingFailure } from '../interfaces/search-stats-repository.interface';
+import {
+  SearchIndexStatsSchemaClass,
+  IndexingFailureSchemaClass,
+} from '../schemas/search-index-stats.schema';
+import type {
+  ISearchStatsRepository,
+  SearchIndexStats,
+  IndexingFailure,
+} from '../interfaces/search-stats-repository.interface';
 
 const STATS_ID = 'embedding-search';
 
@@ -42,11 +49,14 @@ export class MongoSearchStatsRepository implements ISearchStatsRepository {
   }
 
   async update(partial: Partial<SearchIndexStats>): Promise<void> {
-    await this.statsModel.findOneAndUpdate(
-      { _id: STATS_ID },
-      { $set: partial },
-      { upsert: true, new: true },
-    ).lean().exec();
+    await this.statsModel
+      .findOneAndUpdate(
+        { _id: STATS_ID },
+        { $set: partial },
+        { upsert: true, new: true },
+      )
+      .lean()
+      .exec();
   }
 
   async saveFailure(failure: IndexingFailure): Promise<void> {

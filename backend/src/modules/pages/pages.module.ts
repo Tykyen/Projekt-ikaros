@@ -10,7 +10,9 @@ import { PagesWorldSeedListener } from './pages-world-seed.listener';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: PageSchemaClass.name, schema: PageSchema }]),
+    MongooseModule.forFeature([
+      { name: PageSchemaClass.name, schema: PageSchema },
+    ]),
     forwardRef(() => WorldsModule),
   ],
   controllers: [PagesController],

@@ -24,7 +24,6 @@ export interface User {
   profileImageUrl?: string;
   characterPath?: string;
   ikarosSkin?: string;
-  akj: boolean;
   themeSettings: Record<string, unknown>;
   chatPreferences: Record<string, unknown>;
   favoriteDiscussionIds: string[];

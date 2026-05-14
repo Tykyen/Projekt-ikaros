@@ -8,13 +8,18 @@ describe('PresenceService', () => {
   let usersRepo: jest.Mocked<IUsersRepository>;
 
   beforeEach(async () => {
-    usersRepo = { findOnlineSince: jest.fn() } as unknown as jest.Mocked<IUsersRepository>;
+    usersRepo = {
+      findOnlineSince: jest.fn(),
+    } as unknown as jest.Mocked<IUsersRepository>;
 
     const module = await Test.createTestingModule({
       providers: [
         PresenceService,
         { provide: 'IUsersRepository', useValue: usersRepo },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue(25) } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(25) },
+        },
       ],
     }).compile();
 
@@ -32,8 +37,7 @@ describe('PresenceService', () => {
     usersRepo.findOnlineSince.mockResolvedValue([]);
     const before = Date.now();
     await service.getOnlineUserIds();
-    const after = Date.now();
-    const call = usersRepo.findOnlineSince.mock.calls[0][0] as Date;
+    const call = usersRepo.findOnlineSince.mock.calls[0][0];
     const diffMs = before - call.getTime();
     expect(diffMs).toBeGreaterThan(24 * 60 * 60 * 1000);
     expect(diffMs).toBeLessThan(26 * 60 * 60 * 1000);

@@ -5,7 +5,10 @@ export interface ICharactersRepository {
   findById(id: string): Promise<Character | null>;
   findBySlugAndWorld(slug: string, worldId: string): Promise<Character | null>;
   findByWorld(worldId: string): Promise<Character[]>;
-  findByUserAndWorld(userId: string, worldId: string): Promise<Character | null>;
+  findByUserAndWorld(
+    userId: string,
+    worldId: string,
+  ): Promise<Character | null>;
   findPlayerCharacters(worldId: string): Promise<Character[]>;
   findDirectory(worldId: string): Promise<CharacterDirectoryEntry[]>;
   existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean>;

@@ -1,4 +1,10 @@
-export type CampaignEntityType = 'subject' | 'relationship' | 'storyline' | 'scenario' | 'quicknote' | 'shopitem';
+export type CampaignEntityType =
+  | 'subject'
+  | 'relationship'
+  | 'storyline'
+  | 'scenario'
+  | 'quicknote'
+  | 'shopitem';
 export type CampaignChangeType = 'created' | 'updated' | 'deleted';
 
 export interface CampaignChangeLog {

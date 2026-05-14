@@ -17,5 +17,7 @@ export class DungeonMapSchemaClass {
   @Prop() lastModified?: Date;
 }
 
-export const DungeonMapSchema = SchemaFactory.createForClass(DungeonMapSchemaClass);
+export const DungeonMapSchema = SchemaFactory.createForClass(
+  DungeonMapSchemaClass,
+);
 DungeonMapSchema.index({ worldId: 1 });

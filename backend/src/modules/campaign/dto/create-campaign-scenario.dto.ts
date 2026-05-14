@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsArray, IsBoolean, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsBoolean,
+  IsObject,
+} from 'class-validator';
 
 export class CreateCampaignScenarioDto {
   @IsString() title: string;

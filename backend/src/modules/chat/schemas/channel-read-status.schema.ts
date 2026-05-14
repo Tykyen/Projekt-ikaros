@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type ChannelReadStatusDocument = HydratedDocument<ChannelReadStatusSchemaClass>;
+export type ChannelReadStatusDocument =
+  HydratedDocument<ChannelReadStatusSchemaClass>;
 
 @Schema({ collection: 'channelreadstatus' })
 export class ChannelReadStatusSchemaClass {
@@ -11,5 +12,7 @@ export class ChannelReadStatusSchemaClass {
   @Prop({ required: true }) lastReadAt: Date;
 }
 
-export const ChannelReadStatusSchema = SchemaFactory.createForClass(ChannelReadStatusSchemaClass);
+export const ChannelReadStatusSchema = SchemaFactory.createForClass(
+  ChannelReadStatusSchemaClass,
+);
 ChannelReadStatusSchema.index({ userId: 1, channelId: 1 }, { unique: true });

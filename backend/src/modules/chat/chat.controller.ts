@@ -1,6 +1,21 @@
 import {
-  Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards,
+  Controller,
+  Get,
+  Post,
+  Put,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseGuards,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -12,6 +27,8 @@ import { UpdateChannelDto } from './dto/update-channel.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 
+@ApiTags('Chat')
+@ApiBearerAuth()
 @Controller('worlds/:worldId/chat')
 @UseGuards(JwtAuthGuard)
 export class ChatController {
@@ -20,11 +37,16 @@ export class ChatController {
   // ─── Groups ───────────────────────────────────────────────────────────────
 
   @Get('groups')
+  @ApiOperation({ summary: 'Seznam chat skupin světa' })
+  @ApiResponse({ status: 200, description: 'OK' })
   getGroups(@Param('worldId') worldId: string) {
     return this.chatService.getGroupsWithChannels(worldId);
   }
 
   @Post('groups')
+  @ApiOperation({ summary: 'Vytvoření chat skupiny (PJ/Admin)' })
+  @ApiResponse({ status: 201, description: 'Vytvořeno' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   createGroup(
     @Param('worldId') worldId: string,
     @Body() dto: CreateGroupDto,
@@ -34,6 +56,10 @@ export class ChatController {
   }
 
   @Patch('groups/:groupId')
+  @ApiOperation({ summary: 'Aktualizace chat skupiny' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not Found' })
   updateGroup(
     @Param('groupId') groupId: string,
     @Body() dto: UpdateGroupDto,
@@ -43,6 +69,9 @@ export class ChatController {
   }
 
   @Delete('groups/:groupId')
+  @ApiOperation({ summary: 'Smazání chat skupiny' })
+  @ApiResponse({ status: 204, description: 'No Content' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   deleteGroup(
     @Param('groupId') groupId: string,
     @CurrentUser() user: RequestUser,
@@ -53,6 +82,9 @@ export class ChatController {
   // ─── Channels ─────────────────────────────────────────────────────────────
 
   @Post('groups/:groupId/channels')
+  @ApiOperation({ summary: 'Vytvoření chat kanálu' })
+  @ApiResponse({ status: 201, description: 'Vytvořeno' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   createChannel(
     @Param('groupId') groupId: string,
     @Body() dto: CreateChannelDto,
@@ -62,6 +94,10 @@ export class ChatController {
   }
 
   @Patch('channels/:channelId')
+  @ApiOperation({ summary: 'Aktualizace chat kanálu' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not Found' })
   updateChannel(
     @Param('channelId') channelId: string,
     @Body() dto: UpdateChannelDto,
@@ -71,6 +107,9 @@ export class ChatController {
   }
 
   @Delete('channels/:channelId')
+  @ApiOperation({ summary: 'Smazání chat kanálu (PJ/Admin)' })
+  @ApiResponse({ status: 204, description: 'No Content' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   deleteChannel(
     @Param('channelId') channelId: string,
     @CurrentUser() user: RequestUser,
@@ -81,6 +120,8 @@ export class ChatController {
   // ─── Messages ─────────────────────────────────────────────────────────────
 
   @Get('channels/:channelId/messages')
+  @ApiOperation({ summary: 'Zprávy kanálu (cursor-based paginace)' })
+  @ApiResponse({ status: 200, description: 'OK' })
   getMessages(
     @Param('channelId') channelId: string,
     @CurrentUser() user: RequestUser,
@@ -94,6 +135,8 @@ export class ChatController {
   }
 
   @Post('channels/:channelId/messages')
+  @ApiOperation({ summary: 'Odeslání zprávy do kanálu' })
+  @ApiResponse({ status: 201, description: 'Vytvořeno' })
   sendMessage(
     @Param('channelId') channelId: string,
     @Body() dto: CreateMessageDto,
@@ -103,6 +146,9 @@ export class ChatController {
   }
 
   @Patch('messages/:messageId')
+  @ApiOperation({ summary: 'Editace zprávy' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   editMessage(
     @Param('messageId') messageId: string,
     @Body() dto: UpdateMessageDto,
@@ -112,6 +158,11 @@ export class ChatController {
   }
 
   @Delete('messages/:messageId')
+  @ApiOperation({
+    summary: 'Smazání zprávy (soft delete nebo hard delete pro PJ)',
+  })
+  @ApiResponse({ status: 204, description: 'No Content' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   deleteMessage(
     @Param('messageId') messageId: string,
     @CurrentUser() user: RequestUser,
@@ -122,6 +173,8 @@ export class ChatController {
   // ─── Read status ─────────────────────────────────────────────────────────
 
   @Post('channels/:channelId/read')
+  @ApiOperation({ summary: 'Označí kanál jako přečtený' })
+  @ApiResponse({ status: 200, description: 'OK' })
   markAsRead(
     @Param('channelId') channelId: string,
     @CurrentUser() user: RequestUser,
@@ -130,6 +183,8 @@ export class ChatController {
   }
 
   @Get('unread')
+  @ApiOperation({ summary: 'Seznam kanálů světa s unread countsy a lastMsg' })
+  @ApiResponse({ status: 200, description: 'OK' })
   getUnread(
     @Param('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
@@ -138,6 +193,8 @@ export class ChatController {
   }
 
   @Put('messages/:messageId/reactions/:emoji')
+  @ApiOperation({ summary: 'Toggle emoji reakce na zprávu' })
+  @ApiResponse({ status: 200, description: 'OK' })
   toggleReaction(
     @Param('messageId') messageId: string,
     @Param('emoji') emoji: string,

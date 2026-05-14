@@ -7,7 +7,10 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
-@WebSocketGateway({ cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' }, namespace: '/' })
+@WebSocketGateway({
+  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
+  namespace: '/',
+})
 export abstract class BaseGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
@@ -23,12 +26,12 @@ export abstract class BaseGateway
   }
 
   protected joinRoom(client: Socket, room: string) {
-    client.join(room);
+    void client.join(room);
     this.logger.log(`Client ${client.id} joined room: ${room}`);
   }
 
   protected leaveRoom(client: Socket, room: string) {
-    client.leave(room);
+    void client.leave(room);
   }
 
   protected broadcastToRoom(room: string, event: string, data: unknown) {

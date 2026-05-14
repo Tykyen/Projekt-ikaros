@@ -23,7 +23,11 @@ export class MongoIkarosDiscussionPostsRepository implements IIkarosDiscussionPo
     };
   }
 
-  async findByDiscussion(discussionId: string, skip: number, limit: number): Promise<IkarosDiscussionPost[]> {
+  async findByDiscussion(
+    discussionId: string,
+    skip: number,
+    limit: number,
+  ): Promise<IkarosDiscussionPost[]> {
     const docs = await this.model
       .find({ discussionId })
       .sort({ createdAtUtc: 1 })
@@ -31,15 +35,21 @@ export class MongoIkarosDiscussionPostsRepository implements IIkarosDiscussionPo
       .limit(limit)
       .lean()
       .exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async findById(id: string): Promise<IkarosDiscussionPost | null> {
     const doc = await this.model.findById(id).lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
-  async create(data: Omit<IkarosDiscussionPost, 'id'>): Promise<IkarosDiscussionPost> {
+  async create(
+    data: Omit<IkarosDiscussionPost, 'id'>,
+  ): Promise<IkarosDiscussionPost> {
     const doc = await this.model.create(data);
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }

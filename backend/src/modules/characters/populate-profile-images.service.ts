@@ -1,4 +1,9 @@
-import { Injectable, Inject, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  Logger,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import type { ICharactersRepository } from './interfaces/characters-repository.interface';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
@@ -9,7 +14,8 @@ export class PopulateProfileImagesService implements OnApplicationBootstrap {
   private readonly logger = new Logger(PopulateProfileImagesService.name);
 
   constructor(
-    @Inject('ICharactersRepository') private readonly charactersRepo: ICharactersRepository,
+    @Inject('ICharactersRepository')
+    private readonly charactersRepo: ICharactersRepository,
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
   ) {}
 
@@ -20,7 +26,9 @@ export class PopulateProfileImagesService implements OnApplicationBootstrap {
       for (const cp of cps) {
         await this.populateFromCharacter(cp);
       }
-      this.logger.log(`PopulateProfileImages backfill: zpracováno ${cps.length} CP`);
+      this.logger.log(
+        `PopulateProfileImages backfill: zpracováno ${cps.length} CP`,
+      );
     } catch (err) {
       this.logger.error('PopulateProfileImages backfill selhal', err);
     }
@@ -36,7 +44,9 @@ export class PopulateProfileImagesService implements OnApplicationBootstrap {
     await this.populateFromCharacter(character);
   }
 
-  async populateFromCharacter(character: Pick<Character, 'userId' | 'imageUrl' | 'isNpc'>): Promise<void> {
+  async populateFromCharacter(
+    character: Pick<Character, 'userId' | 'imageUrl' | 'isNpc'>,
+  ): Promise<void> {
     if (!character.userId || character.isNpc) return;
     if (!character.imageUrl) return;
 
@@ -44,6 +54,8 @@ export class PopulateProfileImagesService implements OnApplicationBootstrap {
     if (!user) return;
     if (user.profileImageUrl) return;
 
-    await this.usersRepo.update(character.userId, { profileImageUrl: character.imageUrl });
+    await this.usersRepo.update(character.userId, {
+      profileImageUrl: character.imageUrl,
+    });
   }
 }

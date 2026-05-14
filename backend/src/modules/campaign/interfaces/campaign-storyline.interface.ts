@@ -1,5 +1,10 @@
 export type CampaignStorylineLevel = 'macro' | 'mid' | 'micro';
-export type CampaignStorylineStatus = 'active' | 'dormant' | 'escalating' | 'climax' | 'closed';
+export type CampaignStorylineStatus =
+  | 'active'
+  | 'dormant'
+  | 'escalating'
+  | 'climax'
+  | 'closed';
 
 export interface CampaignStoryline {
   id: string;

@@ -9,6 +9,11 @@ import { CleanupInactiveUsersJob } from './cleanup-inactive-users.job';
 @Module({
   imports: [ChatModule],
   controllers: [GlobalChatController],
-  providers: [GlobalChatService, GlobalChatGateway, CleanMessagesJob, CleanupInactiveUsersJob],
+  providers: [
+    GlobalChatService,
+    GlobalChatGateway,
+    CleanMessagesJob,
+    CleanupInactiveUsersJob,
+  ],
 })
 export class GlobalChatModule {}

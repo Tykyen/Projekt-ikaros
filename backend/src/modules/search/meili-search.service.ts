@@ -1,7 +1,10 @@
 import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Meilisearch as MeiliSearch, Index } from 'meilisearch';
-import type { ISearchProvider, SearchProviderInfo } from './interfaces/search-provider.interface';
+import type {
+  ISearchProvider,
+  SearchProviderInfo,
+} from './interfaces/search-provider.interface';
 import type { SearchResult } from './interfaces/search-result.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { Page } from '../pages/interfaces/page.interface';
@@ -30,14 +33,34 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
 
     try {
       await this.index.updateSettings({
-        searchableAttributes: ['titleExact', 'title', 'tableTitle', 'paragraphs', 'headers', 'values'],
+        searchableAttributes: [
+          'titleExact',
+          'title',
+          'tableTitle',
+          'paragraphs',
+          'headers',
+          'values',
+        ],
         filterableAttributes: ['slug', 'worldId'],
-        rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness'],
-        typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 4, twoTypos: 6 } },
+        rankingRules: [
+          'words',
+          'typo',
+          'proximity',
+          'attribute',
+          'sort',
+          'exactness',
+        ],
+        typoTolerance: {
+          enabled: true,
+          minWordSizeForTypos: { oneTypo: 4, twoTypos: 6 },
+        },
       });
       this.logger.log('MeiliSearch index nakonfigurován.');
     } catch (err) {
-      this.logger.warn('Nelze nakonfigurovat MeiliSearch index (MeiliSearch běží?)', err);
+      this.logger.warn(
+        'Nelze nakonfigurovat MeiliSearch index (MeiliSearch běží?)',
+        err,
+      );
     }
 
     try {
@@ -49,7 +72,10 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
 
   async search(query: string, count: number): Promise<SearchResult[]> {
     try {
-      const res = await this.index.search(query, { limit: count, showRankingScore: true });
+      const res = await this.index.search(query, {
+        limit: count,
+        showRankingScore: true,
+      });
       return (res.hits as Array<Record<string, unknown>>).map((hit) => ({
         id: hit.id as string,
         title: hit.title as string,
@@ -89,16 +115,16 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
   }
 
   private toDocument(page: Page): Record<string, unknown> {
-    const table = (page as any).table ?? {};
+    const table = page.table;
     return {
       id: page.id,
       slug: page.slug,
       title: page.title,
       titleExact: page.title.toLowerCase(),
-      tableTitle: table.title ?? '',
+      tableTitle: table?.title ?? '',
       paragraphs: page.plainText ?? '',
-      headers: (table.headers ?? []).join(' '),
-      values: (table.values ?? []).join(' '),
+      headers: (table?.headers ?? []).join(' '),
+      values: (table?.values ?? []).join(' '),
     };
   }
 }

@@ -1,4 +1,11 @@
-import { IsString, IsOptional, MaxLength, IsUrl, Matches, IsObject } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  MaxLength,
+  IsUrl,
+  Matches,
+  IsObject,
+} from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional() @IsString() @MaxLength(32) displayName?: string;

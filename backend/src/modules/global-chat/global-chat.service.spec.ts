@@ -1,5 +1,8 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import {
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GlobalChatService } from './global-chat.service';
 import { PushService } from '../push/push.service';
@@ -20,6 +23,7 @@ const mockChannel: ChatChannel = {
   allowedMemberIds: [],
   order: 0,
   isDeleted: false,
+  type: 'all',
   createdAt: new Date(),
 };
 
@@ -38,6 +42,9 @@ const makeMsg = (overrides: Partial<ChatMessage> = {}): ChatMessage => ({
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,
+  customFont: overrides.customFont ?? null,
+  color: overrides.color ?? null,
+  isDiceRoll: overrides.isDiceRoll ?? false,
 });
 
 describe('GlobalChatService', () => {
@@ -56,7 +63,7 @@ describe('GlobalChatService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       softDeleteByWorldId: jest.fn(),
-    } as jest.Mocked<IChatChannelRepository>;
+    };
 
     messageRepo = {
       findById: jest.fn(),
@@ -68,7 +75,8 @@ describe('GlobalChatService', () => {
       softDeleteByWorldId: jest.fn(),
       addReaction: jest.fn(),
       removeReaction: jest.fn(),
-    } as jest.Mocked<IChatMessageRepository>;
+      pruneChannel: jest.fn(),
+    };
 
     eventEmitter = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
 
@@ -101,7 +109,11 @@ describe('GlobalChatService', () => {
       channelRepo.save.mockResolvedValue(mockChannel);
       await service.onModuleInit();
       expect(channelRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ isGlobal: true, worldId: null, groupId: null }),
+        expect.objectContaining({
+          isGlobal: true,
+          worldId: null,
+          groupId: null,
+        }),
       );
       expect(service.getGlobalChannelId()).toBe('global-ch-id');
     });
@@ -115,7 +127,9 @@ describe('GlobalChatService', () => {
 
     it('should throw InternalServerErrorException if not initialized', async () => {
       (service as any).globalChannelId = undefined;
-      await expect(service.getMessages('u1', {})).rejects.toThrow(InternalServerErrorException);
+      await expect(service.getMessages('u1', {})).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
 
     it('W2: should filter out deleted messages', async () => {
@@ -153,7 +167,10 @@ describe('GlobalChatService', () => {
     it('should cap limit at 100', async () => {
       messageRepo.findByChannelId.mockResolvedValue([]);
       await service.getMessages('u1', { limit: 999 });
-      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', { before: undefined, limit: 100 });
+      expect(messageRepo.findByChannelId).toHaveBeenCalledWith('global-ch-id', {
+        before: undefined,
+        limit: 100,
+      });
     });
   });
 
@@ -176,15 +193,20 @@ describe('GlobalChatService', () => {
       expect(call.worldId).toBeNull();
       expect(call.senderName).toBe('gandalf');
       expect(call.expiresAt).toBeInstanceOf(Date);
-      expect((call.expiresAt as Date).getTime()).toBeGreaterThanOrEqual(before + 3600000 - 100);
+      expect((call.expiresAt as Date).getTime()).toBeGreaterThanOrEqual(
+        before + 3600000 - 100,
+      );
     });
 
     it('should emit chat.global.message.created event', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
       await service.sendMessage({ content: 'hello' }, mockUser);
-      expect(eventEmitter.emit).toHaveBeenCalledWith('chat.global.message.created', expect.objectContaining({
-        channelId: 'global-ch-id',
-      }));
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'chat.global.message.created',
+        expect.objectContaining({
+          channelId: 'global-ch-id',
+        }),
+      );
     });
 
     it('should store empty array when visibleTo is not provided', async () => {
@@ -196,7 +218,10 @@ describe('GlobalChatService', () => {
 
     it('should store visibleTo as-is without adding sender', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
-      await service.sendMessage({ content: 'šeptám', visibleTo: ['u2'] }, mockUser);
+      await service.sendMessage(
+        { content: 'šeptám', visibleTo: ['u2'] },
+        mockUser,
+      );
       const call = messageRepo.save.mock.calls[0][0];
       expect(call.visibleTo).toEqual(['u2']);
     });
@@ -210,20 +235,34 @@ describe('GlobalChatService', () => {
 
     it('should soft delete and emit event', async () => {
       messageRepo.findById.mockResolvedValue(makeMsg());
-      messageRepo.update.mockResolvedValue(makeMsg({ isDeleted: true, content: null }));
+      messageRepo.update.mockResolvedValue(
+        makeMsg({ isDeleted: true, content: null }),
+      );
       await service.deleteMessage('msg1');
-      expect(messageRepo.update).toHaveBeenCalledWith('msg1', { isDeleted: true, content: null });
-      expect(eventEmitter.emit).toHaveBeenCalledWith('chat.global.message.deleted', expect.any(Object));
+      expect(messageRepo.update).toHaveBeenCalledWith('msg1', {
+        isDeleted: true,
+        content: null,
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        'chat.global.message.deleted',
+        expect.any(Object),
+      );
     });
 
     it('should throw NotFoundException for unknown message', async () => {
       messageRepo.findById.mockResolvedValue(null);
-      await expect(service.deleteMessage('unknown')).rejects.toThrow(NotFoundException);
+      await expect(service.deleteMessage('unknown')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw NotFoundException if message belongs to different channel', async () => {
-      messageRepo.findById.mockResolvedValue(makeMsg({ channelId: 'other-channel' }));
-      await expect(service.deleteMessage('msg1')).rejects.toThrow(NotFoundException);
+      messageRepo.findById.mockResolvedValue(
+        makeMsg({ channelId: 'other-channel' }),
+      );
+      await expect(service.deleteMessage('msg1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

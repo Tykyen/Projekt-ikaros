@@ -1,8 +1,19 @@
-import { Injectable, Inject, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { ICharactersRepository } from './interfaces/characters-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import type { Character, CharacterDirectoryEntry, CharacterPublicView, PlayerCharacter } from './interfaces/character.interface';
+import type {
+  Character,
+  CharacterDirectoryEntry,
+  CharacterPublicView,
+  PlayerCharacter,
+} from './interfaces/character.interface';
 import type { CreateCharacterDto } from './dto/create-character.dto';
 import type { UpdateCharacterDto } from './dto/update-character.dto';
 import type { ConvertCharacterDto } from './dto/convert-character.dto';
@@ -12,15 +23,25 @@ import { UserRole } from '../users/interfaces/user.interface';
 @Injectable()
 export class CharactersService {
   constructor(
-    @Inject('ICharactersRepository') private readonly charRepo: ICharactersRepository,
-    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('ICharactersRepository')
+    private readonly charRepo: ICharactersRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async assertCanManage(userId: string, userRole: UserRole, worldId: string): Promise<void> {
+  async assertCanManage(
+    userId: string,
+    userRole: UserRole,
+    worldId: string,
+  ): Promise<void> {
     if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
-    if (!membership || membership.role < WorldRole.PJ) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership || membership.role < WorldRole.PJ)
+      throw new ForbiddenException('Nedostatečná oprávnění');
   }
 
   async findByWorld(worldId: string): Promise<CharacterPublicView[]> {
@@ -28,11 +49,18 @@ export class CharactersService {
     return characters.map((c) => this.toPublicView(c));
   }
 
-  async findBySlug(slug: string, worldId: string, requesterId: string): Promise<Character | CharacterPublicView> {
+  async findBySlug(
+    slug: string,
+    worldId: string,
+    requesterId: string,
+  ): Promise<Character | CharacterPublicView> {
     const character = await this.charRepo.findBySlugAndWorld(slug, worldId);
     if (!character) throw new NotFoundException('Postava nenalezena');
 
-    const membership = await this.membershipRepo.findByUserAndWorld(requesterId, worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requesterId,
+      worldId,
+    );
     const isPj = membership && membership.role >= WorldRole.PJ;
     const isOwner = !character.isNpc && character.userId === requesterId;
 
@@ -46,10 +74,17 @@ export class CharactersService {
     return character;
   }
 
-  async assertSubdocAccess(slug: string, worldId: string, requesterId: string): Promise<Character> {
+  async assertSubdocAccess(
+    slug: string,
+    worldId: string,
+    requesterId: string,
+  ): Promise<Character> {
     const character = await this.charRepo.findBySlugAndWorld(slug, worldId);
     if (!character) throw new NotFoundException('Postava nenalezena');
-    const membership = await this.membershipRepo.findByUserAndWorld(requesterId, worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requesterId,
+      worldId,
+    );
     const isPj = membership && membership.role >= WorldRole.PJ;
     const isOwner = !character.isNpc && character.userId === requesterId;
     if (!isPj && !isOwner) throw new ForbiddenException('Přístup odepřen');
@@ -78,13 +113,14 @@ export class CharactersService {
       ...(dto as unknown as Partial<Character>),
       slug,
       worldId,
+      isLocation: dto.isLocation ?? false,
       publicBio: dto.publicBio ?? '',
-      publicInfoBlocks: (dto.publicInfoBlocks as unknown as Character['publicInfoBlocks']) ?? [],
+      publicInfoBlocks: dto.publicInfoBlocks ?? [],
       privateBio: dto.privateBio ?? '',
-      privateInfoBlocks: (dto.privateInfoBlocks as unknown as Character['privateInfoBlocks']) ?? [],
+      privateInfoBlocks: dto.privateInfoBlocks ?? [],
       diaryData: {},
       extraBlocks: [],
-      accessRequirements: (dto.accessRequirements as unknown as Character['accessRequirements']) ?? [],
+      accessRequirements: dto.accessRequirements ?? [],
     });
 
     this.eventEmitter.emit('character.created', {
@@ -92,6 +128,7 @@ export class CharactersService {
       worldId: character.worldId,
       userId: character.userId,
       isNpc: character.isNpc,
+      isLocation: character.isLocation,
       name: character.name,
       imageUrl: character.imageUrl,
     });
@@ -99,20 +136,34 @@ export class CharactersService {
     return character;
   }
 
-  async update(slug: string, worldId: string, dto: UpdateCharacterDto, requester?: { id: string; role: UserRole }): Promise<Character> {
+  async update(
+    slug: string,
+    worldId: string,
+    dto: UpdateCharacterDto,
+    requester?: { id: string; role: UserRole },
+  ): Promise<Character> {
     const character = await this.charRepo.findBySlugAndWorld(slug, worldId);
     if (!character) throw new NotFoundException('Postava nenalezena');
     if (requester && requester.role > UserRole.Admin) {
-      const membership = await this.membershipRepo.findByUserAndWorld(requester.id, worldId);
+      const membership = await this.membershipRepo.findByUserAndWorld(
+        requester.id,
+        worldId,
+      );
       const isPj = membership && membership.role >= WorldRole.PJ;
       const isOwner = !character.isNpc && character.userId === requester.id;
-      if (!isPj && !isOwner) throw new ForbiddenException('Nedostatečná oprávnění');
+      if (!isPj && !isOwner)
+        throw new ForbiddenException('Nedostatečná oprávnění');
     }
 
-    const updateData: Partial<Character> = { ...(dto as unknown as Partial<Character>) };
+    const updateData: Partial<Character> = {
+      ...(dto as unknown as Partial<Character>),
+    };
     if (dto.diaryData !== undefined) {
       // Shallow merge: klíče z dto přidají/přepíší, ostatní zůstanou. Vnořené objekty se nahrazují celé.
-      updateData.diaryData = { ...(character.diaryData ?? {}), ...dto.diaryData };
+      updateData.diaryData = {
+        ...(character.diaryData ?? {}),
+        ...dto.diaryData,
+      };
     }
 
     const result = (await this.charRepo.update(character.id, updateData))!;
@@ -127,7 +178,11 @@ export class CharactersService {
     return result;
   }
 
-  async convert(slug: string, worldId: string, dto: ConvertCharacterDto): Promise<Character> {
+  async convert(
+    slug: string,
+    worldId: string,
+    dto: ConvertCharacterDto,
+  ): Promise<Character> {
     const character = await this.charRepo.findBySlugAndWorld(slug, worldId);
     if (!character) throw new NotFoundException('Postava nenalezena');
 

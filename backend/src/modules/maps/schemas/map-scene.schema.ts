@@ -9,12 +9,22 @@ export class MapSceneSchemaClass {
   @Prop({ default: '' }) name: string;
   @Prop({ default: '' }) imageUrl: string;
   @Prop() folder?: string;
-  @Prop({ type: Object, default: { size: 40, originX: 0, originY: 0, showGrid: true } }) config: Record<string, unknown>;
+  @Prop({
+    type: Object,
+    default: { size: 40, originX: 0, originY: 0, showGrid: true },
+  })
+  config: Record<string, unknown>;
   @Prop({ type: [Object], default: [] }) tokens: Record<string, unknown>[];
-  @Prop({ type: [Object], default: [] }) npcTemplates: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] }) npcTemplates: Record<
+    string,
+    unknown
+  >[];
   @Prop({ type: [Object], default: [] }) effects: Record<string, unknown>[];
   @Prop({ default: false }) fogEnabled: boolean;
-  @Prop({ type: [Object], default: [] }) revealedHexes: Record<string, unknown>[];
+  @Prop({ type: [Object], default: [] }) revealedHexes: Record<
+    string,
+    unknown
+  >[];
   @Prop() templateId?: string;
   @Prop({ default: false }) isActive: boolean;
   @Prop({ default: false }) isHidden: boolean;

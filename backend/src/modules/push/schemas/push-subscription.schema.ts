@@ -1,7 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 
-export type PushSubscriptionDocument = HydratedDocument<PushSubscriptionSchemaClass>;
+export type PushSubscriptionDocument =
+  HydratedDocument<PushSubscriptionSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'push_subscriptions' })
 export class PushSubscriptionSchemaClass {
@@ -11,4 +12,6 @@ export class PushSubscriptionSchemaClass {
   @Prop({ required: true }) auth: string;
 }
 
-export const PushSubscriptionSchema = SchemaFactory.createForClass(PushSubscriptionSchemaClass);
+export const PushSubscriptionSchema = SchemaFactory.createForClass(
+  PushSubscriptionSchemaClass,
+);

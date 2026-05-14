@@ -1,6 +1,15 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { IWorldCurrenciesRepository } from './interfaces/world-currencies-repository.interface';
-import type { WorldCurrencies, WorldCurrencyItem } from './interfaces/world-currencies.interface';
+import type {
+  WorldCurrencies,
+  WorldCurrencyItem,
+} from './interfaces/world-currencies.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
@@ -16,19 +25,28 @@ export interface CurrencyRequester {
 @Injectable()
 export class WorldCurrenciesService {
   constructor(
-    @Inject('IWorldCurrenciesRepository') private readonly repo: IWorldCurrenciesRepository,
-    @Inject('IWorldMembershipRepository') private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldCurrenciesRepository')
+    private readonly repo: IWorldCurrenciesRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
   ) {}
 
-  async getCurrencies(worldId: string, userId: string): Promise<WorldCurrencies> {
+  async getCurrencies(
+    worldId: string,
+    userId: string,
+  ): Promise<WorldCurrencies> {
     await this.assertMember(worldId, userId);
     const doc = await this.repo.findByWorldId(worldId);
     if (!doc) return { id: '', worldId, items: [], updatedAt: new Date() };
     return doc;
   }
 
-  async updateCurrencies(worldId: string, items: WorldCurrencyItem[], requester: CurrencyRequester): Promise<WorldCurrencies> {
+  async updateCurrencies(
+    worldId: string,
+    items: WorldCurrencyItem[],
+    requester: CurrencyRequester,
+  ): Promise<WorldCurrencies> {
     await this.assertCanAdmin(worldId, requester);
     const normalized = items.map((item) => ({
       ...item,
@@ -37,18 +55,25 @@ export class WorldCurrenciesService {
     return this.repo.upsert(worldId, normalized);
   }
 
-  async convert(worldId: string, dto: ConvertCurrencyDto, userId: string): Promise<{ from: string; to: string; amount: number; result: number }> {
+  async convert(
+    worldId: string,
+    dto: ConvertCurrencyDto,
+    userId: string,
+  ): Promise<{ from: string; to: string; amount: number; result: number }> {
     await this.assertMember(worldId, userId);
     const doc = await this.repo.findByWorldId(worldId);
     const items = doc?.items ?? [];
 
-    if (dto.from === dto.to) throw new BadRequestException('from a to musí být různé');
+    if (dto.from === dto.to)
+      throw new BadRequestException('from a to musí být různé');
 
     const fromCurrency = items.find((c) => c.code === dto.from);
     const toCurrency = items.find((c) => c.code === dto.to);
 
-    if (!fromCurrency) throw new BadRequestException(`Měna '${dto.from}' neexistuje`);
-    if (!toCurrency) throw new BadRequestException(`Měna '${dto.to}' neexistuje`);
+    if (!fromCurrency)
+      throw new BadRequestException(`Měna '${dto.from}' neexistuje`);
+    if (!toCurrency)
+      throw new BadRequestException(`Měna '${dto.to}' neexistuje`);
 
     const raw = dto.amount * (fromCurrency.rate / toCurrency.rate);
     const result = Math.round(raw * 10000) / 10000;
@@ -63,8 +88,21 @@ export class WorldCurrenciesService {
 
   private getItemsForGenre(genre?: string): WorldCurrencyItem[] {
     const id = () => crypto.randomUUID();
-    const fantasy = ['fantasy', 'dark-fantasy', 'heroic-fantasy', 'sword-sorcery', 'grimdark', 'mytologicky'];
-    const cyber = ['cyberpunk', 'sci-fi', 'hard-sci-fi', 'soft-sci-fi', 'biopunk'];
+    const fantasy = [
+      'fantasy',
+      'dark-fantasy',
+      'heroic-fantasy',
+      'sword-sorcery',
+      'grimdark',
+      'mytologicky',
+    ];
+    const cyber = [
+      'cyberpunk',
+      'sci-fi',
+      'hard-sci-fi',
+      'soft-sci-fi',
+      'biopunk',
+    ];
     const space = ['space-opera', 'military'];
     const postapo = ['postapo', 'post-postapo', 'dieselpunk'];
 
@@ -99,15 +137,25 @@ export class WorldCurrenciesService {
   private async assertMember(worldId: string, userId: string): Promise<void> {
     const world = await this.worldsRepo.findById(worldId);
     if (!world) throw new NotFoundException('Svět nenalezen');
-    const membership = await this.membershipRepo.findByUserAndWorld(userId, worldId);
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
     if (!membership) throw new ForbiddenException('Nejsi členem tohoto světa');
   }
 
-  private async assertCanAdmin(worldId: string, requester: CurrencyRequester): Promise<void> {
+  private async assertCanAdmin(
+    worldId: string,
+    requester: CurrencyRequester,
+  ): Promise<void> {
     const world = await this.worldsRepo.findById(worldId);
     if (!world) throw new NotFoundException('Svět nenalezen');
     if (requester.role <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(requester.id, worldId);
-    if (!membership || membership.role < WorldRole.PJ) throw new ForbiddenException('Nedostatečná oprávnění');
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership || membership.role < WorldRole.PJ)
+      throw new ForbiddenException('Nedostatečná oprávnění');
   }
 }

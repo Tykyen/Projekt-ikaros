@@ -1,4 +1,19 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { NpcTemplatesService } from './npc-templates.service';
 import { CreateNpcTemplateDto } from './dto/create-npc-template.dto';
 import { UpdateNpcTemplateDto } from './dto/update-npc-template.dto';
@@ -6,30 +21,45 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
 
-interface RequestUser { id: string; role: UserRole }
+interface RequestUser {
+  id: string;
+  role: UserRole;
+}
 
+@ApiTags('NPC Templates')
+@ApiBearerAuth()
 @Controller('worlds/:worldId/npc-templates')
 export class NpcTemplatesController {
   constructor(private readonly service: NpcTemplatesService) {}
 
   @Get()
+  @ApiOperation({ summary: 'Šablony NPC pro svět' })
+  @ApiResponse({ status: 200 })
   findAll(@Param('worldId') worldId: string) {
     return this.service.findAll(worldId);
   }
 
   @Get('global')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Globální NPC bestiář (worldId=null)' })
+  @ApiResponse({ status: 200 })
   findGlobal() {
     return this.service.findGlobal();
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Detail NPC šablony' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 404 })
   findOne(@Param('worldId') worldId: string, @Param('id') id: string) {
     return this.service.findOne(id, worldId);
   }
 
   @Post()
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Vytvoření NPC šablony (PJ/Admin)' })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 403 })
   async create(
     @Param('worldId') worldId: string,
     @Body() dto: CreateNpcTemplateDto,
@@ -41,6 +71,10 @@ export class NpcTemplatesController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktualizace NPC šablony' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
   async update(
     @Param('worldId') worldId: string,
     @Param('id') id: string,
@@ -63,6 +97,9 @@ export class NpcTemplatesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Smazání NPC šablony' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 403 })
   async remove(
     @Param('worldId') worldId: string,
     @Param('id') id: string,
@@ -74,6 +111,8 @@ export class NpcTemplatesController {
 
   @Post(':id/import')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Import globálního NPC do světa' })
+  @ApiResponse({ status: 201 })
   async importToWorld(
     @Param('worldId') worldId: string,
     @Param('id') templateId: string,

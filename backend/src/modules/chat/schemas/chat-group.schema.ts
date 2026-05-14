@@ -10,5 +10,6 @@ export class ChatGroupSchemaClass {
   @Prop({ default: 0 }) order: number;
 }
 
-export const ChatGroupSchema = SchemaFactory.createForClass(ChatGroupSchemaClass);
+export const ChatGroupSchema =
+  SchemaFactory.createForClass(ChatGroupSchemaClass);
 ChatGroupSchema.index({ worldId: 1, order: 1 });

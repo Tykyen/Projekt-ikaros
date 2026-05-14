@@ -11,6 +11,8 @@ export class EmotesGateway {
 
   @OnEvent('emote.created')
   handleEmoteCreated(payload: { worldId: string; emote: CustomEmote }): void {
-    this.server.to(`world:${payload.worldId}`).emit('emote:created', payload.emote);
+    this.server
+      .to(`world:${payload.worldId}`)
+      .emit('emote:created', payload.emote);
   }
 }

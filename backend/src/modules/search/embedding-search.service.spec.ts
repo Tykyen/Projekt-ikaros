@@ -11,7 +11,14 @@ const mockEmbeddingRepo = {
 };
 
 const mockStatsRepo = {
-  get: jest.fn().mockResolvedValue({ status: 'Unknown', processedPages: 0, totalPages: 0, indexedCount: 0, vectorCount: 0, pendingPages: 0 }),
+  get: jest.fn().mockResolvedValue({
+    status: 'Unknown',
+    processedPages: 0,
+    totalPages: 0,
+    indexedCount: 0,
+    vectorCount: 0,
+    pendingPages: 0,
+  }),
   update: jest.fn().mockResolvedValue(undefined),
   saveFailure: jest.fn().mockResolvedValue(undefined),
 };
@@ -58,7 +65,12 @@ describe('EmbeddingSearchService', () => {
   });
 
   it('computePageHash — vrátí 8-znakový hex string', () => {
-    const page = { title: 'Test', plainText: 'Hello', table: null, accessRequirements: [] } as any;
+    const page = {
+      title: 'Test',
+      plainText: 'Hello',
+      table: null,
+      accessRequirements: [],
+    } as any;
     const hash = (service as any).computePageHash(page);
     expect(hash).toHaveLength(8);
     expect(/^[0-9a-f]+$/.test(hash)).toBe(true);

@@ -38,7 +38,9 @@ describe('MongoWorldsRepository', () => {
   });
 
   it('should find world by slug', async () => {
-    mockModel.findOne.mockReturnValue({ lean: () => ({ exec: () => mockWorld }) });
+    mockModel.findOne.mockReturnValue({
+      lean: () => ({ exec: () => mockWorld }),
+    });
     const world = await repository.findBySlug('matrix');
     expect(world).not.toBeNull();
     expect(world!.slug).toBe('matrix');
@@ -52,7 +54,9 @@ describe('MongoWorldsRepository', () => {
   });
 
   it('should find all active worlds', async () => {
-    mockModel.find.mockReturnValue({ lean: () => ({ exec: () => [mockWorld] }) });
+    mockModel.find.mockReturnValue({
+      lean: () => ({ exec: () => [mockWorld] }),
+    });
     const worlds = await repository.findAll();
     expect(worlds).toHaveLength(1);
     expect(worlds[0].name).toBe('Matrix');

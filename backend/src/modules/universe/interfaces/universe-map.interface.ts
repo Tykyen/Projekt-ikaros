@@ -1,4 +1,10 @@
-export type UniverseNodeType = 'planet' | 'star' | 'nebula' | 'asteroid' | 'moon' | 'blackhole';
+export type UniverseNodeType =
+  | 'planet'
+  | 'star'
+  | 'nebula'
+  | 'asteroid'
+  | 'moon'
+  | 'blackhole';
 
 export interface UniverseNode {
   id: string;

@@ -8,7 +8,9 @@ describe('TipTapExtractor', () => {
   });
 
   it('odstraní HTML tagy a vrátí čistý text', () => {
-    const result = extractor.extract('<p>Agent byl v <strong>Tokiu</strong></p>');
+    const result = extractor.extract(
+      '<p>Agent byl v <strong>Tokiu</strong></p>',
+    );
     expect(result).toBe('Agent byl v Tokiu');
   });
 

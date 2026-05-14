@@ -1,4 +1,10 @@
-import type { HexConfig, MapToken, MapSceneNpc, MapEffect, HexCoord } from './map-scene.interface';
+import type {
+  HexConfig,
+  MapToken,
+  MapSceneNpc,
+  MapEffect,
+  HexCoord,
+} from './map-scene.interface';
 
 export interface MapTemplate {
   id: string;

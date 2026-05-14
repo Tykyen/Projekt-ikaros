@@ -28,12 +28,21 @@ const mockToken = {
   id: 'tok1',
   characterId: 'user1',
   characterSlug: 'abi',
-  q: 0, r: 0, isNpc: false,
-  currentHp: 10, maxHp: 10, baseHp: 10,
-  armor: 2, baseArmor: 2, injury: 0,
-  initiative: 0, initiativeBase: 0,
-  inCombat: false, movement: 5,
-  abilities: [], customData: {},
+  q: 0,
+  r: 0,
+  isNpc: false,
+  currentHp: 10,
+  maxHp: 10,
+  baseHp: 10,
+  armor: 2,
+  baseArmor: 2,
+  injury: 0,
+  initiative: 0,
+  initiativeBase: 0,
+  inCombat: false,
+  movement: 5,
+  abilities: [],
+  customData: {},
 };
 
 describe('MapsService', () => {
@@ -83,7 +92,9 @@ describe('MapsService', () => {
 
     it('vyhodí NotFoundException pokud žádná aktivní scéna neexistuje', async () => {
       mockRepo.findActiveByWorld.mockResolvedValue(null);
-      await expect(service.findActive('world1')).rejects.toThrow(NotFoundException);
+      await expect(service.findActive('world1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -99,11 +110,15 @@ describe('MapsService', () => {
       const sceneWithToken = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(sceneWithToken);
       mockCharacterRepo.findBySlugAndWorld.mockResolvedValue({
-        name: 'Abi', imageUrl: 'img.png', diaryData: { hp: 10 },
+        name: 'Abi',
+        imageUrl: 'img.png',
+        diaryData: { hp: 10 },
       });
       const result = await service.findById('scene1');
       expect(result.tokens[0].characterData).toEqual({
-        name: 'Abi', imageUrl: 'img.png', diaryData: { hp: 10 },
+        name: 'Abi',
+        imageUrl: 'img.png',
+        diaryData: { hp: 10 },
       });
     });
 
@@ -132,9 +147,16 @@ describe('MapsService', () => {
 
     it('inicializuje z šablony pokud templateId je předáno', async () => {
       const tpl = {
-        id: 'tpl1', name: 'Šablona', imageUrl: '', config: { size: 40, originX: 0, originY: 0, showGrid: true },
-        npcTemplates: [], tokens: [], effects: [], fogEnabled: false,
-        revealedHexes: [], activeSoundIds: [],
+        id: 'tpl1',
+        name: 'Šablona',
+        imageUrl: '',
+        config: { size: 40, originX: 0, originY: 0, showGrid: true },
+        npcTemplates: [],
+        tokens: [],
+        effects: [],
+        fogEnabled: false,
+        revealedHexes: [],
+        activeSoundIds: [],
       };
       mockTemplateRepo.findById.mockResolvedValue(tpl);
       mockRepo.create.mockResolvedValue(mockScene);
@@ -161,7 +183,9 @@ describe('MapsService', () => {
 
     it('vyhodí NotFoundException pokud scéna neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
-      await expect(service.setActive('bad', 'world1')).rejects.toThrow(NotFoundException);
+      await expect(service.setActive('bad', 'world1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -170,7 +194,12 @@ describe('MapsService', () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       mockRepo.replace.mockResolvedValue(scene);
-      const result = await service.moveToken('scene1', { id: 'tok1', q: 2, r: 3 }, 'pj1', UserRole.PJ);
+      const result = await service.moveToken(
+        'scene1',
+        { id: 'tok1', q: 2, r: 3 },
+        'pj1',
+        UserRole.PJ,
+      );
       expect(result.q).toBe(2);
       expect(result.r).toBe(3);
     });
@@ -179,7 +208,12 @@ describe('MapsService', () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       mockRepo.replace.mockResolvedValue(scene);
-      const result = await service.moveToken('scene1', { id: 'tok1', q: 1, r: 1 }, 'user1', UserRole.Hrac);
+      const result = await service.moveToken(
+        'scene1',
+        { id: 'tok1', q: 1, r: 1 },
+        'user1',
+        UserRole.Hrac,
+      );
       expect(result.q).toBe(1);
     });
 
@@ -187,14 +221,24 @@ describe('MapsService', () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       await expect(
-        service.moveToken('scene1', { id: 'tok1', q: 1, r: 1 }, 'otherUser', UserRole.Hrac),
+        service.moveToken(
+          'scene1',
+          { id: 'tok1', q: 1, r: 1 },
+          'otherUser',
+          UserRole.Hrac,
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('vyhodí NotFoundException pokud token neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(mockScene);
       await expect(
-        service.moveToken('scene1', { id: 'bad', q: 0, r: 0 }, 'user1', UserRole.Hrac),
+        service.moveToken(
+          'scene1',
+          { id: 'bad', q: 0, r: 0 },
+          'user1',
+          UserRole.Hrac,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -204,7 +248,9 @@ describe('MapsService', () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       mockRepo.replace.mockResolvedValue({ ...scene, tokens: [] });
-      await expect(service.removeToken('scene1', 'tok1', 'pj1', UserRole.PJ)).resolves.toBeUndefined();
+      await expect(
+        service.removeToken('scene1', 'tok1', 'pj1', UserRole.PJ),
+      ).resolves.toBeUndefined();
     });
 
     it('vyhodí ForbiddenException pokud hráč zkouší odstranit cizí token', async () => {
@@ -218,18 +264,28 @@ describe('MapsService', () => {
 
   describe('assertCanManage', () => {
     it('propustí Admina bez kontroly membershipu', async () => {
-      await expect(service.assertCanManage('admin1', UserRole.Admin, 'world1')).resolves.toBeUndefined();
+      await expect(
+        service.assertCanManage('admin1', UserRole.Admin, 'world1'),
+      ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });
 
     it('propustí PJ', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.PJ });
-      await expect(service.assertCanManage('pj1', UserRole.Hrac, 'world1')).resolves.toBeUndefined();
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      await expect(
+        service.assertCanManage('pj1', UserRole.Hrac, 'world1'),
+      ).resolves.toBeUndefined();
     });
 
     it('odmítne hráče s ForbiddenException', async () => {
-      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ role: WorldRole.Hrac });
-      await expect(service.assertCanManage('user1', UserRole.Hrac, 'world1')).rejects.toThrow(ForbiddenException);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.assertCanManage('user1', UserRole.Hrac, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

@@ -11,13 +11,25 @@ export class MongoCampaignShopItemRepository
   extends BaseMongoRepository<CampaignShopItem>
   implements ICampaignShopItemRepository
 {
-  constructor(@InjectModel(CampaignShopItemSchemaClass.name) model: Model<CampaignShopItemSchemaClass>) {
+  constructor(
+    @InjectModel(CampaignShopItemSchemaClass.name)
+    model: Model<CampaignShopItemSchemaClass>,
+  ) {
     super(model as never);
   }
 
-  async findMany(filter: Record<string, unknown>, sort: Record<string, unknown> = { group: 1, updatedAt: -1 }): Promise<CampaignShopItem[]> {
-    const docs = await this.model.find(filter).sort(sort as never).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  async findMany(
+    filter: Record<string, unknown>,
+    sort: Record<string, unknown> = { group: 1, updatedAt: -1 },
+  ): Promise<CampaignShopItem[]> {
+    const docs = await this.model
+      .find(filter)
+      .sort(sort as never)
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
   async create(data: Partial<CampaignShopItem>): Promise<CampaignShopItem> {
@@ -25,12 +37,18 @@ export class MongoCampaignShopItemRepository
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
-  async update(id: string, data: Partial<CampaignShopItem>): Promise<CampaignShopItem | null> {
+  async update(
+    id: string,
+    data: Partial<CampaignShopItem>,
+  ): Promise<CampaignShopItem | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findByIdAndUpdate(id, { $set: data as Record<string, unknown> }, { new: true })
-      .lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -40,10 +58,12 @@ export class MongoCampaignShopItemRepository
   }
 
   async pullLinkedItem(worldId: string, deletedId: string): Promise<void> {
-    await this.model.updateMany(
-      { worldId, linkedItemIds: deletedId },
-      { $pull: { linkedItemIds: deletedId } },
-    ).exec();
+    await this.model
+      .updateMany(
+        { worldId, linkedItemIds: deletedId },
+        { $pull: { linkedItemIds: deletedId } },
+      )
+      .exec();
   }
 
   protected toEntity(doc: Record<string, unknown>): CampaignShopItem {

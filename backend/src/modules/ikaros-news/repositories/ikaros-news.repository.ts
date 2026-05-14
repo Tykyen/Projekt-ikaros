@@ -18,15 +18,21 @@ export class MongoIkarosNewsRepository implements IIkarosNewsRepository {
       title: doc.title as string,
       content: doc.content as string,
       authorId: doc.authorId as string,
-      authorName: doc.authorName as string,
+      authorName: (doc.authorName as string | undefined) ?? undefined,
       createdAtUtc: doc.createdAtUtc as Date,
       isActive: doc.isActive as boolean,
     };
   }
 
   async findActive(): Promise<IkarosNewsItem[]> {
-    const docs = await this.model.find({ isActive: true }).sort({ createdAtUtc: -1 }).lean().exec();
-    return docs.map((d) => this.toEntity(d as unknown as Record<string, unknown>));
+    const docs = await this.model
+      .find({ isActive: true })
+      .sort({ createdAtUtc: -1 })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   async create(data: Omit<IkarosNewsItem, 'id'>): Promise<IkarosNewsItem> {

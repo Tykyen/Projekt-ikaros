@@ -11,26 +11,46 @@ export class MongoCampaignRelationshipRepository
   extends BaseMongoRepository<CampaignRelationship>
   implements ICampaignRelationshipRepository
 {
-  constructor(@InjectModel(CampaignRelationshipSchemaClass.name) model: Model<CampaignRelationshipSchemaClass>) {
+  constructor(
+    @InjectModel(CampaignRelationshipSchemaClass.name)
+    model: Model<CampaignRelationshipSchemaClass>,
+  ) {
     super(model as never);
   }
 
-  async findMany(filter: Record<string, unknown>, sort: Record<string, unknown> = { updatedAt: -1 }): Promise<CampaignRelationship[]> {
-    const docs = await this.model.find(filter).sort(sort as never).lean().exec();
-    return docs.map((doc) => this.toEntity(doc as unknown as Record<string, unknown>));
+  async findMany(
+    filter: Record<string, unknown>,
+    sort: Record<string, unknown> = { updatedAt: -1 },
+  ): Promise<CampaignRelationship[]> {
+    const docs = await this.model
+      .find(filter)
+      .sort(sort as never)
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
   }
 
-  async create(data: Partial<CampaignRelationship>): Promise<CampaignRelationship> {
+  async create(
+    data: Partial<CampaignRelationship>,
+  ): Promise<CampaignRelationship> {
     const doc = await this.model.create(data);
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
-  async update(id: string, data: Partial<CampaignRelationship>): Promise<CampaignRelationship | null> {
+  async update(
+    id: string,
+    data: Partial<CampaignRelationship>,
+  ): Promise<CampaignRelationship | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
-      .findByIdAndUpdate(id, { $set: data as Record<string, unknown> }, { new: true })
-      .lean().exec();
-    return doc ? this.toEntity(doc as unknown as Record<string, unknown>) : null;
+      .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
   }
 
   async delete(id: string): Promise<boolean> {
@@ -40,7 +60,11 @@ export class MongoCampaignRelationshipRepository
   }
 
   async deleteBySubjectId(subjectId: string): Promise<void> {
-    await this.model.deleteMany({ $or: [{ subjectAId: subjectId }, { subjectBId: subjectId }] }).exec();
+    await this.model
+      .deleteMany({
+        $or: [{ subjectAId: subjectId }, { subjectBId: subjectId }],
+      })
+      .exec();
   }
 
   protected toEntity(doc: Record<string, unknown>): CampaignRelationship {
@@ -54,9 +78,22 @@ export class MongoCampaignRelationshipRepository
       isShared: (doc.isShared as boolean) ?? false,
       subjectAId: doc.subjectAId as string,
       subjectBId: doc.subjectBId as string,
-      shared: { whatHappened: shared.whatHappened as string | undefined, behindTheScenes: shared.behindTheScenes as string | undefined },
-      sideA: { tone: sideA.tone as string | undefined, behavior: sideA.behavior as string | undefined, gmIntent: sideA.gmIntent as string | undefined, strength: (sideA.strength as number) ?? 5 },
-      sideB: { tone: sideB.tone as string | undefined, behavior: sideB.behavior as string | undefined, gmIntent: sideB.gmIntent as string | undefined, strength: (sideB.strength as number) ?? 5 },
+      shared: {
+        whatHappened: shared.whatHappened as string | undefined,
+        behindTheScenes: shared.behindTheScenes as string | undefined,
+      },
+      sideA: {
+        tone: sideA.tone as string | undefined,
+        behavior: sideA.behavior as string | undefined,
+        gmIntent: sideA.gmIntent as string | undefined,
+        strength: (sideA.strength as number) ?? 5,
+      },
+      sideB: {
+        tone: sideB.tone as string | undefined,
+        behavior: sideB.behavior as string | undefined,
+        gmIntent: sideB.gmIntent as string | undefined,
+        strength: (sideB.strength as number) ?? 5,
+      },
       status: (doc.status as CampaignRelationship['status']) ?? 'active',
       priority: (doc.priority as number) ?? 3,
       storylineIds: (doc.storylineIds as string[]) ?? [],
