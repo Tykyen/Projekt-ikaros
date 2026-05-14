@@ -1,0 +1,87 @@
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import type {
+  IMailerProvider,
+  MailerTemplate,
+  MailerPayload,
+} from './interfaces/mailer-provider.interface';
+
+/**
+ * Public API pro odesílání transakčních emailů.
+ *
+ * Konkrétní backend (Logger pro dev, SMTP/SendGrid pro prod) je injectovaný
+ * přes `IMailerProvider` interface. `dispatch()` swallows errors do log
+ * — Mailer fail nikdy nebreaké volající flow (anti-enumeration v forgotPassword,
+ * resilience proti SMTP timeoutům).
+ */
+@Injectable()
+export class MailerService {
+  private readonly logger = new Logger(MailerService.name);
+
+  constructor(
+    @Inject('IMailerProvider')
+    private readonly provider: IMailerProvider,
+  ) {}
+
+  async sendPasswordReset(opts: {
+    to: string;
+    username: string;
+    token: string;
+  }): Promise<void> {
+    await this.dispatch('password_reset', opts);
+  }
+
+  async sendEmailVerification(opts: {
+    to: string;
+    username: string;
+    token: string;
+  }): Promise<void> {
+    await this.dispatch('email_verification', opts);
+  }
+
+  async sendEmailChangeConfirm(opts: {
+    to: string;
+    username: string;
+    token: string;
+  }): Promise<void> {
+    await this.dispatch('email_change_confirm', opts);
+  }
+
+  async sendEmailChangeNotice(opts: {
+    to: string;
+    username: string;
+    oldEmail: string;
+    newEmail: string;
+  }): Promise<void> {
+    await this.dispatch('email_change_notice', opts);
+  }
+
+  async sendUsernameDecided(opts: {
+    to: string;
+    username: string;
+    decidedUsername: string;
+  }): Promise<void> {
+    await this.dispatch('username_decided', opts);
+  }
+
+  async sendAccountDeletionScheduled(opts: {
+    to: string;
+    username: string;
+    scheduledFor: Date;
+  }): Promise<void> {
+    await this.dispatch('account_deletion_scheduled', opts);
+  }
+
+  private async dispatch(
+    template: MailerTemplate,
+    payload: MailerPayload,
+  ): Promise<void> {
+    try {
+      await this.provider.send(template, payload);
+    } catch (err) {
+      this.logger.error(
+        `Mailer send failed: template=${template} to=${payload.to}`,
+        err instanceof Error ? err.stack : String(err),
+      );
+    }
+  }
+}
