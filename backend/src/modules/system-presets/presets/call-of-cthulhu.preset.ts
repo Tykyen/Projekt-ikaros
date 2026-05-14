@@ -1,0 +1,40 @@
+import type { SystemPreset } from '../interfaces/system-preset.interface';
+
+export const callOfCthulhuPreset: SystemPreset = {
+  system: 'call-of-cthulhu',
+  displayName: 'Call of Cthulhu (7e)',
+  schema: [
+    { key: 'occupation', label: 'Occupation', type: 'text', order: 1 },
+    { key: 'age', label: 'Age', type: 'number', order: 2 },
+    { key: 'str', label: 'STR (Strength)', type: 'number', order: 3 },
+    { key: 'con', label: 'CON (Constitution)', type: 'number', order: 4 },
+    { key: 'siz', label: 'SIZ (Size)', type: 'number', order: 5 },
+    { key: 'dex', label: 'DEX (Dexterity)', type: 'number', order: 6 },
+    { key: 'app', label: 'APP (Appearance)', type: 'number', order: 7 },
+    { key: 'int', label: 'INT (Intelligence)', type: 'number', order: 8 },
+    { key: 'pow', label: 'POW (Power)', type: 'number', order: 9 },
+    { key: 'edu', label: 'EDU (Education)', type: 'number', order: 10 },
+    { key: 'hp', label: 'HP', type: 'number', order: 11 },
+    { key: 'mp', label: 'MP (Magic Points)', type: 'number', order: 12 },
+    { key: 'sanity', label: 'Sanity', type: 'number', order: 13 },
+    { key: 'luck', label: 'Luck', type: 'number', order: 14 },
+    { key: 'move', label: 'Move Rate', type: 'number', order: 15 },
+    { key: 'build', label: 'Build', type: 'number', order: 16 },
+    { key: 'damageBonus', label: 'Damage Bonus', type: 'text', order: 17 },
+    {
+      key: 'occupationSkills',
+      label: 'Occupation Skills',
+      type: 'textarea',
+      order: 18,
+    },
+    {
+      key: 'personalSkills',
+      label: 'Personal Skills',
+      type: 'textarea',
+      order: 19,
+    },
+    { key: 'backstory', label: 'Backstory', type: 'textarea', order: 20 },
+    { key: 'equipment', label: 'Equipment', type: 'textarea', order: 21 },
+    { key: 'notes', label: 'Notes', type: 'textarea', order: 22 },
+  ],
+};

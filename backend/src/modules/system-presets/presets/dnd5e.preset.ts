@@ -1,0 +1,48 @@
+import type { SystemPreset } from '../interfaces/system-preset.interface';
+
+export const dnd5ePreset: SystemPreset = {
+  system: 'dnd5e',
+  displayName: 'D&D 5e',
+  schema: [
+    { key: 'level', label: 'Úroveň', type: 'number', order: 1 },
+    { key: 'class', label: 'Povolání', type: 'text', order: 2 },
+    { key: 'subclass', label: 'Podpovolání', type: 'text', order: 3 },
+    { key: 'race', label: 'Rasa', type: 'text', order: 4 },
+    { key: 'background', label: 'Zázemí', type: 'text', order: 5 },
+    { key: 'alignment', label: 'Přesvědčení', type: 'text', order: 6 },
+    { key: 'hpMax', label: 'Životy max', type: 'number', order: 7 },
+    { key: 'hpCurrent', label: 'Životy aktuální', type: 'number', order: 8 },
+    { key: 'ac', label: 'AC (Armor Class)', type: 'number', order: 9 },
+    { key: 'speed', label: 'Rychlost (ft)', type: 'number', order: 10 },
+    { key: 'initiative', label: 'Iniciativa', type: 'number', order: 11 },
+    {
+      key: 'proficiencyBonus',
+      label: 'Proficiency Bonus',
+      type: 'number',
+      order: 12,
+    },
+    { key: 'str', label: 'Síla (STR)', type: 'number', order: 13 },
+    { key: 'dex', label: 'Obratnost (DEX)', type: 'number', order: 14 },
+    { key: 'con', label: 'Odolnost (CON)', type: 'number', order: 15 },
+    { key: 'int', label: 'Inteligence (INT)', type: 'number', order: 16 },
+    { key: 'wis', label: 'Moudrost (WIS)', type: 'number', order: 17 },
+    { key: 'cha', label: 'Charisma (CHA)', type: 'number', order: 18 },
+    {
+      key: 'savingThrows',
+      label: 'Záchranné hody',
+      type: 'textarea',
+      order: 19,
+    },
+    { key: 'skills', label: 'Dovednosti', type: 'textarea', order: 20 },
+    { key: 'languages', label: 'Jazyky', type: 'textarea', order: 21 },
+    { key: 'equipment', label: 'Vybavení', type: 'textarea', order: 22 },
+    { key: 'spells', label: 'Kouzla', type: 'textarea', order: 23 },
+    {
+      key: 'features',
+      label: 'Vlastnosti & rysy',
+      type: 'textarea',
+      order: 24,
+    },
+    { key: 'notes', label: 'Poznámky', type: 'textarea', order: 25 },
+  ],
+};

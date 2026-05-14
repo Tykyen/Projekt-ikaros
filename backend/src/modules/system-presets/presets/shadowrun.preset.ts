@@ -1,0 +1,40 @@
+import type { SystemPreset } from '../interfaces/system-preset.interface';
+
+export const shadowrunPreset: SystemPreset = {
+  system: 'shadowrun',
+  displayName: 'Shadowrun',
+  schema: [
+    { key: 'metatype', label: 'Metatype', type: 'text', order: 1 },
+    { key: 'archetype', label: 'Archetype', type: 'text', order: 2 },
+    { key: 'body', label: 'Body', type: 'number', order: 3 },
+    { key: 'agility', label: 'Agility', type: 'number', order: 4 },
+    { key: 'reaction', label: 'Reaction', type: 'number', order: 5 },
+    { key: 'strength', label: 'Strength', type: 'number', order: 6 },
+    { key: 'willpower', label: 'Willpower', type: 'number', order: 7 },
+    { key: 'logic', label: 'Logic', type: 'number', order: 8 },
+    { key: 'intuition', label: 'Intuition', type: 'number', order: 9 },
+    { key: 'charisma', label: 'Charisma', type: 'number', order: 10 },
+    { key: 'edge', label: 'Edge', type: 'number', order: 11 },
+    { key: 'essence', label: 'Essence', type: 'number', order: 12 },
+    { key: 'initiative', label: 'Initiative', type: 'text', order: 13 },
+    {
+      key: 'physicalLimit',
+      label: 'Physical Limit',
+      type: 'number',
+      order: 14,
+    },
+    { key: 'mentalLimit', label: 'Mental Limit', type: 'number', order: 15 },
+    { key: 'socialLimit', label: 'Social Limit', type: 'number', order: 16 },
+    { key: 'skills', label: 'Skills', type: 'textarea', order: 17 },
+    { key: 'qualities', label: 'Qualities', type: 'textarea', order: 18 },
+    {
+      key: 'magicResonance',
+      label: 'Magic / Resonance',
+      type: 'textarea',
+      order: 19,
+    },
+    { key: 'cyberware', label: 'Cyberware', type: 'textarea', order: 20 },
+    { key: 'lifestyle', label: 'Lifestyle', type: 'text', order: 21 },
+    { key: 'notes', label: 'Notes', type: 'textarea', order: 22 },
+  ],
+};

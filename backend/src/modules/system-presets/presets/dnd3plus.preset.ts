@@ -1,0 +1,32 @@
+import type { SystemPreset } from '../interfaces/system-preset.interface';
+
+export const dnd3plusPreset: SystemPreset = {
+  system: 'dnd3plus',
+  displayName: 'D&D 3+ (3e/3.5/Pathfinder)',
+  schema: [
+    { key: 'level', label: 'Úroveň', type: 'number', order: 1 },
+    { key: 'class', label: 'Povolání', type: 'text', order: 2 },
+    { key: 'race', label: 'Rasa', type: 'text', order: 3 },
+    { key: 'alignment', label: 'Přesvědčení', type: 'text', order: 4 },
+    { key: 'hpMax', label: 'Životy max', type: 'number', order: 5 },
+    { key: 'hpCurrent', label: 'Životy aktuální', type: 'number', order: 6 },
+    { key: 'ac', label: 'AC', type: 'number', order: 7 },
+    { key: 'acTouch', label: 'AC Touch', type: 'number', order: 8 },
+    { key: 'acFlatFooted', label: 'AC Flat-Footed', type: 'number', order: 9 },
+    { key: 'bab', label: 'BAB (Base Attack Bonus)', type: 'number', order: 10 },
+    { key: 'savingFort', label: 'Save: Fortitude', type: 'number', order: 11 },
+    { key: 'savingRef', label: 'Save: Reflex', type: 'number', order: 12 },
+    { key: 'savingWill', label: 'Save: Will', type: 'number', order: 13 },
+    { key: 'str', label: 'Síla', type: 'number', order: 14 },
+    { key: 'dex', label: 'Obratnost', type: 'number', order: 15 },
+    { key: 'con', label: 'Odolnost', type: 'number', order: 16 },
+    { key: 'int', label: 'Inteligence', type: 'number', order: 17 },
+    { key: 'wis', label: 'Moudrost', type: 'number', order: 18 },
+    { key: 'cha', label: 'Charisma', type: 'number', order: 19 },
+    { key: 'skills', label: 'Dovednosti & body', type: 'textarea', order: 20 },
+    { key: 'feats', label: 'Feats', type: 'textarea', order: 21 },
+    { key: 'languages', label: 'Jazyky', type: 'textarea', order: 22 },
+    { key: 'equipment', label: 'Vybavení', type: 'textarea', order: 23 },
+    { key: 'notes', label: 'Poznámky', type: 'textarea', order: 24 },
+  ],
+};

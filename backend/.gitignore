@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+coverage/
+*.js.map
+
+# Spec 2.4 — ML model cache (runtime download z HF/CDN, do gitu nepatří)
+data/model_cache/
