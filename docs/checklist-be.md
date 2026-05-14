@@ -1,6 +1,6 @@
 # Checklist BE — Feature Parity
 
-> Generováno: 2026-05-05T12:43:19.141Z  
+> Generováno: 2026-05-05T12:43:19.141Z | Aktualizováno po krok 16b: 2026-05-05  
 > Starý backend: `C:\Matrix\Matrix\backend`  
 > Nový backend: `backend/src`  
 > ✅ pokryto | ❌ chybí | ⚠️ přejmenováno | ➕ jen v novém
@@ -11,8 +11,8 @@
 
 | Dimenze | Starý | Pokryto | Přejmenováno | Chybí | Navíc | Stav |
 |---------|-------|---------|-------------|-------|-------|------|
-| REST endpointy | 216 | 78 | 0 | 138 | 154 | ❌ |
-| WebSocket události | 45 | 0 | — | 45 | 51 | ❌ |
+| REST endpointy | 216 | 88 | 0 | 128 | 154 | ❌ |
+| WebSocket události | 45 | 4 | — | 41 | 55 | ⚠️ |
 | MongoDB schémata | 19 | 0 | — | 19 | 41 | ❌ |
 | Cron joby | 1 | 0 | — | 1 | 0 | ❌ |
 | JWT claims | 0 | 0 | — | 0 | 6 | ✅ |
@@ -23,7 +23,6 @@
 
 ### ❌ Chybějící endpointy
 
-- `POST /api/auth/refresh/{id}`
 - `GET /api/calenders`
 - `GET /api/calenders/{slug}`
 - `POST /api/calenders`
@@ -51,12 +50,6 @@
 - `PUT /api/chat/messages/{id}`
 - `DELETE /api/chat/messages/{id}`
 - `POST /api/chat/messages/{id}/react`
-- `GET /api/events`
-- `GET /api/events/{id}`
-- `POST /api/events`
-- `PUT /api/events/{id}`
-- `DELETE /api/events/{id}`
-- `POST /api/events/{id}/confirm`
 - `GET /api/ikarosarticles`
 - `GET /api/ikarosarticles/my`
 - `GET /api/ikarosarticles/pending`
@@ -151,18 +144,15 @@
 - `POST /api/upload/image`
 - `GET /api/users/debug`
 - `GET /api/users`
-- `GET /api/users/exists/{username}`
 - `GET /api/users/getCalendarMonth/{id}`
 - `POST /api/users`
 - `PUT /api/users/{id}`
-- `PUT /api/users/{id}/theme`
 - `PUT /api/users/updateCalendarMonth/{id}`
-- `PUT /api/worlds/{worldId}/calendarconfig`
 - `PUT /api/worlds/{worldId}/pages/{slug}`
 - `GET /api/worlds/{worldId}/channels`
 - `POST /api/worlds/{worldId}/channels`
 
-### ✅ Pokryté endpointy (78)
+### ✅ Pokryté endpointy (88)
 
 <details><summary>Rozbalit</summary>
 
@@ -246,6 +236,16 @@
 | `POST /api/worlds/{worldId}/pages` | `POST /api/worlds/:worldId/pages` |
 | `DELETE /api/worlds/{worldId}/pages/{slug}` | `DELETE /api/worlds/:worldId/pages/:id` |
 | `DELETE /api/worlds/{id}` | `DELETE /api/worlds/:id` |
+| `POST /api/auth/refresh` | `POST /api/auth/refresh` |
+| `GET /api/events` | `GET /api/events?worldId=` |
+| `GET /api/events/{id}` | `GET /api/events/:id` |
+| `POST /api/events` | `POST /api/events` |
+| `PUT /api/events/{id}` | `PUT /api/events/:id` |
+| `DELETE /api/events/{id}` | `DELETE /api/events/:id` |
+| `POST /api/events/{id}/confirm` | `POST /api/events/:id/confirm` |
+| `GET /api/users/exists/{username}` | `GET /api/users/exists/:username` |
+| `PUT /api/users/{id}/theme` | `PUT /api/users/:id/theme` |
+| `PUT /api/worlds/{worldId}/calendarconfig` | `PUT /api/worlds/:worldId/calendarconfig` |
 
 </details>
 
@@ -418,7 +418,6 @@
 - `[client→server] IkarosChatHub::JoinRoom`
 - `[client→server] IkarosChatHub::LeaveRoom`
 - `[client→server] IkarosChatHub::SendMessage`
-- `[client→server] IkarosChatHub::SetRoomStyle`
 - `[client→server] MapHub::JoinMap`
 - `[client→server] MapHub::LeaveMap`
 - `[client→server] MapHub::TokenMoved`
@@ -434,17 +433,12 @@
 - `[client→server] MapHub::SceneStateChanged`
 - `[client→server] MapHub::ActiveSoundChanged`
 - `[server→client] UserTyping`
-- `[server→client] LoadHistory`
 - `[server→client] UserJoined`
-- `[server→client] UpdateUserList`
 - `[server→client] UserLeft`
-- `[server→client] UpdateUserList`
 - `[server→client] ReceiveMessage`
 - `[server→client] ReceiveMessage`
 - `[server→client] ReceiveMessage`
 - `[server→client] UserLeft`
-- `[server→client] UpdateUserList`
-- `[server→client] RoomStyleChanged`
 - `[server→client] OnTokenMoved`
 - `[server→client] OnConfigUpdated`
 - `[server→client] OnTokenRemoved`
@@ -464,6 +458,7 @@
 - `[client→server] ChatGateway::typing:stop`
 - `[client→server] GlobalChatGateway::chat:hospoda:join`
 - `[client→server] GlobalChatGateway::chat:hospoda:leave`
+- `[client→server] GlobalChatGateway::ikaros:set-room-style`
 - `[client→server] MapsGateway::map:join`
 - `[client→server] MapsGateway::map:leave`
 - `[client→server] MapsGateway::map:token-moved`
@@ -493,6 +488,9 @@
 - `[server→client] chat:presence`
 - `[server→client] chat:message`
 - `[server→client] chat:message:deleted`
+- `[server→client] ikaros:load-history`
+- `[server→client] ikaros:user-list`
+- `[server→client] ikaros:room-style-changed`
 - `[server→client] ikaros:new-message`
 - `[server→client] map:token-moved`
 - `[server→client] map:config-updated`
@@ -669,11 +667,11 @@ Provedena hloubková analýza C# `ChatHub.cs` + NestJS `chat/` modulu.
 
 | Funkce | Starý C# | Nový NestJS | Dopad |
 |--------|----------|-------------|-------|
-| `Channel Type` (team_ic/ooc/pj) | ✅ pole na kanálu | ❌ chybí | Nelze rozlišit IC/OOC/PJ kanály |
-| `customFont` na zprávě | ✅ součást CreateMessageDto | ❌ chybí | Stylingové zprávy nefungují |
-| Soft-delete text | ✅ `"*Zpráva byla smazána*"` | ⚠️ `content = null` | Jiné chování v UI |
-| Ochrana kostek při delete | ✅ blokováno | ❌ chybí | Lze smazat kostky |
-| Editace příloh zprávy | ✅ lze měnit images | ❌ `UpdateMessageDto` jen `content` | Nelze měnit obrázky po odeslání |
+| `Channel Type` (team_ic/ooc/pj) | ✅ pole na kanálu | ✅ implementováno (krok 16b) | — |
+| `customFont` na zprávě | ✅ součást CreateMessageDto | ✅ implementováno (krok 16b) | — |
+| Soft-delete text | ✅ `"*Zpráva byla smazána*"` | ✅ implementováno (krok 16b) | — |
+| Ochrana kostek při delete | ✅ blokováno | ✅ implementováno (krok 16b) | — |
+| Editace příloh zprávy | ✅ lze měnit images | ✅ implementováno (krok 16b) | — |
 | Admin globální přehled kanálů | ✅ `GET /channels` bez worldId | ❌ vždy vyžaduje worldId | Admin musí znát worldId |
 | Globální kanály (worldId=null) | ✅ support | ❌ vždy world-scoped | Nelze vytvořit cross-world kanál |
 
@@ -681,11 +679,11 @@ Provedena hloubková analýza C# `ChatHub.cs` + NestJS `chat/` modulu.
 
 | Funkce | Starý C# | Nový NestJS | Dopad |
 |--------|----------|-------------|-------|
-| `LoadHistory` při joinu | ✅ klient dostane historii | ❌ chybí | Prázdná obrazovka při připojení |
-| `UpdateUserList` | ✅ seznam přítomných | ❌ chybí | Klient neví kdo je v místnosti |
-| `RoomStyleChanged` | ✅ změna stylu taverny | ❌ chybí | Nelze měnit styl místnosti |
-| Whisper podpora | ✅ target parametr | ❌ chybí | Soukromé zprávy nefungují |
-| Barvy zpráv (color field) | ✅ součást zprávy | ❌ chybí v ChatMessage | Barevné zprávy ztraceny |
+| `LoadHistory` při joinu | ✅ klient dostane historii | ✅ implementováno (krok 16b) — emituje `ikaros:load-history` | — |
+| `UpdateUserList` | ✅ seznam přítomných | ✅ implementováno (krok 16b) — emituje `ikaros:user-list` | — |
+| `RoomStyleChanged` | ✅ změna stylu taverny | ✅ implementováno (krok 16b) — emituje `ikaros:room-style-changed` | — |
+| Whisper podpora | ✅ target parametr | ❌ chybí — `visibleTo` pole existuje ve schématu, ale WS handler nebyl implementován | Soukromé zprávy nefungují |
+| Barvy zpráv (color field) | ✅ součást zprávy | ✅ implementováno (krok 16b) — `color` pole v GlobalChatMessage | — |
 | Typing payload | userId + userName | characterName (bez userId) | Nekompatibilní s frontendem |
 
 ### Pages — breaking changes
@@ -716,7 +714,7 @@ Viz implementační plán: `docs/superpowers/plans/2026-05-05-krok-16b-feature-p
 | **GlobalChat WS** | Implementovat `LoadHistory` při joinu místnosti | Vysoká | ✅ implementováno (krok 16b) |
 | **GlobalChat WS** | Implementovat `UpdateUserList` / presence seznam | Vysoká | ✅ implementováno (krok 16b) |
 | **GlobalChat WS** | Implementovat `RoomStyleChanged` event | Střední | ✅ implementováno (krok 16b) |
-| **GlobalChat WS** | Přidat whisper podporu | Střední | ✅ implementováno přes `handleDisconnect` cleanup (krok 16b) |
+| **GlobalChat WS** | Přidat whisper podporu | Střední | ❌ chybí — `handleDisconnect` je presence cleanup, ne whisper; WS handler pro target/visibleTo nebyl implementován |
 | **GlobalChat WS** | Přidat `color` pole na globální zprávy | Nízká | ✅ implementováno (krok 16b) |
 | **Pages** | Migrace oblíbených stránek: user-level → world-level (nebo obojetné) | Vysoká | ❌ vyžaduje design spec |
 | **Auth** | `POST /api/auth/refresh` — token refresh | Střední | ✅ implementováno (krok 16b) |
@@ -725,11 +723,11 @@ Viz implementační plán: `docs/superpowers/plans/2026-05-05-krok-16b-feature-p
 | **Users** | `POST /api/admin/users` (admin vytvoření uživatele) | Nízká | ✅ implementováno (krok 16b) |
 | **Game Events** | `GET/POST/PUT/DELETE /api/events` + `POST /api/events/:id/confirm` | Střední | ✅ implementováno (krok 16b) |
 | **Worlds** | `PUT /api/worlds/:worldId/calendarconfig` | Nízká | ✅ implementováno (krok 16b) |
-| **Calenders** | CRUD `/api/calenders` | Vysoká — vyžaduje design spec |
-| **Timeline** | CRUD `/api/timeline` | Vysoká — vyžaduje design spec |
-| **News** | CRUD `/api/news` | Střední — vyžaduje design spec |
-| **Users** | `GET/PUT /api/users/getCalendarMonth/:id` | Nízká — vyžaduje design spec |
-| **Ikaros Chat** | `GET /api/ikaros-chat/room-info` | Nízká — vyžaduje design spec |
+| **Calenders** | CRUD `/api/calenders` | Vysoká | ❌ vyžaduje design spec |
+| **Timeline** | CRUD `/api/timeline` | Vysoká | ❌ vyžaduje design spec |
+| **News** | CRUD `/api/news` | Střední | ❌ vyžaduje design spec |
+| **Users** | `GET/PUT /api/users/getCalendarMonth/:id` | Nízká | ❌ vyžaduje design spec |
+| **Ikaros Chat** | `GET /api/ikaros-chat/room-info` | Nízká | ❌ vyžaduje design spec |
 
 ### Seed data (manuální ověření)
 
