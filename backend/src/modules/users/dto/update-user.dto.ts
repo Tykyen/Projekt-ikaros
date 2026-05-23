@@ -1,0 +1,44 @@
+import {
+  IsString,
+  IsOptional,
+  MaxLength,
+  IsUrl,
+  Matches,
+  IsObject,
+  IsIn,
+  IsBoolean,
+} from 'class-validator';
+
+export class UpdateUserDto {
+  @IsOptional() @IsString() @MaxLength(32) displayName?: string;
+  @IsOptional() @IsUrl() avatarUrl?: string;
+  @IsOptional() @Matches(/^[a-z0-9-]+\/[a-z0-9-]+$/) characterPath?: string;
+  @IsOptional() @IsString() @MaxLength(32) username?: string;
+  @IsOptional() @IsObject() themeSettings?: Record<string, unknown>;
+  @IsOptional() @IsObject() chatPreferences?: Record<string, unknown>;
+  // D-052 — privacy „neviditelný" mód (skrýt online stav)
+  @IsOptional() @IsBoolean() hiddenPresence?: boolean;
+  // D-045 — privacy „skrýt mě v adresáři uživatelů"
+  @IsOptional() @IsBoolean() hiddenInDirectory?: boolean;
+  // D-057 — friend-only privacy
+  @IsOptional() @IsIn(['public', 'friends']) profileVisibility?:
+    | 'public'
+    | 'friends';
+  // D-072 — barva chatu, hex #RRGGBB
+  @IsOptional()
+  @Matches(/^#[0-9a-fA-F]{6}$/, { message: 'chatColor musí být hex #RRGGBB' })
+  chatColor?: string;
+
+  // 1.3a BE catch-up — profilová pole
+  @IsOptional() @IsString() @MaxLength(100) city?: string;
+  @IsOptional() @IsString() @MaxLength(1000) bio?: string;
+  @IsOptional() @IsString() @MaxLength(64) characterName?: string;
+  @IsOptional() @IsString() @MaxLength(1000) characterBio?: string;
+  @IsOptional() @IsString() @MaxLength(64) themeId?: string;
+  @IsOptional()
+  @IsIn(['male', 'female', 'being'])
+  defaultAvatarType?: 'male' | 'female' | 'being';
+  // characterAvatarUrl se nastavuje jen přes upload/delete endpointy (ne přes
+  // PATCH body), proto bez @IsUrl — prázdný string = smazaný avatar.
+  @IsOptional() @IsString() characterAvatarUrl?: string;
+}
