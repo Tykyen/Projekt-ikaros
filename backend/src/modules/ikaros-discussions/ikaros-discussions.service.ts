@@ -1,0 +1,807 @@
+import {
+  Injectable,
+  Inject,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
+import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
+import type { IIkarosDiscussionsRepository } from './interfaces/ikaros-discussions-repository.interface';
+import type { IIkarosDiscussionPostsRepository } from './interfaces/ikaros-discussion-posts-repository.interface';
+import type { IIkarosDiscussionReportsRepository } from './interfaces/ikaros-discussion-reports-repository.interface';
+import type {
+  IkarosDiscussion,
+  IkarosDiscussionPost,
+  IkarosDiscussionReport,
+} from './interfaces/ikaros-discussion.interface';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
+import { UsersService } from '../users/users.service';
+import type { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
+import { UserRole } from '../users/interfaces/user.interface';
+import type { User } from '../users/interfaces/user.interface';
+import type { CreateDiscussionDto } from './dto/create-discussion.dto';
+import type { PatchDiscussionDto } from './dto/patch-discussion.dto';
+
+// 3.4 — diskuze je platformový obsah → bez world-scoped PJ (memory pravidlo).
+const ADMIN_ROLES = [
+  UserRole.Superadmin,
+  UserRole.Admin,
+  UserRole.SpravceDiskuzi,
+];
+const SYSTEM_SENDER = { id: 'system', username: 'Systém' };
+// 3.7 — max připnutých položek na typ obsahu (sidebar)
+const MAX_PINNED = 5;
+
+@Injectable()
+export class IkarosDiscussionsService {
+  constructor(
+    @Inject('IIkarosDiscussionsRepository')
+    private readonly repo: IIkarosDiscussionsRepository,
+    @Inject('IIkarosDiscussionPostsRepository')
+    private readonly postsRepo: IIkarosDiscussionPostsRepository,
+    @Inject('IIkarosDiscussionReportsRepository')
+    private readonly reportsRepo: IIkarosDiscussionReportsRepository,
+    @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
+    // D-040 — tombstone batch enrich pro `creatorIsDeleted` / `authorIsDeleted`.
+    private readonly usersService: UsersService,
+    @Inject('IkarosMessagesService')
+    private readonly msgService: IkarosMessagesService,
+  ) {}
+
+  /** D-040 — batch enrich creatorIsDeleted na diskuze. */
+  private async enrichTombstoneCreators(
+    discussions: IkarosDiscussion[],
+  ): Promise<IkarosDiscussion[]> {
+    if (discussions.length === 0) return discussions;
+    const ids = Array.from(new Set(discussions.map((d) => d.creatorId)));
+    const info = await this.usersService.findManyTombstoneInfo(ids);
+    return discussions.map((d) => ({
+      ...d,
+      creatorIsDeleted: info.get(d.creatorId)?.isDeleted ?? false,
+    }));
+  }
+
+  /** D-040 — single-discussion variant. */
+  private async enrichTombstoneCreator(
+    discussion: IkarosDiscussion,
+  ): Promise<IkarosDiscussion> {
+    const info = await this.usersService.findManyTombstoneInfo([
+      discussion.creatorId,
+    ]);
+    return {
+      ...discussion,
+      creatorIsDeleted: info.get(discussion.creatorId)?.isDeleted ?? false,
+    };
+  }
+
+  /** D-040 — batch enrich authorIsDeleted na posts. */
+  private async enrichTombstoneAuthors(
+    posts: IkarosDiscussionPost[],
+  ): Promise<IkarosDiscussionPost[]> {
+    if (posts.length === 0) return posts;
+    const ids = Array.from(new Set(posts.map((p) => p.authorId)));
+    const info = await this.usersService.findManyTombstoneInfo(ids);
+    return posts.map((p) => ({
+      ...p,
+      authorIsDeleted: info.get(p.authorId)?.isDeleted ?? false,
+    }));
+  }
+
+  isAdmin(role: UserRole, username: string): boolean {
+    return ADMIN_ROLES.includes(role) || username === 'Tyky';
+  }
+
+  private assertAdmin(role: UserRole, username: string): void {
+    if (!this.isAdmin(role, username))
+      throw new ForbiddenException({
+        code: 'DISCUSSION_FORBIDDEN',
+        message: 'Nedostatečná oprávnění',
+      });
+  }
+
+  private isManagerOrAdmin(
+    discussion: IkarosDiscussion,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): boolean {
+    return (
+      discussion.managerIds.includes(userId) || this.isAdmin(role, username)
+    );
+  }
+
+  private canAccessDiscussion(
+    discussion: IkarosDiscussion,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): boolean {
+    if (this.isAdmin(role, username)) return true;
+    if (!discussion.isApproved) return false;
+    if (discussion.isOpen) return true;
+    return (
+      discussion.creatorId === userId ||
+      discussion.managerIds.includes(userId) ||
+      discussion.invitedUserIds.includes(userId)
+    );
+  }
+
+  private async notifyAdmins(subject: string, body: string): Promise<void> {
+    const admins = await this.usersRepo.findByRoles(ADMIN_ROLES);
+    const tyky = await this.usersRepo.findByUsername('Tyky');
+    const recipients = [...admins];
+    if (tyky && !admins.some((a) => a.id === tyky.id)) recipients.push(tyky);
+    await Promise.all(
+      recipients.map((r) =>
+        this.msgService.create(
+          { recipientId: r.id, recipientName: r.username, subject, body },
+          SYSTEM_SENDER,
+        ),
+      ),
+    );
+  }
+
+  private async notifyUser(
+    recipientId: string,
+    recipientName: string,
+    subject: string,
+    body: string,
+  ): Promise<void> {
+    await this.msgService.create(
+      { recipientId, recipientName, subject, body },
+      SYSTEM_SENDER,
+    );
+  }
+
+  private async notifyManagers(
+    discussion: IkarosDiscussion,
+    subject: string,
+    body: string,
+  ): Promise<void> {
+    await Promise.all(
+      discussion.managerIds.map(async (managerId) => {
+        const manager = await this.usersRepo.findById(managerId);
+        if (manager)
+          await this.notifyUser(managerId, manager.username, subject, body);
+      }),
+    );
+  }
+
+  private assertCreatorOrAdmin(
+    discussion: IkarosDiscussion,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): void {
+    if (discussion.creatorId !== userId && !this.isAdmin(role, username)) {
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    }
+  }
+
+  async findAll(
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion[]> {
+    const all = await this.repo.findAll();
+    const filtered = all.filter((d) =>
+      this.canAccessDiscussion(d, userId, role, username),
+    );
+    return this.enrichTombstoneCreators(filtered);
+  }
+
+  /**
+   * D-NEW-discussion-pagination — paged variant. `limit`/`offset` jsou
+   * sanitované v controlleru. Access filter (canAccessDiscussion) běží
+   * post-fetch — pro velmi velký dataset by vyžadovalo Mongo $expr,
+   * pro teď je client-side pro N×stovky OK.
+   */
+  async findAllPaginated(
+    userId: string,
+    role: UserRole,
+    username: string,
+    offset: number,
+    limit: number,
+  ): Promise<{ items: IkarosDiscussion[]; total: number }> {
+    const { items, total } = await this.repo.findAllPaginated(offset, limit);
+    const filtered = items.filter((d) =>
+      this.canAccessDiscussion(d, userId, role, username),
+    );
+    const enriched = await this.enrichTombstoneCreators(filtered);
+    return { items: enriched, total };
+  }
+
+  async findPending(
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion[]> {
+    this.assertAdmin(role, username);
+    const pending = await this.repo.findPending();
+    return this.enrichTombstoneCreators(pending);
+  }
+
+  async findMyFavorites(userId: string): Promise<IkarosDiscussion[]> {
+    const user = await this.usersRepo.findById(userId);
+    if (!user) return [];
+    const ids = user.favoriteDiscussionIds ?? [];
+    if (ids.length === 0) return [];
+    const discussions = await this.repo.findByIds(ids);
+    return this.enrichTombstoneCreators(discussions);
+  }
+
+  async findById(
+    id: string,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!this.canAccessDiscussion(discussion, userId, role, username)) {
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    }
+    return this.enrichTombstoneCreator(discussion);
+  }
+
+  async create(
+    dto: CreateDiscussionDto,
+    creatorId: string,
+    creatorName: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const isApproved = this.isAdmin(role, username);
+    const discussion = await this.repo.create({
+      title: dto.title,
+      description: dto.description,
+      bulletin: '',
+      creatorId,
+      creatorName,
+      isApproved,
+      isOpen: true,
+      managerIds: [creatorId],
+      invitedUserIds: [],
+      joinRequestIds: [],
+      postCount: 0,
+      likeCount: 0,
+      createdAtUtc: new Date(),
+      lastActivityUtc: new Date(),
+    });
+    if (!isApproved) {
+      await this.notifyAdmins(
+        'Nová diskuze čeká na schválení',
+        `Uživatel ${creatorName} vytvořil novou diskuzi.`,
+      );
+    }
+    return discussion;
+  }
+
+  async patch(
+    id: string,
+    dto: PatchDiscussionDto,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!this.isManagerOrAdmin(discussion, userId, role, username)) {
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    }
+    const updated = await this.repo.update(id, dto);
+    return updated!;
+  }
+
+  async approve(
+    id: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    this.assertAdmin(role, username);
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    const updated = await this.repo.update(id, { isApproved: true });
+    await this.notifyUser(
+      discussion.creatorId,
+      discussion.creatorName,
+      'Vaše diskuze byla schválena',
+      `Diskuze "${discussion.title}" byla schválena.`,
+    );
+    return updated!;
+  }
+
+  async reject(
+    id: string,
+    reason: string | undefined,
+    role: UserRole,
+    username: string,
+  ): Promise<void> {
+    this.assertAdmin(role, username);
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    await this.postsRepo.deleteByDiscussion(id);
+    await this.repo.delete(id);
+    const body = reason
+      ? `Důvod zamítnutí: ${reason}`
+      : `Vaše diskuze "${discussion.title}" byla zamítnuta.`;
+    await this.notifyUser(
+      discussion.creatorId,
+      discussion.creatorName,
+      'Vaše diskuze byla zamítnuta',
+      body,
+    );
+  }
+
+  async invite(
+    id: string,
+    userId: string,
+    invitedByUserId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!this.isManagerOrAdmin(discussion, invitedByUserId, role, username)) {
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    }
+    if (discussion.invitedUserIds.includes(userId)) return discussion;
+    const updated = await this.repo.update(id, {
+      invitedUserIds: [...discussion.invitedUserIds, userId],
+    });
+    const invitedUser = await this.usersRepo.findById(userId);
+    if (invitedUser) {
+      await this.notifyUser(
+        userId,
+        invitedUser.username,
+        'Byl/a jsi pozván/a do diskuze',
+        `Byl/a jsi pozván/a do diskuze "${discussion.title}".`,
+      );
+    }
+    return updated!;
+  }
+
+  async toggleFavorite(
+    discussionId: string,
+    userId: string,
+  ): Promise<{ isFavorite: boolean }> {
+    const user = await this.usersRepo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    const favorites = user.favoriteDiscussionIds ?? [];
+    const isFavorite = favorites.includes(discussionId);
+    const newFavorites = isFavorite
+      ? favorites.filter((id) => id !== discussionId)
+      : [...favorites, discussionId];
+    const update: Partial<User> = { favoriteDiscussionIds: newFavorites };
+    // 3.7 cascade — odebrání z oblíbených zároveň odepne ze sidebaru
+    if (isFavorite) {
+      const pinned = user.pinnedDiscussionIds ?? [];
+      if (pinned.includes(discussionId))
+        update.pinnedDiscussionIds = pinned.filter((id) => id !== discussionId);
+    }
+    await this.usersRepo.update(userId, update);
+    return { isFavorite: !isFavorite };
+  }
+
+  // 3.7 — připnutí diskuze do sidebaru; max 5, jen oblíbenou
+  async togglePin(
+    discussionId: string,
+    userId: string,
+  ): Promise<{ isPinned: boolean }> {
+    const user = await this.usersRepo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!(user.favoriteDiscussionIds ?? []).includes(discussionId))
+      throw new ConflictException({
+        code: 'NOT_FAVORITE',
+        message: 'Připnout lze jen oblíbenou diskuzi',
+      });
+    const pinned = user.pinnedDiscussionIds ?? [];
+    const isPinned = pinned.includes(discussionId);
+    if (!isPinned && pinned.length >= MAX_PINNED)
+      throw new ConflictException({
+        code: 'PIN_LIMIT',
+        message: `Připnout lze max ${MAX_PINNED} diskuzí`,
+      });
+    const newPinned = isPinned
+      ? pinned.filter((id) => id !== discussionId)
+      : [...pinned, discussionId];
+    await this.usersRepo.update(userId, { pinnedDiscussionIds: newPinned });
+    return { isPinned: !isPinned };
+  }
+
+  async getPosts(
+    discussionId: string,
+    userId: string,
+    role: UserRole,
+    username: string,
+    skip = 0,
+    limit = 50,
+  ): Promise<IkarosDiscussionPost[]> {
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!this.canAccessDiscussion(discussion, userId, role, username))
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    const posts = await this.postsRepo.findByDiscussion(
+      discussionId,
+      skip,
+      Math.min(limit, 100),
+    );
+    return this.enrichTombstoneAuthors(posts);
+  }
+
+  async addPost(
+    discussionId: string,
+    content: string,
+    authorId: string,
+    authorName: string,
+  ): Promise<IkarosDiscussionPost> {
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!discussion.isApproved)
+      throw new BadRequestException(
+        'Nelze přidat příspěvek do neschválené diskuze',
+      );
+    // D-NEW-html-sanitization (2026-05-21) — sanitize TipTap output před uložením.
+    const post = await this.postsRepo.create({
+      discussionId,
+      authorId,
+      authorName,
+      content: sanitizeRichText(content),
+      createdAtUtc: new Date(),
+    });
+    await this.repo.adjustPostCount(discussionId, 1, true);
+    return post;
+  }
+
+  async deletePost(
+    discussionId: string,
+    postId: string,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<void> {
+    const post = await this.postsRepo.findById(postId);
+    if (!post)
+      throw new NotFoundException({
+        code: 'POST_NOT_FOUND',
+        message: 'Příspěvek nenalezen',
+      });
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    const isAuthor = post.authorId === userId;
+    const isManager = discussion.managerIds.includes(userId);
+    if (!isAuthor && !isManager && !this.isAdmin(role, username)) {
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    }
+    await this.postsRepo.delete(postId);
+    await this.repo.adjustPostCount(discussionId, -1);
+  }
+
+  // ─── 3.4 — like, manažeři, žádosti o přidání, reporty ──────────────────
+
+  /** Resolvované seznamy členů diskuze — pro manage panel. Jen manažer/admin. */
+  async getMembers(
+    id: string,
+    userId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<{
+    managers: Array<{ id: string; username: string }>;
+    invited: Array<{ id: string; username: string }>;
+    joinRequests: Array<{ id: string; username: string }>;
+  }> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!this.isManagerOrAdmin(discussion, userId, role, username))
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    const resolve = (
+      ids: string[],
+    ): Promise<Array<{ id: string; username: string }>> =>
+      Promise.all(
+        ids.map(async (uid) => {
+          const u = await this.usersRepo.findById(uid);
+          return { id: uid, username: u?.username ?? 'Neznámý uživatel' };
+        }),
+      );
+    const [managers, invited, joinRequests] = await Promise.all([
+      resolve(discussion.managerIds),
+      resolve(discussion.invitedUserIds),
+      resolve(discussion.joinRequestIds),
+    ]);
+    return { managers, invited, joinRequests };
+  }
+
+  async toggleLike(
+    discussionId: string,
+    userId: string,
+  ): Promise<{ isLiked: boolean; likeCount: number }> {
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    const user = await this.usersRepo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    const liked = user.likedDiscussionIds ?? [];
+    const isLiked = liked.includes(discussionId);
+    const newLiked = isLiked
+      ? liked.filter((id) => id !== discussionId)
+      : [...liked, discussionId];
+    await this.usersRepo.update(userId, { likedDiscussionIds: newLiked });
+    const updated = await this.repo.adjustLikeCount(
+      discussionId,
+      isLiked ? -1 : 1,
+    );
+    return { isLiked: !isLiked, likeCount: updated?.likeCount ?? 0 };
+  }
+
+  async addManager(
+    id: string,
+    targetUserId: string,
+    requesterId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    this.assertCreatorOrAdmin(discussion, requesterId, role, username);
+    if (discussion.managerIds.includes(targetUserId)) return discussion;
+    const updated = await this.repo.update(id, {
+      managerIds: [...discussion.managerIds, targetUserId],
+    });
+    const target = await this.usersRepo.findById(targetUserId);
+    if (target) {
+      await this.notifyUser(
+        targetUserId,
+        target.username,
+        'Jsi správce diskuze',
+        `Byl/a jsi přidán/a jako správce diskuze "${discussion.title}".`,
+      );
+    }
+    return updated!;
+  }
+
+  async removeManager(
+    id: string,
+    targetUserId: string,
+    requesterId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    this.assertCreatorOrAdmin(discussion, requesterId, role, username);
+    if (targetUserId === discussion.creatorId)
+      throw new BadRequestException('Tvůrce diskuze nelze odebrat ze správců');
+    const updated = await this.repo.update(id, {
+      managerIds: discussion.managerIds.filter((uid) => uid !== targetUserId),
+    });
+    return updated!;
+  }
+
+  async requestJoin(
+    id: string,
+    userId: string,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (discussion.isOpen)
+      throw new BadRequestException(
+        'Diskuze je otevřená — přístup nevyžaduje žádost',
+      );
+    const alreadyHasAccess =
+      discussion.creatorId === userId ||
+      discussion.managerIds.includes(userId) ||
+      discussion.invitedUserIds.includes(userId);
+    if (alreadyHasAccess || discussion.joinRequestIds.includes(userId))
+      return discussion;
+    const updated = await this.repo.update(id, {
+      joinRequestIds: [...discussion.joinRequestIds, userId],
+    });
+    await this.notifyManagers(
+      discussion,
+      'Nová žádost o přidání do diskuze',
+      `Uživatel ${username} žádá o přidání do diskuze "${discussion.title}".`,
+    );
+    return updated!;
+  }
+
+  async resolveJoinRequest(
+    id: string,
+    targetUserId: string,
+    accept: boolean,
+    requesterId: string,
+    role: UserRole,
+    username: string,
+  ): Promise<IkarosDiscussion> {
+    const discussion = await this.repo.findById(id);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    if (!this.isManagerOrAdmin(discussion, requesterId, role, username))
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
+    if (!discussion.joinRequestIds.includes(targetUserId))
+      throw new NotFoundException({
+        code: 'JOIN_REQUEST_NOT_FOUND',
+        message: 'Žádost nenalezena',
+      });
+    const patch: Partial<IkarosDiscussion> = {
+      joinRequestIds: discussion.joinRequestIds.filter(
+        (uid) => uid !== targetUserId,
+      ),
+    };
+    if (accept && !discussion.invitedUserIds.includes(targetUserId)) {
+      patch.invitedUserIds = [...discussion.invitedUserIds, targetUserId];
+    }
+    const updated = await this.repo.update(id, patch);
+    const target = await this.usersRepo.findById(targetUserId);
+    if (target) {
+      await this.notifyUser(
+        targetUserId,
+        target.username,
+        accept
+          ? 'Žádost o přidání do diskuze schválena'
+          : 'Žádost o přidání do diskuze zamítnuta',
+        accept
+          ? `Byl/a jsi přidán/a do diskuze "${discussion.title}".`
+          : `Tvá žádost o přidání do diskuze "${discussion.title}" byla zamítnuta.`,
+      );
+    }
+    return updated!;
+  }
+
+  async reportPost(
+    discussionId: string,
+    postId: string,
+    reason: string,
+    reporterId: string,
+    reporterName: string,
+  ): Promise<IkarosDiscussionReport> {
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
+      });
+    const post = await this.postsRepo.findById(postId);
+    if (!post || post.discussionId !== discussionId)
+      throw new NotFoundException({
+        code: 'POST_NOT_FOUND',
+        message: 'Příspěvek nenalezen',
+      });
+    const report = await this.reportsRepo.create({
+      discussionId,
+      discussionTitle: discussion.title,
+      postId,
+      postContentSnapshot: post.content,
+      postAuthorName: post.authorName,
+      reporterId,
+      reporterName,
+      reason,
+      createdAtUtc: new Date(),
+      resolved: false,
+    });
+    await this.notifyAdmins(
+      'Nahlášený příspěvek v diskuzi',
+      `Uživatel ${reporterName} nahlásil příspěvek v diskuzi "${discussion.title}".`,
+    );
+    return report;
+  }
+
+  async resolveReport(
+    reportId: string,
+    deletePost: boolean,
+    role: UserRole,
+    username: string,
+  ): Promise<void> {
+    this.assertAdmin(role, username);
+    const report = await this.reportsRepo.findById(reportId);
+    if (!report)
+      throw new NotFoundException({
+        code: 'REPORT_NOT_FOUND',
+        message: 'Hlášení nenalezeno',
+      });
+    if (deletePost) {
+      const post = await this.postsRepo.findById(report.postId);
+      if (post) {
+        await this.postsRepo.delete(report.postId);
+        await this.repo.adjustPostCount(report.discussionId, -1);
+      }
+    }
+    await this.reportsRepo.markResolved(reportId);
+  }
+}
