@@ -1,0 +1,81 @@
+# Dev infrastructure pro Ikaros — Mongo replica set + Redis.
+# Backend (Nest) a FE (Vite) běží lokálně mimo Docker pro rychlý hot reload.
+#
+# Spuštění:
+#   docker compose up -d
+#   # Mongo se inicializuje jako 1-node replica set automaticky (healthcheck).
+#
+# Produkce (budoucnost):
+#   - Mongo dostane jiný cluster (Atlas / 3-node replica set)
+#   - Redis dostane sentinel / cluster
+#   - Backend + FE poběží jako kontejnery (Dockerfily přidáme později)
+#
+# Pro nový vývojářský stroj:
+#   1. docker compose up -d
+#   2. cd backend && npm run start:dev
+#   3. cd .. && npm run dev (FE)
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: ikaros-mongo
+    restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --port
+      - '27017'
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # Healthcheck zároveň inicializuje replica set, pokud ještě nebyl.
+      # Idempotentní — po prvním `rs.initiate()` další volání jen vrátí stav.
+      test:
+        - CMD-SHELL
+        - |
+          mongosh --quiet --eval "
+            try {
+              rs.status();
+            } catch (err) {
+              if (err.codeName === 'NotYetInitialized' || err.code === 94) {
+                rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'localhost:27017'}]});
+              } else {
+                throw err;
+              }
+            }
+          "
+      interval: 10s
+      start_period: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ikaros-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: ikaros-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ikaros-net
+
+volumes:
+  mongo-data:
+  redis-data:
+
+networks:
+  ikaros-net:
+    driver: bridge
