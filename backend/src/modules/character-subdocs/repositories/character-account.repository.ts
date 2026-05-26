@@ -1,0 +1,157 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import type { ClientSession, Model } from 'mongoose';
+import { CharacterAccountSchemaClass } from '../schemas/character-account.schema';
+import type {
+  CharacterAccount,
+  FantasyDateLike,
+  FinanceTransaction,
+} from '../interfaces/character-account.interface';
+
+@Injectable()
+export class CharacterAccountRepository {
+  constructor(
+    @InjectModel(CharacterAccountSchemaClass.name)
+    private readonly model: Model<CharacterAccountSchemaClass>,
+  ) {}
+
+  async findById(
+    id: string,
+    session?: ClientSession,
+  ): Promise<CharacterAccount | null> {
+    const q = this.model.findById(id);
+    if (session) q.session(session);
+    const doc = await q.lean().exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  /**
+   * Vrátí všechny účty, kde je character vlastníkem nebo spoluvlastníkem.
+   */
+  async findByOwnerCharacterId(
+    characterId: string,
+  ): Promise<CharacterAccount[]> {
+    const docs = await this.model
+      .find({ ownerCharacterIds: characterId })
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async findByWorldId(worldId: string): Promise<CharacterAccount[]> {
+    const docs = await this.model.find({ worldId }).lean().exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async create(
+    input: Omit<CharacterAccount, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<CharacterAccount> {
+    const created = new this.model(input);
+    const saved = await created.save();
+    return this.toEntity(
+      saved.toObject() as unknown as Record<string, unknown>,
+    );
+  }
+
+  async update(
+    id: string,
+    patch: Partial<CharacterAccount>,
+    session?: ClientSession,
+  ): Promise<CharacterAccount | null> {
+    const q = this.model.findByIdAndUpdate(id, { $set: patch }, { new: true });
+    if (session) q.session(session);
+    const doc = await q.lean().exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  /**
+   * Atomický `$push` transakce + `$inc` balance (delta). Použito v transferu
+   * v rámci `withTransaction`, kde je consistency napříč 2 účty kritická.
+   */
+  async appendTransaction(
+    accountId: string,
+    tx: FinanceTransaction,
+    session?: ClientSession,
+  ): Promise<CharacterAccount | null> {
+    const q = this.model.findByIdAndUpdate(
+      accountId,
+      {
+        $push: { transactions: tx },
+        $inc: { balance: tx.delta },
+      },
+      { new: true },
+    );
+    if (session) q.session(session);
+    const doc = await q.lean().exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  async deleteById(id: string): Promise<void> {
+    await this.model.deleteOne({ _id: id }).exec();
+  }
+
+  async countByOwnerCharacterId(characterId: string): Promise<number> {
+    return this.model.countDocuments({ ownerCharacterIds: characterId }).exec();
+  }
+
+  private toEntity(doc: Record<string, unknown>): CharacterAccount {
+    return {
+      id: String(doc._id),
+      worldId: doc.worldId as string,
+      label: (doc.label as string) ?? '',
+      ownerCharacterIds: (doc.ownerCharacterIds as string[]) ?? [],
+      primaryOwnerId: doc.primaryOwnerId as string,
+      accountType: (doc.accountType as string) ?? 'Osobní',
+      accessLocation:
+        (doc.accessLocation as CharacterAccount['accessLocation']) ?? null,
+      currency: (doc.currency as string) ?? '',
+      balance: (doc.balance as number) ?? 0,
+      incomeEntries: (
+        (doc.incomeEntries as Record<string, unknown>[]) ?? []
+      ).map((e) => ({
+        id: e.id as string,
+        label: (e.label as string) ?? '',
+        amount: (e.amount as number) ?? 0,
+      })),
+      expenseEntries: (
+        (doc.expenseEntries as Record<string, unknown>[]) ?? []
+      ).map((e) => ({
+        id: e.id as string,
+        label: (e.label as string) ?? '',
+        amount: (e.amount as number) ?? 0,
+      })),
+      transactions: ((doc.transactions as Record<string, unknown>[]) ?? []).map(
+        (t) => ({
+          id: t.id as string,
+          date: t.date as Date,
+          // Spec 8.x-prep §4.4 (B4) — herní datum transakce; legacy
+          // transakce bez pole → undefined (FE fallbackne na real-world `date`).
+          inGameDate:
+            (t.inGameDate as FantasyDateLike | null | undefined) ?? null,
+          delta: (t.delta as number) ?? 0,
+          description: (t.description as string) ?? '',
+          transferRef: t.transferRef as
+            | FinanceTransaction['transferRef']
+            | undefined,
+          performedByUserId: (t.performedByUserId as string) ?? '',
+        }),
+      ),
+      notes: (doc.notes as string) ?? '',
+      // Spec 8.x-prep §4.3 (B3) — flag pro hráčův self-adjust.
+      allowPlayerSelfAdjust: Boolean(doc.allowPlayerSelfAdjust ?? false),
+      createdAt: doc.createdAt as Date | undefined,
+      updatedAt: doc.updatedAt as Date | undefined,
+    };
+  }
+}
