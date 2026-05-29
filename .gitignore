@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 
+# ML model cache / runtime data (~1.5 GB, stahuje/generuje se; nepatří do gitu)
+backend/data/
+
 # Environment
 .env
 .env.local
