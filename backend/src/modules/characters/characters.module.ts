@@ -8,6 +8,7 @@ import { MongoCharactersRepository } from './repositories/characters.repository'
 import { CharactersService } from './characters.service';
 import { CharactersController } from './characters.controller';
 import { WorldsModule } from '../worlds/worlds.module';
+import { PagesModule } from '../pages/pages.module';
 
 @Module({
   imports: [
@@ -18,6 +19,9 @@ import { WorldsModule } from '../worlds/worlds.module';
     // (viz users.module.ts:35). forwardRef nutný, jinak je WorldsModule
     // v okamžiku scan-time undefined.
     forwardRef(() => WorldsModule),
+    // 10.2g — getPlayerCharacters/findByWorld doplňují imageUrl z Page (po
+    // sjednocení 9.1 obrázek žije v Page). Pages↔Characters je kruh → forwardRef.
+    forwardRef(() => PagesModule),
   ],
   controllers: [CharactersController],
   providers: [

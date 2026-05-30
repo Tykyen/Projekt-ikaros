@@ -8,6 +8,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { ICharactersRepository } from './interfaces/characters-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type {
   Character,
   CharacterDirectoryEntry,
@@ -27,8 +28,20 @@ export class CharactersService {
     private readonly charRepo: ICharactersRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    // 10.2g — imageUrl postavy žije v Page (sjednocení 9.1); list endpointy
+    // ho doplňují pro avatar ve spawn paletě (vzor: maps.enrichTokens).
+    @Inject('IPagesRepository')
+    private readonly pagesRepo: IPagesRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  /** 10.2g — mapa slug → imageUrl z Page pro daný svět (avatar v paletě). */
+  private async imageUrlBySlug(
+    worldId: string,
+  ): Promise<Map<string, string | undefined>> {
+    const pages = await this.pagesRepo.findByWorld(worldId);
+    return new Map(pages.map((p) => [p.slug, p.imageUrl]));
+  }
 
   /**
    * 8.6 — Najde character podle ID. Vrátí null pokud neexistuje.
@@ -69,7 +82,8 @@ export class CharactersService {
 
   async findByWorld(worldId: string): Promise<CharacterPublicView[]> {
     const characters = await this.charRepo.findByWorld(worldId);
-    return characters.map((c) => this.toPublicView(c));
+    const imgBySlug = await this.imageUrlBySlug(worldId);
+    return characters.map((c) => this.toPublicView(c, imgBySlug.get(c.slug)));
   }
 
   async findBySlug(
@@ -162,12 +176,14 @@ export class CharactersService {
     // `id` pro spawn payload (`characterId`) a `userId` pro UI rozlišení
     // "volná PC postava" vs. "PC s ownerem".
     const characters = await this.charRepo.findPlayerCharacters(worldId);
+    const imgBySlug = await this.imageUrlBySlug(worldId);
     return characters.map((c) => ({
       id: c.id,
       name: c.name,
       slug: c.slug,
       isNpc: c.isNpc,
       userId: c.userId,
+      imageUrl: imgBySlug.get(c.slug),
     }));
   }
 
@@ -346,13 +362,14 @@ export class CharactersService {
     });
   }
 
-  private toPublicView(c: Character): CharacterPublicView {
+  private toPublicView(c: Character, imageUrl?: string): CharacterPublicView {
     return {
       id: c.id,
       slug: c.slug,
       name: c.name,
       worldId: c.worldId,
       isNpc: c.isNpc,
+      imageUrl,
     };
   }
 }

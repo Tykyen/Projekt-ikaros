@@ -31,6 +31,8 @@ export interface PlayerCharacter {
   isNpc: boolean;
   /** undefined = volná PC postava bez ownera (PJ ji vytvořil, hráč může být přiřazen později). */
   userId?: string;
+  /** 10.2g — obrázek z Page (po sjednocení 9.1) pro avatar ve spawn paletě. */
+  imageUrl?: string;
 }
 
 export interface CharacterDirectoryEntry {
@@ -81,4 +83,6 @@ export interface CharacterPublicView {
   name: string;
   worldId: string;
   isNpc: boolean;
+  /** 10.2g — obrázek z Page (po sjednocení 9.1) pro avatar ve spawn paletě. */
+  imageUrl?: string;
 }
