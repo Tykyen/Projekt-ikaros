@@ -3,6 +3,9 @@ import {
   IsString,
   IsNotEmpty,
   IsObject,
+  IsOptional,
+  IsArray,
+  IsNumber,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -12,11 +15,24 @@ import { Type } from 'class-transformer';
  * Spec: docs/arch/maps/operations/data-models.md § Effect operace.
  */
 
-/** Holder pro `effect` payload v `effect.add`. Hluboká validace odložená. */
+/**
+ * Holder pro `effect` payload v `effect.add`. Hluboká validace odložená.
+ *
+ * 10.2g fix — `hexes`/`color`/`rings`/`variant`/`excludedHexes`/`barrierDC`
+ * MUSÍ mít explicitní (volitelné) dekorátory. Globální `ValidationPipe`
+ * (`whitelist: true`, main.ts) jinak tato pole tiše zahodí (index signature
+ * `[key: string]` whitelist nerespektuje) → efekt se uložil jen s `id`+`type`,
+ * bez geometrie → po refreshi „zmizel". (Mirror `TokenPayloadDto` q/r/id.)
+ */
 export class EffectPayloadDto {
   @IsString() @IsNotEmpty() id!: string;
   @IsString() type!: string; // 'color' | 'barrier' | 'explosion'
-  // hexes, color, rings, variant, excludedHexes, barrierDC — accept arbitrary
+  @IsOptional() @IsArray() hexes?: { q: number; r: number }[];
+  @IsOptional() @IsString() color?: string;
+  @IsOptional() @IsArray() rings?: { radius: number; damage: number }[];
+  @IsOptional() @IsString() variant?: string;
+  @IsOptional() @IsArray() excludedHexes?: { q: number; r: number }[];
+  @IsOptional() @IsNumber() barrierDC?: number;
   [key: string]: unknown;
 }
 

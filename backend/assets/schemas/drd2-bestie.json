@@ -1,0 +1,57 @@
+{
+  "systemId": "drd2",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "main-stats",
+      "label": "Hlavní staty",
+      "fields": [
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Maximální zdraví bestie. Při damage se snižuje health.current."
+        },
+        {
+          "key": "armor",
+          "label": "Zbroj",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer",
+          "description": "Bod-tlumení každého zásahu."
+        },
+        {
+          "key": "injury",
+          "label": "Zranění",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Aktuální zranění (kumulativní). Reset při full heal."
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Dosah pohybu v hexech za tah."
+        },
+        {
+          "key": "initiative.base",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative",
+          "description": "Základní iniciativa pro řazení v boji."
+        }
+      ]
+    }
+  ]
+}
