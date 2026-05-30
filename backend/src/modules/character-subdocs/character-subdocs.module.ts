@@ -97,6 +97,12 @@ import { WorldsModule } from '../worlds/worlds.module';
       useClass: CharacterNotesRepository,
     },
   ],
-  exports: [CharacterSubdocsService, CharacterAccountsService],
+  exports: [
+    CharacterSubdocsService,
+    CharacterAccountsService,
+    // 10.2g — maps.enrichTokens potřebuje read-only diary subdoc (HP postavy
+    // pro HP bar PC/NPC na taktické mapě).
+    'ICharacterDiaryRepository',
+  ],
 })
 export class CharacterSubdocsModule {}

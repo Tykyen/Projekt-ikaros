@@ -9,6 +9,7 @@ import type { IMapTemplatesRepository } from './interfaces/map-templates-reposit
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { ICharactersRepository } from '../characters/interfaces/characters-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
+import type { CharacterDiaryRepository } from '../character-subdocs/repositories/character-diary.repository';
 import type { MapScene, MapToken } from './interfaces/map-scene.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -32,6 +33,9 @@ export class MapsService {
     // 9.1 (cleanup) — pro enrichTokens (Page má imageUrl po sjednocení).
     @Inject('IPagesRepository')
     private readonly pagesRepo: IPagesRepository,
+    // 10.2g — read-only diary subdoc pro enrichTokens (HP postavy → HP bar).
+    @Inject('ICharacterDiaryRepository')
+    private readonly diaryRepo: CharacterDiaryRepository,
   ) {}
 
   async assertCanManage(
@@ -305,21 +309,36 @@ export class MapsService {
     // name + diaryData z Character (subdoc kontejner). Page lookup přes slug
     // (Page.slug === Character.slug po sjednocení).
     const results = await Promise.all(
-      slugs.map(async (slug) => ({
-        slug,
-        char: await this.characterRepo.findBySlugAndWorld(slug, scene.worldId),
-        page: await this.pagesRepo.findBySlugAndWorld(slug, scene.worldId),
-      })),
+      slugs.map(async (slug) => {
+        const char = await this.characterRepo.findBySlugAndWorld(
+          slug,
+          scene.worldId,
+        );
+        const page = await this.pagesRepo.findBySlugAndWorld(
+          slug,
+          scene.worldId,
+        );
+        // 10.2g — HP postavy (PC/NPC) žije v diary subdocu (customData), ne na
+        // core Character. Read-only (findByCharacterId nevytváří) → token bez
+        // diáře prostě HP bar nedostane.
+        const diary = char
+          ? await this.diaryRepo.findByCharacterId(char.id)
+          : null;
+        return { slug, char, page, diary };
+      }),
     );
     const charMap = new Map(
       results
         .filter(({ char }) => char !== null)
-        .map(({ slug, char, page }) => [
+        .map(({ slug, char, page, diary }) => [
           slug,
           {
             name: char!.name,
             imageUrl: page?.imageUrl,
             diaryData: char!.diaryData,
+            // 10.2g — diary subdoc customData (per-system HP klíče); FE
+            // `resolveCharacterHp` z toho čte HP bar pro PC/NPC.
+            customData: diary?.customData ?? {},
           },
         ]),
     );

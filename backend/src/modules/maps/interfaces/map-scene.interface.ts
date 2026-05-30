@@ -3,6 +3,10 @@ export interface HexConfig {
   originX: number;
   originY: number;
   showGrid: boolean;
+  // 10.2g — per-scéna viditelnost HP barů dle typu tokenu (undefined = true).
+  showHpPc?: boolean;
+  showHpNpc?: boolean;
+  showHpBestie?: boolean;
 }
 
 export interface HexCoord {
@@ -58,6 +62,8 @@ export interface MapToken {
     name: string;
     imageUrl?: string;
     diaryData: Record<string, unknown>;
+    // 10.2g — diary subdoc customData (per-system HP klíče pro HP bar PC/NPC).
+    customData?: Record<string, unknown>;
   };
 }
 

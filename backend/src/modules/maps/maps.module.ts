@@ -28,6 +28,7 @@ import { SchemaRegistryService } from './schemas/system-entity-schema/schema-reg
 import { SystemStatsValidatorService } from './schemas/system-entity-schema/system-stats-validator.service';
 import { WorldsModule } from '../worlds/worlds.module';
 import { CharactersModule } from '../characters/characters.module';
+import { CharacterSubdocsModule } from '../character-subdocs/character-subdocs.module';
 import { PagesModule } from '../pages/pages.module';
 import { AuthModule } from '../auth/auth.module';
 
@@ -44,6 +45,8 @@ import { AuthModule } from '../auth/auth.module';
     // 9.1 (cleanup) — enrichTokens potřebuje Page.imageUrl pro token avatary
     // (Character.imageUrl byl smazán). Page lookup přes characterRef.
     PagesModule,
+    // 10.2g — enrichTokens potřebuje diary subdoc (HP postavy pro HP bar PC/NPC).
+    CharacterSubdocsModule,
     // 10.2-prep-1 hotfix — MapsGateway potřebuje JwtService pro WS auth middleware.
     // AuthModule exportuje JwtModule (stejný pattern jako WorldsModule, IkarosMessagesModule).
     AuthModule,
