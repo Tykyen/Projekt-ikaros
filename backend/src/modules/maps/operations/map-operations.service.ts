@@ -373,6 +373,17 @@ export class MapOperationsService {
         };
       }
 
+      case 'combat.reorder': {
+        // Inverse = reorder zpět na původní pořadí.
+        const order =
+          (scene.combat as { order?: string[] } | null)?.order ?? [];
+        if (order.length === 0) return null;
+        return {
+          type: 'combat.reorder',
+          orderTokenIds: order,
+        };
+      }
+
       case 'combat.effect.add': {
         const effectId = (op.effect as { id?: string }).id;
         if (!effectId) return null;
@@ -918,21 +929,24 @@ export class MapOperationsService {
         }
         const order = combat.order ?? [];
         let nextTokenId: string;
-        let nextRound = combat.round ?? 1;
+        let nextRound = op.round ?? combat.round ?? 1;
         if (op.tokenId) {
-          if (!order.includes(op.tokenId)) {
+          // 10.2f — živý sort: token nemusí být v (zastaralém) order, musí ale
+          // existovat na scéně. FE řídí pořadí + round.
+          if (!scene.tokens.some((t) => t.id === op.tokenId)) {
             throw new BadRequestException({
               code: 'MAP_OP_INVALID',
-              message: `Token ${op.tokenId} není v combat order`,
+              message: `Token ${op.tokenId} neexistuje na scéně`,
             });
           }
           nextTokenId = op.tokenId;
         } else {
-          // Next in order; po posledním → další kolo
+          // Legacy: next in order; po posledním → další kolo (BC).
           const currentIdx = order.indexOf(combat.currentTokenId ?? '');
           const nextIdx = (currentIdx + 1) % order.length;
           nextTokenId = order[nextIdx];
-          if (nextIdx === 0) nextRound = (combat.round ?? 1) + 1;
+          if (op.round === undefined && nextIdx === 0)
+            nextRound = (combat.round ?? 1) + 1;
         }
         await this.mapsRepo.atomicUpdate(
           { _id: sceneId },
@@ -957,6 +971,48 @@ export class MapOperationsService {
         await this.mapsRepo.atomicUpdate(
           { _id: sceneId },
           { $set: { combat: null, lastModified: now } },
+        );
+        return;
+      }
+
+      case 'combat.reorder': {
+        // 10.2f-2 — přeřazení order ZA běžícího boje; round + currentTokenId
+        // se NEMĚNÍ (na rozdíl od combat.start). orderTokenIds musí být
+        // permutace stávajícího order (stejná množina i délka).
+        const combat = scene.combat as {
+          isActive?: boolean;
+          order?: string[];
+        } | null;
+        if (!combat?.isActive) {
+          throw new ConflictException({
+            code: 'MAP_OP_PRECONDITION_FAILED',
+            message: 'Boj není aktivní',
+          });
+        }
+        const oldOrder = combat.order ?? [];
+        if (op.orderTokenIds.length !== oldOrder.length) {
+          throw new BadRequestException({
+            code: 'MAP_OP_INVALID',
+            message: `orderTokenIds (${op.orderTokenIds.length}) ≠ combat.order (${oldOrder.length}) — musí být permutace`,
+          });
+        }
+        const oldSet = new Set(oldOrder);
+        for (const id of op.orderTokenIds) {
+          if (!oldSet.has(id)) {
+            throw new BadRequestException({
+              code: 'MAP_OP_INVALID',
+              message: `Token ${id} v orderTokenIds není v combat.order`,
+            });
+          }
+        }
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $set: {
+              'combat.order': op.orderTokenIds,
+              lastModified: now,
+            },
+          },
         );
         return;
       }

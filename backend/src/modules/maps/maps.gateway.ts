@@ -228,6 +228,39 @@ export class MapsGateway implements OnGatewayConnection {
       .emit('map:pinged', payload.x, payload.y, payload.userName);
   }
 
+  /**
+   * 10.2f-3 — spotlight („ukazováček" PJ z iniciativní lišty). Ephemeral,
+   * NEní v operation logu. PJ-only (>= PomocnyPJ / Sa / Admin). Broadcast
+   * `map:spotlight` všem na scéně kromě odesílatele (ten si highlight nastaví
+   * lokálně). Hráči tak vidí, který token (bestii) PJ ukazuje.
+   */
+  @SubscribeMessage('map:spotlight')
+  async handleSpotlight(
+    @MessageBody() payload: { sceneId: string; tokenId: string },
+    @ConnectedSocket() client: AuthedSocket,
+  ): Promise<void> {
+    if (!this.requireAuth(client)) return;
+    const data = client.data as AuthedSocketData;
+    if (data.user!.role > UserRole.Admin) {
+      const scene = await this.mapsRepo.findById(payload.sceneId);
+      if (!scene) return;
+      const membership = await this.membershipRepo.findByUserAndWorld(
+        data.user!.id,
+        scene.worldId,
+      );
+      if (!membership || membership.role < WorldRole.PomocnyPJ) {
+        client.emit('error', {
+          code: 'MAP_FORBIDDEN',
+          message: 'Spotlight může spustit jen PJ',
+        });
+        return;
+      }
+    }
+    client
+      .to(payload.sceneId)
+      .emit('map:spotlight', { tokenId: payload.tokenId });
+  }
+
   @SubscribeMessage('map:effect-added')
   handleEffectAdded(
     @MessageBody() payload: { sceneId: string; effect: unknown },

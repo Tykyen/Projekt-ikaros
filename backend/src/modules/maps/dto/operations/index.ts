@@ -34,6 +34,7 @@ import {
   CombatStartOpDto,
   CombatTurnOpDto,
   CombatEndOpDto,
+  CombatReorderOpDto,
   CombatEffectAddOpDto,
   CombatEffectRemoveOpDto,
 } from './combat-ops.dto';
@@ -94,6 +95,7 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   'combat.start': CombatStartOpDto,
   'combat.turn': CombatTurnOpDto,
   'combat.end': CombatEndOpDto,
+  'combat.reorder': CombatReorderOpDto,
   'combat.effect.add': CombatEffectAddOpDto,
   'combat.effect.remove': CombatEffectRemoveOpDto,
   // NPC template
@@ -139,6 +141,7 @@ export type MapOperationPayload =
   | CombatStartOpDto
   | CombatTurnOpDto
   | CombatEndOpDto
+  | CombatReorderOpDto
   | CombatEffectAddOpDto
   | CombatEffectRemoveOpDto
   | NpcTemplateAddOpDto

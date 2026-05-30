@@ -345,6 +345,86 @@ describe('MapOperationsService', () => {
     });
   });
 
+  // 10.2f-2 — přeřazení order za běžícího boje (zachovává round/currentTokenId)
+  describe('apply — combat.reorder', () => {
+    const activeScene = () =>
+      makeScene({
+        tokens: [
+          makeToken('t1', 'c1'),
+          makeToken('t2', 'c2'),
+          makeToken('t3', 'c3'),
+        ],
+        combat: {
+          isActive: true,
+          round: 3,
+          currentTokenId: 't2',
+          order: ['t1', 't2', 't3'],
+          endOfTurnEffects: [],
+        },
+      });
+
+    it('happy path: přepíše jen combat.order, NE round/currentTokenId', async () => {
+      mockMapsRepo.findById.mockResolvedValue(activeScene());
+      const res = await service.apply(
+        'scene1',
+        { type: 'combat.reorder', orderTokenIds: ['t3', 't1', 't2'] },
+        pj,
+      );
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1' },
+        {
+          $set: expect.objectContaining({
+            'combat.order': ['t3', 't1', 't2'],
+          }),
+        },
+      );
+      // round/currentTokenId NESMÍ být v $set
+      const setArg = mockMapsRepo.atomicUpdate.mock.calls[0][1].$set;
+      expect(setArg['combat.round']).toBeUndefined();
+      expect(setArg['combat.currentTokenId']).toBeUndefined();
+      // inverse = reorder zpět na původní pořadí
+      expect(res.inverse).toEqual({
+        type: 'combat.reorder',
+        orderTokenIds: ['t1', 't2', 't3'],
+      });
+    });
+
+    it('bez aktivního boje → PRECONDITION_FAILED', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene({ combat: null }));
+      await expect(
+        service.apply(
+          'scene1',
+          { type: 'combat.reorder', orderTokenIds: ['t1'] },
+          pj,
+        ),
+      ).rejects.toThrow(/aktivní/);
+    });
+
+    it('orderTokenIds není permutace (cizí token) → INVALID', async () => {
+      mockMapsRepo.findById.mockResolvedValue(activeScene());
+      await expect(
+        service.apply(
+          'scene1',
+          { type: 'combat.reorder', orderTokenIds: ['t1', 't2', 'xyz'] },
+          pj,
+        ),
+      ).rejects.toThrow();
+      expect(mockMapsRepo.atomicUpdate).not.toHaveBeenCalled();
+    });
+
+    it('orderTokenIds má jinou délku (subset) → INVALID', async () => {
+      mockMapsRepo.findById.mockResolvedValue(activeScene());
+      await expect(
+        service.apply(
+          'scene1',
+          { type: 'combat.reorder', orderTokenIds: ['t1', 't2'] },
+          pj,
+        ),
+      ).rejects.toThrow();
+      expect(mockMapsRepo.atomicUpdate).not.toHaveBeenCalled();
+    });
+  });
+
   // 10.2c-edit-1 C4 — scene.deactivate s cascade unassign + idempotence
   describe('apply — scene.deactivate', () => {
     it('happy path: aktivní scéna → CAS isActive=false, cascade unassign N affected', async () => {
