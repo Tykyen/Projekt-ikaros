@@ -7,6 +7,9 @@ dist/
 # ML model cache / runtime data (~1.5 GB, stahuje/generuje se; nepatří do gitu)
 backend/data/
 
+# Nahrané soubory uživatelů (runtime; nepatří do gitu)
+backend/uploads/
+
 # Environment
 .env
 .env.local
