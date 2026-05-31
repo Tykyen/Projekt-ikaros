@@ -30,6 +30,16 @@ export class MapSceneSchemaClass {
     default: (): Record<string, unknown>[] => [],
   })
   effects: Record<string, unknown>[];
+  /**
+   * 10.2j — persistovaná historie hodů scény. Cap 50 nejnovějších
+   * (atomic `$push` + `$slice: -50` v applyAtomic). Tvar: MapDiceRoll
+   * (byUserId, rollerName, rollerKind, category, dicePayload, rolledAt, tokenId?).
+   */
+  @Prop({
+    type: [MixedArraySubSchema],
+    default: (): Record<string, unknown>[] => [],
+  })
+  diceRolls: Record<string, unknown>[];
   @Prop({ default: false }) fogEnabled: boolean;
   @Prop({
     type: [MixedArraySubSchema],
