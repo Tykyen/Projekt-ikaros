@@ -391,6 +391,35 @@ describe('WorldsService', () => {
         ForbiddenException,
       );
     });
+
+    it('uloží diceVisibility patch (10.2j)', async () => {
+      const dto = {
+        diceVisibility: {
+          showPjRolls: false,
+          showNpcBestieRolls: true,
+          showTeammateRolls: true,
+        },
+      };
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mem-pj',
+        userId: 'user1',
+        worldId: 'world1',
+        role: WorldRole.PJ,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      mockWorldsRepo.update.mockResolvedValue({
+        ...mockWorld,
+        ...dto,
+      });
+      const result = await service.update(mockWorld.id, dto, mockRequester);
+      expect(mockWorldsRepo.update).toHaveBeenCalledWith(
+        mockWorld.id,
+        expect.objectContaining({ diceVisibility: dto.diceVisibility }),
+      );
+      expect(result.diceVisibility).toEqual(dto.diceVisibility);
+    });
   });
 
   describe('updateMemberFree', () => {

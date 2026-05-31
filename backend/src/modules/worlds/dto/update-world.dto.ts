@@ -12,7 +12,15 @@ import {
   Min,
   Max,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class DiceVisibilityDto {
+  @IsBoolean() showPjRolls!: boolean;
+  @IsBoolean() showNpcBestieRolls!: boolean;
+  @IsBoolean() showTeammateRolls!: boolean;
+}
 
 export class UpdateWorldDto {
   @IsOptional() @IsString() name?: string;
@@ -45,4 +53,9 @@ export class UpdateWorldDto {
   @ValidateIf((_, v) => v !== null)
   @IsString()
   themeBackgroundUrl?: string | null;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DiceVisibilityDto)
+  diceVisibility?: DiceVisibilityDto;
 }
