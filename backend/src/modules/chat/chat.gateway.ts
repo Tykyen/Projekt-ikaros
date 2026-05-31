@@ -13,6 +13,7 @@ import type { ChatChannel } from './interfaces/chat-channel.interface';
 import type { ChatMessage } from './interfaces/chat-message.interface';
 import { ChatService } from './chat.service';
 import { ChatPresenceService } from './chat-presence.service';
+import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 @WebSocketGateway({
   cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
@@ -145,6 +146,54 @@ export class ChatGateway implements OnGatewayDisconnect {
       characterName: payload.characterName,
       isTyping: false,
     });
+  }
+
+  // ─── Zvuk na poslech (13.3 chat broadcast) ───────────────────────────────
+  // PJ „pustí zvuk všem" v konverzaci (Discord-styl). Ephemeral — nejde do
+  // historie (vzor `typing:start/stop`). Gate `>= PomocnyPJ` přes membership
+  // (`resolveChannelPresenceRole`). POZNÁMKA k bezpečnosti: stejně jako presence
+  // se `userId` bere z payloadu klienta a ověřuje se jen role přes membership —
+  // teoretický spoofing (hráč pošle PJ userId). Blast radius nízký (přehraje
+  // zvuk všem). Zpřísnit lze ověřeným userId ze socket handshake (viz MapsGateway
+  // handleConnection), až bude chat gateway mít JWT auth.
+
+  @SubscribeMessage('sound:play')
+  async handleSoundPlay(
+    @MessageBody()
+    payload: {
+      channelId: string;
+      userId: string;
+      youtubeUrl: string;
+      name: string;
+      loop?: boolean;
+    },
+  ): Promise<void> {
+    const worldRole = await this.chatService.resolveChannelPresenceRole(
+      payload.channelId,
+      payload.userId,
+    );
+    if (worldRole === null || worldRole < WorldRole.PomocnyPJ) return;
+    // Broadcast všem v konverzaci VČETNĚ PJ (ten taky slyší co pustil).
+    this.server.to(`chat:${payload.channelId}`).emit('chat:sound:playing', {
+      channelId: payload.channelId,
+      youtubeUrl: payload.youtubeUrl,
+      name: payload.name,
+      loop: payload.loop ?? true,
+    });
+  }
+
+  @SubscribeMessage('sound:stop')
+  async handleSoundStop(
+    @MessageBody() payload: { channelId: string; userId: string },
+  ): Promise<void> {
+    const worldRole = await this.chatService.resolveChannelPresenceRole(
+      payload.channelId,
+      payload.userId,
+    );
+    if (worldRole === null || worldRole < WorldRole.PomocnyPJ) return;
+    this.server
+      .to(`chat:${payload.channelId}`)
+      .emit('chat:sound:stopped', { channelId: payload.channelId });
   }
 
   // ─── Message events ──────────────────────────────────────────────────────
