@@ -32,6 +32,16 @@ export interface ActiveMapWeather {
   setAt: Date;
 }
 
+/** 10.2j — viditelnost hodů kostkou na taktické mapě (world-level). */
+export interface WorldDiceVisibility {
+  /** Hráči vidí PJ hody. Default false. */
+  showPjRolls: boolean;
+  /** Hráči vidí hody NPC + bestií. Default false. */
+  showNpcBestieRolls: boolean;
+  /** Hráči vidí hody spoluhráčů. Default true. */
+  showTeammateRolls: boolean;
+}
+
 export interface World {
   id: string;
   name: string;
@@ -65,6 +75,8 @@ export interface World {
   themeBackgroundUrl?: string;
   /** 10.2i — počasí vyslané na taktickou mapu (PJ broadcast). `null` = žádné. */
   activeMapWeather?: ActiveMapWeather | null;
+  /** 10.2j — viditelnost hodů na mapě. `undefined` = výchozí (jen vlastní + spoluhráči). */
+  diceVisibility?: WorldDiceVisibility;
   createdAt: Date;
   updatedAt: Date;
   /** Spec 2.4 — populated jen při `findById` / `findBySlug` (controller endpointy). */

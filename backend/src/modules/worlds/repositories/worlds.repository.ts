@@ -216,6 +216,8 @@ export class MongoWorldsRepository
       themeBackgroundUrl: doc.themeBackgroundUrl as string | undefined,
       activeMapWeather:
         (doc.activeMapWeather as World['activeMapWeather']) ?? null,
+      diceVisibility:
+        (doc.diceVisibility as World['diceVisibility']) ?? undefined,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

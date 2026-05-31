@@ -57,6 +57,17 @@ export class WorldSchemaClass {
    */
   @Prop({ type: Object, default: null })
   activeMapWeather?: Record<string, unknown> | null;
+
+  /**
+   * 10.2j — viditelnost hodů kostkou na mapě.
+   * `{ showPjRolls, showNpcBestieRolls, showTeammateRolls }` nebo `undefined`.
+   */
+  @Prop({ type: Object, default: undefined })
+  diceVisibility?: {
+    showPjRolls: boolean;
+    showNpcBestieRolls: boolean;
+    showTeammateRolls: boolean;
+  };
 }
 
 export const WorldSchema = SchemaFactory.createForClass(WorldSchemaClass);
