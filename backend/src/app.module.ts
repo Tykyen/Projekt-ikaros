@@ -29,6 +29,7 @@ import { CharacterSubdocsModule } from './modules/character-subdocs/character-su
 import { CalendarsModule } from './modules/calendars/calendars.module';
 import { UniverseModule } from './modules/universe/universe.module';
 import { CampaignModule } from './modules/campaign/campaign.module';
+import { WorldGmNotesModule } from './modules/world-gm-notes/world-gm-notes.module';
 import { MapsModule } from './modules/maps/maps.module';
 import { BestiaeModule } from './modules/bestiae/bestiae.module';
 import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
@@ -88,6 +89,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     CalendarsModule,
     UniverseModule,
     CampaignModule,
+    WorldGmNotesModule,
     MapsModule,
     BestiaeModule,
     DungeonMapsModule,
