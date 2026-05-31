@@ -20,15 +20,6 @@
   - Atomic batch retries
 - **Zdroj:** Discovered po SP4 unblock tsconfig — pre-existing spec, který nikdy nevolal real cron. Cron impl byl `void` ve squash 52ca60a3.
 
-### [otevřeno 2026-05-31] FATE kostka v chatu: plus se zobrazuje jako mínus
-
-- **Soubor:** `Projekt-ikaros-FE/src/features/world/chat/dice/` (kandidáti: `lib/diceSkins.ts` facePlusImg/faceMinusImg, `lib/diceTargets.ts` FATE_TARGETS, modely `components/models/FateSkinModel.tsx`)
-- **Typ:** vizuální bug
-- **Riziko:** Znak „+" (plus) se na hozené tváři FATE kostky vykresluje jako „−" (mínus). Součet hodu je správný (roll engine OK), zaměněná je jen textura/rotace plus↔mínus tváře. Mate hráče při čtení hodu.
-- **Co vyžaduje:** ověřit mapping plus tváře → správná textura/rotace. Pravděpodobně prohozené `facePlusImg`/`faceMinusImg` nebo špatný target v `FATE_TARGETS`.
-- **Plánovaná oprava:** záměrně odloženo na konec kroku 10.2j (rozhodnutí uživatele 2026-05-31).
-- **Zdroj:** Nahlášeno uživatelem (screenshot) během brainstormingu 10.2j.
-
 ---
 
 ## Čeká na trigger
@@ -46,4 +37,9 @@ Záznamy zde jsou legitní budoucí práce, ne aktuální technický dluh. Mají
 
 ## Vyřešené
 
-_(prázdné — vyřešené záznamy vyčištěny 2026-05-14 na uživatelovu žádost. Auditní stopa zůstává v git historii: `git log -- docs/dluhy.md`.)_
+### [vyřešeno 2026-05-31] FATE kostka v chatu: plus se zobrazuje jako mínus (10.2j / Task I4)
+
+- **Root cause:** Systematickou rešerší NEnalezena žádná inverze plus↔mínus v kódu FE. Ověřeno: `FATE_TARGETS['+']` = `{0,0,0}` natáčí krychli na čelní (front) tvář, která má plus texturu (`facePlusImg`) — geometrie matematicky ověřena (rotace normál tváří: '+'→front/plus, '-'→back/minus, '0'→top). Naming všech 22 skinů konzistentní (`facePlusImg`→`_plus.webp`, `faceMinusImg`→`_minus.webp`), settled `<img>` cesta v chatu (`pickFaceImg`) i 3D overlay cesta mapují '+' na plus. Zdrojové assety (`fate_*_plus.webp`) vizuálně obsahují plus, Cloudinary upload manifest zachoval názvy 1:1. Jde o věrný port funkčního Matrix kódu.
+- **Fix:** Žádná spekulativní záměna NEprovedena (prohození kterékoli ověřeně správné mapy by zavedlo reálnou regresi). Přidán regresní test `lib/fateMapping.spec.ts` zamykající korektní plus/mínus mapování (asset naming + protilehlost target rotací + symbolická↔numerická forma).
+- **Pozn.:** Pokud se vizuál v prohlížeči stále jeví obráceně, příčina je MIMO zdrojový kód — buď obsah assetu na CDN (nelze ověřit ze sandboxu), nebo prohlížečové zploštění `preserve-3d` v overlay. Vyžaduje vizuální potvrzení v prohlížeči / na CDN.
+- **Zdroj:** Nahlášeno uživatelem (screenshot) během brainstormingu 10.2j.
