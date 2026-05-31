@@ -22,6 +22,7 @@ const makeScene = (overrides: Partial<MapScene> = {}): MapScene => ({
   isActive: false,
   isHidden: false,
   isLocked: false,
+  playerStates: [],
   activeSoundIds: [],
   lastSeqNumber: 0,
   activeCharacterIds: [],
@@ -261,6 +262,82 @@ describe('MapOperationsService', () => {
       expect(result.inverse).toEqual({
         type: 'scene.state',
         isHidden: false,
+      });
+    });
+
+    // 10.2n — per-hráč override
+    it('scene.playerState: upsert override (žádný předchozí → inverse clear)', async () => {
+      const scene = makeScene({ playerStates: [] });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'scene.playerState', userId: 'u1', isHidden: true },
+        pj,
+      );
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            playerStates: [{ userId: 'u1', isHidden: true }],
+          }) as Record<string, unknown>,
+        }),
+      );
+      expect(result.inverse).toEqual({
+        type: 'scene.playerState',
+        userId: 'u1',
+        isHidden: null,
+      });
+    });
+
+    it('scene.playerState: merge zachová druhé pole', async () => {
+      const scene = makeScene({
+        playerStates: [{ userId: 'u1', isLocked: true }],
+      });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+
+      await service.apply(
+        'scene1',
+        { type: 'scene.playerState', userId: 'u1', isHidden: true },
+        pj,
+      );
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            playerStates: [{ userId: 'u1', isLocked: true, isHidden: true }],
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
+    it('scene.playerState: null smaže pole, prázdný entry zmizí (inverse obnoví)', async () => {
+      const scene = makeScene({
+        playerStates: [{ userId: 'u1', isHidden: true }],
+      });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'scene.playerState', userId: 'u1', isHidden: null },
+        pj,
+      );
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({ playerStates: [] }) as Record<
+            string,
+            unknown
+          >,
+        }),
+      );
+      expect(result.inverse).toEqual({
+        type: 'scene.playerState',
+        userId: 'u1',
+        isHidden: true,
       });
     });
   });

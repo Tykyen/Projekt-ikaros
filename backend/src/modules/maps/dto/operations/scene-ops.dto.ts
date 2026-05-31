@@ -19,6 +19,19 @@ export class SceneStateOpDto {
   @IsOptional() @IsBoolean() isLocked?: boolean;
 }
 
+/**
+ * 10.2n — per-hráč override skrytí/zámku. PJ-only (hráč spadne do authorizer
+ * `default` throw). `boolean` = nastav override, `null` = smaž override pole
+ * (fallback na scéna-default), `undefined` = beze změny pole.
+ * `@IsOptional()` přeskočí validaci pro `null`/`undefined`.
+ */
+export class ScenePlayerStateOpDto {
+  @Equals('scene.playerState') type!: 'scene.playerState';
+  @IsString() userId!: string;
+  @IsOptional() @IsBoolean() isHidden?: boolean | null;
+  @IsOptional() @IsBoolean() isLocked?: boolean | null;
+}
+
 export class SceneConfigOpDto {
   @Equals('scene.config') type!: 'scene.config';
   @IsObject() config!: Record<string, unknown>;

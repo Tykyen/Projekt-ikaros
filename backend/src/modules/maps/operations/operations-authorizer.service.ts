@@ -88,7 +88,12 @@ export class OperationsAuthorizer {
             message: 'Nelze pohybovat cizím tokenem',
           });
         }
-        if (scene.isLocked) {
+        // 10.2n — efektivní zámek pro tohoto hráče = per-hráč override ??
+        // per-scéna default. BE je autoritativní (FE gating je jen UX).
+        const effLocked =
+          scene.playerStates?.find((p) => p.userId === user.id)?.isLocked ??
+          scene.isLocked;
+        if (effLocked) {
           throw new ForbiddenException({
             code: 'MAP_OP_FORBIDDEN',
             message: 'Mapa je zamčená',

@@ -13,6 +13,7 @@ import type {
   MapToken,
   MapEffect,
   HexCoord,
+  ScenePlayerState,
 } from '../interfaces/map-scene.interface';
 import type { MapOperationPayload } from '../dto/operations';
 import { OperationPayloadValidator } from './operation-payload-validator.service';
@@ -276,6 +277,26 @@ export class MapOperationsService {
           type: 'scene.state',
           ...oldFields,
         };
+      }
+
+      // 10.2n — per-hráč override. Inverse obnoví předchozí hodnotu dotčených
+      // polí (`null` = původně bez override → undo smaže). Jen pole, která op
+      // měnil (undefined necháváme nedotčená).
+      case 'scene.playerState': {
+        const existing = scene.playerStates?.find(
+          (p) => p.userId === op.userId,
+        );
+        const inv: {
+          type: 'scene.playerState';
+          userId: string;
+          isHidden?: boolean | null;
+          isLocked?: boolean | null;
+        } = { type: 'scene.playerState', userId: op.userId };
+        if (op.isHidden !== undefined)
+          inv.isHidden = existing?.isHidden ?? null;
+        if (op.isLocked !== undefined)
+          inv.isLocked = existing?.isLocked ?? null;
+        return inv;
       }
 
       case 'scene.config':
@@ -696,6 +717,37 @@ export class MapOperationsService {
         if (op.isHidden !== undefined) setFields.isHidden = op.isHidden;
         if (op.isLocked !== undefined) setFields.isLocked = op.isLocked;
         await this.mapsRepo.atomicUpdate({ _id: sceneId }, { $set: setFields });
+        return;
+      }
+
+      // 10.2n — per-hráč override. Merge nad existujícím entry (scene už načtená),
+      // `null` smaže pole, `undefined` nechá beze změny. Prázdný entry (žádné
+      // override pole) se z pole vyřadí. `$set` celého `playerStates` — per-scéna
+      // nízká kontence (jeden PJ), op pipeline navíc serializuje přes seqNumber.
+      case 'scene.playerState': {
+        const others = (scene.playerStates ?? []).filter(
+          (p) => p.userId !== op.userId,
+        );
+        const existing = scene.playerStates?.find(
+          (p) => p.userId === op.userId,
+        );
+        const merged: ScenePlayerState = { userId: op.userId };
+        if (existing?.isHidden !== undefined)
+          merged.isHidden = existing.isHidden;
+        if (existing?.isLocked !== undefined)
+          merged.isLocked = existing.isLocked;
+        if (op.isHidden === null) delete merged.isHidden;
+        else if (op.isHidden !== undefined) merged.isHidden = op.isHidden;
+        if (op.isLocked === null) delete merged.isLocked;
+        else if (op.isLocked !== undefined) merged.isLocked = op.isLocked;
+        const next =
+          merged.isHidden !== undefined || merged.isLocked !== undefined
+            ? [...others, merged]
+            : others;
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          { $set: { playerStates: next, lastModified: now } },
+        );
         return;
       }
 

@@ -18,6 +18,7 @@ const makeScene = (overrides: Partial<MapScene> = {}): MapScene => ({
   isActive: false,
   isHidden: false,
   isLocked: false,
+  playerStates: [],
   activeSoundIds: [],
   activeCharacterIds: [],
   activeBestieIds: [],
@@ -170,6 +171,49 @@ describe('OperationsAuthorizer', () => {
           { type: 'token.move', tokenId: 't1', q: 5, r: -2 } as never,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    // 10.2n — efektivní per-hráč lock
+    it('token.move: per-hráč lock override (scéna odemčená) → FORBIDDEN', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({
+            tokens: [makeToken(player.id)],
+            isLocked: false,
+            playerStates: [{ userId: player.id, isLocked: true }],
+          }),
+          { type: 'token.move', tokenId: 't1', q: 5, r: -2 } as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('token.move: per-hráč override false přebije zamčenou scénu → OK', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({
+            tokens: [makeToken(player.id)],
+            isLocked: true,
+            playerStates: [{ userId: player.id, isLocked: false }],
+          }),
+          { type: 'token.move', tokenId: 't1', q: 5, r: -2 } as never,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('token.move: override jiného hráče tohoto neovlivní → OK', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({
+            tokens: [makeToken(player.id)],
+            isLocked: false,
+            playerStates: [{ userId: otherPlayer.id, isLocked: true }],
+          }),
+          { type: 'token.move', tokenId: 't1', q: 5, r: -2 } as never,
+        ),
+      ).resolves.toBeUndefined();
     });
 
     it('token.update s povoleným patch (currentHp) → OK', async () => {

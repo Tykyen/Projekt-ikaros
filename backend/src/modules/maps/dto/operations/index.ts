@@ -12,6 +12,7 @@ import {
 import { FogSetOpDto, FogBrushOpDto } from './fog-ops.dto';
 import {
   SceneStateOpDto,
+  ScenePlayerStateOpDto,
   SceneConfigOpDto,
   SceneImageOpDto,
   SceneNameOpDto,
@@ -71,6 +72,7 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   'fog.brush': FogBrushOpDto,
   // Scene
   'scene.state': SceneStateOpDto,
+  'scene.playerState': ScenePlayerStateOpDto,
   'scene.config': SceneConfigOpDto,
   'scene.image': SceneImageOpDto,
   'scene.name': SceneNameOpDto,
@@ -124,6 +126,7 @@ export type MapOperationPayload =
   | FogSetOpDto
   | FogBrushOpDto
   | SceneStateOpDto
+  | ScenePlayerStateOpDto
   | SceneConfigOpDto
   | SceneImageOpDto
   | SceneNameOpDto

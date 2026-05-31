@@ -23,6 +23,7 @@ describe('MapsController.findById — read access guard', () => {
     isActive: false,
     isHidden: false,
     isLocked: false,
+    playerStates: [],
     activeSoundIds: [],
     activeCharacterIds: [],
     activeBestieIds: [],

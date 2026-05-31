@@ -10,6 +10,7 @@ import type {
   MapSceneNpc,
   MapEffect,
   HexCoord,
+  ScenePlayerState,
 } from '../interfaces/map-scene.interface';
 import type { IMapsRepository } from '../interfaces/maps-repository.interface';
 
@@ -144,6 +145,10 @@ export class MongoMapsRepository
       isActive: (doc.isActive as boolean) ?? false,
       isHidden: (doc.isHidden as boolean) ?? false,
       isLocked: (doc.isLocked as boolean) ?? false,
+      // 10.2n — per-hráč override skrytí/zámku.
+      playerStates: ((doc.playerStates as Record<string, unknown>[]) ?? []).map(
+        (p) => this.toPlayerState(p),
+      ),
       activeSoundIds: (doc.activeSoundIds as string[]) ?? [],
       lastModified: doc.lastModified as Date | undefined,
       lastSeqNumber: (doc.lastSeqNumber as number | undefined) ?? 0,
@@ -181,6 +186,13 @@ export class MongoMapsRepository
         | undefined,
       customData: (t.customData as Record<string, unknown>) ?? {},
     };
+  }
+
+  private toPlayerState(p: Record<string, unknown>): ScenePlayerState {
+    const entry: ScenePlayerState = { userId: (p.userId as string) ?? '' };
+    if (typeof p.isHidden === 'boolean') entry.isHidden = p.isHidden;
+    if (typeof p.isLocked === 'boolean') entry.isLocked = p.isLocked;
+    return entry;
   }
 
   private toSceneNpc(n: Record<string, unknown>): MapSceneNpc {

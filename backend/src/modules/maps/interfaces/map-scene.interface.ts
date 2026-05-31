@@ -83,6 +83,16 @@ export interface MapSceneNpc {
   customData: Record<string, unknown>;
 }
 
+/**
+ * 10.2n — per-hráč override skrytí/zámku. Efektivní stav hráče = override ??
+ * scéna-default (`isHidden`/`isLocked`). Pole je `undefined` = bez overrides.
+ */
+export interface ScenePlayerState {
+  userId: string;
+  isHidden?: boolean;
+  isLocked?: boolean;
+}
+
 export interface MapScene {
   id: string;
   worldId: string;
@@ -99,6 +109,8 @@ export interface MapScene {
   isActive: boolean;
   isHidden: boolean;
   isLocked: boolean;
+  /** 10.2n — per-hráč override skrytí/zámku (viz `ScenePlayerState`). */
+  playerStates: ScenePlayerState[];
   activeSoundIds: string[];
   lastModified?: Date;
   /**

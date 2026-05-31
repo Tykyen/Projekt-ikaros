@@ -50,6 +50,17 @@ export class MapSceneSchemaClass {
   @Prop({ default: false }) isActive: boolean;
   @Prop({ default: false }) isHidden: boolean;
   @Prop({ default: false }) isLocked: boolean;
+  /**
+   * 10.2n — per-hráč override skrytí/zámku nad per-scéna defaultem
+   * (`isHidden`/`isLocked`). Tvar: `{ userId, isHidden?, isLocked? }`. Efektivní
+   * stav hráče = override ?? scéna-default. Prázdné entries se neukládají
+   * (apply je čistí); `scene.state` daný field z overrides smaže („na všechny").
+   */
+  @Prop({
+    type: [MixedArraySubSchema],
+    default: (): Record<string, unknown>[] => [],
+  })
+  playerStates: Record<string, unknown>[];
   @Prop({ type: [String], default: [] }) activeSoundIds: string[];
   @Prop() lastModified?: Date;
   /**
