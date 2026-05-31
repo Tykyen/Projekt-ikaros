@@ -37,9 +37,8 @@ Záznamy zde jsou legitní budoucí práce, ne aktuální technický dluh. Mají
 
 ## Vyřešené
 
-### [vyřešeno 2026-05-31] FATE kostka v chatu: plus se zobrazuje jako mínus (10.2j / Task I4)
+### [vyřešeno 2026-05-31] FATE kostka: mínus na hozené 3D kostce vypadal jako plus (10.2j)
 
-- **Root cause:** Systematickou rešerší NEnalezena žádná inverze plus↔mínus v kódu FE. Ověřeno: `FATE_TARGETS['+']` = `{0,0,0}` natáčí krychli na čelní (front) tvář, která má plus texturu (`facePlusImg`) — geometrie matematicky ověřena (rotace normál tváří: '+'→front/plus, '-'→back/minus, '0'→top). Naming všech 22 skinů konzistentní (`facePlusImg`→`_plus.webp`, `faceMinusImg`→`_minus.webp`), settled `<img>` cesta v chatu (`pickFaceImg`) i 3D overlay cesta mapují '+' na plus. Zdrojové assety (`fate_*_plus.webp`) vizuálně obsahují plus, Cloudinary upload manifest zachoval názvy 1:1. Jde o věrný port funkčního Matrix kódu.
-- **Fix:** Žádná spekulativní záměna NEprovedena (prohození kterékoli ověřeně správné mapy by zavedlo reálnou regresi). Přidán regresní test `lib/fateMapping.spec.ts` zamykající korektní plus/mínus mapování (asset naming + protilehlost target rotací + symbolická↔numerická forma).
-- **Pozn.:** Pokud se vizuál v prohlížeči stále jeví obráceně, příčina je MIMO zdrojový kód — buď obsah assetu na CDN (nelze ověřit ze sandboxu), nebo prohlížečové zploštění `preserve-3d` v overlay. Vyžaduje vizuální potvrzení v prohlížeči / na CDN.
-- **Zdroj:** Nahlášeno uživatelem (screenshot) během brainstormingu 10.2j.
+- **Root cause:** `DiceRollOverlay` renderoval Fate krychli **dekorativním 6-tváří vzorem** (front=+, back=−, right=+, left=−) a `getTargetForDie` ji natáčel na tvář s hozenou hodnotou: `+`→{0,0,0} (přední tvář), `−`→{0,180,0} (zadní tvář). Případ `+` (čelní pohled) fungoval, ale `−` (rotace 180° na zadní tvář) zobrazoval plus. **Assety na CDN ověřeny správné** (uživatel potvrdil `_plus.webp` = plus), readout glyfy v overlay (kreslené kódem) správné — chyba byla výhradně v zobrazení zadní tváře krychle při rotaci 180° (CSS 3D / backface chování, staticky nedohledáno).
+- **Fix:** `renderModelFor` předává Fate kostce `faceValue` → **hozená hodnota je na PŘEDNÍ tváři** (ostatní '0'), a `getTargetForDie` pro Fate vrací **vždy {0,0,0}** (čelní usazení). Každá hodnota se tak renderuje jako fungující `+` případ; eliminována závislost na zobrazení zadní/boční tváře. Textury jsou RGB bez alpha + vnitřní coreColor jádro → žádný „průhledný tunel" u '0'. Platí pro chat i mapu (sdílený `DiceRollOverlay`). Regresní test `lib/fateMapping.spec.ts` z dřívější investigace zachován.
+- **Zdroj:** Nahlášeno uživatelem (screenshot hozené kostky na mapě) — mínusy se objevovaly jako plusy.
