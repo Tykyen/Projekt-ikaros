@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'path';
+import type { ServerResponse } from 'http';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { CustomIoAdapter } from './socket-io.adapter';
@@ -29,7 +30,7 @@ async function bootstrap() {
   const allowedOrigin = process.env.FRONTEND_URL ?? 'http://localhost:5173';
   app.useStaticAssets(resolve(process.cwd(), 'uploads'), {
     prefix: '/static/',
-    setHeaders: (res) => {
+    setHeaders: (res: ServerResponse) => {
       res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     },

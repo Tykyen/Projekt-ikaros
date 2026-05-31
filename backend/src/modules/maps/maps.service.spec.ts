@@ -68,6 +68,10 @@ describe('MapsService', () => {
   const mockPagesRepo = {
     findBySlugAndWorld: jest.fn().mockResolvedValue(null),
   };
+  // 10.2g — read-only diary subdoc pro enrichTokens (HP postavy → HP bar).
+  const mockDiaryRepo = {
+    findByCharacterId: jest.fn().mockResolvedValue(null),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -79,6 +83,7 @@ describe('MapsService', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'ICharactersRepository', useValue: mockCharacterRepo },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
+        { provide: 'ICharacterDiaryRepository', useValue: mockDiaryRepo },
       ],
     }).compile();
     service = module.get(MapsService);
@@ -133,6 +138,8 @@ describe('MapsService', () => {
         name: 'Abi',
         imageUrl: 'img.png',
         diaryData: { hp: 10 },
+        // 10.2g — characterData nese i diary customData (per-system HP klíče).
+        customData: {},
       });
     });
 

@@ -64,6 +64,9 @@ describe('CharactersService', () => {
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
   };
+  const mockPagesRepo = {
+    findByWorld: jest.fn().mockResolvedValue([]),
+  };
   const mockEventEmitter = {
     emit: jest.fn(),
     emitAsync: jest.fn().mockResolvedValue([]),
@@ -76,6 +79,7 @@ describe('CharactersService', () => {
         CharactersService,
         { provide: 'ICharactersRepository', useValue: mockCharRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
