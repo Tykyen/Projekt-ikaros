@@ -20,6 +20,15 @@
   - Atomic batch retries
 - **Zdroj:** Discovered po SP4 unblock tsconfig — pre-existing spec, který nikdy nevolal real cron. Cron impl byl `void` ve squash 52ca60a3.
 
+### [otevřeno 2026-05-31] FATE kostka v chatu: plus se zobrazuje jako mínus
+
+- **Soubor:** `Projekt-ikaros-FE/src/features/world/chat/dice/` (kandidáti: `lib/diceSkins.ts` facePlusImg/faceMinusImg, `lib/diceTargets.ts` FATE_TARGETS, modely `components/models/FateSkinModel.tsx`)
+- **Typ:** vizuální bug
+- **Riziko:** Znak „+" (plus) se na hozené tváři FATE kostky vykresluje jako „−" (mínus). Součet hodu je správný (roll engine OK), zaměněná je jen textura/rotace plus↔mínus tváře. Mate hráče při čtení hodu.
+- **Co vyžaduje:** ověřit mapping plus tváře → správná textura/rotace. Pravděpodobně prohozené `facePlusImg`/`faceMinusImg` nebo špatný target v `FATE_TARGETS`.
+- **Plánovaná oprava:** záměrně odloženo na konec kroku 10.2j (rozhodnutí uživatele 2026-05-31).
+- **Zdroj:** Nahlášeno uživatelem (screenshot) během brainstormingu 10.2j.
+
 ---
 
 ## Čeká na trigger
