@@ -1163,12 +1163,18 @@ export class MapOperationsService {
         return;
       }
 
-      // 10.2j — applyAtomic implementace bude v B3
+      // 10.2j B3 — append hod do diceRolls, cap na 50 posledních.
       case 'dice.roll': {
-        throw new BadRequestException({
-          code: 'MAP_OP_NOT_IMPLEMENTED',
-          message: 'dice.roll applyAtomic zatím není implementován (B3)',
-        });
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $push: {
+              diceRolls: { $each: [op.roll], $slice: -50 },
+            },
+            $set: { lastModified: now },
+          },
+        );
+        return;
       }
 
       default: {

@@ -564,6 +564,50 @@ describe('MapOperationsService', () => {
     });
   });
 
+  // 10.2j B3 — dice.roll applyAtomic + computeInverse no-op
+  describe('apply — dice.roll (10.2j)', () => {
+    const roll = {
+      id: 'r1',
+      rolledAt: '2026-05-31T08:00:00.000Z',
+      byUserId: 'u1',
+      rollerName: 'Tyky',
+      rollerKind: 'pc' as const,
+      category: 'custom' as const,
+      dicePayload: { type: 'd20', faces: [18], sum: 18, total: 18 },
+    };
+
+    it('atomic $push + $slice -50 do diceRolls', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene());
+
+      await service.apply('scene1', { type: 'dice.roll', roll }, pj);
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1' },
+        expect.objectContaining({
+          $push: {
+            diceRolls: {
+              $each: [expect.objectContaining({ id: 'r1' })],
+              $slice: -50,
+            },
+          },
+          $set: expect.objectContaining({ lastModified: expect.any(Date) }),
+        }),
+      );
+    });
+
+    it('computeInverse je no-op (hody nejsou undo-relevantní)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene());
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'dice.roll', roll },
+        pj,
+      );
+
+      expect(result.inverse).toBeNull();
+    });
+  });
+
   // 10.2c-edit-2 C6 — load template sekvence (5 nových op types)
   describe('apply — load template ops (10.2c-edit-2)', () => {
     beforeEach(() => {
