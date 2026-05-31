@@ -1163,6 +1163,14 @@ export class MapOperationsService {
         return;
       }
 
+      // 10.2j — applyAtomic implementace bude v B3
+      case 'dice.roll': {
+        throw new BadRequestException({
+          code: 'MAP_OP_NOT_IMPLEMENTED',
+          message: 'dice.roll applyAtomic zatím není implementován (B3)',
+        });
+      }
+
       default: {
         // Exhaustive check — pokud někdo přidá nový typ a zapomene case, TS catch.
         const _exhaustive: never = op;

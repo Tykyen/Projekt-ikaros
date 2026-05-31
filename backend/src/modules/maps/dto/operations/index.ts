@@ -43,6 +43,7 @@ import {
   NpcTemplateRemoveOpDto,
   NpcTemplateUpdateOpDto,
 } from './npc-template-ops.dto';
+import { DiceRollOpDto } from './dice-ops.dto';
 
 /**
  * 10.2-prep-1 — registry per-scene op DTOs.
@@ -102,6 +103,8 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   'npcTemplate.add': NpcTemplateAddOpDto,
   'npcTemplate.remove': NpcTemplateRemoveOpDto,
   'npcTemplate.update': NpcTemplateUpdateOpDto,
+  // Dice
+  'dice.roll': DiceRollOpDto,
 };
 
 export type MapOperationType = keyof typeof MAP_OPERATION_DTOS;
@@ -146,4 +149,5 @@ export type MapOperationPayload =
   | CombatEffectRemoveOpDto
   | NpcTemplateAddOpDto
   | NpcTemplateRemoveOpDto
-  | NpcTemplateUpdateOpDto;
+  | NpcTemplateUpdateOpDto
+  | DiceRollOpDto;
