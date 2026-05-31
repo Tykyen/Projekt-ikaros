@@ -325,9 +325,11 @@ export class MapsGateway implements OnGatewayConnection {
   @OnEvent('weather.updated')
   handleWeatherUpdated(payload: {
     worldId: string;
-    generatorId: string;
-    generatorName: string;
-    weather: WeatherResult;
+    // 10.2i — `null` u clear (PJ vypnul počasí na mapě).
+    generatorId: string | null;
+    generatorName: string | null;
+    weather: WeatherResult | null;
+    activeMapWeather?: null;
   }): void {
     this.server.to(`world:${payload.worldId}`).emit('weather:updated', payload);
   }

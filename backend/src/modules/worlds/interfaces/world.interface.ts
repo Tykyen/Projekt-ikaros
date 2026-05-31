@@ -20,6 +20,18 @@ export interface PublicOwnerSummary {
   lastSeenAt?: Date;
 }
 
+/**
+ * 10.2i — počasí aktuálně „vyslané" PJ na taktickou mapu světa.
+ * `weather` je opaque snapshot `WeatherResult` (tvar řeší FE) — BE ho jen
+ * uchovává a vrací. `null` = na mapě není žádné počasí.
+ */
+export interface ActiveMapWeather {
+  generatorId: string;
+  generatorName: string;
+  weather: Record<string, unknown>;
+  setAt: Date;
+}
+
 export interface World {
   id: string;
   name: string;
@@ -51,6 +63,8 @@ export interface World {
   themeOverrides: Record<string, string>;
   /** Krok 5.0 — custom theme: URL vlastního pozadí světa. */
   themeBackgroundUrl?: string;
+  /** 10.2i — počasí vyslané na taktickou mapu (PJ broadcast). `null` = žádné. */
+  activeMapWeather?: ActiveMapWeather | null;
   createdAt: Date;
   updatedAt: Date;
   /** Spec 2.4 — populated jen při `findById` / `findBySlug` (controller endpointy). */

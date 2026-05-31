@@ -49,6 +49,14 @@ export class WorldSchemaClass {
    * Per-world scope, nezávislý na `MapScene.lastSeqNumber` (per-scene).
    */
   @Prop({ default: 0 }) lastSeqNumber: number;
+
+  /**
+   * 10.2i — počasí vyslané PJ na taktickou mapu světa.
+   * `{ generatorId, generatorName, weather (WeatherResult snapshot), setAt }`
+   * nebo `null` (žádné počasí na mapě).
+   */
+  @Prop({ type: Object, default: null })
+  activeMapWeather?: Record<string, unknown> | null;
 }
 
 export const WorldSchema = SchemaFactory.createForClass(WorldSchemaClass);

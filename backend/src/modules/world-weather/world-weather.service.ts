@@ -1119,6 +1119,14 @@ export class WorldWeatherService {
         `Počasí — ${gen.name}`,
       );
     } else {
+      // 10.2i — persist na World, aby pozdější příchozí viděl aktuální počasí
+      // (živý WS event nestačí). setAt drží stáří broadcastu.
+      await this.worldsRepo.setActiveMapWeather(worldId, {
+        generatorId: gen.id,
+        generatorName: gen.name,
+        weather: w as unknown as Record<string, unknown>,
+        setAt: new Date(),
+      });
       this.eventEmitter.emit('weather.updated', {
         worldId,
         generatorId: gen.id,
@@ -1126,6 +1134,26 @@ export class WorldWeatherService {
         weather: w,
       });
     }
+  }
+
+  /**
+   * 10.2i — PJ „vypne počasí na mapě". Vyčistí `World.activeMapWeather` a
+   * vyšle WS signál (`weather` + `activeMapWeather: null`), aby všichni na mapě
+   * skryli panel i atmosféru.
+   */
+  async clearMapWeather(
+    worldId: string,
+    requester: WeatherRequester,
+  ): Promise<void> {
+    await this.assertCanWrite(worldId, requester);
+    await this.worldsRepo.clearActiveMapWeather(worldId);
+    this.eventEmitter.emit('weather.updated', {
+      worldId,
+      generatorId: null,
+      generatorName: null,
+      weather: null,
+      activeMapWeather: null,
+    });
   }
 
   private formatWeatherForChat(

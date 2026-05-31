@@ -41,43 +41,50 @@ Zpracovává typing indikátory a presence konverzací. Zprávy, kanály, skupin
 
 ## 2. MapsGateway
 
-Relay gateway — klient posílá event, gateway ho přeposílá ostatním ve scéně.
+**Operation-based model (10.2-prep-1+).** Mapa nepoužívá per-akci relay eventy —
+veškeré herní mutace jdou přes **REST Operations API** (`POST /maps/:id/operations`),
+server je atomicky aplikuje, zapíše do append-only logu se `seqNumber` a broadcastne
+**jeden generický `map:operation`** do roomu scény. Klient drží `lastSeqNumber`,
+detekuje mezery a dotahuje přes catch-up REST endpoint. JWT auth je povinná při
+handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{userId}`.
 
-### Příchozí eventy
+### Příchozí eventy (klient → server)
 
 | Event | Payload | Auth | Popis |
 |---|---|---|---|
-| `map:join` | `string` (sceneId) | ne | Vstup do Socket.io roomu scény |
-| `map:leave` | `string` (sceneId) | ne | Odchod ze Socket.io roomu scény |
-| `map:token-moved` | `{ sceneId: string; token: unknown }` | ne | Pohyb tokenu na mapě |
-| `map:config-updated` | `{ sceneId: string; config: unknown }` | ne | Aktualizace konfigurace scény |
-| `map:token-removed` | `{ sceneId: string; tokenId: string }` | ne | Odebrání tokenu ze scény |
-| `map:reload-scene` | `{ sceneId: string; scene: unknown }` | ne | Požadavek na znovunačtení scény |
-| `map:scene-cleared` | `string` (sceneId) | ne | Vymazání celé scény |
-| `map:ping` | `{ sceneId: string; x: number; y: number; userName: string }` | ne | Ping na souřadnicích mapy |
-| `map:effect-added` | `{ sceneId: string; effect: unknown }` | ne | Přidání vizuálního efektu |
-| `map:effect-removed` | `{ sceneId: string; effectId: string }` | ne | Odebrání vizuálního efektu |
-| `map:fog-updated` | `{ sceneId: string; fogEnabled: boolean; revealedHexes: unknown[] }` | ne | Aktualizace mlhy války |
-| `map:dice-rolled` | `{ sceneId: string; [key: string]: unknown }` | ne | Výsledek hodu kostkami (broadcast všem včetně odesílatele) |
-| `map:scene-state-changed` | `{ sceneId: string; isHidden: boolean; isLocked: boolean }` | ne | Změna stavu viditelnosti/zámku scény |
-| `map:sound-changed` | `{ sceneId: string; soundIds: string[] }` | ne | Změna zvukové kulisy scény |
+| `map:join` | `string` (sceneId) | ano | Vstup do roomu scény (BE ověří read-access). **Po reconnectu klient re-emituje** (rooms se ztrácejí). |
+| `map:leave` | `string` (sceneId) | ano | Odchod z roomu scény |
+| `map:join-world` | `string` (worldId) | ano (**PJ+**) | Vstup do `world:{worldId}` roomu — PJ orchestrátor (cross-scene log) |
+| `map:spotlight` | `{ sceneId: string; tokenId: string }` | ano (**PJ+**) | Ephemeral „ukazováček" PJ — rozsvítí token všem na scéně ~3 s |
 
-### Odchozí eventy
+> Pohyb tokenu / efekty / fog / scéna / combat / zvuky / kostky **nejsou** WS eventy —
+> jdou přes `POST /maps/:id/operations` (per-scene) a `POST /worlds/:worldId/operations`
+> (cross-scene, member.*). Autorizace per-op v `OperationsAuthorizer`.
+
+### Odchozí eventy (server → klient)
 
 | Event | Payload | Room | Popis |
 |---|---|---|---|
-| `map:token-moved` | `unknown` (token) | `{sceneId}` | Relay pohybu tokenu |
-| `map:config-updated` | `unknown` (config) | `{sceneId}` | Relay aktualizace konfigurace |
-| `map:token-removed` | `string` (tokenId) | `{sceneId}` | Relay odebrání tokenu |
-| `map:scene-reloaded` | `unknown` (scene) | `{sceneId}` | Relay znovunačtení scény |
-| `map:scene-cleared` | _(bez payloadu)_ | `{sceneId}` | Relay vymazání scény |
-| `map:pinged` | `x: number, y: number, userName: string` | `{sceneId}` | Relay pingu (3 samostatné argumenty) |
-| `map:effect-added` | `unknown` (effect) | `{sceneId}` | Relay přidání efektu |
-| `map:effect-removed` | `string` (effectId) | `{sceneId}` | Relay odebrání efektu |
-| `map:fog-updated` | `fogEnabled: boolean, revealedHexes: unknown[]` | `{sceneId}` | Relay aktualizace mlhy (2 argumenty) |
-| `map:dice-rolled` | `{ [key: string]: unknown }` (bez sceneId) | `{sceneId}` | Broadcast hodu kostkami (všem, včetně odesílatele) |
-| `map:scene-state-changed` | `isHidden: boolean, isLocked: boolean` | `{sceneId}` | Relay změny stavu scény (2 argumenty) |
-| `map:sound-changed` | `string[]` (soundIds) | `{sceneId}` | Relay změny zvuku |
+| `map:operation` | `{ sceneId; seqNumber: number; op: MapOperation; byUserId; appliedAt }` | `{sceneId}` | Jedna aplikovaná operace scény (token/effect/fog/scene/combat/sound). Klient patchuje dle `seqNumber`. |
+| `world:operation` | `{ worldId; seqNumber: number; op; byUserId; appliedAt }` | `world:{worldId}` | Cross-scene operace (member assignment) — PJ orchestrátor |
+| `map:member-joined` | `{ sceneId; userId; … }` | `{sceneId}` | Hráč přiřazen na scénu (cascade z world op) |
+| `map:member-left` | `{ sceneId; userId }` | `{sceneId}` | Hráč opustil scénu (cascade při `scene.deactivate`) |
+| `map:reassigned` | `{ newSceneId: string \| null }` | `user:{userId}` | Privát: PJ přesunul mě na jinou scénu (`null` = unassign) |
+| `map:spotlight` | `{ tokenId: string }` | `{sceneId}` | Ephemeral spotlight (relay z příchozího `map:spotlight`) |
+| `weather:updated` | `{ worldId; generatorId: string \| null; generatorName: string \| null; weather: WeatherResult \| null; activeMapWeather?: null }` | `world:{worldId}` | Počasí vyslané/zrušené PJ (10.2i). `weather:null` = PJ vypnul počasí na mapě. Reaguje na interní `weather.updated`. |
+
+### Catch-up (REST, ne WS)
+
+| Endpoint | Popis |
+|---|---|
+| `GET /maps/:id/operations?since=N&limit=500` | Per-scene ops se `seqNumber > N` (ascending). Gap recovery + reconnect catch-up. |
+| `GET /worlds/:id/operations?since=N&limit=200` | Cross-scene ops (PJ-only). |
+
+> **Deprecated (BC):** legacy relay handlery `map:token-moved`, `map:config-updated`,
+> `map:token-removed`, `map:reload-scene`, `map:scene-cleared`, `map:ping`/`map:pinged`,
+> `map:effect-added/removed`, `map:fog-updated`, `map:dice-rolled`,
+> `map:scene-state-changed`, `map:sound-changed` v gateway stále existují, ale FE je
+> **nepoužívá** — nahrazeny operation modelem. Nepoužívat v nové práci.
 
 ---
 

@@ -19,7 +19,11 @@ const mockRepo = {
   reorder: jest.fn(), // 9.4-I
 };
 const mockMembership = { findByUserAndWorld: jest.fn() };
-const mockWorlds = { findById: jest.fn() };
+const mockWorlds = {
+  findById: jest.fn(),
+  setActiveMapWeather: jest.fn(),
+  clearActiveMapWeather: jest.fn(),
+};
 const mockChatService = { createSystemMessage: jest.fn() };
 const mockEventEmitter = { emit: jest.fn() };
 // 9.4-I — nové dependency
@@ -786,6 +790,20 @@ describe('WorldWeatherService', () => {
       );
     });
 
+    it('broadcast do mapy persistuje World.activeMapWeather (10.2i)', async () => {
+      mockRepo.findById.mockResolvedValue(GEN_WITH_WEATHER);
+      await service.broadcast('world1', 'gen1', { target: 'map' }, Admin);
+      expect(mockWorlds.setActiveMapWeather).toHaveBeenCalledWith(
+        'world1',
+        expect.objectContaining({
+          generatorId: 'gen1',
+          generatorName: 'Albánie',
+          weather: GEN_WITH_WEATHER.currentWeather,
+          setAt: expect.any(Date),
+        }),
+      );
+    });
+
     it('broadcast: chybějící currentWeather → ConflictException', async () => {
       mockRepo.findById.mockResolvedValue({
         ...MOCK_GENERATOR,
@@ -820,6 +838,31 @@ describe('WorldWeatherService', () => {
       mockMembership.findByUserAndWorld.mockResolvedValue(null);
       await expect(
         service.broadcast('world1', 'gen1', { target: 'map' }, Hrac),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
+
+  // ─── clearMapWeather (10.2i) ────────────────────────────────────────────────
+
+  describe('clearMapWeather', () => {
+    it('vyčistí World.activeMapWeather a emituje weather.updated s null', async () => {
+      await service.clearMapWeather('world1', Admin);
+      expect(mockWorlds.clearActiveMapWeather).toHaveBeenCalledWith('world1');
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'weather.updated',
+        expect.objectContaining({
+          worldId: 'world1',
+          weather: null,
+          activeMapWeather: null,
+        }),
+      );
+    });
+
+    it('Hrac non-member → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'world1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.clearMapWeather('world1', Hrac),
       ).rejects.toMatchObject({ status: 403 });
     });
   });

@@ -230,4 +230,18 @@ export class WorldWeatherController {
   ): Promise<void> {
     await this.service.broadcast(worldId, id, dto, user);
   }
+
+  // 10.2i — PJ vypne počasí na taktické mapě (World.activeMapWeather → null).
+  // 2-segmentová cesta, aby nekolidovala s `@Delete(':id')`.
+  @Delete('map-weather/active')
+  @HttpCode(204)
+  @ApiOperation({ summary: '10.2i — Vypni počasí na taktické mapě světa' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 403 })
+  async clearMapWeather(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<void> {
+    await this.service.clearMapWeather(worldId, user);
+  }
 }

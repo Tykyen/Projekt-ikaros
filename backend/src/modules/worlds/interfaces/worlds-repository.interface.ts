@@ -1,4 +1,4 @@
-import { World } from './world.interface';
+import { ActiveMapWeather, World } from './world.interface';
 
 export interface IWorldsRepository {
   findById(id: string): Promise<World | null>;
@@ -21,4 +21,11 @@ export interface IWorldsRepository {
   delete(id: string): Promise<boolean>;
   addFavoriteSlug(worldId: string, slug: string): Promise<void>;
   removeFavoriteSlug(worldId: string, slug: string): Promise<void>;
+  /** 10.2i — nastaví počasí vyslané na taktickou mapu světa. */
+  setActiveMapWeather(
+    worldId: string,
+    weather: ActiveMapWeather,
+  ): Promise<void>;
+  /** 10.2i — zruší počasí na mapě (`activeMapWeather: null`). */
+  clearActiveMapWeather(worldId: string): Promise<void>;
 }

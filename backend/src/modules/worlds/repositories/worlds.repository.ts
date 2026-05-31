@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { WorldSchemaClass } from '../schemas/world.schema';
-import { World } from '../interfaces/world.interface';
+import { ActiveMapWeather, World } from '../interfaces/world.interface';
 import type { IWorldsRepository } from '../interfaces/worlds-repository.interface';
 
 @Injectable()
@@ -143,6 +143,23 @@ export class MongoWorldsRepository
       .exec();
   }
 
+  async setActiveMapWeather(
+    worldId: string,
+    weather: ActiveMapWeather,
+  ): Promise<void> {
+    if (!Types.ObjectId.isValid(worldId)) return;
+    await this.model
+      .findByIdAndUpdate(worldId, { $set: { activeMapWeather: weather } })
+      .exec();
+  }
+
+  async clearActiveMapWeather(worldId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(worldId)) return;
+    await this.model
+      .findByIdAndUpdate(worldId, { $set: { activeMapWeather: null } })
+      .exec();
+  }
+
   /**
    * D-NEW-theme-bg-empty (2026-05-21) — explicit $unset pro themeBackgroundUrl.
    * Volá se ze service.update() když FE pošle `themeBackgroundUrl: null`.
@@ -197,6 +214,8 @@ export class MongoWorldsRepository
       themeId: (doc.themeId as string) ?? 'modre-nebe',
       themeOverrides: (doc.themeOverrides as Record<string, string>) ?? {},
       themeBackgroundUrl: doc.themeBackgroundUrl as string | undefined,
+      activeMapWeather:
+        (doc.activeMapWeather as World['activeMapWeather']) ?? null,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };
