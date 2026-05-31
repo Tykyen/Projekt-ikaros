@@ -138,6 +138,24 @@ export class OperationsAuthorizer {
         }
         return;
       }
+      case 'dice.roll': {
+        if (op.roll.byUserId !== user.id) {
+          throw new ForbiddenException({
+            code: 'MAP_DICE_SPOOF',
+            message: 'Nelze házet cizím jménem.',
+          });
+        }
+        if (op.roll.tokenId) {
+          const token = scene.tokens?.find((t) => t.id === op.roll.tokenId);
+          if (!token || token.characterId !== user.id) {
+            throw new ForbiddenException({
+              code: 'MAP_DICE_TOKEN_FORBIDDEN',
+              message: 'Nelze házet za cizí token.',
+            });
+          }
+        }
+        return;
+      }
       default:
         throw new ForbiddenException({
           code: 'MAP_OP_FORBIDDEN',

@@ -241,6 +241,85 @@ describe('OperationsAuthorizer', () => {
         } as never),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    // 10.2j — dice.roll autorizace
+    it('dice.roll s vlastním byUserId (bez tokenId) → OK', async () => {
+      await expect(
+        authorizer.assertCanDo(player, makeScene(), {
+          type: 'dice.roll',
+          roll: {
+            id: 'r1',
+            rolledAt: new Date().toISOString(),
+            byUserId: player.id,
+            rollerName: 'Hráč',
+            rollerKind: 'pc',
+            category: 'custom',
+            dicePayload: {},
+          },
+        } as never),
+      ).resolves.toBeUndefined();
+    });
+
+    it('dice.roll s cizím byUserId → FORBIDDEN (anti-spoof)', async () => {
+      await expect(
+        authorizer.assertCanDo(player, makeScene(), {
+          type: 'dice.roll',
+          roll: {
+            id: 'r2',
+            rolledAt: new Date().toISOString(),
+            byUserId: otherPlayer.id,
+            rollerName: 'Jiný',
+            rollerKind: 'pc',
+            category: 'custom',
+            dicePayload: {},
+          },
+        } as never),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('dice.roll za vlastní PC token → OK', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({ tokens: [makeToken(player.id, 't1')] }),
+          {
+            type: 'dice.roll',
+            roll: {
+              id: 'r3',
+              rolledAt: new Date().toISOString(),
+              byUserId: player.id,
+              rollerName: 'Hráč',
+              rollerKind: 'pc',
+              category: 'skill',
+              tokenId: 't1',
+              dicePayload: {},
+            },
+          } as never,
+        ),
+      ).resolves.toBeUndefined();
+    });
+
+    it('dice.roll za cizí token → FORBIDDEN', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({ tokens: [makeToken(otherPlayer.id, 't1')] }),
+          {
+            type: 'dice.roll',
+            roll: {
+              id: 'r4',
+              rolledAt: new Date().toISOString(),
+              byUserId: player.id,
+              rollerName: 'Hráč',
+              rollerKind: 'pc',
+              category: 'skill',
+              tokenId: 't1',
+              dicePayload: {},
+            },
+          } as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('assertCanDoWorldOp', () => {
