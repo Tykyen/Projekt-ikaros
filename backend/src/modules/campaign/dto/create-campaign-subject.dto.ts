@@ -13,7 +13,7 @@ import type {
 export class CreateCampaignSubjectDto {
   @IsString() name: string;
   @IsOptional()
-  @IsIn(['PC', 'NPC', 'LOCATION', 'ORG', 'FACTION'])
+  @IsIn(['PC', 'NPC', 'LOCATION', 'ORG', 'FACTION', 'STATE', 'OTHER'])
   type?: CampaignSubjectType;
   @IsOptional() @IsString() avatarUrl?: string;
   @IsOptional() @IsArray() tags?: string[];

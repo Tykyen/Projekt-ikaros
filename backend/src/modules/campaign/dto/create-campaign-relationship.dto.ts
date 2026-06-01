@@ -16,6 +16,8 @@ export class RelationshipSideDto {
   @IsOptional() @IsString() behavior?: string;
   @IsOptional() @IsString() gmIntent?: string;
   @IsOptional() @IsNumber() @Min(1) @Max(10) strength?: number;
+  @IsOptional() @IsNumber() @Min(-3) @Max(3) valence?: number;
+  @IsOptional() @IsString() emotionTag?: string;
 }
 
 export class CreateCampaignRelationshipDto {

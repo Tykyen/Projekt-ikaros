@@ -267,6 +267,57 @@ describe('CampaignService', () => {
     });
   });
 
+  describe('relationships — emoční model (11.1)', () => {
+    it('createRelationship předá valence/emotionTag do repo (passthrough, žádný field-drop)', async () => {
+      mockRelRepo.create.mockImplementation((d: Record<string, unknown>) =>
+        Promise.resolve({ id: 'rel1', ...d }),
+      );
+      mockLogRepo.append.mockResolvedValue(undefined);
+      await service.createRelationship('u1', 'U', WorldRole.Hrac, 'w1', false, {
+        subjectAId: 'a',
+        subjectBId: 'b',
+        sideA: { valence: -3, emotionTag: 'nenávist', strength: 8 },
+        sideB: { valence: 2, emotionTag: 'sympatie' },
+      });
+      expect(mockRelRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sideA: expect.objectContaining({
+            valence: -3,
+            emotionTag: 'nenávist',
+            strength: 8,
+          }),
+          sideB: expect.objectContaining({
+            valence: 2,
+            emotionTag: 'sympatie',
+            strength: 5,
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('subjects — typy STATE/OTHER (11.1)', () => {
+    it('createSubject akceptuje typ STATE', async () => {
+      mockSubjectRepo.create.mockResolvedValue({
+        ...mockSubject,
+        type: 'STATE',
+      });
+      mockLogRepo.append.mockResolvedValue(undefined);
+      const res = await service.createSubject(
+        'u1',
+        'U',
+        WorldRole.Hrac,
+        'w1',
+        false,
+        { name: 'Aragonské království', type: 'STATE' },
+      );
+      expect(mockSubjectRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'STATE' }),
+      );
+      expect(res.type).toBe('STATE');
+    });
+  });
+
   describe('getPlayers', () => {
     it('vrátí členy světa kromě requestujícího uživatele', async () => {
       mockMembershipRepo.findByWorldId.mockResolvedValue([

@@ -1,4 +1,11 @@
-export type CampaignSubjectType = 'PC' | 'NPC' | 'LOCATION' | 'ORG' | 'FACTION';
+export type CampaignSubjectType =
+  | 'PC'
+  | 'NPC'
+  | 'LOCATION'
+  | 'ORG'
+  | 'FACTION'
+  | 'STATE'
+  | 'OTHER';
 export type CampaignSubjectStatus = 'active' | 'archived';
 
 export interface CampaignSubject {
