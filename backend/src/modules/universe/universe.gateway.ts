@@ -11,8 +11,12 @@ export class UniverseGateway {
 
   @OnEvent('universe.updated')
   handleUniverseUpdated(payload: { worldId: string; map: UniverseMap }) {
+    // Posíláme jen signál „mapa se změnila" (BEZ dat). Klient si přes
+    // `GET /universe` dotáhne mapu, která je server-side filtrovaná dle
+    // visibility (hráč nedostane skryté uzly). Kdyby gateway poslal celou
+    // `map`, hráč v `world:{worldId}` roomu by skrytá tělesa viděl po drátě.
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('universe:updated', payload.map);
+      .emit('universe:updated', { worldId: payload.worldId });
   }
 }
