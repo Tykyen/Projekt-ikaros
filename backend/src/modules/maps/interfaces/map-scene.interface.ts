@@ -57,6 +57,9 @@ export interface MapToken {
   abilities: MapTokenAbility[];
   personalDiarySchema?: Record<string, unknown>[];
   customData: Record<string, unknown>;
+  // D-066 — per-token lock (PJ-only). Zamčený token hráč nemůže táhnout,
+  // nezávisle na scene.isLocked / playerStates. PJ-only přes authorizer whitelist.
+  isLocked?: boolean;
   // Doplněno při GET — nikdy se neukládá do DB
   characterData?: {
     name: string;

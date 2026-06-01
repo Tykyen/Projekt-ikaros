@@ -258,6 +258,20 @@ describe('OperationsAuthorizer', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
+    it('token.update s isLocked → FORBIDDEN (D-066 per-token lock je PJ-only)', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({ tokens: [makeToken(player.id)] }),
+          {
+            type: 'token.update',
+            tokenId: 't1',
+            patch: { isLocked: true },
+          } as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('effect.add → FORBIDDEN (PJ-only)', async () => {
       await expect(
         authorizer.assertCanDo(player, makeScene(), {
