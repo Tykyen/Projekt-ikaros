@@ -76,6 +76,8 @@ export class MongoPagesRepository
       | 'updatedAt'
       | 'imageUrl'
       | 'ownerUserId'
+      | 'accessRequirements'
+      | 'isWoodWide'
     >[]
   > {
     const filter: Record<string, unknown> = { worldId };
@@ -91,6 +93,10 @@ export class MongoPagesRepository
         // Krok 9.1 — pro CharactersPage potřebujeme avatar + owner do karty.
         imageUrl: 1,
         ownerUserId: 1,
+        // D-062c — AKJ ochrana pro stub karty v listings (shieldedBy se počítá
+        // per-user v service.findDirectory).
+        accessRequirements: 1,
+        isWoodWide: 1,
       })
       .sort({ order: 1 })
       .lean()
@@ -104,6 +110,10 @@ export class MongoPagesRepository
       updatedAt: (doc as { updatedAt?: Date }).updatedAt as Date,
       imageUrl: (doc as { imageUrl?: string }).imageUrl,
       ownerUserId: (doc as { ownerUserId?: string }).ownerUserId,
+      accessRequirements:
+        (doc as { accessRequirements?: Page['accessRequirements'] })
+          .accessRequirements ?? [],
+      isWoodWide: (doc as { isWoodWide?: boolean }).isWoodWide ?? false,
     }));
   }
 

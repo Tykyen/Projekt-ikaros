@@ -23,6 +23,8 @@ export interface IPagesRepository {
       | 'updatedAt'
       | 'imageUrl'
       | 'ownerUserId'
+      | 'accessRequirements'
+      | 'isWoodWide'
     >[]
   >;
   findAllSlugs(worldId: string): Promise<string[]>;

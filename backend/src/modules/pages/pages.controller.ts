@@ -54,6 +54,7 @@ export class PagesController {
   @ApiResponse({ status: 200, description: 'OK' })
   getDirectory(
     @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
     @Query('type') type?: string,
   ) {
     // ?type=PostavaHrace,NPC → CSV split; ?type=PostavaHrace → single item
@@ -63,7 +64,7 @@ export class PagesController {
           .map((t) => t.trim())
           .filter(Boolean)
       : undefined;
-    return this.pagesService.findDirectory(worldId, types);
+    return this.pagesService.findDirectory(worldId, types, user.id);
   }
 
   @Get('dataSlugs')

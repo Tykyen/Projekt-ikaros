@@ -14,7 +14,11 @@ import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
-import type { Page, ShieldedRequirement } from './interfaces/page.interface';
+import type {
+  Page,
+  ShieldedRequirement,
+  AccessRequirement,
+} from './interfaces/page.interface';
 import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
 import { TipTapExtractor } from './tiptap-extractor.service';
@@ -319,8 +323,37 @@ export class PagesService {
       );
   }
 
-  async findDirectory(worldId: string, types?: string[]) {
-    return this.pagesRepo.findDirectory(worldId, types);
+  async findDirectory(worldId: string, types?: string[], userId?: string) {
+    const entries = await this.pagesRepo.findDirectory(worldId, types);
+    // D-062c — per-entry shieldedBy pro stub karty v listings. Membership +
+    // akjSettings načteme JEDNOU (ne N+1 per stránka), a jen když je vůbec nějaká
+    // stránka chráněná. Raw accessRequirements NEvracíme na FE (privacy — UserId).
+    const anyProtected = entries.some(
+      (e) => (e.accessRequirements?.length ?? 0) > 0,
+    );
+    const membership =
+      anyProtected && userId
+        ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+        : null;
+    const needsAkjTypes =
+      anyProtected &&
+      entries.some((e) =>
+        e.accessRequirements?.some((r) => r.type === 'AKJType'),
+      );
+    const akjSettings = needsAkjTypes
+      ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
+      : [];
+    return entries.map(({ accessRequirements, ...rest }) => ({
+      ...rest,
+      shieldedBy: anyProtected
+        ? this.shieldedFromRequirements(
+            accessRequirements,
+            membership,
+            akjSettings,
+            userId ?? null,
+          )
+        : undefined,
+    }));
   }
 
   async findAllSlugs(worldId: string): Promise<string[]> {
@@ -372,13 +405,38 @@ export class PagesService {
     const membership = userId
       ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
       : null;
-    // Pokud user **splňuje** kterýkoliv requirement (OR semantika přes assertAccess),
-    // má přístup — neukazujeme shieldedBy.
+    const needsAkjTypes = page.accessRequirements.some(
+      (r) => r.type === 'AKJType',
+    );
+    const akjSettings = needsAkjTypes
+      ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
+      : [];
+    return this.shieldedFromRequirements(
+      page.accessRequirements,
+      membership,
+      akjSettings,
+      userId,
+    );
+  }
+
+  /**
+   * Čistý (DB-free) výpočet `shieldedBy` z už-načteného membershipu + akjSettings.
+   * OR semantika: stačí splnit JEDEN requirement → přístup (undefined). Volá se
+   * jak per-page (computeShieldedBy), tak per-entry v `findDirectory` (kde se
+   * membership + akjSettings načtou JEDNOU, ne N+1 per stránka).
+   */
+  private shieldedFromRequirements(
+    accessRequirements: AccessRequirement[] | undefined,
+    membership: { akj?: number; role?: number } | null,
+    akjSettings: { key: string; name: string; level: number }[],
+    userId: string | null,
+  ): ShieldedRequirement[] | undefined {
+    if (!accessRequirements || accessRequirements.length === 0) {
+      return undefined;
+    }
     let granted = false;
-    let akjSettings: { key: string; name: string; level: number }[] | null =
-      null;
     const out: ShieldedRequirement[] = [];
-    for (const req of page.accessRequirements) {
+    for (const req of accessRequirements) {
       if (req.type === 'UserId') {
         if (userId && req.value === userId) granted = true;
         // UserId nikdy nepřidáváme do shieldedBy (privacy)
@@ -411,10 +469,6 @@ export class PagesService {
         continue;
       }
       if (req.type === 'AKJType') {
-        if (akjSettings === null) {
-          const settings = await this.settingsRepo.findByWorldId(worldId);
-          akjSettings = settings?.akjTypes ?? [];
-        }
         const def = akjSettings.find((g) => g.key === req.value);
         const need = def?.level ?? 0;
         const has = membership?.akj ?? -1;

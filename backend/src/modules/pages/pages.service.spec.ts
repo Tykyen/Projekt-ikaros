@@ -302,6 +302,45 @@ describe('PagesService', () => {
         undefined,
       );
     });
+
+    // D-062c — AKJ stub karty: chráněná stránka dostane shieldedBy, raw
+    // accessRequirements se na FE NEvrací (privacy).
+    it('chráněná stránka bez přístupu → shieldedBy + bez raw accessRequirements', async () => {
+      const protectedItem = {
+        id: 'p2',
+        slug: 'tajny-spis',
+        title: 'Tajný spis',
+        type: 'Stranka',
+        order: 1,
+        accessRequirements: [{ type: 'AKJ', value: '3' }],
+        isWoodWide: false,
+      };
+      mockPagesRepo.findDirectory = jest
+        .fn()
+        .mockResolvedValue([protectedItem]);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ akj: 1 });
+      const result = await service.findDirectory('world1', undefined, 'u1');
+      expect(result[0]).not.toHaveProperty('accessRequirements');
+      expect(result[0].shieldedBy).toEqual([{ type: 'AKJ', level: 3 }]);
+    });
+
+    it('chráněná stránka s dostatečným AKJ → shieldedBy undefined', async () => {
+      const protectedItem = {
+        id: 'p2',
+        slug: 'tajny-spis',
+        title: 'Tajný spis',
+        type: 'Stranka',
+        order: 1,
+        accessRequirements: [{ type: 'AKJ', value: '3' }],
+        isWoodWide: false,
+      };
+      mockPagesRepo.findDirectory = jest
+        .fn()
+        .mockResolvedValue([protectedItem]);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ akj: 5 });
+      const result = await service.findDirectory('world1', undefined, 'u1');
+      expect(result[0].shieldedBy).toBeUndefined();
+    });
   });
 
   describe('findAllSlugs', () => {
