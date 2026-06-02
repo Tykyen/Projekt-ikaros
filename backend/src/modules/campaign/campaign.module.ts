@@ -35,8 +35,14 @@ import { MongoCampaignScenarioRepository } from './repositories/campaign-scenari
 import { MongoCampaignQuickNoteRepository } from './repositories/campaign-quick-note.repository';
 import { MongoCampaignShopItemRepository } from './repositories/campaign-shop-item.repository';
 import { MongoCampaignChangeLogRepository } from './repositories/campaign-change-log.repository';
+import {
+  ScenarioTemplateSchemaClass,
+  ScenarioTemplateSchema,
+} from './schemas/scenario-template.schema';
+import { MongoScenarioTemplateRepository } from './repositories/scenario-template.repository';
 import { CampaignService } from './campaign.service';
 import { CampaignController } from './campaign.controller';
+import { ScenarioTemplatesController } from './scenario-templates.controller';
 import { WorldsModule } from '../worlds/worlds.module';
 
 @Module({
@@ -67,10 +73,14 @@ import { WorldsModule } from '../worlds/worlds.module';
         name: CampaignChangeLogSchemaClass.name,
         schema: CampaignChangeLogSchema,
       },
+      {
+        name: ScenarioTemplateSchemaClass.name,
+        schema: ScenarioTemplateSchema,
+      },
     ]),
     WorldsModule,
   ],
-  controllers: [CampaignController],
+  controllers: [CampaignController, ScenarioTemplatesController],
   providers: [
     CampaignService,
     {
@@ -100,6 +110,10 @@ import { WorldsModule } from '../worlds/worlds.module';
     {
       provide: 'ICampaignChangeLogRepository',
       useClass: MongoCampaignChangeLogRepository,
+    },
+    {
+      provide: 'IScenarioTemplateRepository',
+      useClass: MongoScenarioTemplateRepository,
     },
   ],
 })
