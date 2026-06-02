@@ -16,17 +16,25 @@ import {
   ChannelReadStatusSchemaClass,
   ChannelReadStatusSchema,
 } from './schemas/channel-read-status.schema';
+import {
+  ScheduledMessageSchemaClass,
+  ScheduledMessageSchema,
+} from './schemas/scheduled-message.schema';
 import { MongoChatGroupRepository } from './repositories/chat-group.repository';
 import { MongoChatChannelRepository } from './repositories/chat-channel.repository';
 import { MongoChatMessageRepository } from './repositories/chat-message.repository';
 import { MongoChannelReadStatusRepository } from './repositories/channel-read-status.repository';
+import { MongoScheduledMessageRepository } from './repositories/scheduled-message.repository';
 import { ChatService } from './chat.service';
 import { ChatPresenceService } from './chat-presence.service';
 import { ChatController } from './chat.controller';
+import { ScheduledMessagesController } from './scheduled-messages.controller';
+import { ScheduledMessagesJob } from './scheduled-messages.job';
 import { ChatGateway } from './chat.gateway';
 import { WorldsModule } from '../worlds/worlds.module';
 import { PushModule } from '../push/push.module';
 import { UploadModule } from '../upload/upload.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -38,6 +46,10 @@ import { UploadModule } from '../upload/upload.module';
         name: ChannelReadStatusSchemaClass.name,
         schema: ChannelReadStatusSchema,
       },
+      {
+        name: ScheduledMessageSchemaClass.name,
+        schema: ScheduledMessageSchema,
+      },
     ]),
     forwardRef(() => WorldsModule), // circular: WorldsModule → WorldWeatherModule → ChatModule → WorldsModule
     // ChatService konzumuje PushService — PushModule je @Global, ale
@@ -46,8 +58,12 @@ import { UploadModule } from '../upload/upload.module';
     // 6.2b — ChatController konzumuje UploadService pro world-chat přílohy.
     // forwardRef kvůli cyklu (UploadController používá ChatService).
     forwardRef(() => UploadModule),
+    // 11.2-ext fix — JwtService pro ChatGateway.handleConnection (join user: room).
+    // forwardRef kvůli cyklu: AuthModule → UsersModule → WorldsModule → … →
+    // ChatModule. Bez něj je AuthModule při startu undefined a Nest spadne.
+    forwardRef(() => AuthModule),
   ],
-  controllers: [ChatController],
+  controllers: [ChatController, ScheduledMessagesController],
   providers: [
     ChatService,
     ChatPresenceService,
@@ -58,6 +74,11 @@ import { UploadModule } from '../upload/upload.module';
       provide: 'IChannelReadStatusRepository',
       useClass: MongoChannelReadStatusRepository,
     },
+    {
+      provide: 'IScheduledMessageRepository',
+      useClass: MongoScheduledMessageRepository,
+    },
+    ScheduledMessagesJob,
     ChatGateway,
   ],
   exports: [ChatService, 'IChatChannelRepository', 'IChatMessageRepository'],

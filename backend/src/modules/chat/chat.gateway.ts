@@ -4,9 +4,11 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
+  OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { OnEvent } from '@nestjs/event-emitter';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import type { ChatGroup } from './interfaces/chat-group.interface';
 import type { ChatChannel } from './interfaces/chat-channel.interface';
@@ -18,7 +20,7 @@ import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 @WebSocketGateway({
   cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
 })
-export class ChatGateway implements OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
 
   private readonly typingTimeouts = new Map<string, NodeJS.Timeout>();
@@ -26,7 +28,26 @@ export class ChatGateway implements OnGatewayDisconnect {
   constructor(
     private readonly chatService: ChatService,
     private readonly presence: ChatPresenceService,
+    private readonly jwtService: JwtService,
   ) {}
+
+  /**
+   * 11.2-ext fix — JWT z handshake → join `user:{id}` room. Bez toho
+   * `chat:unread` (i whisper `chat:message`) emitované do `user:{id}` nikam
+   * nedorazily, takže unread badge se na dashboardu ani v chatu neaktualizoval
+   * živě. Tolerantní: neautentizovaný socket jen nedostane per-user eventy.
+   */
+  handleConnection(client: Socket): void {
+    try {
+      const auth = client.handshake.auth as { token?: string } | undefined;
+      const token = auth?.token;
+      if (!token) return;
+      const payload = this.jwtService.verify<{ sub?: string }>(token);
+      if (payload?.sub) void client.join(`user:${payload.sub}`);
+    } catch {
+      /* neautentizovaný / neplatný token — per-user eventy mu nedorazí */
+    }
+  }
 
   handleDisconnect(client: Socket): void {
     for (const key of this.typingTimeouts.keys()) {
