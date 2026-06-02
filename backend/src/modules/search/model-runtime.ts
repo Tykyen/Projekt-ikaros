@@ -1,11 +1,13 @@
 import * as ort from 'onnxruntime-node';
-import SentencePiece from 'sentencepiece-js';
+import * as sentencePiece from 'sentencepiece-js';
 import { Logger } from '@nestjs/common';
 
 // sentencepiece-js nemá oficiální typy — minimální shape co používáme.
+// Pozn.: balík exportuje named `SentencePieceProcessor` (konstruktor); default
+// export je objekt (ne třída) — proto importujeme přes namespace.
 interface SentencePieceInstance {
   load(path: string): Promise<void>;
-  encode(text: string): number[];
+  encodeIds(text: string): number[];
 }
 type SentencePieceConstructor = new () => SentencePieceInstance;
 
@@ -31,8 +33,12 @@ export class ModelRuntime {
     this.session = await ort.InferenceSession.create(this.config.onnxPath);
 
     this.logger.log('Načítám tokenizer...');
-    const Ctor = SentencePiece as unknown as SentencePieceConstructor;
-    this.tokenizer = new Ctor();
+    // sentencepiece-js je netypovaný — castneme namespace na známý shape, ať
+    // přístup k named exportu `SentencePieceProcessor` není „unsafe member access".
+    const sp = sentencePiece as unknown as {
+      SentencePieceProcessor: SentencePieceConstructor;
+    };
+    this.tokenizer = new sp.SentencePieceProcessor();
     await this.tokenizer.load(this.config.tokenizerPath);
     this.logger.log('ModelRuntime inicializován.');
   }
@@ -42,7 +48,7 @@ export class ModelRuntime {
       throw new Error(`ModelRuntime[${this.config.key}] není inicializován`);
     }
 
-    const tokenIds: number[] = this.tokenizer.encode(text);
+    const tokenIds: number[] = this.tokenizer.encodeIds(text);
     const seq = this.config.sequenceLength;
 
     const inputIds = new Array<number>(seq).fill(1);
