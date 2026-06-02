@@ -20,7 +20,7 @@ export class MongoCampaignShopItemRepository
 
   async findMany(
     filter: Record<string, unknown>,
-    sort: Record<string, unknown> = { group: 1, updatedAt: -1 },
+    sort: Record<string, unknown> = { updatedAt: -1 },
   ): Promise<CampaignShopItem[]> {
     const docs = await this.model
       .find(filter)
@@ -66,6 +66,15 @@ export class MongoCampaignShopItemRepository
       .exec();
   }
 
+  async countByGroup(worldId: string, groupId: string): Promise<number> {
+    return this.model
+      .countDocuments({
+        worldId,
+        $or: [{ groupId }, { subgroupId: groupId }],
+      })
+      .exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): CampaignShopItem {
     return {
       id: String(doc._id),
@@ -74,10 +83,11 @@ export class MongoCampaignShopItemRepository
       isShared: (doc.isShared as boolean) ?? false,
       name: doc.name as string,
       description: doc.description as string | undefined,
-      group: (doc.group as string) ?? '',
-      subgroup: doc.subgroup as string | undefined,
+      groupId: (doc.groupId as string) ?? '',
+      subgroupId: doc.subgroupId as string | undefined,
       price: (doc.price as number) ?? 0,
       currencyCode: (doc.currencyCode as string) ?? '',
+      discountPercent: (doc.discountPercent as number) ?? 0,
       linkedItemIds: (doc.linkedItemIds as string[]) ?? [],
       referenceLink: doc.referenceLink as string | undefined,
       isRecommended: (doc.isRecommended as boolean) ?? false,

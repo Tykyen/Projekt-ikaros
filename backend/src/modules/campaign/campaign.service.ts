@@ -3,6 +3,7 @@ import {
   Inject,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -12,6 +13,7 @@ import type { ICampaignStorylineRepository } from './interfaces/campaign-storyli
 import type { ICampaignScenarioRepository } from './interfaces/campaign-scenario-repository.interface';
 import type { ICampaignQuickNoteRepository } from './interfaces/campaign-quick-note-repository.interface';
 import type { ICampaignShopItemRepository } from './interfaces/campaign-shop-item-repository.interface';
+import type { ICampaignShopGroupRepository } from './interfaces/campaign-shop-group-repository.interface';
 import type { ICampaignChangeLogRepository } from './interfaces/campaign-change-log-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { CampaignSubject } from './interfaces/campaign-subject.interface';
@@ -20,6 +22,7 @@ import type { CampaignStoryline } from './interfaces/campaign-storyline.interfac
 import type { CampaignScenario } from './interfaces/campaign-scenario.interface';
 import type { CampaignQuickNote } from './interfaces/campaign-quick-note.interface';
 import type { CampaignShopItem } from './interfaces/campaign-shop-item.interface';
+import type { CampaignShopGroup } from './interfaces/campaign-shop-group.interface';
 import type {
   CampaignEntityType,
   CampaignChangeType,
@@ -47,6 +50,8 @@ export class CampaignService {
     private readonly noteRepo: ICampaignQuickNoteRepository,
     @Inject('ICampaignShopItemRepository')
     private readonly shopRepo: ICampaignShopItemRepository,
+    @Inject('ICampaignShopGroupRepository')
+    private readonly shopGroupRepo: ICampaignShopGroupRepository,
     @Inject('ICampaignChangeLogRepository')
     private readonly logRepo: ICampaignChangeLogRepository,
     @Inject('IWorldMembershipRepository')
@@ -793,10 +798,15 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     worldId: string,
-    filters: { group?: string },
+    filters: { groupId?: string },
   ): Promise<CampaignShopItem[]> {
     const base = this.resolveScope(userId, worldRole, worldId);
-    if (filters.group) base['group'] = filters.group;
+    if (filters.groupId)
+      base['$and'] = [
+        {
+          $or: [{ groupId: filters.groupId }, { subgroupId: filters.groupId }],
+        },
+      ];
     return this.shopRepo.findMany(base);
   }
 
@@ -825,10 +835,11 @@ export class CampaignService {
     dto: {
       name: string;
       description?: string;
-      group: string;
-      subgroup?: string;
+      groupId?: string;
+      subgroupId?: string;
       price?: number;
       currencyCode?: string;
+      discountPercent?: number;
       linkedItemIds?: string[];
       referenceLink?: string;
       isRecommended?: boolean;
@@ -840,10 +851,11 @@ export class CampaignService {
       isShared,
       name: dto.name,
       description: dto.description,
-      group: dto.group,
-      subgroup: dto.subgroup,
+      groupId: dto.groupId ?? '',
+      subgroupId: dto.subgroupId,
       price: dto.price ?? 0,
       currencyCode: dto.currencyCode ?? '',
+      discountPercent: dto.discountPercent ?? 0,
       linkedItemIds: dto.linkedItemIds ?? [],
       referenceLink: dto.referenceLink,
       isRecommended: dto.isRecommended ?? false,
@@ -915,6 +927,125 @@ export class CampaignService {
     this.logChange(
       existing,
       'shopitem',
+      existing.name,
+      'deleted',
+      userId,
+      userName,
+    );
+  }
+
+  // ── ShopGroups (typy / skupiny) ───────────────────────────────────────────
+
+  async findShopGroups(
+    userId: string,
+    worldRole: WorldRole,
+    worldId: string,
+  ): Promise<CampaignShopGroup[]> {
+    const base = this.resolveScope(userId, worldRole, worldId);
+    return this.shopGroupRepo.findMany(base);
+  }
+
+  async createShopGroup(
+    userId: string,
+    userName: string,
+    worldRole: WorldRole,
+    worldId: string,
+    isShared: boolean,
+    dto: {
+      name: string;
+      parentId?: string;
+      order?: number;
+      discountPercent?: number;
+    },
+  ): Promise<CampaignShopGroup> {
+    const created = await this.shopGroupRepo.create({
+      worldId,
+      ownerId: userId,
+      isShared,
+      name: dto.name,
+      parentId: dto.parentId,
+      order: dto.order ?? 0,
+      discountPercent: dto.discountPercent ?? 0,
+    });
+    this.logChange(
+      created,
+      'shopgroup',
+      created.name,
+      'created',
+      userId,
+      userName,
+    );
+    return created;
+  }
+
+  async updateShopGroup(
+    id: string,
+    userId: string,
+    userName: string,
+    worldRole: WorldRole,
+    dto: Partial<
+      Omit<
+        CampaignShopGroup,
+        'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
+      >
+    >,
+  ): Promise<CampaignShopGroup> {
+    const existing = await this.shopGroupRepo.findById(id);
+    if (!existing)
+      throw new NotFoundException({
+        code: 'CAMPAIGN_SHOPGROUP_NOT_FOUND',
+        message: 'Skupina nenalezena',
+      });
+    if (!this.canModify(existing, userId, worldRole))
+      throw new ForbiddenException();
+    const updated = await this.shopGroupRepo.update(id, dto);
+    if (!updated)
+      throw new NotFoundException({
+        code: 'CAMPAIGN_SHOPGROUP_NOT_FOUND',
+        message: 'Skupina nenalezena',
+      });
+    this.logChange(
+      updated,
+      'shopgroup',
+      updated.name,
+      'updated',
+      userId,
+      userName,
+    );
+    return updated;
+  }
+
+  async deleteShopGroup(
+    id: string,
+    userId: string,
+    worldRole: WorldRole,
+    userName: string,
+  ): Promise<void> {
+    const existing = await this.shopGroupRepo.findById(id);
+    if (!existing)
+      throw new NotFoundException({
+        code: 'CAMPAIGN_SHOPGROUP_NOT_FOUND',
+        message: 'Skupina nenalezena',
+      });
+    if (!this.canModify(existing, userId, worldRole))
+      throw new ForbiddenException();
+    // Guard: neprázdná skupina (položky nebo podskupiny) — nemazat naslepo
+    const itemCount = await this.shopRepo.countByGroup(existing.worldId, id);
+    const childCount = await this.shopGroupRepo.countChildren(
+      existing.worldId,
+      id,
+    );
+    if (itemCount > 0 || childCount > 0)
+      throw new ConflictException({
+        code: 'CAMPAIGN_SHOPGROUP_NOT_EMPTY',
+        message: 'Skupina obsahuje položky nebo podskupiny',
+        itemCount,
+        childCount,
+      });
+    await this.shopGroupRepo.delete(id);
+    this.logChange(
+      existing,
+      'shopgroup',
       existing.name,
       'deleted',
       userId,

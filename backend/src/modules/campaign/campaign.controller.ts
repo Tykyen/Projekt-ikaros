@@ -30,6 +30,9 @@ import { CreateCampaignStorylineDto } from './dto/create-campaign-storyline.dto'
 import { CreateCampaignScenarioDto } from './dto/create-campaign-scenario.dto';
 import { CreateCampaignQuickNoteDto } from './dto/create-campaign-quick-note.dto';
 import { CreateCampaignShopItemDto } from './dto/create-campaign-shop-item.dto';
+import { CreateCampaignShopGroupDto } from './dto/create-campaign-shop-group.dto';
+import { PurchaseShopItemDto } from './dto/purchase-shop-item.dto';
+import { CampaignPurchaseService } from './services/campaign-purchase.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 interface RequestUser {
@@ -43,7 +46,10 @@ interface RequestUser {
 @Controller('campaign')
 @UseGuards(JwtAuthGuard)
 export class CampaignController {
-  constructor(private readonly service: CampaignService) {}
+  constructor(
+    private readonly service: CampaignService,
+    private readonly purchaseService: CampaignPurchaseService,
+  ) {}
 
   private async role(user: RequestUser, worldId: string): Promise<WorldRole> {
     if (!worldId)
@@ -528,10 +534,10 @@ export class CampaignController {
   async findShopItems(
     @CurrentUser() user: RequestUser,
     @Query('worldId') worldId: string,
-    @Query('group') group?: string,
+    @Query('groupId') groupId?: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findShopItems(user.id, worldRole, worldId, { group });
+    return this.service.findShopItems(user.id, worldRole, worldId, { groupId });
   }
 
   @Get('shopitems/:id')
@@ -596,5 +602,113 @@ export class CampaignController {
   ) {
     const worldRole = await this.role(user, worldId);
     await this.service.deleteShopItem(id, user.id, worldRole, user.username);
+  }
+
+  // ── ShopGroups (typy / skupiny) ───────────────────────────────────────────
+
+  @Get('shopgroups')
+  @ApiOperation({ summary: 'Skupiny / typy obchodu' })
+  @ApiResponse({ status: 200 })
+  async findShopGroups(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+  ) {
+    const worldRole = await this.role(user, worldId);
+    return this.service.findShopGroups(user.id, worldRole, worldId);
+  }
+
+  @Post('shopgroups')
+  @ApiOperation({ summary: 'Vytvoření skupiny / typu' })
+  @ApiResponse({ status: 201 })
+  async createShopGroup(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Body() dto: CreateCampaignShopGroupDto,
+  ) {
+    const worldRole = await this.role(user, worldId);
+    if (worldRole < WorldRole.PomocnyPJ) throw new ForbiddenException();
+    return this.service.createShopGroup(
+      user.id,
+      user.username,
+      worldRole,
+      worldId,
+      this.resolveIsShared(worldRole, dto.isShared),
+      dto,
+    );
+  }
+
+  @Put('shopgroups/:id')
+  @ApiOperation({ summary: 'Aktualizace skupiny / typu' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 404 })
+  async updateShopGroup(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Param('id') id: string,
+    @Body() dto: CreateCampaignShopGroupDto,
+  ) {
+    const worldRole = await this.role(user, worldId);
+    return this.service.updateShopGroup(
+      id,
+      user.id,
+      user.username,
+      worldRole,
+      dto,
+    );
+  }
+
+  @Delete('shopgroups/:id')
+  @ApiOperation({ summary: 'Smazání skupiny / typu' })
+  @ApiResponse({ status: 204 })
+  @ApiResponse({ status: 409, description: 'Skupina není prázdná' })
+  async deleteShopGroup(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Param('id') id: string,
+  ) {
+    const worldRole = await this.role(user, worldId);
+    await this.service.deleteShopGroup(id, user.id, worldRole, user.username);
+  }
+
+  // ── Nákup / storno (11.3 N1) ──────────────────────────────────────────────
+
+  @Post('shopitems/:id/purchase')
+  @ApiOperation({ summary: 'Nákup položky postavě' })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 409, description: 'Nedostatek prostředků' })
+  async purchaseShopItem(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Param('id') id: string,
+    @Body() dto: PurchaseShopItemDto,
+  ) {
+    await this.role(user, worldId);
+    return this.purchaseService.purchase(worldId, id, user.id, dto);
+  }
+
+  @Post('purchases/:id/refund')
+  @ApiOperation({ summary: 'Storno nákupu' })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 403 })
+  async refundPurchase(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Param('id') id: string,
+  ) {
+    await this.role(user, worldId);
+    return this.purchaseService.refund(worldId, id, user.id);
+  }
+
+  @Get('purchases')
+  @ApiOperation({ summary: 'Historie nákupů (postavy)' })
+  @ApiResponse({ status: 200 })
+  async findPurchases(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Query('characterId') characterId?: string,
+  ) {
+    await this.role(user, worldId);
+    return this.purchaseService.listPurchases(worldId, user.id, characterId);
   }
 }

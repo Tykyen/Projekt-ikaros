@@ -4,7 +4,8 @@ export type CampaignEntityType =
   | 'storyline'
   | 'scenario'
   | 'quicknote'
-  | 'shopitem';
+  | 'shopitem'
+  | 'shopgroup';
 export type CampaignChangeType = 'created' | 'updated' | 'deleted';
 
 export interface CampaignChangeLog {

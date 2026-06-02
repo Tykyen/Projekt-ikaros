@@ -1,5 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { CampaignService } from './campaign.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -70,6 +74,15 @@ describe('CampaignService', () => {
     update: jest.fn(),
     delete: jest.fn(),
     pullLinkedItem: jest.fn(),
+    countByGroup: jest.fn(),
+  };
+  const mockShopGroupRepo = {
+    findMany: jest.fn(),
+    findById: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    countChildren: jest.fn(),
   };
   const mockLogRepo = { append: jest.fn(), findMany: jest.fn() };
   const mockMembershipRepo = {
@@ -91,6 +104,10 @@ describe('CampaignService', () => {
         { provide: 'ICampaignScenarioRepository', useValue: mockScenarioRepo },
         { provide: 'ICampaignQuickNoteRepository', useValue: mockNoteRepo },
         { provide: 'ICampaignShopItemRepository', useValue: mockShopRepo },
+        {
+          provide: 'ICampaignShopGroupRepository',
+          useValue: mockShopGroupRepo,
+        },
         { provide: 'ICampaignChangeLogRepository', useValue: mockLogRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
       ],
@@ -230,11 +247,12 @@ describe('CampaignService', () => {
         ownerId: 'user1',
         isShared: false,
         name: 'Meč',
-        group: 'zbrane',
+        groupId: 'zbrane',
         description: undefined,
-        subgroup: undefined,
+        subgroupId: undefined,
         price: 0,
         currencyCode: '',
+        discountPercent: 0,
         linkedItemIds: [],
         referenceLink: undefined,
         isRecommended: false,
@@ -247,6 +265,100 @@ describe('CampaignService', () => {
       mockLogRepo.append.mockResolvedValue(undefined);
       await service.deleteShopItem('item1', 'user1', WorldRole.PJ, 'pjName');
       expect(mockShopRepo.pullLinkedItem).toHaveBeenCalledWith('w1', 'item1');
+    });
+  });
+
+  describe('shopgroups (N0 — typy + slevy)', () => {
+    const mockGroup = {
+      id: 'g1',
+      worldId: 'w1',
+      ownerId: 'pj1',
+      isShared: false,
+      name: 'Zbraně',
+      parentId: undefined,
+      order: 0,
+      discountPercent: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('findShopGroups volá repo s resolveScope filtrem', async () => {
+      mockShopGroupRepo.findMany.mockResolvedValue([mockGroup]);
+      await service.findShopGroups('user1', WorldRole.Hrac, 'w1');
+      expect(mockShopGroupRepo.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ worldId: 'w1', ownerId: 'user1' }),
+      );
+    });
+
+    it('createShopGroup předá discountPercent do repo a zapíše changelog', async () => {
+      mockShopGroupRepo.create.mockImplementation(
+        (d: Record<string, unknown>) => Promise.resolve({ id: 'g1', ...d }),
+      );
+      mockLogRepo.append.mockResolvedValue(undefined);
+      await service.createShopGroup('pj1', 'PJ', WorldRole.PJ, 'w1', false, {
+        name: 'Zbraně',
+        discountPercent: 20,
+      });
+      expect(mockShopGroupRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Zbraně', discountPercent: 20 }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(mockLogRepo.append).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityType: 'shopgroup',
+          changeType: 'created',
+        }),
+      );
+    });
+
+    it('deleteShopGroup vyhodí ConflictException u neprázdné skupiny (položky)', async () => {
+      mockShopGroupRepo.findById.mockResolvedValue(mockGroup);
+      mockShopRepo.countByGroup.mockResolvedValue(3);
+      mockShopGroupRepo.countChildren.mockResolvedValue(0);
+      await expect(
+        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockShopGroupRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('deleteShopGroup vyhodí ConflictException u skupiny s podskupinami', async () => {
+      mockShopGroupRepo.findById.mockResolvedValue(mockGroup);
+      mockShopRepo.countByGroup.mockResolvedValue(0);
+      mockShopGroupRepo.countChildren.mockResolvedValue(2);
+      await expect(
+        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ'),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('deleteShopGroup smaže prázdnou skupinu', async () => {
+      mockShopGroupRepo.findById.mockResolvedValue(mockGroup);
+      mockShopRepo.countByGroup.mockResolvedValue(0);
+      mockShopGroupRepo.countChildren.mockResolvedValue(0);
+      mockShopGroupRepo.delete.mockResolvedValue(true);
+      mockLogRepo.append.mockResolvedValue(undefined);
+      await service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ');
+      expect(mockShopGroupRepo.delete).toHaveBeenCalledWith('g1');
+    });
+
+    it('createShopItem předá groupId + discountPercent do repo (žádný field-drop)', async () => {
+      mockShopRepo.create.mockImplementation((d: Record<string, unknown>) =>
+        Promise.resolve({ id: 'item1', ...d }),
+      );
+      mockLogRepo.append.mockResolvedValue(undefined);
+      await service.createShopItem('pj1', 'PJ', WorldRole.PJ, 'w1', false, {
+        name: 'Meč',
+        groupId: 'g1',
+        subgroupId: 'g2',
+        price: 15,
+        discountPercent: 10,
+      });
+      expect(mockShopRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupId: 'g1',
+          subgroupId: 'g2',
+          discountPercent: 10,
+        }),
+      );
     });
   });
 

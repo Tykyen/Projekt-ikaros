@@ -25,6 +25,14 @@ import {
   CampaignShopItemSchema,
 } from './schemas/campaign-shop-item.schema';
 import {
+  CampaignShopGroupSchemaClass,
+  CampaignShopGroupSchema,
+} from './schemas/campaign-shop-group.schema';
+import {
+  CampaignPurchaseSchemaClass,
+  CampaignPurchaseSchema,
+} from './schemas/campaign-purchase.schema';
+import {
   CampaignChangeLogSchemaClass,
   CampaignChangeLogSchema,
 } from './schemas/campaign-change-log.schema';
@@ -34,6 +42,12 @@ import { MongoCampaignStorylineRepository } from './repositories/campaign-storyl
 import { MongoCampaignScenarioRepository } from './repositories/campaign-scenario.repository';
 import { MongoCampaignQuickNoteRepository } from './repositories/campaign-quick-note.repository';
 import { MongoCampaignShopItemRepository } from './repositories/campaign-shop-item.repository';
+import { MongoCampaignShopGroupRepository } from './repositories/campaign-shop-group.repository';
+import { MongoCampaignPurchaseRepository } from './repositories/campaign-purchase.repository';
+import { CampaignPurchaseService } from './services/campaign-purchase.service';
+import { CharacterSubdocsModule } from '../character-subdocs/character-subdocs.module';
+import { WorldCurrenciesModule } from '../world-currencies/world-currencies.module';
+import { CharactersModule } from '../characters/characters.module';
 import { MongoCampaignChangeLogRepository } from './repositories/campaign-change-log.repository';
 import {
   ScenarioTemplateSchemaClass,
@@ -70,6 +84,14 @@ import { WorldsModule } from '../worlds/worlds.module';
         schema: CampaignShopItemSchema,
       },
       {
+        name: CampaignShopGroupSchemaClass.name,
+        schema: CampaignShopGroupSchema,
+      },
+      {
+        name: CampaignPurchaseSchemaClass.name,
+        schema: CampaignPurchaseSchema,
+      },
+      {
         name: CampaignChangeLogSchemaClass.name,
         schema: CampaignChangeLogSchema,
       },
@@ -79,10 +101,14 @@ import { WorldsModule } from '../worlds/worlds.module';
       },
     ]),
     WorldsModule,
+    CharacterSubdocsModule,
+    WorldCurrenciesModule,
+    CharactersModule,
   ],
   controllers: [CampaignController, ScenarioTemplatesController],
   providers: [
     CampaignService,
+    CampaignPurchaseService,
     {
       provide: 'ICampaignSubjectRepository',
       useClass: MongoCampaignSubjectRepository,
@@ -106,6 +132,14 @@ import { WorldsModule } from '../worlds/worlds.module';
     {
       provide: 'ICampaignShopItemRepository',
       useClass: MongoCampaignShopItemRepository,
+    },
+    {
+      provide: 'ICampaignShopGroupRepository',
+      useClass: MongoCampaignShopGroupRepository,
+    },
+    {
+      provide: 'ICampaignPurchaseRepository',
+      useClass: MongoCampaignPurchaseRepository,
     },
     {
       provide: 'ICampaignChangeLogRepository',

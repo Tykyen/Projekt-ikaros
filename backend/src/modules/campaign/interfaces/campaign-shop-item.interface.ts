@@ -5,10 +5,11 @@ export interface CampaignShopItem {
   isShared: boolean;
   name: string;
   description?: string;
-  group: string;
-  subgroup?: string;
+  groupId: string;
+  subgroupId?: string;
   price: number;
   currencyCode: string;
+  discountPercent: number;
   linkedItemIds: string[];
   referenceLink?: string;
   isRecommended: boolean;

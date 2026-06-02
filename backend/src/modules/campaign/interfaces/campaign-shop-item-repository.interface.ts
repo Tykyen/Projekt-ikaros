@@ -13,4 +13,5 @@ export interface ICampaignShopItemRepository {
   ): Promise<CampaignShopItem | null>;
   delete(id: string): Promise<boolean>;
   pullLinkedItem(worldId: string, deletedId: string): Promise<void>;
+  countByGroup(worldId: string, groupId: string): Promise<number>;
 }
