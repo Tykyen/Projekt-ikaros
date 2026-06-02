@@ -40,6 +40,10 @@ export interface CharacterDirectoryEntry {
   slug: string;
   name: string;
   isNpc: boolean;
+  /** Spec 9.2 — 'location' (Lokace) / 'persona'. Pro filtraci Lokace z výběru postav. */
+  kind: 'persona' | 'location';
+  /** Obrázek postavy (z Page) — pro avatar člena po přiřazení. */
+  imageUrl?: string;
 }
 
 export interface Character {

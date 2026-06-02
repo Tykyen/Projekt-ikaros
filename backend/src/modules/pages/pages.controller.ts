@@ -110,7 +110,7 @@ export class PagesController {
     @Param('slug') slug: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.pagesService.findBySlug(slug, worldId, user.id);
+    return this.pagesService.findBySlug(slug, worldId, user.id, user.role);
   }
 
   @Post()
@@ -169,7 +169,7 @@ export class PagesController {
     @Param('slug') slug: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.pagesService.findBacklinks(slug, worldId, user.id);
+    return this.pagesService.findBacklinks(slug, worldId, user.id, user.role);
   }
 
   @Post(':slug/favorite')

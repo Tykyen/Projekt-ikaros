@@ -35,7 +35,6 @@ export interface WorldCurrencyItem {
 
 /** Side-task character-tab-visibility — IDs tabů na PostavaLayout kromě `profil`. */
 export type CharacterTabId =
-  | 'soukrome'
   | 'denik'
   | 'finance'
   | 'vybava'
@@ -43,7 +42,6 @@ export type CharacterTabId =
   | 'poznamky';
 
 export const CHARACTER_TAB_IDS: readonly CharacterTabId[] = [
-  'soukrome',
   'denik',
   'finance',
   'vybava',

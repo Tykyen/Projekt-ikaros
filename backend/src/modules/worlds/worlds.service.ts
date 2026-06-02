@@ -1234,8 +1234,9 @@ export class WorldsService implements OnApplicationBootstrap {
 
   async updateMemberCharacter(
     membershipId: string,
-    characterPath: string | undefined,
+    characterPath: string | null | undefined,
     requester: RequestUser,
+    avatarUrl?: string | null,
   ): Promise<WorldMembership> {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
@@ -1266,9 +1267,14 @@ export class WorldsService implements OnApplicationBootstrap {
       }
     }
 
-    const updated = await this.membershipRepo.update(membershipId, {
-      characterPath,
-    });
+    // Prázdné (null/undefined) → odpojení přes $unset; jinak přiřazení
+    // (vč. world-scoped avataru = obrázek postavy).
+    const updated = characterPath
+      ? await this.membershipRepo.update(membershipId, {
+          characterPath,
+          avatarUrl: avatarUrl ?? undefined,
+        })
+      : await this.membershipRepo.clearCharacter(membershipId);
     if (!updated)
       throw new NotFoundException({
         statusCode: 404,
@@ -1776,10 +1782,7 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!membership) return;
     if (payload.toNpc) {
-      await this.membershipRepo.update(membership.id, {
-        characterPath: undefined,
-        avatarUrl: undefined,
-      });
+      await this.membershipRepo.clearCharacter(membership.id);
     } else {
       await this.membershipRepo.update(membership.id, {
         characterPath: payload.slug,
@@ -1798,12 +1801,7 @@ export class WorldsService implements OnApplicationBootstrap {
     await Promise.all(
       members
         .filter((m) => m.characterPath === payload.slug)
-        .map((m) =>
-          this.membershipRepo.update(m.id, {
-            characterPath: undefined,
-            avatarUrl: undefined,
-          }),
-        ),
+        .map((m) => this.membershipRepo.clearCharacter(m.id)),
     );
   }
 }

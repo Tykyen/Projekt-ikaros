@@ -25,7 +25,10 @@ export class UpdateMemberAkjDto {
 }
 
 export class UpdateMemberCharacterDto {
-  @IsOptional() @IsString() characterPath?: string;
+  /** `null` = odpojit postavu od člena. */
+  @IsOptional() @IsString() characterPath?: string | null;
+  /** Obrázek přiřazené postavy → world-scoped avatar člena. */
+  @IsOptional() @IsString() avatarUrl?: string | null;
 }
 
 export class UpdateMemberFreeDto {

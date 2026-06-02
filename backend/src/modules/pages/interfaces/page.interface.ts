@@ -96,6 +96,29 @@ export interface PageTable {
   values?: string[];
 }
 
+/**
+ * AKJ chráněná záložka stránky. Zobrazí se v liště vedle Profil/Kalendář jen
+ * tomu, kdo splní `access` (OR logika, stejná jako page-level accessRequirements).
+ * Obsah dědí ze základní stránky; `contentOverride` je sparse — vyplněné pole
+ * přepíše základ, prázdné dědí. Viz spec-akj-protected-tabs.md.
+ */
+export interface AkjTabContentOverride {
+  imageUrl?: string;
+  content?: string;
+  /** Atributy & metadata (sidebar „boxy"). Záložka dědí ze základu, nebo přepíše. */
+  table?: PageTable;
+}
+
+export interface AkjTab {
+  id: string;
+  name: string;
+  order: number;
+  /** Podmínky viditelnosti (OR). Clearance = { type:'AKJ', value }, konkrétní
+   *  hráč = { type:'UserId' }, role práh = { type:'Role' }. Prázdné = jen PJ. */
+  access: AccessRequirement[];
+  contentOverride?: AkjTabContentOverride;
+}
+
 export interface Page {
   id: string;
   slug: string;
@@ -117,17 +140,14 @@ export interface Page {
   order: number;
   // Krok 9.1 — pole pro typ PostavaHrace/NPC. Pro ostatní typy zůstávají
   // undefined a service je do response nepřidává.
-  /** PJ-only obsah (mirror character.privateBio). Service ho v response
-   *  filtruje pro neoprávněné — vidí jen PJ + ownerUserId. */
-  privateContent?: string;
-  /** PJ-only strukturovaná metadata (rasa, povolání, …). Stejný permission
-   *  filter jako privateContent. */
-  privateInfoBlocks?: InfoBlock[];
   /** Pro type=PostavaHrace: přiřazený hráč (Character.userId equivalent). */
   ownerUserId?: string;
   /** Pro type ∈ {PostavaHrace, NPC}: odkaz na Character entity, která drží
    *  5 subdokumentů (diary/calendar/finance/inventory/notes). */
   characterRef?: { characterId: string };
+  /** AKJ chráněné záložky. BE je ve `findBySlug` filtruje — vrací jen ty,
+   *  na které má viewer přístup (PJ/Admin vidí všechny). */
+  akjTabs?: AkjTab[];
   createdAt: Date;
   updatedAt: Date;
 }

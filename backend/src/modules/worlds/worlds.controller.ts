@@ -400,6 +400,7 @@ export class WorldsController {
       membershipId,
       dto.characterPath,
       user,
+      dto.avatarUrl,
     );
   }
 

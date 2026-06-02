@@ -136,6 +136,46 @@ export class CharacterRefDto {
   characterId: string;
 }
 
+/**
+ * AKJ záložka — sparse override obsahu (vyplněné pole přepíše základ stránky).
+ * HTML pole (`content`, `table`, `sections`) sanitizuje service vrstva.
+ */
+export class AkjTabContentOverrideDto {
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  content?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PageTableDto)
+  table?: PageTableDto;
+}
+
+export class AkjTabDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  name: string;
+
+  @IsNumber()
+  order: number = 0;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AccessRequirementDto)
+  access: AccessRequirementDto[] = [];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => AkjTabContentOverrideDto)
+  contentOverride?: AkjTabContentOverrideDto;
+}
+
 export class CreatePageDto {
   @IsString()
   slug: string;
@@ -208,19 +248,7 @@ export class CreatePageDto {
   @IsObject()
   customData?: Record<string, string>;
 
-  // Krok 9.1 — pole pro PostavaHrace / NPC. ValidationPipe({whitelist:true})
-  // by je bez explicitní deklarace odřízl. Service vrstva persistuje jen
-  // pokud type ∈ {PostavaHrace, NPC}.
-  @IsOptional()
-  @IsString()
-  privateContent?: string;
-
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => InfoBlockDto)
-  privateInfoBlocks?: InfoBlockDto[];
-
+  // Krok 9.1 — pole pro PostavaHrace / NPC.
   @IsOptional()
   @IsString()
   ownerUserId?: string;
@@ -229,4 +257,12 @@ export class CreatePageDto {
   @ValidateNested()
   @Type(() => CharacterRefDto)
   characterRef?: CharacterRefDto;
+
+  // AKJ chráněné záložky (spec-akj-protected-tabs). ValidationPipe whitelist by
+  // je bez deklarace odřízl. Sanitace HTML obsahu v service vrstvě.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AkjTabDto)
+  akjTabs?: AkjTabDto[];
 }

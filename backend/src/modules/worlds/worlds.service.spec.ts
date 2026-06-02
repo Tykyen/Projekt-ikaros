@@ -60,6 +60,7 @@ describe('WorldsService', () => {
     countByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
+    clearCharacter: jest.fn(),
     delete: jest.fn(),
     findById: jest.fn(),
   };
@@ -1607,18 +1608,9 @@ describe('WorldsService', () => {
         { id: 'm3', characterPath: 'medak' },
       ]);
       await service.onCharacterDeleted({ worldId: 'world1', slug: 'medak' });
-      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m1', {
-        characterPath: undefined,
-        avatarUrl: undefined,
-      });
-      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m3', {
-        characterPath: undefined,
-        avatarUrl: undefined,
-      });
-      expect(mockMembershipRepo.update).not.toHaveBeenCalledWith(
-        'm2',
-        expect.anything(),
-      );
+      expect(mockMembershipRepo.clearCharacter).toHaveBeenCalledWith('m1');
+      expect(mockMembershipRepo.clearCharacter).toHaveBeenCalledWith('m3');
+      expect(mockMembershipRepo.clearCharacter).not.toHaveBeenCalledWith('m2');
     });
 
     it('neudělá nic, pokud žádný člen postavu nemá', async () => {
@@ -1626,7 +1618,7 @@ describe('WorldsService', () => {
         { id: 'm1', characterPath: 'jina' },
       ]);
       await service.onCharacterDeleted({ worldId: 'world1', slug: 'medak' });
-      expect(mockMembershipRepo.update).not.toHaveBeenCalled();
+      expect(mockMembershipRepo.clearCharacter).not.toHaveBeenCalled();
     });
   });
 
@@ -1700,7 +1692,7 @@ describe('WorldsService', () => {
       expect(call.characterTabVisibility.NPC).toEqual(['denik', 'finance']);
     });
 
-    it('respektuje cap na 6 prvků', async () => {
+    it('dropne neznámé taby přes whitelist (5 platných)', async () => {
       const oversized = [
         'soukrome',
         'denik',
@@ -1720,8 +1712,11 @@ describe('WorldsService', () => {
         mockRequester,
       );
       const call = mockSettingsRepo.upsert.mock.calls[0][1];
-      expect(call.characterTabVisibility.PostavaHrace).toHaveLength(6);
+      expect(call.characterTabVisibility.PostavaHrace).toHaveLength(5);
       expect(call.characterTabVisibility.PostavaHrace).not.toContain('denik2');
+      expect(call.characterTabVisibility.PostavaHrace).not.toContain(
+        'soukrome',
+      );
     });
 
     it('chybějící characterTabVisibility nechá DTO beze změny', async () => {

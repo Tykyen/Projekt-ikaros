@@ -84,16 +84,21 @@ export class MongoCharactersRepository
     // Pages directory přes usePersonaDirectory; tento endpoint zůstává jen
     // pro backward kompat — odstraní se v navazujícím cleanup.
     const docs = await this.model
-      .find({ worldId }, { _id: 1, slug: 1, name: 1, isNpc: 1 })
+      .find({ worldId }, { _id: 1, slug: 1, name: 1, isNpc: 1, kind: 1 })
       .lean()
       .exec();
-    return docs.map((doc) => ({
-      id: String((doc as unknown as Record<string, unknown>)._id),
-      slug: (doc as unknown as Record<string, unknown>).slug as string,
-      name: (doc as unknown as Record<string, unknown>).name as string,
-      isNpc:
-        ((doc as unknown as Record<string, unknown>).isNpc as boolean) ?? false,
-    }));
+    return docs.map((doc) => {
+      const d = doc as unknown as Record<string, unknown>;
+      return {
+        id: String(d._id),
+        slug: d.slug as string,
+        name: d.name as string,
+        isNpc: (d.isNpc as boolean) ?? false,
+        // Spec 9.2 — 'location' (Lokace) vs 'persona'. FE filtruje Lokace
+        // z výběru postav pro hráče.
+        kind: (d.kind as 'persona' | 'location') ?? 'persona',
+      };
+    });
   }
 
   async existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean> {

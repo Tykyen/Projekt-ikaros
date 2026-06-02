@@ -171,6 +171,58 @@ describe('PagesService', () => {
       );
       expect(result.id).toBe('page1');
     });
+
+    // AKJ bypass — PJ se nesmí zamknout ze svého obsahu (spec-akj-pj-bypass).
+    it('PomocnyPJ obejde AKJ i bez dostatečné úrovně', async () => {
+      const restricted = {
+        ...mockPage,
+        accessRequirements: [{ type: 'AKJ', value: '8' }],
+      };
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(restricted);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+        akj: 0,
+      });
+      const result = await service.findBySlug(
+        'hlavni-lokace',
+        'world1',
+        'user1',
+      );
+      expect(result.id).toBe('page1');
+    });
+
+    it('platform Superadmin obejde AKJ i bez membershipu ve světě', async () => {
+      const restricted = {
+        ...mockPage,
+        accessRequirements: [{ type: 'AKJ', value: '8' }],
+      };
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(restricted);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findBySlug(
+        'hlavni-lokace',
+        'world1',
+        'superadmin',
+        UserRole.Superadmin,
+      );
+      expect(result.id).toBe('page1');
+    });
+
+    it('hráč s nedostatečnou úrovní dál dostává 403 (regrese)', async () => {
+      const restricted = {
+        ...mockPage,
+        accessRequirements: [{ type: 'AKJ', value: '8' }],
+      };
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(restricted);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 0,
+      });
+      await expect(
+        service.findBySlug('hlavni-lokace', 'world1', 'user1', UserRole.Hrac),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('create', () => {
@@ -400,6 +452,146 @@ describe('PagesService', () => {
       await expect(
         service.findBySlug('hlavni-lokace', 'world1', 'user1'),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // spec-akj-protected-tabs — per-tab gate ve findBySlug
+  describe('findBySlug — AKJ chráněné záložky', () => {
+    const kralTabs = [
+      {
+        id: 't1',
+        name: 'Dvůr',
+        order: 0,
+        access: [{ type: 'AKJ', value: '3' }],
+      },
+      {
+        id: 't2',
+        name: 'Královna',
+        order: 1,
+        access: [{ type: 'AKJ', value: '5' }],
+      },
+      {
+        id: 't3',
+        name: 'Milenka',
+        order: 2,
+        access: [{ type: 'UserId', value: 'sluha' }],
+      },
+    ];
+    const kral = { ...mockPage, accessRequirements: [], akjTabs: kralTabs };
+
+    it('hráč clearance 5 vidí Dvůr (3) + Královna (5), ne Milenka (UserId)', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 5,
+      });
+      const result = await service.findBySlug('kral', 'world1', 'user1');
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2']);
+    });
+
+    it('hráč clearance 3 vidí jen Dvůr', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 3,
+      });
+      const result = await service.findBySlug('kral', 'world1', 'user1');
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1']);
+    });
+
+    it('hráč s UserId grantem vidí Milenku i bez clearance', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 0,
+      });
+      const result = await service.findBySlug('kral', 'world1', 'sluha');
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t3']);
+    });
+
+    it('hráč bez ničeho → prázdné akjTabs (žádný leak)', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 0,
+      });
+      const result = await service.findBySlug('kral', 'world1', 'cizinec');
+      expect(result.akjTabs).toEqual([]);
+    });
+
+    it('PJ vidí všechny záložky', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PJ,
+        akj: 0,
+      });
+      const result = await service.findBySlug('kral', 'world1', 'pj');
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
+    });
+
+    it('PomocnyPJ NEMÁ auto-bypass — vidí jen splněné záložky', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+        akj: 3,
+      });
+      const result = await service.findBySlug('kral', 'world1', 'pomocny');
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1']);
+    });
+
+    it('platform Superadmin vidí vše i bez membershipu', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findBySlug(
+        'kral',
+        'world1',
+        'super',
+        UserRole.Superadmin,
+      );
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
+    });
+  });
+
+  // spec-akj-protected-tabs — sanitace contentOverride v create
+  describe('create — sanitace akjTabs', () => {
+    it('odstraní <script> z contentOverride.content', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      let savedArg: Record<string, unknown> | undefined;
+      mockPagesRepo.save.mockImplementation((p: Record<string, unknown>) => {
+        savedArg = p;
+        return Promise.resolve({ ...mockPage, ...p });
+      });
+      await service.create(
+        {
+          slug: 'kral',
+          type: 'Ostatní',
+          title: 'Král',
+          akjTabs: [
+            {
+              id: 't1',
+              name: 'Dvůr',
+              order: 0,
+              access: [],
+              contentOverride: {
+                content: '<p>ok</p><script>alert(1)</script>',
+              },
+            },
+          ],
+        } as never,
+        'world1',
+        adminRequester,
+      );
+      const tabs = savedArg?.akjTabs as Array<{
+        contentOverride: { content: string };
+      }>;
+      expect(tabs[0].contentOverride.content).not.toContain('<script>');
+      expect(tabs[0].contentOverride.content).toContain('ok');
     });
   });
 

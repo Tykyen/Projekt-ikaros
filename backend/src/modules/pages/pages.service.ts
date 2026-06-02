@@ -23,7 +23,11 @@ import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
 import { TipTapExtractor } from './tiptap-extractor.service';
 import { UserRole } from '../users/interfaces/user.interface';
-import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import {
+  WorldRole,
+  type WorldMembership,
+} from '../worlds/interfaces/world-membership.interface';
+import type { AkjType } from '../worlds/interfaces/world-settings.interface';
 
 export interface PagesRequester {
   id: string;
@@ -46,6 +50,30 @@ function sanitizeTable(table: CreatePageDto['table']): CreatePageDto['table'] {
       values: table.values.map((v) => sanitizeRichText(v)),
     }),
   };
+}
+
+/**
+ * AKJ záložky — sanitizuje HTML uvnitř `contentOverride` (content, table,
+ * sections, infoBlocks value) stejným allowlistem jako základní obsah stránky.
+ */
+function sanitizeAkjTabs(
+  tabs: CreatePageDto['akjTabs'],
+): CreatePageDto['akjTabs'] {
+  if (!tabs) return tabs;
+  return tabs.map((tab) => {
+    if (!tab.contentOverride) return tab;
+    const co = tab.contentOverride;
+    return {
+      ...tab,
+      contentOverride: {
+        ...co,
+        ...(co.content !== undefined && {
+          content: sanitizeRichText(co.content),
+        }),
+        ...(co.table && { table: sanitizeTable(co.table) }),
+      },
+    };
+  });
 }
 
 @Injectable()
@@ -75,12 +103,12 @@ export class PagesService {
     userId?: string,
   ): Promise<Page[]> {
     const pages = await this.pagesRepo.findByWorld(worldId, type);
-    // Krok 9.1 — bez userId (legacy callers) nepřidávám filter; nové callery
-    // by měly userId vždy předat, aby se private polí nedostala neoprávněným.
+    // Bez userId (legacy callers) nefiltruji. Jinak odřízni AKJ chráněné
+    // záložky, na které viewer nemá přístup (listing nesmí leaknout obsah).
     if (!userId) return pages;
     const filtered: Page[] = [];
     for (const page of pages) {
-      filtered.push(await this.filterPrivateForViewer(page, userId, worldId));
+      filtered.push(await this.filterAkjTabsForViewer(page, userId, worldId));
     }
     return filtered;
   }
@@ -89,6 +117,7 @@ export class PagesService {
     slug: string,
     worldId: string,
     userId: string,
+    platformRole?: UserRole,
   ): Promise<Page> {
     const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page)
@@ -96,9 +125,9 @@ export class PagesService {
         code: 'PAGE_NOT_FOUND',
         message: 'Stránka nenalezena',
       });
-    await this.assertAccess(page, userId, worldId);
-    // Krok 9.1 — filtr private polí: vidí jen PJ+ nebo owner postavy.
-    return this.filterPrivateForViewer(page, userId, worldId);
+    await this.assertAccess(page, userId, worldId, platformRole);
+    // AKJ chráněné záložky — odřízni ty, na které viewer nemá přístup.
+    return this.filterAkjTabsForViewer(page, userId, worldId, platformRole);
   }
 
   async create(
@@ -125,9 +154,6 @@ export class PagesService {
     // Krok 9.1 — PostavaHrace/NPC pole; pro ostatní typy ignorujeme i kdyby
     // klient poslal (vědomé zúžení, aby wiki stránky nesly character data).
     const isPersona = dto.type === 'Postava hráče' || dto.type === 'NPC';
-    const safePrivateContent = isPersona
-      ? sanitizeRichText(dto.privateContent ?? '')
-      : undefined;
 
     // Krok 9.1 / Spec 9.2 — pro persona i Lokace typ auto-vytvoř Character
     // entity (subdoc kontejner). Persona = plné subdocs (diary/calendar/
@@ -166,10 +192,9 @@ export class PagesService {
       isWoodWide: dto.isWoodWide ?? false,
       accessRequirements: dto.accessRequirements ?? [],
       order: dto.order ?? 0,
-      privateContent: isPersona ? safePrivateContent : undefined,
-      privateInfoBlocks: isPersona ? (dto.privateInfoBlocks ?? []) : undefined,
       ownerUserId: dto.type === 'Postava hráče' ? dto.ownerUserId : undefined,
       characterRef,
+      akjTabs: sanitizeAkjTabs(dto.akjTabs) ?? [],
     });
     void this.searchCoordinator
       ?.addPageToIndex(savedPage)
@@ -225,15 +250,10 @@ export class PagesService {
     }));
     // 7.2k — expectedUpdatedAt je jen pro concurrency check, ne pro persist.
     const { expectedUpdatedAt: _ignored, ...persistDto } = dto;
-    // Krok 9.1 — sanitize privateContent (jen je-li type persona). Resolved
-    // type prefer DTO, fallback na current page.type (PATCH bez `type`).
+    // Resolved type prefer DTO, fallback na current page.type (PATCH bez `type`).
     const resolvedType = persistDto.type ?? page.type;
     const isPersona =
       resolvedType === 'Postava hráče' || resolvedType === 'NPC';
-    const safePrivateContent =
-      persistDto.privateContent !== undefined && isPersona
-        ? sanitizeRichText(persistDto.privateContent)
-        : undefined;
 
     // Krok 9.1 / Spec 9.2 — transition wiki→persona/Lokace vytvoří Character
     // entity, pokud Page ještě characterRef nemá (typicky migrace
@@ -274,16 +294,16 @@ export class PagesService {
       ...(safeContent !== undefined && { content: safeContent }),
       ...(safeSections && { sections: safeSections }),
       ...(persistDto.table && { table: sanitizeTable(persistDto.table) }),
+      // akjTabs jsou v ...persistDto raw — přepiš sanitizovanou verzí.
+      // Prázdné pole [] (smazání všech záložek) projde (je truthy).
+      ...(persistDto.akjTabs && {
+        akjTabs: sanitizeAkjTabs(persistDto.akjTabs),
+      }),
       ...extra,
       menu: persistDto.menu?.map((m) => ({ ...m, order: m.order ?? 0 })),
-      ...(safePrivateContent !== undefined && {
-        privateContent: safePrivateContent,
-      }),
       ...(extraCharacterRef && { characterRef: extraCharacterRef }),
       ...(!isPersona && {
-        // type přepnut z persona na wiki/Lokace — vyčistit persona pole.
-        privateContent: undefined,
-        privateInfoBlocks: undefined,
+        // type přepnut z persona na wiki/Lokace — vyčistit owner.
         ownerUserId: undefined,
       }),
       // Spec 9.2 — characterRef se maže jen pokud nový type nepotřebuje
@@ -525,6 +545,7 @@ export class PagesService {
     targetSlug: string,
     worldId: string,
     userId: string,
+    platformRole?: UserRole,
   ): Promise<Pick<Page, 'slug' | 'title' | 'type'>[]> {
     const target = await this.pagesRepo.findBySlugAndWorld(targetSlug, worldId);
     if (!target)
@@ -534,7 +555,7 @@ export class PagesService {
       });
     // Cílová stránka musí být přístupná žadateli — jinak by jsme prozradili
     // existenci utajené stránky přes backlinks listing.
-    await this.assertAccess(target, userId, worldId);
+    await this.assertAccess(target, userId, worldId, platformRole);
 
     const candidates = await this.pagesRepo.findBacklinksToSlug(
       worldId,
@@ -549,7 +570,7 @@ export class PagesService {
       );
       if (!full) continue;
       try {
-        await this.assertAccess(full, userId, worldId);
+        await this.assertAccess(full, userId, worldId, platformRole);
         accessible.push(candidate);
       } catch {
         // silent skip
@@ -568,39 +589,67 @@ export class PagesService {
     return this.pagesRepo.findBySlugs(world.favoritePageSlugs, worldId);
   }
 
-  private async assertAccess(
-    page: Page,
+  /**
+   * Jádro AKJ vyhodnocení: splní `reqs` aspoň jednu podmínku (OR)? Synchronní —
+   * `akjTypes` se předávají, aby šlo levně vyhodnotit mnoho záložek bez
+   * opakovaného settings lookupu. Sdílené mezi `assertAccess` (page-level) a
+   * `filterAkjTabsForViewer` (per-tab).
+   */
+  private passesAccess(
+    reqs: AccessRequirement[],
     userId: string,
-    worldId: string,
-  ): Promise<void> {
-    if (!page.accessRequirements || page.accessRequirements.length === 0)
-      return;
-    const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
-      worldId,
-    );
-    for (const req of page.accessRequirements) {
-      if (req.type === 'UserId' && req.value === userId) return;
+    membership: WorldMembership | null,
+    akjTypes: AkjType[],
+  ): boolean {
+    for (const req of reqs) {
+      if (req.type === 'UserId' && req.value === userId) return true;
       if (
         req.type === 'AKJ' &&
         membership &&
         membership.akj >= parseInt(req.value, 10)
       )
-        return;
+        return true;
       if (
         req.type === 'Role' &&
         membership &&
         // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-comparison
         membership.role >= parseInt(req.value, 10)
       )
-        return;
+        return true;
       if (req.type === 'AKJType') {
-        const settings = await this.settingsRepo.findByWorldId(worldId);
-        const akjTypes = settings?.akjTypes ?? [];
         const group = akjTypes.find((g) => g.key === req.value);
-        if (group && membership && membership.akj >= group.level) return;
+        if (group && membership && membership.akj >= group.level) return true;
       }
     }
+    return false;
+  }
+
+  private async assertAccess(
+    page: Page,
+    userId: string,
+    worldId: string,
+    platformRole?: UserRole,
+  ): Promise<void> {
+    if (!page.accessRequirements || page.accessRequirements.length === 0)
+      return;
+    // AKJ skrývá obsah jen před hráči. PomocnyPJ+ (autorské role) a platform
+    // Admin+ ho obcházejí — jinak by se PJ zamkl ze svého vlastního obsahu.
+    if (platformRole !== undefined && platformRole <= UserRole.Admin) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (membership && membership.role >= WorldRole.PomocnyPJ) return;
+    const needsAkjTypes = page.accessRequirements.some(
+      (r) => r.type === 'AKJType',
+    );
+    const akjTypes = needsAkjTypes
+      ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
+      : [];
+    if (
+      this.passesAccess(page.accessRequirements, userId, membership, akjTypes)
+    )
+      return;
     throw new ForbiddenException({
       code: 'PAGE_ACCESS_DENIED',
       message: 'Přístup odepřen',
@@ -608,27 +657,36 @@ export class PagesService {
   }
 
   /**
-   * Krok 9.1 — filtr privateContent + privateInfoBlocks pro non-persona typy
-   * (no-op) a pro PostavaHrace/NPC: vidí jen PJ+ nebo vlastník postavy
-   * (ownerUserId). Ostatním smaže pole z response.
+   * AKJ chráněné záložky — vrať Page jen s těmi `akjTabs`, na které má viewer
+   * přístup. PJ a platform Admin+ vidí všechny; PomocnyPJ NEMÁ auto-bypass
+   * (jen co mu PJ grantoval přes `tab.access`) — viz spec-akj-protected-tabs.
+   * Nedostupné záložky se z response odstraní úplně (žádný leak existence).
    */
-  private async filterPrivateForViewer(
+  private async filterAkjTabsForViewer(
     page: Page,
     userId: string,
     worldId: string,
+    platformRole?: UserRole,
   ): Promise<Page> {
-    const isPersona = page.type === 'Postava hráče' || page.type === 'NPC';
-    if (!isPersona) return page;
-    const isOwner = !!page.ownerUserId && page.ownerUserId === userId;
-    if (isOwner) return page;
+    if (!page.akjTabs || page.akjTabs.length === 0) return page;
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
       worldId,
     );
-    if (membership && membership.role >= WorldRole.PomocnyPJ) return page;
-    // Neoprávněný — vrať bez private polí.
-    const { privateContent: _pc, privateInfoBlocks: _pb, ...rest } = page;
-    return rest;
+    const seesAll =
+      (platformRole !== undefined && platformRole <= UserRole.Admin) ||
+      (!!membership && membership.role >= WorldRole.PJ);
+    if (seesAll) return page;
+    const needsAkjTypes = page.akjTabs.some((t) =>
+      t.access.some((r) => r.type === 'AKJType'),
+    );
+    const akjTypes = needsAkjTypes
+      ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
+      : [];
+    const visible = page.akjTabs.filter((tab) =>
+      this.passesAccess(tab.access, userId, membership, akjTypes),
+    );
+    return { ...page, akjTabs: visible };
   }
 
   /**

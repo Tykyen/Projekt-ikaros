@@ -16,7 +16,6 @@ import { Type } from 'class-transformer';
 
 /** Whitelist tab IDs povolených v characterTabVisibility (Profil je vždy implicitně viditelný). */
 export const CHARACTER_TAB_WHITELIST = [
-  'soukrome',
   'denik',
   'finance',
   'vybava',

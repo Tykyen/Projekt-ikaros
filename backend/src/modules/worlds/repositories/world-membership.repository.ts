@@ -158,6 +158,20 @@ export class MongoWorldMembershipRepository
     );
   }
 
+  async clearCharacter(id: string): Promise<WorldMembership | null> {
+    const doc = await this.model
+      .findByIdAndUpdate(
+        id,
+        { $unset: { characterPath: '', avatarUrl: '' } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   protected toEntity(doc: Record<string, unknown>): WorldMembership {
     return {
       id: String(doc._id),

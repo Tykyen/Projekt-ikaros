@@ -188,7 +188,9 @@ export class CharactersService {
   }
 
   async getDirectory(worldId: string): Promise<CharacterDirectoryEntry[]> {
-    return this.charRepo.findDirectory(worldId);
+    const entries = await this.charRepo.findDirectory(worldId);
+    const imgBySlug = await this.imageUrlBySlug(worldId);
+    return entries.map((e) => ({ ...e, imageUrl: imgBySlug.get(e.slug) }));
   }
 
   async create(dto: CreateCharacterDto, worldId: string): Promise<Character> {

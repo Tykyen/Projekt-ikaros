@@ -252,14 +252,7 @@ export class MongoPagesRepository
       })),
       customData: (doc.customData as Record<string, string>) ?? {},
       order: (doc.order as number) ?? 0,
-      // Krok 9.1 — pole pro PostavaHrace / NPC. Permission filter řeší service.
-      privateContent: (doc.privateContent as string) || undefined,
-      privateInfoBlocks: doc.privateInfoBlocks
-        ? (doc.privateInfoBlocks as Record<string, unknown>[]).map((b) => ({
-            label: (b.label as string) ?? '',
-            value: (b.value as string) ?? '',
-          })) || undefined
-        : undefined,
+      // Krok 9.1 — pole pro PostavaHrace / NPC.
       ownerUserId: (doc.ownerUserId as string) || undefined,
       characterRef: doc.characterRef
         ? {
@@ -267,6 +260,27 @@ export class MongoPagesRepository
               .characterId,
           }
         : undefined,
+      akjTabs: ((doc.akjTabs as Record<string, unknown>[]) ?? []).map((tab) => {
+        const co = tab.contentOverride as Record<string, unknown> | undefined;
+        return {
+          id: tab.id as string,
+          name: (tab.name as string) ?? '',
+          order: (tab.order as number) ?? 0,
+          access: ((tab.access as Record<string, unknown>[]) ?? []).map(
+            (r) => ({
+              type: r.type as 'UserId' | 'AKJ' | 'Role' | 'AKJType',
+              value: r.value as string,
+            }),
+          ),
+          contentOverride: co
+            ? {
+                imageUrl: co.imageUrl as string | undefined,
+                content: co.content as string | undefined,
+                table: co.table ? normalizePageTable(co.table) : undefined,
+              }
+            : undefined,
+        };
+      }),
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

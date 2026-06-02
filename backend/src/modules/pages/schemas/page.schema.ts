@@ -43,16 +43,16 @@ export class PageSchemaClass {
   accessRequirements: Record<string, unknown>[];
   @Prop({ type: Object, default: {} }) customData?: Record<string, string>;
   @Prop({ default: 0 }) order: number;
-  // Krok 9.1 — pole pro PostavaHrace / NPC. Defaultně prázdné/undefined
-  // pro wiki typy. Permission filtering řeší service vrstva před returnem.
-  @Prop({ default: '' }) privateContent?: string;
+  // Krok 9.1 — pole pro PostavaHrace / NPC.
+  @Prop({ index: true }) ownerUserId?: string;
+  @Prop({ type: Object }) characterRef?: { characterId: string };
+  // AKJ chráněné záložky — flexibilní subdok (name/level/order/access/
+  // contentOverride). Filtrace dle přístupu řeší service vrstva ve `findBySlug`.
   @Prop({
     type: [MixedArraySubSchema],
     default: (): Record<string, unknown>[] => [],
   })
-  privateInfoBlocks?: Record<string, unknown>[];
-  @Prop({ index: true }) ownerUserId?: string;
-  @Prop({ type: Object }) characterRef?: { characterId: string };
+  akjTabs?: Record<string, unknown>[];
 }
 
 export const PageSchema = SchemaFactory.createForClass(PageSchemaClass);

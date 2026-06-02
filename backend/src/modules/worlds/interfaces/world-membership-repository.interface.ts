@@ -58,6 +58,12 @@ export interface IWorldMembershipRepository {
     id: string,
     data: Partial<WorldMembership>,
   ): Promise<WorldMembership | null>;
+  /**
+   * Odpojení postavy od člena — `$unset` characterPath + avatarUrl.
+   * (Plain `update({characterPath: undefined})` Mongoose ignoruje, proto
+   * dedikovaná metoda.)
+   */
+  clearCharacter(id: string): Promise<WorldMembership | null>;
   delete(id: string): Promise<boolean>;
 
   /**
