@@ -92,6 +92,10 @@ export class MongoIkarosDiscussionsRepository implements IIkarosDiscussionsRepos
     return this.model.countDocuments({ isApproved: false }).exec();
   }
 
+  async countAll(): Promise<number> {
+    return this.model.countDocuments().exec();
+  }
+
   /** 3.4 — diskuze, kde je uživatel manažer A zároveň mají čekající join-request. */
   async findManagedWithJoinRequests(
     userId: string,

@@ -15,6 +15,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
+import { AdminStatsService } from './admin-stats.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -45,7 +46,23 @@ class UpdateRoleDto {
 @Controller('admin')
 @UseGuards(JwtAuthGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly adminStatsService: AdminStatsService,
+  ) {}
+
+  // ─── Stats — platform overview (12.1) ─────────────────────────────────────
+
+  @Get('stats/overview')
+  @UseGuards(AdminGuard)
+  @ApiOperation({
+    summary: 'Platformové statistiky pro admin dashboard (Admin+)',
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  getStatsOverview() {
+    return this.adminStatsService.getOverview();
+  }
 
   // ─── Users — listing / create / role ──────────────────────────────────────
 

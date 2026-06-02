@@ -239,6 +239,10 @@ export class MongoIkarosArticlesRepository implements IIkarosArticlesRepository 
     return this.model.countDocuments({ status }).exec();
   }
 
+  async countAll(): Promise<number> {
+    return this.model.countDocuments().exec();
+  }
+
   async countByCategory(category: string): Promise<number> {
     return this.model.countDocuments({ category }).exec();
   }

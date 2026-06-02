@@ -20,6 +20,7 @@ const mockRepo: jest.Mocked<IIkarosArticlesRepository> = {
   countByStatus: jest.fn(),
   countByCategory: jest.fn(),
   findPublishedIds: jest.fn(),
+  countAll: jest.fn(),
 };
 
 describe('ArticleReviewProvider', () => {

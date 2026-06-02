@@ -21,6 +21,10 @@ export interface IUsersRepository {
   findFirstByRole(role: UserRole): Promise<User | null>;
   findByRoles(roles: UserRole[]): Promise<User[]>;
   findOnlineSince(since: Date): Promise<string[]>;
+  /** 12.1 — počet aktivních (non-tombstone) účtů založených od `since`. */
+  countCreatedSince(since: Date): Promise<number>;
+  /** 12.1 — počet účtů v pending-deletion holdu (deletionRequestedAt, !isDeleted). */
+  countPendingDeletion(): Promise<number>;
   findAllPaginated(opts: {
     username?: string;
     role?: UserRole;

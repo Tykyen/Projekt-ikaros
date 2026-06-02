@@ -36,4 +36,6 @@ export interface IIkarosArticlesRepository {
   countByCategory(category: string): Promise<number>;
   /** 3.2a — published IDs (pro unreadCount aggregate). */
   findPublishedIds(): Promise<string[]>;
+  /** 12.1 — celkový počet článků (admin dashboard). */
+  countAll(): Promise<number>;
 }

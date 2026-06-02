@@ -163,6 +163,21 @@ export class MongoUsersRepository
     return docs.map((d) => String((d as { _id: unknown })._id));
   }
 
+  async countCreatedSince(since: Date): Promise<number> {
+    return this.model
+      .countDocuments({ createdAt: { $gte: since }, isDeleted: { $ne: true } })
+      .exec();
+  }
+
+  async countPendingDeletion(): Promise<number> {
+    return this.model
+      .countDocuments({
+        deletionRequestedAt: { $ne: null },
+        isDeleted: { $ne: true },
+      })
+      .exec();
+  }
+
   async findAllPaginated(opts: {
     username?: string;
     role?: UserRole;

@@ -183,6 +183,10 @@ export class MongoIkarosGalleryRepository implements IIkarosGalleryRepository {
     return this.model.countDocuments({ status: 'Pending' }).exec();
   }
 
+  async countAll(): Promise<number> {
+    return this.model.countDocuments().exec();
+  }
+
   async findPendingPaginated(
     offset: number,
     limit: number,

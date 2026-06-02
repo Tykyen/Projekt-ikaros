@@ -62,6 +62,8 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
     },
     { provide: 'IkarosMessagesService', useExisting: IkarosMessagesService },
   ],
+  // 12.1 — admin dashboard agregace (countAll).
+  exports: ['IIkarosDiscussionsRepository'],
 })
 export class IkarosDiscussionsModule implements OnModuleInit {
   constructor(

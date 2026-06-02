@@ -13,6 +13,8 @@ export interface IIkarosDiscussionsRepository {
     limit: number,
   ): Promise<IkarosDiscussion[]>;
   countPending(): Promise<number>;
+  /** 12.1 — celkový počet diskuzí (admin dashboard). */
+  countAll(): Promise<number>;
   findManagedWithJoinRequests(userId: string): Promise<IkarosDiscussion[]>;
   findByIds(ids: string[]): Promise<IkarosDiscussion[]>;
   findById(id: string): Promise<IkarosDiscussion | null>;

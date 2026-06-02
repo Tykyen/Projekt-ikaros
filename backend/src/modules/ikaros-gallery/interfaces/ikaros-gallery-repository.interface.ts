@@ -27,6 +27,8 @@ export interface IIkarosGalleryRepository {
   ): Promise<Record<GalleryStatus, number>>;
   countByCategory(category: string): Promise<number>;
   countPending(): Promise<number>;
+  /** 12.1 — celkový počet obrázků (admin dashboard). */
+  countAll(): Promise<number>;
   findPendingPaginated(
     offset: number,
     limit: number,
