@@ -316,6 +316,17 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
         if (key || val) lines.push(`${key}: ${val}`);
       });
     }
+    // N-13 — indexuj i obsah běžných sekcí stránky. `akjTabs` (chráněné
+    // záložky) se ZÁMĚRNĚ neindexují, aby semantic search neleakoval chráněný
+    // obsah uživatelům s page-access, ale bez tab-access.
+    if (page.sections?.length) {
+      for (const s of page.sections) {
+        const heading = stripAllTags(s.title ?? '');
+        const body = stripAllTags(s.content ?? '');
+        if (heading) lines.push(`## ${heading}`);
+        if (body) lines.push(body);
+      }
+    }
     const fullText = lines.join('\n');
     return this.chunkText(fullText, this.chunkSize, this.chunkOverlap).map(
       (text) => ({ text }),
@@ -327,6 +338,11 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
       title: page.title,
       plainText: page.plainText,
       table: page.table,
+      // N-13 — sekce v hashi, jinak se změna obsahu sekce nere-indexuje.
+      sections: page.sections?.map((s) => ({
+        title: s.title,
+        content: s.content,
+      })),
       accessRequirements: page.accessRequirements,
     });
     return crypto.createHash('sha256').update(data).digest('hex').slice(0, 8);
