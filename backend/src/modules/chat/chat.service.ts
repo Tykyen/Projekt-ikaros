@@ -1211,17 +1211,10 @@ export class ChatService implements OnApplicationBootstrap {
     );
     for (const m of memberships) {
       if (m.userId === senderId) continue;
-      if (m.role === WorldRole.Zadatel) continue;
-      if (
-        channel.accessMode === 'members' &&
-        !channel.allowedMemberIds.includes(m.userId)
-      )
-        continue;
-      if (
-        channel.accessMode === 'roles' &&
-        !channel.allowedRoles.includes(m.role)
-      )
-        continue;
+      // N-19 — použij stejnou access logiku jako čtení kanálu. Dřív ad-hoc
+      // kontrola vylučovala jen Zadatel → Čtenář (role < Hrac) dostával unread
+      // badge i pro `accessMode:'all'` kanály (ty vyžadují Hrac+), kam nevidí.
+      if (!this.hasAccessGivenMembership(channel, m.userId, m)) continue;
       this.eventEmitter.emit('chat.unread.updated', {
         userId: m.userId,
         channelId: channel.id,
@@ -1447,11 +1440,20 @@ export class ChatService implements OnApplicationBootstrap {
   ): Promise<void> {
     const groups = await this.groupRepo.findByWorldId(worldId);
     const linkedGroups = groups.filter((g) => g.linkedWorldGroup);
+    // N-20 — PomocnyPJ+ má přístup k linked 'members' kanálům dle ROLE
+    // (createWorldGroupChannel je tak přidává). Nesmí být odebrán jen proto,
+    // že nemá přiřazenou družinu (currentGroup=null) — jinak při každé změně
+    // membershipu ztratil přístup a dostával 403 na getMessages/send.
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    const isStaff = !!membership && membership.role >= WorldRole.PomocnyPJ;
     for (const group of linkedGroups) {
       const channels = await this.channelRepo.findByGroupId(group.id);
       for (const channel of channels) {
         if (channel.accessMode !== 'members') continue;
-        const shouldHave = group.linkedWorldGroup === currentGroup;
+        const shouldHave = isStaff || group.linkedWorldGroup === currentGroup;
         const hasIt = channel.allowedMemberIds.includes(userId);
         if (shouldHave && !hasIt) {
           await this.channelRepo.update(channel.id, {
