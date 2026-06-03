@@ -171,6 +171,14 @@ export class CharactersService {
     return this.charRepo.findByUserAndWorld(userId, worldId);
   }
 
+  /** N-24 — všechny PC postavy hráče ve světě (může jich mít víc). */
+  async findUserCharacters(
+    userId: string,
+    worldId: string,
+  ): Promise<Character[]> {
+    return this.charRepo.findManyByUserAndWorld(userId, worldId);
+  }
+
   async getPlayerCharacters(worldId: string): Promise<PlayerCharacter[]> {
     // 10.2c-edit-6: rozšířený DTO o id/isNpc/userId — FE PcPalette potřebuje
     // `id` pro spawn payload (`characterId`) a `userId` pro UI rozlišení

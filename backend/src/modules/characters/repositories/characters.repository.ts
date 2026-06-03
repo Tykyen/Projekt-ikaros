@@ -61,6 +61,20 @@ export class MongoCharactersRepository
       : null;
   }
 
+  /** N-24 — všechny PC postavy jednoho hráče ve světě (hráč jich může mít víc). */
+  async findManyByUserAndWorld(
+    userId: string,
+    worldId: string,
+  ): Promise<Character[]> {
+    const docs = await this.model
+      .find({ userId, worldId, isNpc: false })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
   async findPlayerCharacters(worldId: string): Promise<Character[]> {
     // 10.2c-edit-6: vrací VŠECHNY PC postavy (isNpc=false), včetně těch
     // bez ownera (userId null/missing) a pre-9.2 postav bez pole `kind`.

@@ -9,6 +9,8 @@ export interface ICharactersRepository {
     userId: string,
     worldId: string,
   ): Promise<Character | null>;
+  /** N-24 — všechny PC postavy jednoho hráče ve světě. */
+  findManyByUserAndWorld(userId: string, worldId: string): Promise<Character[]>;
   findPlayerCharacters(worldId: string): Promise<Character[]>;
   findDirectory(worldId: string): Promise<CharacterDirectoryEntry[]>;
   existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean>;

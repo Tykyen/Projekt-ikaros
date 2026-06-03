@@ -280,13 +280,16 @@ export class CampaignPurchaseService {
     if (isStaff) {
       if (characterId) filter.characterId = characterId;
     } else {
-      // Hráč vidí jen nákupy své postavy.
-      const character = await this.charactersService.findByUser(
+      // N-24 — hráč může mít víc postav; vidí nákupy všech svých postav.
+      // characterId (pokud zadán) se respektuje jen když patří hráči.
+      const characters = await this.charactersService.findUserCharacters(
         userId,
         worldId,
       );
-      if (!character) return [];
-      filter.characterId = character.id;
+      const ids = characters.map((c) => c.id);
+      if (ids.length === 0) return [];
+      filter.characterId =
+        characterId && ids.includes(characterId) ? characterId : { $in: ids };
     }
     return this.purchaseRepo.findMany(filter);
   }
