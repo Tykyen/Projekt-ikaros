@@ -1174,6 +1174,25 @@ export class WorldsService implements OnApplicationBootstrap {
     return updated;
   }
 
+  /**
+   * N-18 — ověří, že membership patří světu z URL. Controllery membership
+   * endpointů to volají jako pre-check; dřív se `:worldId` v cestě nevynucoval
+   * (service si worldId brala z membershipu), takže URL izolace byla jen
+   * dekorativní (validní membershipId jiného světa prošel).
+   */
+  async assertMembershipInWorld(
+    membershipId: string,
+    worldId: string,
+  ): Promise<void> {
+    const membership = await this.membershipRepo.findById(membershipId);
+    if (!membership || membership.worldId !== worldId)
+      throw new NotFoundException({
+        statusCode: 404,
+        code: 'MEMBERSHIP_NOT_FOUND',
+        message: 'Členství nenalezeno',
+      });
+  }
+
   async updateMemberRole(
     membershipId: string,
     role: WorldRole,

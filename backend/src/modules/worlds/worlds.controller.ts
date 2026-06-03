@@ -304,10 +304,12 @@ export class WorldsController {
   @ApiOperation({ summary: 'Opuštění nebo odebrání člena ze světa' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  leave(
+  async leave(
+    @Param('worldId') worldId: string,
     @Param('membershipId') membershipId: string,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.worldsService.assertMembershipInWorld(membershipId, worldId); // N-18
     return this.worldsService.leave(membershipId, user);
   }
 
@@ -368,11 +370,13 @@ export class WorldsController {
   @ApiOperation({ summary: 'Změna role člena ve světě' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  updateMemberRole(
+  async updateMemberRole(
+    @Param('worldId') worldId: string,
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberRoleDto,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.worldsService.assertMembershipInWorld(membershipId, worldId); // N-18
     return this.worldsService.updateMemberRole(membershipId, dto.role, user);
   }
 
@@ -381,11 +385,13 @@ export class WorldsController {
   @ApiOperation({ summary: 'Změna skupiny člena ve světě' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  updateMemberGroup(
+  async updateMemberGroup(
+    @Param('worldId') worldId: string,
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberGroupDto,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.worldsService.assertMembershipInWorld(membershipId, worldId); // N-18
     return this.worldsService.updateMemberGroup(membershipId, dto.group, user);
   }
 
@@ -394,11 +400,13 @@ export class WorldsController {
   @ApiOperation({ summary: 'Přiřazení postavy členovi světa' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  updateMemberCharacter(
+  async updateMemberCharacter(
+    @Param('worldId') worldId: string,
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberCharacterDto,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.worldsService.assertMembershipInWorld(membershipId, worldId); // N-18
     return this.worldsService.updateMemberCharacter(
       membershipId,
       dto.characterPath,
@@ -412,11 +420,13 @@ export class WorldsController {
   @ApiOperation({ summary: 'Aktualizace AKJ hodnoty člena' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  updateMemberAkj(
+  async updateMemberAkj(
+    @Param('worldId') worldId: string,
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberAkjDto,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.worldsService.assertMembershipInWorld(membershipId, worldId); // N-18
     return this.worldsService.updateMemberAkj(membershipId, dto.akj, user);
   }
 
@@ -425,11 +435,13 @@ export class WorldsController {
   @ApiOperation({ summary: 'Toggle isFree flagu člena' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  updateMemberFree(
+  async updateMemberFree(
+    @Param('worldId') worldId: string,
     @Param('membershipId') membershipId: string,
     @Body() dto: UpdateMemberFreeDto,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.worldsService.assertMembershipInWorld(membershipId, worldId); // N-18
     return this.worldsService.updateMemberFree(membershipId, dto.isFree, user);
   }
 

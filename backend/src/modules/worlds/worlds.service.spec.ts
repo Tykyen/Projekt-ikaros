@@ -461,6 +461,34 @@ describe('WorldsService', () => {
       expect(result.isFree).toBe(true);
     });
 
+    it('N-18 — assertMembershipInWorld: membership cizího světa → 404', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'mem1',
+        worldId: 'jiny-svet',
+        userId: 'u1',
+        role: WorldRole.Hrac,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      await expect(
+        service.assertMembershipInWorld('mem1', 'world1'),
+      ).rejects.toMatchObject({ response: { code: 'MEMBERSHIP_NOT_FOUND' } });
+    });
+
+    it('N-18 — assertMembershipInWorld: membership patří světu → projde', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'mem1',
+        worldId: 'world1',
+        userId: 'u1',
+        role: WorldRole.Hrac,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      await expect(
+        service.assertMembershipInWorld('mem1', 'world1'),
+      ).resolves.toBeUndefined();
+    });
+
     it('hodí ForbiddenException pro vlastníka světa BEZ membershipu (vlastník ≠ PJ)', async () => {
       const ownerWithoutMembership = {
         id: 'user1',
