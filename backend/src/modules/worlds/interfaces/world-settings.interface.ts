@@ -25,6 +25,13 @@ export interface HeadlineNode {
   children?: HeadlineNode[];
 }
 
+/** 12.2 — „Last info" box: krátké oznámení PJ členům světa. `updatedAt` plní server. */
+export interface LastInfo {
+  text: string;
+  visible: boolean;
+  updatedAt: Date;
+}
+
 export interface WorldCurrencyItem {
   id: string;
   code: string;
@@ -75,6 +82,8 @@ export interface WorldSettings {
    * `world.defaultCalendarConfigSlug` (ten dál řídí ostatní moduly).
    */
   timelineCalendarSlug: string | null;
+  /** 12.2 — „Last info" box (oznámení PJ). `null` = nenastaveno. */
+  lastInfo?: LastInfo | null;
   /**
    * 9.4 dluh #1 — in-game date pro advance-day mechanism.
    * `null` = nezahájen herní čas (advance-day se inicializuje z `new Date()`).

@@ -985,26 +985,42 @@ export class WorldsService implements OnApplicationBootstrap {
   private sanitizeUpdateSettingsDto(
     dto: UpdateWorldSettingsDto,
   ): UpdateWorldSettingsDto {
-    if (!dto.characterTabVisibility) return dto;
+    let out = dto;
+    // 12.2 — server je autorita nad `lastInfo.updatedAt` (klientský dismiss se
+    // na něj váže). `null` = smazat oznámení.
+    if (dto.lastInfo !== undefined) {
+      out = {
+        ...out,
+        lastInfo:
+          dto.lastInfo === null
+            ? null
+            : ({
+                text: dto.lastInfo.text,
+                visible: dto.lastInfo.visible,
+                updatedAt: new Date(),
+              } as unknown as UpdateWorldSettingsDto['lastInfo']),
+      };
+    }
+    if (!out.characterTabVisibility) return out;
     const whitelist = CHARACTER_TAB_WHITELIST as readonly string[];
     const clean = (list?: string[]): string[] | undefined => {
       if (!list) return undefined;
       const seen = new Set<string>();
-      const out: string[] = [];
+      const acc: string[] = [];
       for (const item of list) {
         if (!whitelist.includes(item)) continue;
         if (seen.has(item)) continue;
         seen.add(item);
-        out.push(item);
-        if (out.length >= 6) break;
+        acc.push(item);
+        if (acc.length >= 6) break;
       }
-      return out;
+      return acc;
     };
     return {
-      ...dto,
+      ...out,
       characterTabVisibility: {
-        PostavaHrace: clean(dto.characterTabVisibility.PostavaHrace),
-        NPC: clean(dto.characterTabVisibility.NPC),
+        PostavaHrace: clean(out.characterTabVisibility.PostavaHrace),
+        NPC: clean(out.characterTabVisibility.NPC),
       },
     };
   }

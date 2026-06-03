@@ -49,6 +49,11 @@ export class WorldSettingsSchemaClass {
   // 9.4 dluh #1 — in-game date pro advance-day mechanism.
   // null = nezahájen herní čas (init při prvním advance z `new Date()`).
   @Prop({ type: Date, default: null }) currentInGameDate: Date | null;
+  // 12.2 — „Last info" box: krátké oznámení PJ členům světa (proužek pod
+  // hlavičkou). `null` = nenastaveno. `updatedAt` doplňuje server při změně
+  // textu (klientský dismiss se váže právě na něj).
+  @Prop({ type: Object, default: null, _id: false, required: false })
+  lastInfo?: { text: string; visible: boolean; updatedAt: Date } | null;
   @Prop({ default: Date.now }) updatedAt: Date;
 }
 

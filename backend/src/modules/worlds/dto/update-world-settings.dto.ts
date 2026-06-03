@@ -51,6 +51,23 @@ export class MenuTemplateDto {
   items: MenuTemplateItemDto[];
 }
 
+export class HeadlineNodeDto {
+  @IsString() id: string;
+  @IsString() @MaxLength(80) label: string;
+  @IsBoolean() isGroup: boolean;
+  @IsOptional() @IsString() @MaxLength(512) to?: string;
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HeadlineNodeDto)
+  children?: HeadlineNodeDto[];
+}
+
+export class LastInfoDto {
+  @IsString() @MaxLength(280) text: string;
+  @IsBoolean() visible: boolean;
+}
+
 export class SchemaBlockDto {
   @IsString() key: string;
   @IsString() label: string;
@@ -83,6 +100,21 @@ export class UpdateWorldSettingsDto {
   @Type(() => WorldCurrencyItemDto)
   currencies?: WorldCurrencyItemDto[];
   @IsOptional() @IsBoolean() hideDefaultWeather?: boolean;
+  // 12.2 — vlastní navigace světa (strom skupin + odkazů). Dřív v DTO chyběla,
+  // takže ji ValidationPipe whitelist tiše zahazoval — teď validovaná.
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HeadlineNodeDto)
+  customHeadline?: HeadlineNodeDto[];
+  // 12.2 — „Last info" box. `null` = smazat oznámení. `updatedAt` plní server.
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null, {
+    message: 'lastInfo musí být objekt nebo null',
+  })
+  @ValidateNested()
+  @Type(() => LastInfoDto)
+  lastInfo?: LastInfoDto | null;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

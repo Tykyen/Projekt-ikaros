@@ -1745,6 +1745,61 @@ describe('WorldsService', () => {
     });
   });
 
+  // 12.2 — „Last info" box: server plní updatedAt, null = smazat.
+  describe('updateSettings — lastInfo (12.2)', () => {
+    const pjMembership = { id: 'm-pj', role: WorldRole.PJ };
+
+    beforeEach(() => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(pjMembership);
+      mockSettingsRepo.upsert.mockImplementation((_id, data) =>
+        Promise.resolve({ id: 's1', worldId: 'world1', ...data }),
+      );
+    });
+
+    it('uloží text + visible a doplní updatedAt (Date)', async () => {
+      await service.updateSettings(
+        'world1',
+        { lastInfo: { text: 'Sezení v pátek', visible: true } },
+        mockRequester,
+      );
+      const call = mockSettingsRepo.upsert.mock.calls[0][1];
+      expect(call.lastInfo.text).toBe('Sezení v pátek');
+      expect(call.lastInfo.visible).toBe(true);
+      expect(call.lastInfo.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it('lastInfo=null smaže oznámení', async () => {
+      await service.updateSettings('world1', { lastInfo: null }, mockRequester);
+      const call = mockSettingsRepo.upsert.mock.calls[0][1];
+      expect(call.lastInfo).toBeNull();
+    });
+
+    it('chybějící lastInfo nechá pole beze změny', async () => {
+      await service.updateSettings(
+        'world1',
+        { hiddenNavItems: ['mapa'] },
+        mockRequester,
+      );
+      const call = mockSettingsRepo.upsert.mock.calls[0][1];
+      expect(call.lastInfo).toBeUndefined();
+    });
+
+    it('403 pro Hrac', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'm-h',
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.updateSettings(
+          'world1',
+          { lastInfo: { text: 'x', visible: true } },
+          { ...mockRequester, role: UserRole.Ikarus },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
   // 9.3 — timelineCalendarSlug persist (A → B → null → A pattern dle
   // memory/feedback_persist_across_variants).
   describe('updateSettings — timelineCalendarSlug persistence', () => {

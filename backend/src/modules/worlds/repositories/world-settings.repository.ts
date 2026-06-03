@@ -54,6 +54,7 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
         (doc.characterTabVisibility as WorldSettings['characterTabVisibility']) ??
         undefined,
       timelineCalendarSlug: (doc.timelineCalendarSlug as string | null) ?? null,
+      lastInfo: (doc.lastInfo as WorldSettings['lastInfo']) ?? null,
       currentInGameDate: (doc.currentInGameDate as Date | null) ?? null,
       updatedAt: doc.updatedAt as Date,
     };
