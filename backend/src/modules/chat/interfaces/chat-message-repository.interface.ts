@@ -20,6 +20,19 @@ export interface IChatMessageRepository {
     query: string,
     limit: number,
   ): Promise<ChatMessage[]>;
+  /**
+   * Spec 13.2a — feed zpráv napříč více kanály (cross-world souhrn), desc dle
+   * `_id`, cursor `before`. `managerChannelIds` = kanály, kde requester vidí
+   * i cizí whispery (PJ+); `memberChannelIds` = kanály, kde vidí jen veřejné
+   * zprávy a vlastní whispery (`visibleTo` prázdné nebo obsahuje `userId`).
+   */
+  findFeed(opts: {
+    managerChannelIds: string[];
+    memberChannelIds: string[];
+    userId: string;
+    before?: string;
+    limit: number;
+  }): Promise<ChatMessage[]>;
   /** Krok 6.2h — idempotence: najde už uloženou zprávu se shodným nonce. */
   findByNonce(
     channelId: string,

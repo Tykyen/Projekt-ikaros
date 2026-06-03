@@ -18,6 +18,7 @@ import type { ChatGroup } from './interfaces/chat-group.interface';
 import type { ChatChannel } from './interfaces/chat-channel.interface';
 import type {
   ChatMessage,
+  ChatFeedItem,
   ChatSearchResult,
 } from './interfaces/chat-message.interface';
 import type { RequestUser } from '../worlds/worlds.service';
@@ -614,6 +615,93 @@ export class ChatService implements OnApplicationBootstrap {
    * D-040 — batch enrich `senderIsDeleted` na pole ChatMessage.
    * Cache 60s v UsersService minimalizuje DB lookupy pro hot chat.
    */
+  /**
+   * Spec 13.2a — „Souhrn chatů": zprávy napříč VŠEMI světy, kde je requester
+   * členem, sjednotně na jedno místo. Access-safe: server odvodí množinu
+   * kanálů z členství + per-kanál access (`hasAccessGivenMembership`); PJ+ vidí
+   * i cizí whispery, ostatní jen veřejné + vlastní. Nikdy nevrací nic, co
+   * uživatel nevidí i v samotném chatu světa → žádný cross-world leak.
+   *
+   * Cílová persona = hráč / PJ světa (ne admin/superadmin dohled): feed jede
+   * striktně přes `membership`, takže obsahuje jen MÉ světy.
+   */
+  async getFeed(
+    requester: RequestUser,
+    opts: { before?: string; limit?: number },
+  ): Promise<ChatFeedItem[]> {
+    const memberships = await this.membershipRepo.findByUserId(requester.id);
+    const managerChannelIds: string[] = [];
+    const memberChannelIds: string[] = [];
+    const channelMeta = new Map<
+      string,
+      { worldId: string; channelName: string }
+    >();
+
+    await Promise.all(
+      memberships.map(async (m) => {
+        // Žadatel nevidí žádný kanál (stejně jako v chatu světa).
+        if (m.role === WorldRole.Zadatel) return;
+        const channels = await this.channelRepo.findByWorldId(m.worldId);
+        const isManager = m.role >= WorldRole.PomocnyPJ;
+        for (const c of channels) {
+          if (c.isDeleted) continue;
+          if (isManager) {
+            managerChannelIds.push(c.id);
+          } else if (this.hasAccessGivenMembership(c, requester.id, m)) {
+            memberChannelIds.push(c.id);
+          } else {
+            continue;
+          }
+          channelMeta.set(c.id, { worldId: m.worldId, channelName: c.name });
+        }
+      }),
+    );
+
+    const limit = Math.min(
+      Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50,
+      100,
+    );
+    const messages = await this.messageRepo.findFeed({
+      managerChannelIds,
+      memberChannelIds,
+      userId: requester.id,
+      before: opts.before,
+      limit,
+    });
+
+    const enriched = await this.enrichTombstoneSenders(messages);
+
+    // Názvy světů (batch dotčených worldId přes membership meta).
+    const worldIds = Array.from(
+      new Set(
+        enriched
+          .map((m) => channelMeta.get(m.channelId)?.worldId)
+          .filter((w): w is string => !!w),
+      ),
+    );
+    const worldNames = new Map<string, string>();
+    await Promise.all(
+      worldIds.map(async (wid) => {
+        try {
+          const w = await this.worldsService.findById(wid);
+          worldNames.set(wid, w.name);
+        } catch {
+          worldNames.set(wid, '');
+        }
+      }),
+    );
+
+    return enriched.map((m) => {
+      const meta = channelMeta.get(m.channelId);
+      return {
+        ...m,
+        worldId: meta?.worldId ?? m.worldId,
+        worldName: meta ? (worldNames.get(meta.worldId) ?? '') : '',
+        channelName: meta?.channelName ?? '',
+      };
+    });
+  }
+
   private async enrichTombstoneSenders(
     messages: ChatMessage[],
   ): Promise<ChatMessage[]> {
@@ -821,33 +909,48 @@ export class ChatService implements OnApplicationBootstrap {
     await this.readRepo.upsert(requester.id, channelId, message.id);
     await this.broadcastUnreadUpdate(channel, requester.id);
 
-    // Push notifikace — fire-and-forget. Discord-like: mentions mají prioritu
-    // a omezují recipient set jen na zmíněné.
+    // Push notifikace + 13.2a feed bump — fire-and-forget.
     void (async () => {
       try {
-        let recipientIds: string[];
-        if (message.visibleTo && message.visibleTo.length > 0) {
-          // whisper: push jen příjemcům (bez odesílatele)
-          recipientIds = message.visibleTo.filter((id) => id !== requester.id);
+        // whisper → jen příjemci; jinak všichni s přístupem ke kanálu.
+        const whisperRecipients =
+          message.visibleTo && message.visibleTo.length > 0
+            ? message.visibleTo.filter((id) => id !== requester.id)
+            : null;
+        const accessRecipients =
+          whisperRecipients ??
+          (await this.resolveChannelRecipients(channel, requester.id));
+
+        // Push — Discord-like: mentions mají prioritu a omezují set jen na zmíněné.
+        let pushIds: string[];
+        if (whisperRecipients) {
+          pushIds = whisperRecipients;
         } else if ((message.mentions ?? []).length > 0) {
-          // 6.2i — mention-only push: kanálový push pošlou jen mentionovaným.
-          recipientIds = (message.mentions ?? []).filter(
+          pushIds = (message.mentions ?? []).filter(
             (id) => id !== requester.id,
           );
         } else {
-          recipientIds = await this.resolveChannelRecipients(
-            channel,
-            requester.id,
-          );
+          pushIds = accessRecipients;
         }
-        if (recipientIds.length > 0) {
-          await this.pushService.notifyUsers(recipientIds, {
+        if (pushIds.length > 0) {
+          await this.pushService.notifyUsers(pushIds, {
             title: message.overrideName ?? message.senderName,
             body: (message.content ?? '').slice(0, 100),
           });
         }
+
+        // 13.2a — „Souhrn chatů" živě: leak-safe signál (jen worldId, bez obsahu)
+        // do user roomů všech, kdo zprávu uvidí ve feedu. Klient na `chat:feed:bump`
+        // refetchne `/chat/feed` (filtrovaný serverem) → žádný cross-world leak.
+        // (PJ cizí whisper není v signálu — okrajové; přiteče dalším refetchem.)
+        if (accessRecipients.length > 0) {
+          this.eventEmitter.emit('chat.feed.notify', {
+            recipientIds: accessRecipients,
+            worldId: channel.worldId,
+          });
+        }
       } catch {
-        // push je best-effort
+        // best-effort
       }
     })();
 

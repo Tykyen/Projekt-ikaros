@@ -28,12 +28,14 @@ export class MongoIkarosMessagesRepository
 
   async findInbox(
     recipientId: string,
-    opts: { limit: number; before?: string },
+    opts: { limit: number; before?: string; systemOnly?: boolean },
   ): Promise<IkarosMessage[]> {
     const filter: Record<string, unknown> = {
       recipientId,
       deletedByRecipient: false,
     };
+    // 13.2b — záložka „Události" = jen systémová oznámení.
+    if (opts.systemOnly) filter.senderId = 'system';
     if (opts.before && Types.ObjectId.isValid(opts.before)) {
       filter['_id'] = { $lt: new Types.ObjectId(opts.before) };
     }
@@ -82,14 +84,17 @@ export class MongoIkarosMessagesRepository
     );
   }
 
-  async countUnreadMessages(recipientId: string): Promise<number> {
-    return this.model
-      .countDocuments({
-        recipientId,
-        isRead: false,
-        deletedByRecipient: false,
-      })
-      .exec();
+  async countUnreadMessages(
+    recipientId: string,
+    systemOnly = false,
+  ): Promise<number> {
+    const filter: Record<string, unknown> = {
+      recipientId,
+      isRead: false,
+      deletedByRecipient: false,
+    };
+    if (systemOnly) filter.senderId = 'system';
+    return this.model.countDocuments(filter).exec();
   }
 
   async save(msg: Partial<IkarosMessage>): Promise<IkarosMessage> {

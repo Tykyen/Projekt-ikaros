@@ -119,10 +119,12 @@ export class IkarosMessagesService {
     recipientId: string,
     limit = 50,
     before?: string,
+    systemOnly = false,
   ): Promise<IkarosMessage[]> {
     return this.msgRepo.findInbox(recipientId, {
       limit: Math.min(limit, 100),
       before,
+      systemOnly,
     });
   }
 
@@ -137,9 +139,15 @@ export class IkarosMessagesService {
     });
   }
 
-  async getUnreadCount(recipientId: string): Promise<{ unreadCount: number }> {
-    const unreadCount = await this.msgRepo.countUnreadMessages(recipientId);
-    return { unreadCount };
+  async getUnreadCount(
+    recipientId: string,
+  ): Promise<{ unreadCount: number; systemUnread: number }> {
+    const [unreadCount, systemUnread] = await Promise.all([
+      this.msgRepo.countUnreadMessages(recipientId),
+      this.msgRepo.countUnreadMessages(recipientId, true),
+    ]);
+    // 13.2b — `systemUnread` = nepřečtená systémová oznámení (badge u zvonku).
+    return { unreadCount, systemUnread };
   }
 
   async getById(id: string, userId: string): Promise<IkarosMessage> {

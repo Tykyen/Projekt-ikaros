@@ -8,6 +8,7 @@ import { MongoIkarosMessagesRepository } from './repositories/ikaros-messages.re
 import { IkarosMessagesService } from './ikaros-messages.service';
 import { IkarosMessagesGateway } from './ikaros-messages.gateway';
 import { IkarosMessagesController } from './ikaros-messages.controller';
+import { SystemEventsListener } from './system-events.listener';
 import { AuthModule } from '../auth/auth.module';
 import { FriendshipsRepositoryModule } from '../friendships/friendships-repository.module';
 
@@ -28,6 +29,7 @@ import { FriendshipsRepositoryModule } from '../friendships/friendships-reposito
       useClass: MongoIkarosMessagesRepository,
     },
     IkarosMessagesGateway,
+    SystemEventsListener,
   ],
   exports: [IkarosMessagesService],
 })

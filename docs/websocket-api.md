@@ -35,6 +35,7 @@ Zpracovává typing indikátory a presence konverzací. Zprávy, kanály, skupin
 | `chat:group:updated` | `ChatGroup` | `world:{worldId}` | Skupina kanálů byla upravena |
 | `chat:group:deleted` | `string` (groupId) | `world:{worldId}` | Skupina kanálů byla smazána |
 | `chat:unread` | `{ channelId: string; count: number }` | `user:{userId}` | Aktualizace počtu nepřečtených zpráv |
+| `chat:feed:bump` | `{ worldId: string }` | `user:{userId}` | 13.2a — signál „nová zpráva v některém z tvých kanálů" do user roomů příjemců; klient refetchne `GET /chat/feed` (leak-safe: bez obsahu, server filtruje). Vlastní zprávy se odesílateli neposílají. |
 | `chat:presence` | `{ channelId: string; userId: string; username: string; avatarUrl?: string; worldRole: number; action: 'join' \| 'leave' }` | `chat:{channelId}` | Příchod/odchod uživatele v konverzaci (krok 6.1d); in-memory, jen běh procesu |
 
 ---

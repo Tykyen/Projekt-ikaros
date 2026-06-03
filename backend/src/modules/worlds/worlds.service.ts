@@ -1297,6 +1297,21 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
+
+    // 13.2b — když PJ přiřadí postavu JINÉMU členovi (ne sám sobě) a postava se
+    // reálně změnila, pošli mu systémovou zprávu („Přiřazena postava").
+    if (
+      characterPath &&
+      membership.userId !== requester.id &&
+      membership.characterPath !== characterPath
+    ) {
+      this.eventEmitter.emit('world.character.assigned', {
+        worldId: membership.worldId,
+        worldName: world.name,
+        userId: membership.userId,
+        characterPath,
+      });
+    }
     return updated;
   }
 

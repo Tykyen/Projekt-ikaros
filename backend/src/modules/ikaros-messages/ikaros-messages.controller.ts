@@ -42,8 +42,14 @@ export class IkarosMessagesController {
     @CurrentUser() user: RequestUser,
     @Query('limit') limit?: string,
     @Query('before') before?: string,
+    @Query('system') system?: string,
   ) {
-    return this.service.getInbox(user.id, this.parseLimit(limit), before);
+    return this.service.getInbox(
+      user.id,
+      this.parseLimit(limit),
+      before,
+      system === 'true',
+    );
   }
 
   @Get('sent')

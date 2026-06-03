@@ -216,10 +216,11 @@ describe('IkarosMessagesService', () => {
   });
 
   describe('getUnreadCount', () => {
-    it('vrátí { unreadCount }', async () => {
-      msgRepo.countUnreadMessages.mockResolvedValue(5);
+    it('vrátí { unreadCount, systemUnread }', async () => {
+      msgRepo.countUnreadMessages.mockResolvedValueOnce(5); // celkem
+      msgRepo.countUnreadMessages.mockResolvedValueOnce(2); // jen systémové
       const result = await service.getUnreadCount('recipient1');
-      expect(result).toEqual({ unreadCount: 5 });
+      expect(result).toEqual({ unreadCount: 5, systemUnread: 2 });
     });
   });
 

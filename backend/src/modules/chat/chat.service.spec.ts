@@ -17,6 +17,7 @@ import { WorldsService } from '../worlds/worlds.service';
 const mockWorldsService = {
   findAll: jest.fn().mockResolvedValue([]),
   getSettings: jest.fn().mockResolvedValue(null),
+  findById: jest.fn(),
 };
 
 /** D-040 — tombstone batch enrich; default = všichni autoři aktivní. */
@@ -102,6 +103,7 @@ describe('ChatService', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
@@ -150,6 +152,140 @@ describe('ChatService', () => {
     }).compile();
     service = module.get(ChatService);
     jest.clearAllMocks();
+  });
+
+  describe('getFeed (13.2a — souhrn chatů cross-world)', () => {
+    const baseMsg = {
+      id: 'm',
+      channelId: 'ch1',
+      worldId: 'world1',
+      senderId: 'user9',
+      senderName: 'X',
+      content: 'ahoj',
+      reactions: {},
+      mentions: [],
+      isEdited: false,
+      isDeleted: false,
+      customFont: null,
+      customFontSize: null,
+      color: null,
+      isDiceRoll: false,
+      dicePayload: null,
+      diceSkin: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const rolesChannel = {
+      ...mockChannel,
+      id: 'ch-roles',
+      name: 'PJ kanál',
+      accessMode: 'roles' as const,
+      allowedRoles: [WorldRole.PomocnyPJ, WorldRole.PJ],
+    };
+
+    it('hráč: kanál world1 jde do memberChannelIds (ne manager — nevidí cizí whispery)', async () => {
+      mockMembershipRepo.findByUserId.mockResolvedValue([
+        { ...mockHracMembership, userId: 'user2', worldId: 'world1' },
+      ]);
+      mockChannelRepo.findByWorldId.mockResolvedValue([mockChannel]);
+      mockWorldsService.findById.mockResolvedValue({
+        id: 'world1',
+        name: 'Svět 1',
+      });
+      mockMessageRepo.findFeed.mockResolvedValue([
+        { ...baseMsg, id: 'msg1', channelId: 'ch1', worldId: 'world1' },
+      ]);
+
+      const res = await service.getFeed(
+        { id: 'user2', role: UserRole.Hrac, username: 'user2' },
+        {},
+      );
+
+      const arg = mockMessageRepo.findFeed.mock.calls[0][0];
+      expect(arg.memberChannelIds).toContain('ch1');
+      expect(arg.managerChannelIds).toEqual([]);
+      expect(res[0]).toMatchObject({
+        channelName: 'obecný',
+        worldName: 'Svět 1',
+        worldId: 'world1',
+      });
+    });
+
+    it('PJ: kanály světa jdou do managerChannelIds (vidí všechny whispery)', async () => {
+      mockMembershipRepo.findByUserId.mockResolvedValue([mockPJMembership]);
+      mockChannelRepo.findByWorldId.mockResolvedValue([
+        mockChannel,
+        rolesChannel,
+      ]);
+      mockWorldsService.findById.mockResolvedValue({
+        id: 'world1',
+        name: 'S1',
+      });
+      mockMessageRepo.findFeed.mockResolvedValue([]);
+
+      await service.getFeed(mockPJ, {});
+
+      const arg = mockMessageRepo.findFeed.mock.calls[0][0];
+      expect(arg.managerChannelIds).toEqual(
+        expect.arrayContaining(['ch1', 'ch-roles']),
+      );
+      expect(arg.memberChannelIds).toEqual([]);
+    });
+
+    it('hráč nezahrne role-restricted kanál, kam nemá přístup (žádný leak)', async () => {
+      mockMembershipRepo.findByUserId.mockResolvedValue([
+        { ...mockHracMembership, userId: 'user2', worldId: 'world1' },
+      ]);
+      mockChannelRepo.findByWorldId.mockResolvedValue([
+        mockChannel,
+        rolesChannel,
+      ]);
+      mockWorldsService.findById.mockResolvedValue({
+        id: 'world1',
+        name: 'S1',
+      });
+      mockMessageRepo.findFeed.mockResolvedValue([]);
+
+      await service.getFeed(
+        { id: 'user2', role: UserRole.Hrac, username: 'user2' },
+        {},
+      );
+
+      const arg = mockMessageRepo.findFeed.mock.calls[0][0];
+      expect(arg.memberChannelIds).toEqual(['ch1']);
+      expect(arg.memberChannelIds).not.toContain('ch-roles');
+      expect(arg.managerChannelIds).toEqual([]);
+    });
+
+    it('žadatel nezahrne žádný kanál svého světa', async () => {
+      mockMembershipRepo.findByUserId.mockResolvedValue([
+        {
+          ...mockHracMembership,
+          userId: 'u3',
+          worldId: 'world1',
+          role: WorldRole.Zadatel,
+        },
+      ]);
+      mockChannelRepo.findByWorldId.mockResolvedValue([mockChannel]);
+      mockMessageRepo.findFeed.mockResolvedValue([]);
+
+      await service.getFeed(
+        { id: 'u3', role: UserRole.Hrac, username: 'u3' },
+        {},
+      );
+
+      const arg = mockMessageRepo.findFeed.mock.calls[0][0];
+      expect(arg.managerChannelIds).toEqual([]);
+      expect(arg.memberChannelIds).toEqual([]);
+      expect(mockChannelRepo.findByWorldId).not.toHaveBeenCalled();
+    });
+
+    it('limit je ořezán na max 100', async () => {
+      mockMembershipRepo.findByUserId.mockResolvedValue([]);
+      mockMessageRepo.findFeed.mockResolvedValue([]);
+      await service.getFeed(mockPJ, { limit: 500 });
+      expect(mockMessageRepo.findFeed.mock.calls[0][0].limit).toBe(100);
+    });
   });
 
   describe('createGroup', () => {
@@ -1540,6 +1676,7 @@ describe('sendMessage — new fields', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
@@ -1749,6 +1886,7 @@ describe('toggleReaction', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
@@ -1895,6 +2033,7 @@ describe('sendMessage — character mentions', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn().mockImplementation((m: Record<string, unknown>) => {
       const saved = { ...m, id: 'msg-new', createdAt: new Date() };
       savedMessages.push(saved);
@@ -2091,6 +2230,7 @@ describe('sendMessage — attachments', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
@@ -2209,6 +2349,7 @@ describe('findChannelForUpload', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
@@ -2333,6 +2474,7 @@ describe('getMessages — whisper filtering', () => {
     countAfter: jest.fn(),
     countMentionsAfter: jest.fn(),
     searchInChannels: jest.fn(),
+    findFeed: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),

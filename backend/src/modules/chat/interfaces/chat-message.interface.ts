@@ -64,3 +64,13 @@ export interface ChatMessage {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * Spec 13.2a — položka „Souhrn chatů": zpráva napříč všemi mými světy obohacená
+ * o název světa a kanálu (kvůli grupování ve FE centru). Cross-world agregace,
+ * access-safe (server vrací jen kanály, kam mám přístup).
+ */
+export interface ChatFeedItem extends ChatMessage {
+  worldName: string;
+  channelName: string;
+}

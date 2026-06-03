@@ -236,6 +236,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /**
+   * Spec 13.2a — „Souhrn chatů" živě. Leak-safe signál (bez obsahu zprávy) do
+   * user roomů příjemců → klient refetchne `/chat/feed`. Stejný princip jako
+   * `universe:updated` (signál + filtrovaný refetch).
+   */
+  @OnEvent('chat.feed.notify')
+  handleFeedNotify(payload: { recipientIds: string[]; worldId: string }): void {
+    for (const userId of payload.recipientIds) {
+      this.server
+        .to(`user:${userId}`)
+        .emit('chat:feed:bump', { worldId: payload.worldId });
+    }
+  }
+
   @OnEvent('chat.message.updated')
   handleMessageUpdated(payload: {
     channelId: string;

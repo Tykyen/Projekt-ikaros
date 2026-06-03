@@ -4,7 +4,7 @@ export interface IIkarosMessagesRepository {
   findById(id: string): Promise<IkarosMessage | null>;
   findInbox(
     recipientId: string,
-    opts: { limit: number; before?: string },
+    opts: { limit: number; before?: string; systemOnly?: boolean },
   ): Promise<IkarosMessage[]>;
   findSent(
     senderId: string,
@@ -12,7 +12,11 @@ export interface IIkarosMessagesRepository {
   ): Promise<IkarosMessage[]>;
   /** 3.5 — všechny zprávy vlákna, vzestupně dle sentAtUtc. */
   findConversation(conversationId: string): Promise<IkarosMessage[]>;
-  countUnreadMessages(recipientId: string): Promise<number>;
+  /** 13.2b — `systemOnly` počítá jen systémová oznámení (záložka Události). */
+  countUnreadMessages(
+    recipientId: string,
+    systemOnly?: boolean,
+  ): Promise<number>;
   save(msg: Partial<IkarosMessage>): Promise<IkarosMessage>;
   update(
     id: string,

@@ -76,6 +76,7 @@ describe('GlobalChatService', () => {
       countAfter: jest.fn(),
       countMentionsAfter: jest.fn(),
       searchInChannels: jest.fn(),
+      findFeed: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
       softDeleteByChannelId: jest.fn(),

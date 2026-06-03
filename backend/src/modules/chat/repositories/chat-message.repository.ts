@@ -61,6 +61,48 @@ export class MongoChatMessageRepository
     );
   }
 
+  async findFeed(opts: {
+    managerChannelIds: string[];
+    memberChannelIds: string[];
+    userId: string;
+    before?: string;
+    limit: number;
+  }): Promise<ChatMessage[]> {
+    const or: Record<string, unknown>[] = [];
+    if (opts.managerChannelIds.length > 0) {
+      or.push({ channelId: { $in: opts.managerChannelIds } });
+    }
+    if (opts.memberChannelIds.length > 0) {
+      // Member vidí veřejné zprávy + jen vlastní whispery (visibleTo).
+      or.push({
+        channelId: { $in: opts.memberChannelIds },
+        $or: [
+          { visibleTo: { $exists: false } },
+          { visibleTo: { $size: 0 } },
+          { visibleTo: opts.userId },
+        ],
+      });
+    }
+    if (or.length === 0) return [];
+    const filter: Record<string, unknown> = {
+      isDeleted: { $ne: true },
+      $or: or,
+    };
+    if (opts.before && Types.ObjectId.isValid(opts.before)) {
+      filter._id = { $lt: new Types.ObjectId(opts.before) };
+    }
+    const docs = await this.model
+      .find(filter)
+      .sort({ _id: -1 })
+      .limit(opts.limit)
+      .lean()
+      .exec();
+    // Desc (nejnovější první) — feed se renderuje shora dolů, NEreversovat.
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
   async findByNonce(
     channelId: string,
     clientNonce: string,

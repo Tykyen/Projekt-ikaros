@@ -28,6 +28,7 @@ import { MongoScheduledMessageRepository } from './repositories/scheduled-messag
 import { ChatService } from './chat.service';
 import { ChatPresenceService } from './chat-presence.service';
 import { ChatController } from './chat.controller';
+import { ChatFeedController } from './chat-feed.controller';
 import { ScheduledMessagesController } from './scheduled-messages.controller';
 import { ScheduledMessagesJob } from './scheduled-messages.job';
 import { ChatGateway } from './chat.gateway';
@@ -63,7 +64,11 @@ import { AuthModule } from '../auth/auth.module';
     // ChatModule. Bez něj je AuthModule při startu undefined a Nest spadne.
     forwardRef(() => AuthModule),
   ],
-  controllers: [ChatController, ScheduledMessagesController],
+  controllers: [
+    ChatController,
+    ChatFeedController,
+    ScheduledMessagesController,
+  ],
   providers: [
     ChatService,
     ChatPresenceService,
