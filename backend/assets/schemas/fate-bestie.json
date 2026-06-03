@@ -1,0 +1,145 @@
+{
+  "systemId": "fate",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "main-stats",
+      "label": "Hlavní staty",
+      "fields": [
+        {
+          "key": "health.max",
+          "label": "Stress (boxy)",
+          "type": "number",
+          "default": 3,
+          "min": 1,
+          "max": 5,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Počet stress boxů (typicky 3 pro běžné NPC, až 5 pro silné protivníky)."
+        },
+        {
+          "key": "refresh",
+          "label": "Refresh",
+          "type": "number",
+          "default": 3,
+          "min": 0,
+          "max": 10,
+          "description": "Refresh / Fate body — kolik bodů NPC obnovuje za scénu."
+        },
+        {
+          "key": "fate_points",
+          "label": "Body osudu",
+          "type": "number",
+          "default": 3,
+          "min": 0,
+          "description": "Aktuální zásoba Fate Points."
+        },
+        {
+          "key": "conflict_state",
+          "label": "Stav konfliktu",
+          "type": "enum",
+          "enumValues": [
+            "ok",
+            "mild",
+            "moderate",
+            "severe",
+            "taken-out"
+          ],
+          "default": "ok",
+          "description": "V pořádku / Lehké / Těžší / Vážnější následky / Vyřazen."
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Dosah pohybu v hexech za tah (Fate nemá speed natively, použijeme generic)."
+        },
+        {
+          "key": "initiative.base",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative",
+          "description": "Bonus k notice / iniciativě (typicky hodnota dovednosti Notice)."
+        }
+      ]
+    },
+    {
+      "key": "aspects",
+      "label": "Aspekty",
+      "fields": [
+        {
+          "key": "aspects",
+          "label": "Aspekty",
+          "type": "list",
+          "description": "Aspekty tvora (high concept, trouble, ostatní).",
+          "listItemFields": [
+            {
+              "key": "label",
+              "label": "Aspekt",
+              "type": "string",
+              "required": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "skills",
+      "label": "Dovednosti",
+      "fields": [
+        {
+          "key": "skills",
+          "label": "Dovednosti",
+          "type": "list",
+          "description": "Seznam dovedností s ratingem 0–6 (Mediocre až Legendary).",
+          "listItemFields": [
+            {
+              "key": "label",
+              "label": "Název dovednosti",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "rating",
+              "label": "Rating (0–6)",
+              "type": "number",
+              "default": 0,
+              "min": 0,
+              "max": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stunts",
+      "label": "Stunty",
+      "fields": [
+        {
+          "key": "stunts",
+          "label": "Stunty",
+          "type": "list",
+          "description": "Speciální schopnosti (stunts).",
+          "listItemFields": [
+            {
+              "key": "label",
+              "label": "Název",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "value",
+              "label": "Popis efektu",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

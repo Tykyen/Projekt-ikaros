@@ -1,0 +1,81 @@
+{
+  "systemId": "gurps",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "health",
+      "label": "Životy",
+      "fields": [
+        {
+          "key": "health.current",
+          "label": "HP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "damageable"
+        },
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true
+        },
+        {
+          "key": "fatigue.current",
+          "label": "FP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "description": "Fatigue Points (aktuální)."
+        },
+        {
+          "key": "fatigue.max",
+          "label": "MAX FP",
+          "type": "number",
+          "default": 10,
+          "min": 0
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "dr",
+          "label": "DR (Damage Resistance)",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer"
+        },
+        {
+          "key": "dodge",
+          "label": "Úhyb",
+          "type": "number",
+          "default": 8,
+          "min": 0
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement"
+        },
+        {
+          "key": "initiative.current",
+          "label": "Iniciativa (Basic Speed)",
+          "type": "number",
+          "default": 5,
+          "combatBehavior": "initiative",
+          "description": "Pořadí v boji = Basic Speed (vyšší jde dřív)."
+        }
+      ]
+    }
+  ]
+}

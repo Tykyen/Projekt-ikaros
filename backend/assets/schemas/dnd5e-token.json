@@ -1,0 +1,74 @@
+{
+  "systemId": "dnd5e",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "health",
+      "label": "Životy",
+      "fields": [
+        {
+          "key": "health.current",
+          "label": "HP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "damageable"
+        },
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true
+        },
+        {
+          "key": "health.temp",
+          "label": "Dočasné HP",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Temp HP — odečítají se před skutečným HP."
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "armor.class",
+          "label": "OČ (AC)",
+          "type": "number",
+          "default": 12,
+          "min": 0,
+          "combatBehavior": "roll-target"
+        },
+        {
+          "key": "speed",
+          "label": "Rychlost",
+          "type": "number",
+          "default": 6,
+          "min": 0,
+          "combatBehavior": "movement"
+        },
+        {
+          "key": "initiative.current",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative",
+          "description": "Aktuální iniciativa v boji (1k20 + OBR mod)."
+        },
+        {
+          "key": "initiative.base",
+          "label": "Init bonus",
+          "type": "number",
+          "default": 0,
+          "description": "OBR modifikátor (bonus k hodu na iniciativu)."
+        }
+      ]
+    }
+  ]
+}

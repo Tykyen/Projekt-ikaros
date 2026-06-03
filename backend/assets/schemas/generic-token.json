@@ -1,0 +1,65 @@
+{
+  "systemId": "generic",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "health",
+      "label": "Zdraví",
+      "fields": [
+        {
+          "key": "health.current",
+          "label": "HP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "damageable"
+        },
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "armor",
+          "label": "Zbroj",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer"
+        },
+        {
+          "key": "injury",
+          "label": "Zranění",
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement"
+        },
+        {
+          "key": "initiative.current",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative"
+        }
+      ]
+    }
+  ]
+}

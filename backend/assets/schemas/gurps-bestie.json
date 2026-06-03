@@ -1,0 +1,183 @@
+{
+  "systemId": "gurps",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "main-stats",
+      "label": "Hlavní staty",
+      "fields": [
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Hit Points — bývá rovno ST."
+        },
+        {
+          "key": "fatigue.max",
+          "label": "MAX FP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "description": "Fatigue Points — bývá rovno HT."
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb (Move)",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Move — bývá Basic Speed zaokrouhlené dolů."
+        },
+        {
+          "key": "basic_speed",
+          "label": "Základní rychlost",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "initiative",
+          "description": "Basic Speed = (HT + DX) / 4. Vyšší jde dřív v boji."
+        },
+        {
+          "key": "size_modifier",
+          "label": "Modifikátor velikosti (SM)",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "static",
+          "description": "Size Modifier — relevantní pro ranged a grapple."
+        }
+      ]
+    },
+    {
+      "key": "attributes",
+      "label": "Atributy",
+      "fields": [
+        {
+          "key": "attributes.st",
+          "label": "ST (Síla)",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "attributes.dx",
+          "label": "DX (Obratnost)",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "attributes.iq",
+          "label": "IQ (Inteligence)",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "attributes.ht",
+          "label": "HT (Zdraví)",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "attributes.will",
+          "label": "Will (Vůle)",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        },
+        {
+          "key": "attributes.per",
+          "label": "Per (Vnímání)",
+          "type": "number",
+          "default": 10,
+          "min": 1
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj a obrana",
+      "fields": [
+        {
+          "key": "dodge",
+          "label": "Úhyb (Dodge)",
+          "type": "number",
+          "default": 8,
+          "min": 0,
+          "description": "Dodge = Basic Speed + 3."
+        },
+        {
+          "key": "parry",
+          "label": "Kryt (Parry)",
+          "type": "number",
+          "default": 8,
+          "min": 0,
+          "description": "Parry = (DX nebo skill) / 2 + 3."
+        },
+        {
+          "key": "block",
+          "label": "Blok (Block)",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Block (vyžaduje štít) = (DX nebo Shield) / 2 + 3."
+        },
+        {
+          "key": "dr",
+          "label": "Damage Resistance (DR)",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer",
+          "description": "DR trupu — tlumí příchozí zranění."
+        },
+        {
+          "key": "damage_thrust",
+          "label": "Zranění Thrust",
+          "type": "string",
+          "default": "1d-2",
+          "description": "Damage při bodnutí (např. 1d-2)."
+        },
+        {
+          "key": "damage_swing",
+          "label": "Zranění Swing",
+          "type": "string",
+          "default": "1d",
+          "description": "Damage při sekání / úderu (např. 1d+1)."
+        }
+      ]
+    },
+    {
+      "key": "abilities",
+      "label": "Výhody, nevýhody, schopnosti",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Schopnosti",
+          "type": "list",
+          "description": "Advantages, disadvantages, quirks, special abilities.",
+          "listItemFields": [
+            {
+              "key": "label",
+              "label": "Název",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "value",
+              "label": "Hodnota / popis",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

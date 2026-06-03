@@ -1,0 +1,225 @@
+{
+  "systemId": "dnd5e",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "main-stats",
+      "label": "Hlavní staty",
+      "fields": [
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Životy bestie (Hit Points)."
+        },
+        {
+          "key": "hit_dice",
+          "label": "Hit Dice",
+          "type": "string",
+          "default": "2k8 + 2",
+          "description": "Kostky životů (např. 6k10 + 6)."
+        },
+        {
+          "key": "armor.class",
+          "label": "OČ (AC)",
+          "type": "number",
+          "default": 12,
+          "min": 0,
+          "combatBehavior": "roll-target",
+          "description": "Obranné číslo / Armor Class — proti čemu se útočí."
+        },
+        {
+          "key": "armor.type",
+          "label": "Typ zbroje",
+          "type": "string",
+          "default": "",
+          "description": "Slovní popis (přirozená zbroj, kožená, plátová, ...)."
+        },
+        {
+          "key": "speed",
+          "label": "Rychlost",
+          "type": "number",
+          "default": 6,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Rychlost v sázích za tah (1 sáh = 5 stop)."
+        },
+        {
+          "key": "speed_text",
+          "label": "Rychlost (popis)",
+          "type": "string",
+          "default": "",
+          "description": "Detail (např. létání 12 sáhů, plavání 6 sáhů)."
+        }
+      ]
+    },
+    {
+      "key": "attributes",
+      "label": "Vlastnosti",
+      "fields": [
+        {
+          "key": "attributes.str",
+          "label": "SÍL",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30
+        },
+        {
+          "key": "attributes.dex",
+          "label": "OBR",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30,
+          "combatBehavior": "initiative",
+          "description": "Bonus z OBR určuje iniciativu."
+        },
+        {
+          "key": "attributes.con",
+          "label": "ODL",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30
+        },
+        {
+          "key": "attributes.int",
+          "label": "INT",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30
+        },
+        {
+          "key": "attributes.wis",
+          "label": "MDR",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30
+        },
+        {
+          "key": "attributes.cha",
+          "label": "CHA",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "proficiency_bonus",
+          "label": "Bonus zdatnosti",
+          "type": "number",
+          "default": 2,
+          "min": 0,
+          "description": "Proficiency bonus (PB) — typicky 2 + (CR/4)."
+        },
+        {
+          "key": "cr",
+          "label": "Nebezpečnost (CR)",
+          "type": "string",
+          "default": "1",
+          "combatBehavior": "static",
+          "description": "Challenge Rating — odpovídající XP řeší tabulka v MM."
+        },
+        {
+          "key": "saving_throws",
+          "label": "Záchranné hody",
+          "type": "string",
+          "default": "",
+          "description": "Např. Obr +7, Odl +15, Mdr +10, Cha +12."
+        },
+        {
+          "key": "skills",
+          "label": "Dovednosti",
+          "type": "string",
+          "default": "",
+          "description": "Např. Nenápadnost +17, Vnímání +17."
+        },
+        {
+          "key": "damage_resistances",
+          "label": "Odolání vůči zranění",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "key": "damage_immunities",
+          "label": "Imunity vůči zranění",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "key": "condition_immunities",
+          "label": "Imunity vůči stavům",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "key": "senses",
+          "label": "Smysly",
+          "type": "string",
+          "default": "",
+          "description": "Např. vidění ve tmě 12 sáhů, pasivní Vnímání 11."
+        },
+        {
+          "key": "languages",
+          "label": "Jazyky",
+          "type": "string",
+          "default": "—"
+        }
+      ]
+    },
+    {
+      "key": "abilities",
+      "label": "Schopnosti a akce",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Schopnosti",
+          "type": "list",
+          "description": "Speciální schopnosti, akce, reakce, legendární akce.",
+          "listItemFields": [
+            {
+              "key": "label",
+              "label": "Název",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "type",
+              "label": "Typ",
+              "type": "enum",
+              "enumValues": [
+                "trait",
+                "action",
+                "multiattack",
+                "bonus-action",
+                "reaction",
+                "legendary",
+                "lair"
+              ],
+              "default": "action"
+            },
+            {
+              "key": "value",
+              "label": "Popis / kostky",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

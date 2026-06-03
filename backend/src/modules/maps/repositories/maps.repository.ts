@@ -185,6 +185,15 @@ export class MongoMapsRepository
       isLocked: (t.isLocked as boolean) ?? false,
       movement: (t.movement as number) ?? 5,
       abilities: (t.abilities as { name: string; description: string }[]) ?? [],
+      // Per-instance poznámky bestie tokenu. Bez tohoto mapování by GET token
+      // notes zahodil (write do Mixed projde, read-mapper vynechá) — field-drift
+      // past viz [[project_map_token_tomapper_whitelist]].
+      notes: t.notes as string | undefined,
+      // 10.2d-prep-A — per-system staty (health.current/max, armor, …). Whitelist
+      // mapper je dosud VYNECHÁVAL → bestie HP (health.current) se zapsalo, ale
+      // GET ho zahodil a HP padalo zpět na stale currentHp/maxHp. Stejná drift
+      // past jako notes výše.
+      systemStats: t.systemStats as Record<string, unknown> | undefined,
       personalDiarySchema: t.personalDiarySchema as
         | Record<string, unknown>[]
         | undefined,

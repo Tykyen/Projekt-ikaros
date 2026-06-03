@@ -1,0 +1,82 @@
+{
+  "systemId": "coc",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "health",
+      "label": "Životy",
+      "fields": [
+        {
+          "key": "health.current",
+          "label": "HP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "damageable"
+        },
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true
+        },
+        {
+          "key": "sanity",
+          "label": "SAN",
+          "type": "number",
+          "default": 50,
+          "min": 0,
+          "max": 99,
+          "description": "Aktuální příčetnost."
+        },
+        {
+          "key": "mp.current",
+          "label": "MP",
+          "type": "number",
+          "default": 10,
+          "min": 0
+        },
+        {
+          "key": "mp.max",
+          "label": "MAX MP",
+          "type": "number",
+          "default": 10,
+          "min": 0
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "armor",
+          "label": "Brnění",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer"
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 8,
+          "min": 0,
+          "combatBehavior": "movement"
+        },
+        {
+          "key": "initiative.current",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 50,
+          "combatBehavior": "initiative",
+          "description": "V CoC je iniciativa hodnota DEX (vyšší jde dřív)."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "systemId": "fate",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "stress",
+      "label": "Stress",
+      "fields": [
+        {
+          "key": "health.current",
+          "label": "Stress (aktuální)",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "damageable",
+          "description": "Kolik stress boxů je aktuálně vyplněno."
+        },
+        {
+          "key": "health.max",
+          "label": "Stress (max boxů)",
+          "type": "number",
+          "default": 3,
+          "min": 1,
+          "max": 5,
+          "required": true
+        },
+        {
+          "key": "fate_points",
+          "label": "Body osudu",
+          "type": "number",
+          "default": 3,
+          "min": 0
+        },
+        {
+          "key": "conflict_state",
+          "label": "Stav konfliktu",
+          "type": "enum",
+          "enumValues": [
+            "ok",
+            "mild",
+            "moderate",
+            "severe",
+            "taken-out"
+          ],
+          "default": "ok"
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement"
+        },
+        {
+          "key": "initiative.current",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative",
+          "description": "Aktuální pořadí v boji (typicky Notice rating)."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,220 @@
+{
+  "systemId": "coc",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "main-stats",
+      "label": "Hlavní staty",
+      "fields": [
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Životy (Hit Points). V CoC typicky odvozeno z (CON + SIZ) / 10."
+        },
+        {
+          "key": "sanity",
+          "label": "SAN (Příčetnost)",
+          "type": "number",
+          "default": 50,
+          "min": 0,
+          "max": 99,
+          "description": "Příčetnost (Sanity) — typicky rovna POW."
+        },
+        {
+          "key": "mp.max",
+          "label": "MAX MP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "description": "Magické body (Magic Points). Typicky POW / 5."
+        },
+        {
+          "key": "luck",
+          "label": "Štěstí",
+          "type": "number",
+          "default": 50,
+          "min": 0,
+          "max": 99,
+          "description": "Luck — používáno pro náhradu hodů."
+        }
+      ]
+    },
+    {
+      "key": "characteristics",
+      "label": "Vlastnosti (procenta)",
+      "fields": [
+        {
+          "key": "characteristics.str",
+          "label": "STR %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        },
+        {
+          "key": "characteristics.con",
+          "label": "CON %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        },
+        {
+          "key": "characteristics.siz",
+          "label": "SIZ %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        },
+        {
+          "key": "characteristics.dex",
+          "label": "DEX %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99,
+          "combatBehavior": "initiative",
+          "description": "DEX určuje pořadí v boji (vyšší jde dřív)."
+        },
+        {
+          "key": "characteristics.app",
+          "label": "APP %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        },
+        {
+          "key": "characteristics.int",
+          "label": "INT %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        },
+        {
+          "key": "characteristics.pow",
+          "label": "POW %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        },
+        {
+          "key": "characteristics.edu",
+          "label": "EDU %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "dodge",
+          "label": "Úhyb %",
+          "type": "number",
+          "default": 25,
+          "min": 0,
+          "max": 99,
+          "description": "Dodge — typicky DEX / 2."
+        },
+        {
+          "key": "fighting",
+          "label": "Boj (brawl) %",
+          "type": "number",
+          "default": 25,
+          "min": 0,
+          "max": 99,
+          "description": "Základní bojová dovednost (Fighting Brawl)."
+        },
+        {
+          "key": "damage_bonus",
+          "label": "Bonus zranění (BZ)",
+          "type": "string",
+          "default": "0",
+          "description": "Damage Bonus (např. 0, +1K4, +1K6)."
+        },
+        {
+          "key": "build",
+          "label": "Stavba",
+          "type": "number",
+          "default": 0,
+          "description": "Build — udává velikost (relevantní pro grapple)."
+        },
+        {
+          "key": "armor",
+          "label": "Brnění",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer",
+          "description": "Tlumení zranění (Armor)."
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb (MOV)",
+          "type": "number",
+          "default": 8,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Move rate."
+        }
+      ]
+    },
+    {
+      "key": "abilities",
+      "label": "Zvláštní schopnosti",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Schopnosti",
+          "type": "list",
+          "description": "Speciální schopnosti, mýtotvory schopnosti, kouzla.",
+          "listItemFields": [
+            {
+              "key": "label",
+              "label": "Název",
+              "type": "string",
+              "required": true
+            },
+            {
+              "key": "value",
+              "label": "Popis / efekt",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "sanity-loss",
+      "label": "Ztráta příčetnosti",
+      "fields": [
+        {
+          "key": "sanity_loss.on_seeing",
+          "label": "Ztráta SAN při spatření",
+          "type": "string",
+          "default": "0/1K4"
+        },
+        {
+          "key": "sanity_loss.on_attack",
+          "label": "Ztráta SAN při útoku",
+          "type": "string",
+          "default": "0/1K6"
+        }
+      ]
+    }
+  ]
+}

@@ -55,6 +55,14 @@ export interface MapToken {
   inCombat: boolean;
   movement: number;
   abilities: MapTokenAbility[];
+  // Per-instance poznámky tokenu (bestie). Snapshot z bestie.notes při spawnu,
+  // dál editovatelné nezávisle na šabloně. Write přes token.update {notes}.
+  notes?: string;
+  // 10.2d-prep-A — per-system staty token instance (schema-driven storage).
+  // Klíče = dot-path (`health.current`, `armor`, …). Authoritativní zdroj HP
+  // bestie (FE HP bar i panel čtou odtud). Read-mapper `toToken` ho musí
+  // propustit, jinak GET HP zahodí — viz repository komentář.
+  systemStats?: Record<string, unknown>;
   personalDiarySchema?: Record<string, unknown>[];
   customData: Record<string, unknown>;
   // D-066 — per-token lock (PJ-only). Zamčený token hráč nemůže táhnout,
