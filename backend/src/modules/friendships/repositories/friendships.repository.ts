@@ -120,6 +120,34 @@ export class MongoFriendshipsRepository implements IFriendshipsRepository {
     };
   }
 
+  async findAllForUser(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: Friendship[]; total: number }> {
+    // D-056 (N-6b) — admin pohled: všechny statusy (pending/accepted/rejected).
+    const filter: Record<string, unknown> = {
+      $or: [{ requesterId: userId }, { recipientId: userId }],
+    };
+    const skip = (page - 1) * limit;
+    const [docs, total] = await Promise.all([
+      this.model
+        .find(filter)
+        .sort({ requestedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.model.countDocuments(filter).exec(),
+    ]);
+    return {
+      items: docs.map((d) =>
+        this.toEntity(d as unknown as Record<string, unknown>),
+      ),
+      total,
+    };
+  }
+
   async listOutgoingPendingForUser(userId: string): Promise<Friendship[]> {
     const docs = await this.model
       .find({ requesterId: userId, status: 'pending' })

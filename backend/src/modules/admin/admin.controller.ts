@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
+import { AdminFriendshipsService } from './admin-friendships.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -49,6 +50,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly adminStatsService: AdminStatsService,
+    private readonly adminFriendshipsService: AdminFriendshipsService,
   ) {}
 
   // ─── Stats — platform overview (12.1) ─────────────────────────────────────
@@ -354,5 +356,46 @@ export class AdminController {
       user,
       Math.min(100, Math.max(1, Number(limit))),
     );
+  }
+
+  // ─── D-056 (N-6b) — admin friendships lookup + reset cooldown ─────────────
+
+  @Get('friendships')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'D-056 — friendships konkrétního usera (admin)' })
+  @ApiResponse({ status: 200 })
+  listUserFriendships(
+    @Query('userId') userId: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50',
+  ) {
+    return this.adminFriendshipsService.listByUser(
+      userId,
+      Math.max(1, Number(page)),
+      Math.min(100, Math.max(1, Number(limit))),
+    );
+  }
+
+  @Get('friendships/by-pair')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'D-056 — friendship mezi dvojicí (admin)' })
+  @ApiResponse({ status: 200 })
+  friendshipByPair(
+    @Query('userA') userA: string,
+    @Query('userB') userB: string,
+  ) {
+    return this.adminFriendshipsService.byPair(userA, userB);
+  }
+
+  @Post('friendships/:id/reset-cooldown')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'D-056 — reset cooldownu friendship (admin)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({
+    status: 409,
+    description: 'NO_COOLDOWN — bez aktivního cooldownu',
+  })
+  resetFriendCooldown(@Param('id') id: string) {
+    return this.adminFriendshipsService.resetCooldown(id);
   }
 }

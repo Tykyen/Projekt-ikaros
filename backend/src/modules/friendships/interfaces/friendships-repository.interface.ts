@@ -18,6 +18,12 @@ export interface IFriendshipsRepository {
     page: number,
     limit: number,
   ): Promise<{ items: Friendship[]; total: number }>;
+  /** D-056 (N-6b) — admin: VŠECHNY friendship usera (pending+accepted+rejected). */
+  findAllForUser(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: Friendship[]; total: number }>;
   listOutgoingPendingForUser(userId: string): Promise<Friendship[]>;
   listIncomingPendingForUser(userId: string): Promise<Friendship[]>;
   countIncomingPendingForUser(userId: string): Promise<number>;

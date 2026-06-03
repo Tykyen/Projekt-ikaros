@@ -15,6 +15,8 @@ import {
 } from './schemas/admin-audit-log.schema';
 import { MongoAdminAuditLogRepository } from './repositories/admin-audit-log.repository';
 import { AccountCleanupCron } from '../users/services/account-cleanup.cron';
+import { AdminFriendshipsService } from './admin-friendships.service';
+import { FriendshipsRepositoryModule } from '../friendships/friendships-repository.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { AccountCleanupCron } from '../users/services/account-cleanup.cron';
     IkarosArticlesModule,
     IkarosGalleryModule,
     IkarosDiscussionsModule,
+    // D-056 (N-6b) — admin friendships lookup/reset (friendships + blocks repo).
+    FriendshipsRepositoryModule,
     MongooseModule.forFeature([
       { name: AdminAuditLogSchemaClass.name, schema: AdminAuditLogSchema },
     ]),
@@ -33,6 +37,7 @@ import { AccountCleanupCron } from '../users/services/account-cleanup.cron';
   providers: [
     AdminService,
     AdminStatsService,
+    AdminFriendshipsService,
     AccountCleanupCron,
     {
       provide: 'IAdminAuditLogRepository',
