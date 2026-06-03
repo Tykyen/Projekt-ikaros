@@ -207,11 +207,22 @@ export class IkarosDiscussionsService {
     offset: number,
     limit: number,
   ): Promise<{ items: IkarosDiscussion[]; total: number }> {
-    const { items, total } = await this.repo.findAllPaginated(offset, limit);
-    const filtered = items.filter((d) =>
-      this.canAccessDiscussion(d, userId, role, username),
-    );
-    const enriched = await this.enrichTombstoneCreators(filtered);
+    // N-12 — access filter běží post-fetch, takže paginujeme až PO filtru.
+    // Dřív se bral `total` z DB countu (všechny diskuze), ale `items` byly
+    // odfiltrované → FE ukazoval špatný počet stránek (poslední byly prázdné).
+    // Load-all + in-memory je v pořádku pro N×stovky (viz pozn. u metody);
+    // sort replikuje `lastActivityUtc desc` z repo.findAllPaginated.
+    const all = await this.repo.findAll();
+    const accessible = all
+      .filter((d) => this.canAccessDiscussion(d, userId, role, username))
+      .sort(
+        (a, b) =>
+          (b.lastActivityUtc?.getTime() ?? 0) -
+          (a.lastActivityUtc?.getTime() ?? 0),
+      );
+    const total = accessible.length;
+    const page = accessible.slice(offset, offset + limit);
+    const enriched = await this.enrichTombstoneCreators(page);
     return { items: enriched, total };
   }
 
