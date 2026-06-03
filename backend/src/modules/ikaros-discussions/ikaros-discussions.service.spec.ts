@@ -197,6 +197,32 @@ describe('IkarosDiscussionsService', () => {
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('disc1');
     });
+
+    // N-12 — `total` musí odpovídat počtu PŘÍSTUPNÝCH diskuzí (po access filtru),
+    // ne DB countu všech — jinak FE počítá špatný počet stránek.
+    it('findAllPaginated: total = počet přístupných, ne všech v DB', async () => {
+      const openApproved = {
+        ...mockDiscussion,
+        isApproved: true,
+        isOpen: true,
+      };
+      const hidden = {
+        ...mockDiscussion,
+        id: 'd2',
+        isApproved: false, // hráč nevidí
+      };
+      mockRepo.findAll.mockResolvedValue([openApproved, hidden]);
+      const result = await service.findAllPaginated(
+        'user1',
+        UserRole.Hrac,
+        'hrac',
+        0,
+        10,
+      );
+      expect(result.total).toBe(1);
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].id).toBe('disc1');
+    });
   });
 
   describe('approve', () => {

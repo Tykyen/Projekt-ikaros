@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Types } from 'mongoose';
 import type { IIkarosMessagesRepository } from './interfaces/ikaros-messages-repository.interface';
 import type { IkarosMessage } from './interfaces/ikaros-message.interface';
 import type { CreateIkarosMessageDto } from './dto/create-ikaros-message.dto';
@@ -62,7 +63,13 @@ export class IkarosMessagesService {
       await this.assertCanMessageRecipient(sender, dto.recipientId);
     }
 
+    // N-34 — kořen vlákna: předgeneruj _id, ať `conversationId === _id` platí
+    // už při insertu. Dřív se ukládalo s prázdným conversationId a hned poté
+    // updatovalo → mezi tím mohl čtenář načíst dokument s prázdným
+    // conversationId (vlákno se nedotáhlo). Reply používá conversationId rodiče.
+    const rootId = conversationId ? undefined : new Types.ObjectId().toString();
     const msg = await this.msgRepo.save({
+      ...(rootId ? { id: rootId } : {}),
       senderId: sender.id,
       senderName: sender.username,
       recipientId: dto.recipientId,
@@ -73,15 +80,9 @@ export class IkarosMessagesService {
       isRead: false,
       deletedBySender: false,
       deletedByRecipient: false,
-      conversationId,
+      conversationId: conversationId || rootId,
       replyToId,
     });
-
-    if (!conversationId) {
-      // Kořen vlákna — conversationId = vlastní _id.
-      await this.msgRepo.update(msg.id, { conversationId: msg.id });
-      msg.conversationId = msg.id;
-    }
 
     this.eventEmitter.emit('ikaros.message.created', {
       recipientId: msg.recipientId,

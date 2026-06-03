@@ -98,7 +98,10 @@ export class MongoIkarosMessagesRepository
   }
 
   async save(msg: Partial<IkarosMessage>): Promise<IkarosMessage> {
-    const created = new this.model(msg);
+    // N-34 — volitelně předané `id` (kořen vlákna) namapuj na `_id`, aby šel
+    // conversationId nastavit už při insertu (žádný druhý write, žádné okno).
+    const { id, ...rest } = msg;
+    const created = new this.model(id ? { ...rest, _id: id } : rest);
     const saved = await created.save();
     return this.toEntity(
       saved.toObject() as unknown as Record<string, unknown>,

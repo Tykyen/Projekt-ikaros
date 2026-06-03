@@ -8,17 +8,7 @@
 
 ## Otevřené
 
-### [otevřeno 2026-05-14] account-cleanup.cron.spec.ts kontrakt mismatch
-
-- **Soubor:** `backend/src/modules/users/services/account-cleanup.cron.spec.ts`
-- **Typ:** test code quality + chybějící feature implementace
-- **Riziko:** Test očekává úplně jiný API než my-impl SP4 stub: `removeExpiredTombstones`, `removeTombstoneOne`, `hardDeleteOne` metody + `User.deletedAt`, `User.chatColor` pole. Test je v `tsconfig.json` exclude, takže typecheck neproletí — proto disabled. Cron běží jako stub (1h tick, žádné akce).
-- **Co vyžaduje:** SP4b plnohodnotná impl `AccountCleanupCron`:
-  - 3 metody: `removeExpiredTombstones` (sweep), `removeTombstoneOne` (per-record), `hardDeleteOne` (PII nulling)
-  - User entity: `deletedAt: Date` (oddělené od `deletionRequestedAt`), `chatColor: string`
-  - Mail 24h předem (sendAccountDeletionScheduled)
-  - Atomic batch retries
-- **Zdroj:** Discovered po SP4 unblock tsconfig — pre-existing spec, který nikdy nevolal real cron. Cron impl byl `void` ve squash 52ca60a3.
+_(žádné — account-cleanup cron vyřešen 2026-06-03, viz Vyřešené níže)_
 
 ---
 
@@ -36,6 +26,14 @@ Záznamy zde jsou legitní budoucí práce, ne aktuální technický dluh. Mají
 ---
 
 ## Vyřešené
+
+### [vyřešeno 2026-06-03] account-cleanup.cron.spec.ts kontrakt mismatch (= N-3)
+
+- **Soubor:** `backend/src/modules/users/services/account-cleanup.cron.ts` (+ spec)
+- **Root cause:** Cron běžel jako `void` stub; excluded spec testoval předčasné D-041/D-043 API (`removeExpiredTombstones`/`hardDeleteOne` + friendship/tombstone cleanup), které nikdy nebylo doimplementováno.
+- **Fix (v rámci N-6b self-deletion):** `sweep()` (denně 03:00 Prague) → `findExpiredPendingDeletion(now−30d)` → `anonymizeForHardDelete` (PII `$unset`) + emit `user.deletion.hardDeleted`. GDPR avatar soubory přes `UploadService.@OnEvent` (event-driven, žádný DI cyklus). `User.deletedAt` doplněn. Spec přepsán na reálný scope + zařazen zpět do tsc/jest.
+- **Odloženo (nové triggery):** D-041 friendship cleanup (po 3.5), D-043 tombstone retention (samostatný spec), T-24h reminder mail.
+- **Ověřeno:** BE 1879 testů, `nest start` DI graf OK.
 
 ### [vyřešeno 2026-05-31] FATE kostka: mínus na hozené 3D kostce vypadal jako plus (10.2j)
 

@@ -64,10 +64,11 @@ describe('IkarosMessagesService', () => {
   });
 
   describe('create — nové vlákno', () => {
-    it('uloží zprávu, nastaví conversationId na vlastní _id, emituje event', async () => {
+    // N-34 — kořen vlákna se ukládá s předgenerovaným _id == conversationId
+    // v JEDNOM zápisu (žádný druhý update → žádné okno s prázdným conversationId).
+    it('uloží kořen s předgenerovaným _id = conversationId (1 write, žádný update)', async () => {
       usersService.findById.mockResolvedValue({ profileVisibility: 'public' });
-      msgRepo.save.mockResolvedValue(makeMsg({ conversationId: '' }));
-      msgRepo.update.mockResolvedValue(makeMsg());
+      msgRepo.save.mockResolvedValue(makeMsg({ conversationId: 'msg1' }));
 
       const result = await service.create(
         {
@@ -79,9 +80,13 @@ describe('IkarosMessagesService', () => {
         sender,
       );
 
-      expect(msgRepo.update).toHaveBeenCalledWith('msg1', {
-        conversationId: 'msg1',
-      });
+      expect(msgRepo.update).not.toHaveBeenCalled();
+      const saveArg = msgRepo.save.mock.calls[0][0] as {
+        id?: string;
+        conversationId?: string;
+      };
+      expect(saveArg.id).toBeDefined();
+      expect(saveArg.conversationId).toBe(saveArg.id);
       expect(result.conversationId).toBe('msg1');
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'ikaros.message.created',
