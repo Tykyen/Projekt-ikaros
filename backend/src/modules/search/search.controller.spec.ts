@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { SearchController } from './search.controller';
 import { SearchCoordinator } from './search.coordinator';
 import { WorldsService } from '../worlds/worlds.service';
+import { PagesService } from '../pages/pages.service';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 const mockCoordinator = {
@@ -26,6 +27,11 @@ const mockWorldsService = {
   findByIdForRequester: jest.fn().mockResolvedValue({ id: 'world1' }),
 };
 
+// N-35 — page-level visible slugs filtr (default: vidí vše předané v mocku).
+const mockPagesService = {
+  findVisibleSlugs: jest.fn().mockResolvedValue(new Set<string>()),
+};
+
 const user: RequestUser = {
   id: 'u1',
   email: 'a@b.cz',
@@ -45,6 +51,7 @@ describe('SearchController', () => {
     mockPagesRepo.findAll.mockResolvedValue([]);
     mockPagesRepo.findByWorld.mockResolvedValue([]);
     mockWorldsService.findByIdForRequester.mockResolvedValue({ id: 'world1' });
+    mockPagesService.findVisibleSlugs.mockResolvedValue(new Set<string>());
 
     const module = await Test.createTestingModule({
       controllers: [SearchController],
@@ -52,6 +59,7 @@ describe('SearchController', () => {
         { provide: SearchCoordinator, useValue: mockCoordinator },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: WorldsService, useValue: mockWorldsService },
+        { provide: PagesService, useValue: mockPagesService },
       ],
     }).compile();
     controller = module.get(SearchController);
@@ -68,7 +76,7 @@ describe('SearchController', () => {
         providerName: 'MeiliSearch',
       },
     ]);
-    mockPagesRepo.findByWorld.mockResolvedValueOnce([{ slug: 'test' }]);
+    mockPagesService.findVisibleSlugs.mockResolvedValueOnce(new Set(['test']));
     const result = await controller.search(
       user,
       'hello',
@@ -82,6 +90,34 @@ describe('SearchController', () => {
     );
     expect(mockCoordinator.search).toHaveBeenCalledWith('hello', 5, undefined);
     expect(result).toHaveLength(1);
+  });
+
+  it('N-35 — odfiltruje stránky bez page-level přístupu (AKJ leak fix)', async () => {
+    mockCoordinator.search.mockResolvedValueOnce([
+      {
+        slug: 'verejna',
+        id: 'p1',
+        title: 'Veřejná',
+        score: 1,
+        providerKey: 'm',
+        providerName: 'M',
+      },
+      {
+        slug: 'tajna',
+        id: 'p2',
+        title: 'Tajná',
+        score: 1,
+        providerKey: 'm',
+        providerName: 'M',
+      },
+    ]);
+    // requester vidí jen 'verejna'; 'tajna' je AKJ/access-chráněná.
+    mockPagesService.findVisibleSlugs.mockResolvedValueOnce(
+      new Set(['verejna']),
+    );
+    const result = await controller.search(user, 'q', 5, undefined, 'world1');
+    expect(result).toHaveLength(1);
+    expect(result[0].slug).toBe('verejna');
   });
 
   it('search — bez worldId vyhodí BadRequest (zákaz globálního leaku)', async () => {

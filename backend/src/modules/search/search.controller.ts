@@ -24,6 +24,7 @@ import { SearchCoordinator } from './search.coordinator';
 import { WorldsService } from '../worlds/worlds.service';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { Page } from '../pages/interfaces/page.interface';
+import { PagesService } from '../pages/pages.service';
 import type { SearchResult } from './interfaces/search-result.interface';
 
 @ApiTags('Search')
@@ -36,6 +37,7 @@ export class SearchController {
     @Inject('IPagesRepository') private readonly pagesRepo: IPagesRepository,
     @Inject(forwardRef(() => WorldsService))
     private readonly worldsService: WorldsService,
+    private readonly pagesService: PagesService,
   ) {}
 
   @Get()
@@ -73,9 +75,14 @@ export class SearchController {
       provider,
     );
 
-    const worldPages = await this.pagesRepo.findByWorld(worldId);
-    const validSlugs = new Set(worldPages.map((p) => p.slug));
-    return results.filter((r) => validSlugs.has(r.slug));
+    // N-35 — filtruj na stránky, na které má requester PAGE-LEVEL přístup.
+    // Dřív jen kontrola „slug patří světu" → search leakoval názvy/slugy
+    // AKJ/access-chráněných stránek hráčům bez přístupu.
+    const visibleSlugs = await this.pagesService.findVisibleSlugs(
+      worldId,
+      user ?? null,
+    );
+    return results.filter((r) => visibleSlugs.has(r.slug));
   }
 
   @Get('providers')

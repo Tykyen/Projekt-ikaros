@@ -397,6 +397,34 @@ export class PagesService {
     return this.pagesRepo.findAllSlugs(worldId);
   }
 
+  /**
+   * N-35 — slugy stránek, na které má requester PAGE-LEVEL přístup. Search
+   * filtruje výsledky tímto setem, aby neleakoval názvy AKJ/access-chráněných
+   * stránek hráčům bez přístupu. Reuse `assertAccess` (admin/PomocnyPJ bypass,
+   * AKJ, settings) per stránka — pro search (desítky stránek) je cost zanedbatelný.
+   */
+  async findVisibleSlugs(
+    worldId: string,
+    requester: PagesRequester | null,
+  ): Promise<Set<string>> {
+    const pages = await this.pagesRepo.findByWorld(worldId);
+    const visible = new Set<string>();
+    for (const page of pages) {
+      try {
+        await this.assertAccess(
+          page,
+          requester?.id ?? '',
+          worldId,
+          requester?.role,
+        );
+        visible.add(page.slug);
+      } catch {
+        // bez přístupu — stránka se ze search výsledků vynechá
+      }
+    }
+    return visible;
+  }
+
   async findRandom(worldId: string, count: number): Promise<Page[]> {
     return this.pagesRepo.findRandom(worldId, Math.max(1, Math.min(count, 50)));
   }
