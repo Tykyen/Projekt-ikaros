@@ -179,6 +179,10 @@ export class MongoMapsRepository
       initiative: (t.initiative as number) ?? 0,
       initiativeBase: (t.initiativeBase as number) ?? 0,
       inCombat: (t.inCombat as boolean) ?? false,
+      // D-066 — per-token lock. Bez tohoto mapování GET token.update zahodí
+      // (write do Mixed schema projde, ale read-mapper pole vynechal) → UI
+      // se „zamkne a hned odemkne" po refetchi. Field-drift fix.
+      isLocked: (t.isLocked as boolean) ?? false,
       movement: (t.movement as number) ?? 5,
       abilities: (t.abilities as { name: string; description: string }[]) ?? [],
       personalDiarySchema: t.personalDiarySchema as
