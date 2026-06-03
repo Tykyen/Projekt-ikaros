@@ -491,4 +491,16 @@ export class UploadService {
   }): Promise<void> {
     await this.deleteAttachments(payload.attachments);
   }
+
+  /**
+   * 1.3c (N-3) — hard cleanup účtu: smaž avatar + character-avatar soubory
+   * z Cloudinary (GDPR, spec §4.4). Event-driven (žádný DI cron→upload cyklus).
+   * Best-effort — chyba se loguje, hard-delete pipeline nezastaví.
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleAccountHardDeleted(payload: { userId: string }): Promise<void> {
+    const base = `ikaros/users/${payload.userId}`;
+    await this.deleteUserImage(`${base}/avatar`);
+    await this.deleteUserImage(`${base}/character`);
+  }
 }

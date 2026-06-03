@@ -33,9 +33,11 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RequestEmailChangeDto } from './dto/request-email-change.dto';
 import { RequestUsernameChangeDto } from './dto/request-username-change.dto';
+import { RequestSelfDeletionDto } from './dto/request-self-deletion.dto';
 import { UpdateFavoriteCharactersDto } from './dto/update-favorite-characters.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AllowPendingDeletion } from '../../common/decorators/allow-pending-deletion.decorator';
 import { UserRole } from './interfaces/user.interface';
 
 type Requester = { id: string; role: UserRole };
@@ -272,6 +274,53 @@ export class UsersController {
   @ApiResponse({ status: 204, description: 'Zrušeno' })
   cancelUsernameRequest(@CurrentUser() requester: Requester) {
     return this.usersService.cancelUsernameRequest(requester.id);
+  }
+
+  // ── 1.3c (N-6b) — self-delete účtu (30denní hold) ──────────────────────
+
+  @Post('me/deletion-request')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '1.3c — žádost o smazání účtu (30denní hold); ?dryRun=preview',
+  })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({
+    status: 400,
+    description: 'USERNAME_MISMATCH / SOLE_PJ_BLOCK',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'ALREADY_DELETED / ALREADY_PENDING_DELETION',
+  })
+  requestSelfDeletion(
+    @CurrentUser() requester: Requester,
+    @Body() dto: RequestSelfDeletionDto,
+    @Query('dryRun') dryRun?: string,
+  ) {
+    return this.usersService.requestSelfDeletion(
+      requester.id,
+      dto.confirmUsername,
+      dryRun === 'true',
+    );
+  }
+
+  @Get('me/deletion-request')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingDeletion()
+  @ApiOperation({ summary: '1.3c — stav self-delete žádosti, nebo null' })
+  @ApiResponse({ status: 200 })
+  getSelfDeletionStatus(@CurrentUser() requester: Requester) {
+    return this.usersService.getSelfDeletionStatus(requester.id);
+  }
+
+  @Delete('me/deletion-request')
+  @UseGuards(JwtAuthGuard)
+  @AllowPendingDeletion()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: '1.3c — zruší vlastní pending self-delete' })
+  @ApiResponse({ status: 204, description: 'Zrušeno' })
+  cancelSelfDeletion(@CurrentUser() requester: Requester) {
+    return this.usersService.cancelSelfDeletion(requester.id);
   }
 
   // ── D-028 — toast po loginu o rozhodnuté username žádosti ──────────────

@@ -59,6 +59,20 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Post('reactivate-deletion')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      '1.3c — reaktivace účtu v pending self-delete (credentials + login)',
+  })
+  @ApiResponse({ status: 200, description: 'Tokeny + user (reaktivováno)' })
+  @ApiResponse({ status: 400, description: 'NOT_PENDING_DELETION' })
+  @ApiResponse({ status: 401, description: 'INVALID_CREDENTIALS / DELETED' })
+  reactivateDeletion(@Body() dto: LoginDto) {
+    return this.authService.reactivateDeletion(dto);
+  }
+
   @Get('check-username')
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @ApiOperation({

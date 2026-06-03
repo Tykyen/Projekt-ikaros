@@ -52,6 +52,7 @@ export class UserSchemaClass {
   // SP0 rozšíření (2026-05-14):
   @Prop({ default: false }) isDeleted?: boolean;
   @Prop({ type: Date }) deletionRequestedAt?: Date;
+  @Prop({ type: Date }) deletedAt?: Date; // N-6b (1.3c) — hard-cleanup timestamp
   @Prop() deletionReason?: string;
 
   @Prop({ type: Date }) bannedAt?: Date;

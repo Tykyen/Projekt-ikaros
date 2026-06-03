@@ -21,9 +21,5 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    "src/modules/users/services/account-cleanup.cron.spec.ts"
-  ]
+  "exclude": ["node_modules", "dist"]
 }

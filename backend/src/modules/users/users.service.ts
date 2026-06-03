@@ -32,8 +32,17 @@ import type { IFriendshipsRepository } from '../friendships/interfaces/friendshi
 import type { ICharactersRepository } from '../characters/interfaces/characters-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { MyCharacterEntry } from './interfaces/user.interface';
+import type { DeletionPromotion } from './interfaces/user.interface';
+import { UserBanCacheService } from './services/user-ban-cache.service';
+import {
+  assessPJHandover,
+  executePJHandover,
+} from './helpers/pj-handover.helper';
 
 type SanitizedUser = Omit<User, 'passwordHash'>;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const DELETION_HOLD_DAYS = 30; // 1.3c — hardcoded (admin-config = dluh)
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -68,6 +77,8 @@ export class UsersService implements OnModuleInit {
     private readonly charactersRepo: ICharactersRepository,
     @Inject('IWorldsRepository')
     private readonly worldsRepo: IWorldsRepository,
+    // N-6b (1.3c) — self-deletion invaliduje ban/deletion cache.
+    private readonly banCache: UserBanCacheService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -668,6 +679,129 @@ export class UsersService implements OnModuleInit {
   /** Zruší vlastní pending žádost (idempotentní). */
   async cancelUsernameRequest(userId: string): Promise<void> {
     await this.usernameRequestsRepo.deletePending(userId);
+  }
+
+  // ── 1.3c (N-6b) — self-delete účtu (30denní hold + reaktivace) ──────────
+
+  /**
+   * Uživatel požádá o smazání účtu (30denní hold). Vzor:
+   * `admin.requestUserDeletion`. PJ handover (auto-promote Pomocného PJ;
+   * `SOLE_PJ_BLOCK` pokud jediný PJ bez Pomocného). `dryRun=true` vrátí jen
+   * handover plán (FE preview), bez zápisu. Revoke tokenů přes event
+   * `user.deletion.requested` (auth `@OnEvent` — vyhne se DI cyklu).
+   */
+  async requestSelfDeletion(
+    userId: string,
+    confirmUsername: string,
+    dryRun = false,
+  ): Promise<{
+    deletionRequestedAt: Date | null;
+    scheduledHardDeleteAt: Date | null;
+    promotions: DeletionPromotion[];
+  }> {
+    const user = await this.repo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    if (user.isDeleted)
+      throw new ConflictException({
+        code: 'ALREADY_DELETED',
+        message: 'Účet už byl odstraněn',
+      });
+    if (user.deletionRequestedAt)
+      throw new ConflictException({
+        code: 'ALREADY_PENDING_DELETION',
+        message: 'Účet už čeká na smazání',
+      });
+    if (confirmUsername !== user.username)
+      throw new BadRequestException({
+        code: 'USERNAME_MISMATCH',
+        message: 'Potvrzení přezdívky nesouhlasí.',
+      });
+
+    const plan = await assessPJHandover(userId, {
+      membershipRepo: this.membershipRepo,
+      worldsRepo: this.worldsRepo,
+      usersRepo: this.repo,
+    });
+    if (plan.blocking.length > 0)
+      throw new BadRequestException({
+        code: 'SOLE_PJ_BLOCK',
+        message:
+          'Nelze smazat účet — jsi jediný PJ ve světech bez Pomocného PJ',
+        worlds: plan.blocking,
+      });
+
+    const promotions: DeletionPromotion[] = plan.promotions.map((p) => ({
+      worldId: p.worldId,
+      worldName: p.worldName,
+      worldSlug: p.worldSlug,
+      promotedUserId: p.promotedUserId,
+      promotedUsername: p.promotedUsername,
+    }));
+
+    if (dryRun)
+      return {
+        deletionRequestedAt: null,
+        scheduledHardDeleteAt: null,
+        promotions,
+      };
+
+    await executePJHandover(plan, { membershipRepo: this.membershipRepo });
+    const now = new Date();
+    await this.repo.update(userId, {
+      deletionRequestedAt: now,
+      deletionRequestedBy: userId,
+      deletionReason: 'self-requested',
+      deletionPromotions: promotions,
+    });
+    this.banCache.invalidate(userId);
+    this.eventEmitter.emit('user.deletion.requested', { userId });
+    const scheduledHardDeleteAt = new Date(
+      now.getTime() + DELETION_HOLD_DAYS * DAY_MS,
+    );
+    this.eventEmitter.emit('account.deletion.scheduled', {
+      userId,
+      scheduledHardDeleteAt,
+      reason: 'self-requested',
+      byAdmin: false,
+    });
+    return { deletionRequestedAt: now, scheduledHardDeleteAt, promotions };
+  }
+
+  /** Stav self-delete žádosti (FE banner), nebo null. */
+  async getSelfDeletionStatus(userId: string): Promise<{
+    deletionRequestedAt: Date | null;
+    scheduledHardDeleteAt: Date | null;
+  }> {
+    const user = await this.repo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    if (!user.deletionRequestedAt || user.isDeleted)
+      return { deletionRequestedAt: null, scheduledHardDeleteAt: null };
+    return {
+      deletionRequestedAt: user.deletionRequestedAt,
+      scheduledHardDeleteAt: new Date(
+        user.deletionRequestedAt.getTime() + DELETION_HOLD_DAYS * DAY_MS,
+      ),
+    };
+  }
+
+  /** Zruší vlastní pending self-delete (před hard cleanupem; idempotentní). */
+  async cancelSelfDeletion(userId: string): Promise<void> {
+    const user = await this.repo.findById(userId);
+    if (!user || !user.deletionRequestedAt || user.isDeleted) return;
+    await this.repo.update(userId, {
+      deletionRequestedAt: undefined,
+      deletionRequestedBy: undefined,
+      deletionReason: undefined,
+    });
+    this.banCache.invalidate(userId);
   }
 
   private toRequestDto(req: UsernameChangeRequest) {

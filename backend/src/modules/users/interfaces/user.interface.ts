@@ -75,6 +75,8 @@ export interface User {
   isDeleted?: boolean;
   deletionRequestedAt?: Date;
   deletionReason?: string;
+  /** N-6b (1.3c §2.5) — timestamp hard-cleanupu (anonymizace cronem). */
+  deletedAt?: Date;
   bannedAt?: Date;
   bannedUntil?: Date;
   banReason?: string;

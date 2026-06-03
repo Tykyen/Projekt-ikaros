@@ -1,30 +1,25 @@
 import { Test } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AccountCleanupCron } from './account-cleanup.cron';
-import { UploadService } from '../../upload/upload.service';
-import { UserBanCacheService } from './user-ban-cache.service';
+import { MailerService } from '../../mailer/mailer.service';
 import type { User } from '../interfaces/user.interface';
 import { UserRole } from '../interfaces/user.interface';
 
-function makeTombstone(overrides: Partial<User> = {}): User {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function makePending(overrides: Partial<User> = {}): User {
   return {
-    id: 'tomb1',
-    email: 'deleted-tomb1@deleted.local',
-    username: 'old_user',
-    passwordHash: '',
+    id: 'u1',
+    email: 'alice@example.com',
+    username: 'alice',
+    passwordHash: 'hash',
     role: UserRole.Ikarus,
     defaultAvatarType: 'male',
     chatColor: '#FFFFFF',
-    emailVerified: false,
-    hiddenPresence: false,
-    isDeleted: true,
-    deletedAt: new Date(Date.now() - 2000 * 24 * 60 * 60 * 1000), // 2000 dní zpět
-    adminPermissions: {
-      canManageAdmins: false,
-      canModerateContent: false,
-      canEditPlatformPages: false,
-    },
+    isDeleted: false,
+    deletionRequestedAt: new Date(Date.now() - 31 * DAY_MS),
+    deletionRequestedBy: 'u1',
+    deletionReason: 'self',
     themeSettings: {},
     chatPreferences: {},
     favoriteDiscussionIds: [],
@@ -33,215 +28,96 @@ function makeTombstone(overrides: Partial<User> = {}): User {
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-  };
+  } as User;
 }
 
-type MockFn = ReturnType<typeof jest.fn>;
-
-describe('AccountCleanupCron — D-043 tombstone retention', () => {
+describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
   let cron: AccountCleanupCron;
-  const usersRepo: Record<string, MockFn> = {
-    findById: jest.fn(),
-    findExpiredTombstones: jest.fn(),
-    findAllPaginated: jest.fn(),
-    update: jest.fn(),
-    delete: jest.fn(),
+  const usersRepo: Record<string, jest.Mock> = {
+    findExpiredPendingDeletion: jest.fn(),
+    anonymizeForHardDelete: jest.fn(),
   };
-  const refreshRepo = { revokeAllForUser: jest.fn() };
-  const friendshipsRepo = { deleteAllByUser: jest.fn() };
-  const uploadService = { deleteAvatar: jest.fn() };
-  const banCache = { invalidate: jest.fn() };
-  const config = {
-    get: jest.fn(),
-  } as unknown as ConfigService;
-  let eventEmitter: jest.Mocked<EventEmitter2>;
+  const mailer = {} as unknown as MailerService;
+  let events: jest.Mocked<EventEmitter2>;
 
   beforeEach(async () => {
-    eventEmitter = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
+    events = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
     const mod = await Test.createTestingModule({
       providers: [
         AccountCleanupCron,
         { provide: 'IUsersRepository', useValue: usersRepo },
-        { provide: 'IRefreshTokenRepository', useValue: refreshRepo },
-        { provide: 'IFriendshipsRepository', useValue: friendshipsRepo },
-        { provide: UploadService, useValue: uploadService },
-        { provide: UserBanCacheService, useValue: banCache },
-        { provide: ConfigService, useValue: config },
-        { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: EventEmitter2, useValue: events },
+        { provide: MailerService, useValue: mailer },
       ],
     }).compile();
     cron = mod.get(AccountCleanupCron);
     jest.clearAllMocks();
   });
 
-  describe('removeExpiredTombstones', () => {
-    it('používá ENV TOMBSTONE_RETENTION_DAYS pokud je nastaven', async () => {
-      (config.get as jest.Mock).mockImplementation((key) =>
-        key === 'TOMBSTONE_RETENTION_DAYS' ? 365 : undefined,
-      );
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([]);
+  it('cutoff = now − 30 dní', async () => {
+    usersRepo.findExpiredPendingDeletion.mockResolvedValue([]);
 
-      await cron.removeExpiredTombstones();
+    await cron.sweep();
 
-      const cutoff = (usersRepo.findExpiredTombstones as jest.Mock).mock
-        .calls[0][0] as Date;
-      const expectedCutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-      const diffMs = Math.abs(cutoff.getTime() - expectedCutoff.getTime());
-      expect(diffMs).toBeLessThan(5000); // tolerance 5s
-    });
-
-    it('fallback na 1825 dní pokud ENV chybí', async () => {
-      (config.get as jest.Mock).mockReturnValue(undefined);
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([]);
-
-      await cron.removeExpiredTombstones();
-
-      const cutoff = (usersRepo.findExpiredTombstones as jest.Mock).mock
-        .calls[0][0] as Date;
-      const expectedCutoff = new Date(Date.now() - 1825 * 24 * 60 * 60 * 1000);
-      const diffMs = Math.abs(cutoff.getTime() - expectedCutoff.getTime());
-      expect(diffMs).toBeLessThan(5000);
-    });
-
-    it('odmítne hodnoty < 30 dní (sanity check)', async () => {
-      (config.get as jest.Mock).mockImplementation((key) =>
-        key === 'TOMBSTONE_RETENTION_DAYS' ? 10 : undefined,
-      );
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([]);
-
-      await cron.removeExpiredTombstones();
-
-      const cutoff = (usersRepo.findExpiredTombstones as jest.Mock).mock
-        .calls[0][0] as Date;
-      const expectedCutoff = new Date(Date.now() - 1825 * 24 * 60 * 60 * 1000); // fallback na default
-      const diffMs = Math.abs(cutoff.getTime() - expectedCutoff.getTime());
-      expect(diffMs).toBeLessThan(5000);
-    });
-
-    it('pro každý expirovaný tombstone zavolá removeTombstoneOne', async () => {
-      const t1 = makeTombstone({ id: 't1', username: 'user1' });
-      const t2 = makeTombstone({ id: 't2', username: 'user2' });
-      (config.get as jest.Mock).mockReturnValue(undefined);
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([
-        t1,
-        t2,
-      ]);
-      (usersRepo.delete as jest.Mock).mockResolvedValue(true);
-
-      await cron.removeExpiredTombstones();
-
-      expect(usersRepo.delete).toHaveBeenCalledTimes(2);
-      expect(usersRepo.delete).toHaveBeenCalledWith('t1');
-      expect(usersRepo.delete).toHaveBeenCalledWith('t2');
-    });
-
-    it('emituje audit event user.tombstone.removed', async () => {
-      const t1 = makeTombstone({ id: 't1', username: 'old_user' });
-      (config.get as jest.Mock).mockReturnValue(undefined);
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([t1]);
-      (usersRepo.delete as jest.Mock).mockResolvedValue(true);
-
-      await cron.removeExpiredTombstones();
-
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'user.tombstone.removed',
-        expect.objectContaining({
-          userId: 't1',
-          username: 'old_user',
-        }),
-      );
-    });
-
-    it('chyba při delete jednoho tombstone nezastaví ostatní', async () => {
-      const t1 = makeTombstone({ id: 't1', username: 'user1' });
-      const t2 = makeTombstone({ id: 't2', username: 'user2' });
-      (config.get as jest.Mock).mockReturnValue(undefined);
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([
-        t1,
-        t2,
-      ]);
-      (usersRepo.delete as jest.Mock)
-        .mockRejectedValueOnce(new Error('DB error'))
-        .mockResolvedValueOnce(true);
-
-      await expect(cron.removeExpiredTombstones()).resolves.not.toThrow();
-      expect(usersRepo.delete).toHaveBeenCalledTimes(2);
-    });
-
-    it('prázdný seznam → noop bez emitování', async () => {
-      (config.get as jest.Mock).mockReturnValue(undefined);
-      (usersRepo.findExpiredTombstones as jest.Mock).mockResolvedValue([]);
-
-      await cron.removeExpiredTombstones();
-
-      expect(usersRepo.delete).not.toHaveBeenCalled();
-      expect(eventEmitter.emit).not.toHaveBeenCalled();
-    });
+    const cutoff = usersRepo.findExpiredPendingDeletion.mock
+      .calls[0][0] as Date;
+    const expected = Date.now() - 30 * DAY_MS;
+    expect(Math.abs(cutoff.getTime() - expected)).toBeLessThan(5000);
   });
 
-  describe('removeTombstoneOne', () => {
-    it('volá repo.delete + emit event', async () => {
-      (usersRepo.delete as jest.Mock).mockResolvedValue(true);
+  it('prázdný seznam → noop (žádná anonymizace ani emit)', async () => {
+    usersRepo.findExpiredPendingDeletion.mockResolvedValue([]);
 
-      await cron.removeTombstoneOne('t1', 'old_user');
+    await cron.sweep();
 
-      expect(usersRepo.delete).toHaveBeenCalledWith('t1');
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'user.tombstone.removed',
-        expect.objectContaining({ userId: 't1', username: 'old_user' }),
-      );
-    });
-
-    it('pokud repo vrátí false → varuje a nepošle event', async () => {
-      (usersRepo.delete as jest.Mock).mockResolvedValue(false);
-
-      await cron.removeTombstoneOne('nope', 'ghost');
-
-      expect(eventEmitter.emit).not.toHaveBeenCalled();
-    });
+    expect(usersRepo.anonymizeForHardDelete).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalled();
   });
 
-  describe('hardDeleteOne — D-041 friendship cleanup', () => {
-    it('volá friendshipsRepo.deleteAllByUser jako součást tombstone pipeline', async () => {
-      const user = makeTombstone({
-        id: 'u1',
+  it('pro každý expirovaný účet anonymizuje + emituje hardDeleted', async () => {
+    const a = makePending({ id: 'a', username: 'alice' });
+    const b = makePending({ id: 'b', username: 'bob' });
+    usersRepo.findExpiredPendingDeletion.mockResolvedValue([a, b]);
+    usersRepo.anonymizeForHardDelete.mockResolvedValue(undefined);
+
+    await cron.sweep();
+
+    expect(usersRepo.anonymizeForHardDelete).toHaveBeenCalledTimes(2);
+    expect(usersRepo.anonymizeForHardDelete).toHaveBeenCalledWith(
+      'a',
+      'deleted-a@deleted.local',
+    );
+    expect(usersRepo.anonymizeForHardDelete).toHaveBeenCalledWith(
+      'b',
+      'deleted-b@deleted.local',
+    );
+    expect(events.emit).toHaveBeenCalledWith(
+      'user.deletion.hardDeleted',
+      expect.objectContaining({
+        userId: 'a',
         username: 'alice',
-        isDeleted: false,
-        deletedAt: undefined,
-        deletionRequestedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
-      });
-      (usersRepo.findById as jest.Mock).mockResolvedValue(user);
-      (usersRepo.update as jest.Mock).mockResolvedValue(user);
-      friendshipsRepo.deleteAllByUser.mockResolvedValue(3);
+        deletionRequestedBy: 'u1',
+        deletionReason: 'self',
+      }),
+    );
+  });
 
-      await cron.hardDeleteOne('u1');
+  it('chyba u jednoho účtu nezastaví zbytek dávky', async () => {
+    const a = makePending({ id: 'a' });
+    const b = makePending({ id: 'b' });
+    usersRepo.findExpiredPendingDeletion.mockResolvedValue([a, b]);
+    usersRepo.anonymizeForHardDelete
+      .mockRejectedValueOnce(new Error('mongo down'))
+      .mockResolvedValueOnce(undefined);
 
-      expect(friendshipsRepo.deleteAllByUser).toHaveBeenCalledWith('u1');
-      expect(refreshRepo.revokeAllForUser).toHaveBeenCalledWith('u1');
-    });
+    await expect(cron.sweep()).resolves.not.toThrow();
 
-    it('chyba friendshipsRepo nezastaví zbytek pipeline', async () => {
-      const user = makeTombstone({
-        id: 'u2',
-        username: 'bob',
-        isDeleted: false,
-        deletedAt: undefined,
-        deletionRequestedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
-      });
-      (usersRepo.findById as jest.Mock).mockResolvedValue(user);
-      (usersRepo.update as jest.Mock).mockResolvedValue(user);
-      friendshipsRepo.deleteAllByUser.mockRejectedValue(
-        new Error('mongo down'),
-      );
-
-      await cron.hardDeleteOne('u2');
-
-      expect(refreshRepo.revokeAllForUser).toHaveBeenCalledWith('u2');
-      expect(banCache.invalidate).toHaveBeenCalledWith('u2');
-      expect(eventEmitter.emit).toHaveBeenCalledWith(
-        'user.deletion.hardDeleted',
-        expect.any(Object),
-      );
-    });
+    expect(usersRepo.anonymizeForHardDelete).toHaveBeenCalledTimes(2);
+    // jen druhý (úspěšný) account vyemituje event
+    expect(events.emit).toHaveBeenCalledTimes(1);
+    expect(events.emit).toHaveBeenCalledWith(
+      'user.deletion.hardDeleted',
+      expect.objectContaining({ userId: 'b' }),
+    );
   });
 });

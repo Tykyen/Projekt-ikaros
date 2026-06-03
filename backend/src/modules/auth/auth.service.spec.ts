@@ -273,6 +273,104 @@ describe('AuthService', () => {
         service.login({ identifier: 'x@x.com', password: 'pass123' }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    // 1.3c (N-6b) — gate na stav účtu
+    it('deletion_pending: pending účet vrátí status místo tokenů', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      const at = new Date('2026-05-01T00:00:00Z');
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        deletionRequestedAt: at,
+      });
+      const result = await service.login({
+        identifier: 'a@a.com',
+        password: 'pass123',
+      });
+      expect(result.status).toBe('deletion_pending');
+      if (result.status !== 'deletion_pending')
+        fail('expected deletion_pending');
+      expect(result.deletionRequestedAt).toEqual(at);
+      expect(result.scheduledHardDeleteAt).toBeInstanceOf(Date);
+      expect(mockRefreshRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('DELETED: tombstone účet vyhodí UnauthorizedException', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        isDeleted: true,
+      });
+      await expect(
+        service.login({ identifier: 'a@a.com', password: 'pass123' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('reactivateDeletion (1.3c / N-6b)', () => {
+    it('INVALID_CREDENTIALS když uživatel neexistuje', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      await expect(
+        service.reactivateDeletion({ identifier: 'a@a.com', password: 'x' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('INVALID_CREDENTIALS pro špatné heslo', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        deletionRequestedAt: new Date(),
+      });
+      await expect(
+        service.reactivateDeletion({ identifier: 'a@a.com', password: 'x' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('DELETED když je účet už tombstone', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        isDeleted: true,
+      });
+      await expect(
+        service.reactivateDeletion({ identifier: 'a@a.com', password: 'pass' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('NOT_PENDING_DELETION když účet není v pending stavu', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockUsersRepo.findByEmail.mockResolvedValue(mockUser);
+      await expect(
+        service.reactivateDeletion({ identifier: 'a@a.com', password: 'pass' }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('happy path: clear flagů + ban invalidate + vrátí tokeny', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        deletionRequestedAt: new Date(),
+      });
+      mockUsersRepo.update.mockResolvedValue(mockUser);
+      const result = await service.reactivateDeletion({
+        identifier: 'a@a.com',
+        password: 'pass',
+      });
+      expect(result.status).toBe('ok');
+      if (result.status !== 'ok') fail('expected ok');
+      expect(result.accessToken).toBeDefined();
+      expect(mockUsersRepo.update).toHaveBeenCalledWith(
+        '1',
+        expect.objectContaining({ deletionRequestedAt: undefined }),
+      );
+      expect(mockBanCache.invalidate).toHaveBeenCalledWith('1');
+    });
+  });
+
+  describe('handleSelfDeletionRequested (1.3c / N-6b)', () => {
+    it('revokuje všechny refresh tokeny uživatele (auto-logout)', async () => {
+      await service.handleSelfDeletionRequested({ userId: 'u9' });
+      expect(mockRefreshRepo.revokeAllForUser).toHaveBeenCalledWith('u9');
+    });
   });
 
   describe('refresh', () => {

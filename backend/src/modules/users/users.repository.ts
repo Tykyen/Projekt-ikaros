@@ -178,6 +178,54 @@ export class MongoUsersRepository
       .exec();
   }
 
+  // 1.3c (N-3) — účty s prošlým 30denním holdem, dosud neanonymizované.
+  async findExpiredPendingDeletion(cutoff: Date): Promise<User[]> {
+    const docs = await this.model
+      .find({
+        deletionRequestedAt: { $ne: null, $lt: cutoff },
+        isDeleted: { $ne: true },
+      })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  // 1.3c (N-3) — nevratná anonymizace. $unset pro PII (update/$set undefined nemaže),
+  // $set isDeleted/deletedAt + placeholder email/passwordHash.
+  async anonymizeForHardDelete(
+    id: string,
+    anonymizedEmail: string,
+  ): Promise<void> {
+    await this.model
+      .updateOne(
+        { _id: id },
+        {
+          $set: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            email: anonymizedEmail,
+            passwordHash: '',
+            emailVerified: false,
+          },
+          // GDPR (spec 1.3c §4.4 ř.42/430) — PII pryč. Avatar pole nullujeme zde,
+          // soubory z Cloudinary maže UploadService @OnEvent('user.deletion.hardDeleted').
+          // Zachováno: username/usernameLower/displayName/chatColor/defaultAvatarType.
+          $unset: {
+            bio: '',
+            lastLoginAt: '',
+            city: '',
+            emailVerifiedAt: '',
+            avatarUrl: '',
+            characterAvatarUrl: '',
+            profileImageUrl: '',
+          },
+        },
+      )
+      .exec();
+  }
+
   async findAllPaginated(opts: {
     username?: string;
     role?: UserRole;
@@ -283,6 +331,7 @@ export class MongoUsersRepository
       // (tombstone hiding, ban check, adminPermissions tiše nefungovaly).
       isDeleted: doc.isDeleted as boolean | undefined,
       deletionRequestedAt: doc.deletionRequestedAt as Date | undefined,
+      deletedAt: doc.deletedAt as Date | undefined, // N-6b (1.3c)
       deletionReason: doc.deletionReason as string | undefined,
       bannedAt: doc.bannedAt as Date | undefined,
       bannedUntil: doc.bannedUntil as Date | undefined,

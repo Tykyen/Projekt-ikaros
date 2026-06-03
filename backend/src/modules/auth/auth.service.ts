@@ -31,12 +31,21 @@ import { CaptchaService } from './captcha.service';
  * SP2 přidá: `{ status: 'email_not_verified'; email: string }`.
  * SP4 přidá: `{ status: 'banned'; bannedUntil?: Date; banReason?: string }`.
  */
-export type LoginResult = {
-  status: 'ok';
-  accessToken: string;
-  refreshToken: string;
-  user: Omit<User, 'passwordHash'>;
-};
+export type LoginResult =
+  | {
+      status: 'ok';
+      accessToken: string;
+      refreshToken: string;
+      user: Omit<User, 'passwordHash'>;
+    }
+  // 1.3c (N-6b) — účet v pending self-delete: FE nabídne reaktivaci.
+  | {
+      status: 'deletion_pending';
+      deletionRequestedAt: Date;
+      scheduledHardDeleteAt: Date;
+    };
+
+const DELETION_HOLD_DAYS = 30; // 1.3c — sjednotné s UsersService
 
 @Injectable()
 export class AuthService {
@@ -152,6 +161,21 @@ export class AuthService {
         message: 'Neplatné přihlašovací údaje',
       });
 
+    // 1.3c (N-6b) — gate na stav účtu.
+    if (user.isDeleted)
+      throw new UnauthorizedException({
+        code: 'DELETED',
+        message: 'Účet byl smazán',
+      });
+    if (user.deletionRequestedAt)
+      return {
+        status: 'deletion_pending',
+        deletionRequestedAt: user.deletionRequestedAt,
+        scheduledHardDeleteAt: new Date(
+          user.deletionRequestedAt.getTime() + DELETION_HOLD_DAYS * DAY_MS,
+        ),
+      };
+
     const now = new Date();
     await this.usersRepo.updateLastSeen(user.id);
     // 1.3a — lastLoginAt (≠ lastSeenAt; ten se mění s presence pingem).
@@ -159,6 +183,63 @@ export class AuthService {
     user.lastLoginAt = now;
     const tokens = await this.generateTokenPair(user);
     return { status: 'ok', ...tokens, user: this.sanitize(user) };
+  }
+
+  /**
+   * 1.3c (N-6b) — uživatel s pending self-delete se vrátí: ověř credentials,
+   * clear deletion flagy + standardní login. (D-034b revert PJ handover = dluh.)
+   */
+  async reactivateDeletion(dto: LoginDto): Promise<LoginResult> {
+    const isEmail = dto.identifier.includes('@');
+    const user = isEmail
+      ? await this.usersRepo.findByEmail(dto.identifier)
+      : await this.usersRepo.findByUsername(dto.identifier);
+    if (!user)
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Neplatné přihlašovací údaje',
+      });
+    const valid = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!valid)
+      throw new UnauthorizedException({
+        code: 'INVALID_CREDENTIALS',
+        message: 'Neplatné přihlašovací údaje',
+      });
+    if (user.isDeleted)
+      throw new UnauthorizedException({
+        code: 'DELETED',
+        message: 'Účet byl smazán',
+      });
+    if (!user.deletionRequestedAt)
+      throw new BadRequestException({
+        code: 'NOT_PENDING_DELETION',
+        message: 'Účet nemá naplánované smazání.',
+      });
+
+    await this.usersRepo.update(user.id, {
+      deletionRequestedAt: undefined,
+      deletionRequestedBy: undefined,
+      deletionReason: undefined,
+    });
+    this.banCache.invalidate(user.id);
+    const now = new Date();
+    await this.usersRepo.updateLastSeen(user.id);
+    await this.usersRepo.updateLastLogin(user.id, now);
+    const refreshed = {
+      ...user,
+      deletionRequestedAt: undefined,
+      lastLoginAt: now,
+    };
+    const tokens = await this.generateTokenPair(refreshed);
+    return { status: 'ok', ...tokens, user: this.sanitize(refreshed) };
+  }
+
+  /** 1.3c (N-6b) — self-delete request → revoke refresh tokenů (auto-logout). */
+  @OnEvent('user.deletion.requested')
+  async handleSelfDeletionRequested(payload: {
+    userId: string;
+  }): Promise<void> {
+    await this.refreshRepo.revokeAllForUser(payload.userId);
   }
 
   async refresh(

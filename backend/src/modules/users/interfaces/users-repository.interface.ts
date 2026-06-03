@@ -25,6 +25,18 @@ export interface IUsersRepository {
   countCreatedSince(since: Date): Promise<number>;
   /** 12.1 — počet účtů v pending-deletion holdu (deletionRequestedAt, !isDeleted). */
   countPendingDeletion(): Promise<number>;
+  /**
+   * 1.3c (N-3) — účty s prošlým 30denním holdem (deletionRequestedAt < cutoff, !isDeleted).
+   * AccountCleanupCron je anonymizuje (hard cleanup).
+   */
+  findExpiredPendingDeletion(cutoff: Date): Promise<User[]>;
+  /**
+   * 1.3c (N-3) — nevratná anonymizace PII (passwordHash/email/bio/lastLoginAt) +
+   * `isDeleted:true`/`deletedAt`. Zachovává username/displayName/avatarUrl/chatColor
+   * pro referenční integritu (audit, @mentions, tombstone). Používá `$unset` —
+   * `update()` přes `$set:undefined` by PII nesmazal.
+   */
+  anonymizeForHardDelete(id: string, anonymizedEmail: string): Promise<void>;
   findAllPaginated(opts: {
     username?: string;
     role?: UserRole;

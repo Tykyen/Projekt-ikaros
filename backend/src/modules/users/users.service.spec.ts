@@ -21,6 +21,16 @@ import { UserBanCacheService } from './services/user-ban-cache.service';
 import { MailerService } from '../mailer/mailer.service';
 import { SecurityTokensService } from '../security-tokens/security-tokens.service';
 
+// 1.3c — PJ handover helper mock (kontrola blocking/promotions ve self-delete testech).
+jest.mock('./helpers/pj-handover.helper', () => ({
+  assessPJHandover: jest.fn(),
+  executePJHandover: jest.fn(),
+}));
+import {
+  assessPJHandover,
+  executePJHandover,
+} from './helpers/pj-handover.helper';
+
 const mockEvents = { emit: jest.fn() };
 
 // D-057 — friendship repository pro friend-only profil check
@@ -1325,6 +1335,150 @@ describe('UsersService', () => {
     it('cancelUsernameRequest volá deletePending', async () => {
       await service.cancelUsernameRequest('u1');
       expect(mockUsernameRequestsRepo.deletePending).toHaveBeenCalledWith('u1');
+    });
+  });
+
+  describe('self-deletion (1.3c / N-6b)', () => {
+    const baseUser = {
+      id: 'u1',
+      username: 'alice',
+      email: 'alice@a.com',
+      passwordHash: 'h',
+      role: UserRole.Ikarus,
+      isDeleted: false,
+    };
+
+    it('USER_NOT_FOUND když uživatel neexistuje', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(service.requestSelfDeletion('u1', 'alice')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('ALREADY_DELETED pro tombstone', async () => {
+      mockRepo.findById.mockResolvedValue({ ...baseUser, isDeleted: true });
+      await expect(service.requestSelfDeletion('u1', 'alice')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('ALREADY_PENDING_DELETION když už pending', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...baseUser,
+        deletionRequestedAt: new Date(),
+      });
+      await expect(service.requestSelfDeletion('u1', 'alice')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('USERNAME_MISMATCH když potvrzení nesouhlasí', async () => {
+      mockRepo.findById.mockResolvedValue(baseUser);
+      await expect(service.requestSelfDeletion('u1', 'WRONG')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('SOLE_PJ_BLOCK když je jediný PJ bez Pomocného', async () => {
+      mockRepo.findById.mockResolvedValue(baseUser);
+      (assessPJHandover as jest.Mock).mockResolvedValue({
+        blocking: [{ worldId: 'w1', worldName: 'Svět', worldSlug: 'svet' }],
+        promotions: [],
+      });
+      await expect(service.requestSelfDeletion('u1', 'alice')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(executePJHandover).not.toHaveBeenCalled();
+      expect(mockEvents.emit).not.toHaveBeenCalled();
+    });
+
+    it('dryRun vrátí promotions bez zápisu a bez eventů', async () => {
+      mockRepo.findById.mockResolvedValue(baseUser);
+      (assessPJHandover as jest.Mock).mockResolvedValue({
+        blocking: [],
+        promotions: [
+          {
+            worldId: 'w1',
+            worldName: 'Svět',
+            worldSlug: 'svet',
+            promotedUserId: 'u2',
+            promotedUsername: 'bob',
+          },
+        ],
+      });
+      const res = await service.requestSelfDeletion('u1', 'alice', true);
+      expect(res.promotions).toHaveLength(1);
+      expect(res.deletionRequestedAt).toBeNull();
+      expect(executePJHandover).not.toHaveBeenCalled();
+      expect(mockRepo.update).not.toHaveBeenCalled();
+      expect(mockEvents.emit).not.toHaveBeenCalled();
+    });
+
+    it('happy path: zápis flagů + revoke event + scheduled mail + ban invalidate', async () => {
+      mockRepo.findById.mockResolvedValue(baseUser);
+      (assessPJHandover as jest.Mock).mockResolvedValue({
+        blocking: [],
+        promotions: [],
+      });
+      (executePJHandover as jest.Mock).mockResolvedValue(undefined);
+      mockRepo.update.mockResolvedValue(baseUser);
+
+      const res = await service.requestSelfDeletion('u1', 'alice');
+
+      expect(executePJHandover).toHaveBeenCalled();
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({
+          deletionRequestedBy: 'u1',
+          deletionReason: 'self-requested',
+        }),
+      );
+      expect(mockBanCache.invalidate).toHaveBeenCalledWith('u1');
+      expect(mockEvents.emit).toHaveBeenCalledWith('user.deletion.requested', {
+        userId: 'u1',
+      });
+      expect(mockEvents.emit).toHaveBeenCalledWith(
+        'account.deletion.scheduled',
+        expect.objectContaining({ userId: 'u1', byAdmin: false }),
+      );
+      expect(res.deletionRequestedAt).toBeInstanceOf(Date);
+      expect(res.scheduledHardDeleteAt).toBeInstanceOf(Date);
+    });
+
+    it('getSelfDeletionStatus → null bez pending', async () => {
+      mockRepo.findById.mockResolvedValue(baseUser);
+      const res = await service.getSelfDeletionStatus('u1');
+      expect(res.deletionRequestedAt).toBeNull();
+    });
+
+    it('getSelfDeletionStatus → datumy když pending', async () => {
+      const at = new Date();
+      mockRepo.findById.mockResolvedValue({
+        ...baseUser,
+        deletionRequestedAt: at,
+      });
+      const res = await service.getSelfDeletionStatus('u1');
+      expect(res.deletionRequestedAt).toEqual(at);
+      expect(res.scheduledHardDeleteAt).toBeInstanceOf(Date);
+    });
+
+    it('cancelSelfDeletion: noop bez pending', async () => {
+      mockRepo.findById.mockResolvedValue(baseUser);
+      await service.cancelSelfDeletion('u1');
+      expect(mockRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('cancelSelfDeletion: clear flagů + ban invalidate když pending', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...baseUser,
+        deletionRequestedAt: new Date(),
+      });
+      await service.cancelSelfDeletion('u1');
+      expect(mockRepo.update).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({ deletionRequestedAt: undefined }),
+      );
+      expect(mockBanCache.invalidate).toHaveBeenCalledWith('u1');
     });
   });
 });
