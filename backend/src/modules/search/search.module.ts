@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   PageEmbeddingSchemaClass,
@@ -17,6 +17,7 @@ import { MeiliSearchService } from './meili-search.service';
 import { SearchCoordinator } from './search.coordinator';
 import { SearchController } from './search.controller';
 import { PagesModule } from '../pages/pages.module';
+import { WorldsModule } from '../worlds/worlds.module';
 
 @Global()
 @Module({
@@ -30,6 +31,7 @@ import { PagesModule } from '../pages/pages.module';
       { name: IndexingFailureSchemaClass.name, schema: IndexingFailureSchema },
     ]),
     PagesModule,
+    forwardRef(() => WorldsModule),
   ],
   controllers: [SearchController],
   providers: [

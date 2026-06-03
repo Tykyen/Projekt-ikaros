@@ -15,6 +15,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { AdminGuard } from '../../common/guards/admin.guard';
 import { SearchCoordinator } from '../search/search.coordinator';
 import type { ISearchStatsRepository } from '../search/interfaces/search-stats-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
@@ -22,8 +23,10 @@ import type { Page } from '../pages/interfaces/page.interface';
 
 @ApiTags('Stats')
 @ApiBearerAuth()
-@Controller('api/stats')
-@UseGuards(JwtAuthGuard)
+@Controller('stats')
+// 13.1c (D-NEW-search-index-monitoring) — celý stats hub jen pro platform Admin+
+// (rebuild = drahá operace / DoS riziko, stats = interní metriky).
+@UseGuards(JwtAuthGuard, AdminGuard)
 export class StatsController {
   private readonly logger = new Logger(StatsController.name);
 

@@ -72,9 +72,26 @@ services:
     networks:
       - ikaros-net
 
+  # 13.1 — MeiliSearch (fulltext provider). BE se připojuje přes MEILI_HOST
+  # (default http://localhost:7700). V dev běží bez master key (MEILI_ENV=development).
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    container_name: ikaros-meili
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '7700:7700'
+    volumes:
+      - meili-data:/meili_data
+    networks:
+      - ikaros-net
+
 volumes:
   mongo-data:
   redis-data:
+  meili-data:
 
 networks:
   ikaros-net:
