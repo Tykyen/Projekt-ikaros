@@ -131,8 +131,22 @@ export class OperationsAuthorizer {
             message: 'Nelze upravit cizí token',
           });
         }
-        // Hráč může patchovat jen `currentHp` a `injury` (security.md § token.update)
-        const allowedPlayerFields = new Set(['currentHp', 'injury']);
+        // N-29 — zamčený token (per-token isLocked) = úplný zámek; hráč nesmí
+        // ani HP/injury/initiative (konzistentní s FE gatingem). PJ má bypass výš.
+        if (token.isLocked) {
+          throw new ForbiddenException({
+            code: 'MAP_OP_FORBIDDEN',
+            message: 'Token je zamčený',
+          });
+        }
+        // Hráč může patchovat jen `currentHp`, `injury` a `initiative` (vlastní
+        // token — vlastnictví ověřeno výše). N-26: FE InitiativeBar posílá
+        // `initiative` pro vlastní token, dřív to BE odmítal 403.
+        const allowedPlayerFields = new Set([
+          'currentHp',
+          'injury',
+          'initiative',
+        ]);
         const patchKeys = Object.keys(op.patch);
         const forbidden = patchKeys.filter((k) => !allowedPlayerFields.has(k));
         if (forbidden.length > 0) {

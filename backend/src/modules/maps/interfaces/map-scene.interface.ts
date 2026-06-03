@@ -144,4 +144,9 @@ export interface MapScene {
    * Default `[]`. Spawn bestií z palety probíhá jen z tohoto setu.
    */
   activeBestieIds: string[];
+  /**
+   * 10.2j — persistovaná historie hodů scény (cap 50). Tvar `MapDiceRoll`
+   * (byUserId, rollerName, rollerKind, category, dicePayload, rolledAt, tokenId?).
+   */
+  diceRolls?: Record<string, unknown>[];
 }

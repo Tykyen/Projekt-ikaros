@@ -13,12 +13,12 @@ jest.mock('onnxruntime-node', () => ({
     .mockImplementation((type, data, dims) => ({ type, data, dims })),
 }));
 
-jest.mock('sentencepiece-js', () => {
-  return jest.fn().mockImplementation(() => ({
+jest.mock('sentencepiece-js', () => ({
+  SentencePieceProcessor: jest.fn().mockImplementation(() => ({
     load: jest.fn().mockResolvedValue(undefined),
-    encode: jest.fn().mockReturnValue([1, 2, 3]),
-  }));
-});
+    encodeIds: jest.fn().mockReturnValue([1, 2, 3]),
+  })),
+}));
 
 describe('ModelRuntime', () => {
   let runtime: ModelRuntime;

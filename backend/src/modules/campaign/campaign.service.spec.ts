@@ -282,12 +282,24 @@ describe('CampaignService', () => {
       updatedAt: new Date(),
     };
 
-    it('findShopGroups volá repo s resolveScope filtrem', async () => {
+    it('findShopGroups: hráč vidí isShared (publikované) skupiny, ne ownerId scope (N-22)', async () => {
       mockShopGroupRepo.findMany.mockResolvedValue([mockGroup]);
       await service.findShopGroups('user1', WorldRole.Hrac, 'w1');
       expect(mockShopGroupRepo.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ worldId: 'w1', ownerId: 'user1' }),
+        expect.objectContaining({ worldId: 'w1', isShared: true }),
       );
+    });
+
+    it('findShopGroups: PJ má plný scope světa (N-22)', async () => {
+      mockShopGroupRepo.findMany.mockResolvedValue([mockGroup]);
+      await service.findShopGroups('pj1', WorldRole.PJ, 'w1');
+      const arg = mockShopGroupRepo.findMany.mock.calls.at(-1)?.[0] as Record<
+        string,
+        unknown
+      >;
+      expect(arg).toMatchObject({ worldId: 'w1' });
+      expect(arg.isShared).toBeUndefined();
+      expect(arg.ownerId).toBeUndefined();
     });
 
     it('createShopGroup předá discountPercent do repo a zapíše changelog', async () => {

@@ -395,13 +395,40 @@ describe('PagesService', () => {
     });
   });
 
-  describe('findAllSlugs', () => {
-    it('vrátí seznam slugů', async () => {
+  describe('findAllSlugs (N-37 — gating)', () => {
+    beforeEach(() => {
       mockPagesRepo.findAllSlugs = jest
         .fn()
         .mockResolvedValue(['lokace', 'faq']);
-      const result = await service.findAllSlugs('world1');
+    });
+
+    it('platform Admin+ má bypass → vrátí slugy', async () => {
+      const result = await service.findAllSlugs('world1', adminRequester);
       expect(result).toEqual(['lokace', 'faq']);
+    });
+
+    it('PomocnyPJ člen → vrátí slugy', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PomocnyPJ,
+      });
+      const result = await service.findAllSlugs('world1', hracRequester);
+      expect(result).toEqual(['lokace', 'faq']);
+    });
+
+    it('hráč (Hrac membership) → Forbidden (N-37 leak fix)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.findAllSlugs('world1', hracRequester),
+      ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+    });
+
+    it('non-member → Forbidden', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findAllSlugs('world1', hracRequester),
+      ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
     });
   });
 

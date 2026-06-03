@@ -84,6 +84,22 @@ export class CampaignService {
     return { worldId, ownerId: userId };
   }
 
+  /**
+   * N-22 — scope pro OBCHOD (shop items/groups). Na rozdíl od ostatních
+   * campaign nástrojů (storyboard, pavučina) je obchod určen hráčům: hráč /
+   * Čtenář / Korektor vidí `isShared` (PJ-publikované) položky, ne jen vlastní
+   * (které stejně netvoří). PJ+ má plný scope přes `resolveScope`.
+   */
+  resolveShopScope(
+    userId: string,
+    worldRole: WorldRole,
+    worldId: string,
+  ): Record<string, unknown> {
+    if (worldRole >= WorldRole.PomocnyPJ)
+      return this.resolveScope(userId, worldRole, worldId);
+    return { worldId, isShared: true };
+  }
+
   canModify(entity: EntityBase, userId: string, worldRole: WorldRole): boolean {
     if (worldRole >= WorldRole.PJ) return true;
     if (entity.isShared && worldRole >= WorldRole.PomocnyPJ) return true;
@@ -800,7 +816,7 @@ export class CampaignService {
     worldId: string,
     filters: { groupId?: string },
   ): Promise<CampaignShopItem[]> {
-    const base = this.resolveScope(userId, worldRole, worldId);
+    const base = this.resolveShopScope(userId, worldRole, worldId);
     if (filters.groupId)
       base['$and'] = [
         {
@@ -941,7 +957,7 @@ export class CampaignService {
     worldRole: WorldRole,
     worldId: string,
   ): Promise<CampaignShopGroup[]> {
-    const base = this.resolveScope(userId, worldRole, worldId);
+    const base = this.resolveShopScope(userId, worldRole, worldId);
     return this.shopGroupRepo.findMany(base);
   }
 

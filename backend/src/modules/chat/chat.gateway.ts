@@ -43,7 +43,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const token = auth?.token;
       if (!token) return;
       const payload = this.jwtService.verify<{ sub?: string }>(token);
-      if (payload?.sub) void client.join(`user:${payload.sub}`);
+      if (payload?.sub) {
+        // N-9 — ověřený userId ze socket handshake; sound handlery ho používají
+        // místo nedůvěryhodného payload.userId (anti-spoofing).
+        (client.data as { userId?: string }).userId = payload.sub;
+        void client.join(`user:${payload.sub}`);
+      }
     } catch {
       /* neautentizovaný / neplatný token — per-user eventy mu nedorazí */
     }
@@ -172,26 +177,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // ─── Zvuk na poslech (13.3 chat broadcast) ───────────────────────────────
   // PJ „pustí zvuk všem" v konverzaci (Discord-styl). Ephemeral — nejde do
   // historie (vzor `typing:start/stop`). Gate `>= PomocnyPJ` přes membership
-  // (`resolveChannelPresenceRole`). POZNÁMKA k bezpečnosti: stejně jako presence
-  // se `userId` bere z payloadu klienta a ověřuje se jen role přes membership —
-  // teoretický spoofing (hráč pošle PJ userId). Blast radius nízký (přehraje
-  // zvuk všem). Zpřísnit lze ověřeným userId ze socket handshake (viz MapsGateway
-  // handleConnection), až bude chat gateway mít JWT auth.
+  // (`resolveChannelPresenceRole`). N-9 — identita se bere z OVĚŘENÉHO
+  // `client.data.userId` (handshake JWT), ne z payloadu → žádný role spoofing.
 
   @SubscribeMessage('sound:play')
   async handleSoundPlay(
+    @ConnectedSocket() client: Socket,
     @MessageBody()
     payload: {
       channelId: string;
-      userId: string;
       youtubeUrl: string;
       name: string;
       loop?: boolean;
     },
   ): Promise<void> {
+    const userId = (client.data as { userId?: string }).userId;
+    if (!userId) return;
     const worldRole = await this.chatService.resolveChannelPresenceRole(
       payload.channelId,
-      payload.userId,
+      userId,
     );
     if (worldRole === null || worldRole < WorldRole.PomocnyPJ) return;
     // Broadcast všem v konverzaci VČETNĚ PJ (ten taky slyší co pustil).
@@ -205,11 +209,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('sound:stop')
   async handleSoundStop(
-    @MessageBody() payload: { channelId: string; userId: string },
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { channelId: string },
   ): Promise<void> {
+    const userId = (client.data as { userId?: string }).userId;
+    if (!userId) return;
     const worldRole = await this.chatService.resolveChannelPresenceRole(
       payload.channelId,
-      payload.userId,
+      userId,
     );
     if (worldRole === null || worldRole < WorldRole.PomocnyPJ) return;
     this.server

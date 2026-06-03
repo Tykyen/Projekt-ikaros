@@ -914,8 +914,13 @@ export class WorldsService implements OnApplicationBootstrap {
 
   async getMembers(
     worldId: string,
+    requester: RequestUser | null,
     filters?: { role?: number; group?: string },
   ): Promise<WorldMembership[]> {
+    // N-7 — dřív bez access checku: anon četl členy privátního světa.
+    // findByIdForRequester hodí 404 u private světa bez membershipu (public/open
+    // projde i anonymovi), konzistentně s ostatními read endpointy (D-016/D-063).
+    await this.findByIdForRequester(worldId, requester);
     const members = await this.membershipRepo.findByWorldId(worldId, filters);
     return this.enrichMembers(members);
   }
@@ -1688,7 +1693,10 @@ export class WorldsService implements OnApplicationBootstrap {
       });
 
     this.eventEmitter.emit('world.updated', updated);
-    this.eventEmitter.emit('world.membership.changed', { worldId });
+    // N-15 — membership.changed se z transferu odebral: emitoval `{ worldId }`
+    // bez `membership`, takže gateway pushoval `undefined`. Transfer navíc mění
+    // víc memberships (starý+nový owner), což push jednoho objektu stejně
+    // nepokryje. `world.updated` výš spustí refetch na klientech.
     return updated;
   }
 

@@ -166,6 +166,19 @@ export class MapsGateway implements OnGatewayConnection {
     void client.join(`world:${worldId}`);
   }
 
+  /**
+   * N-28 — protějšek `map:join-world`. FE `useActiveScenes` ho emituje při
+   * unmount PJ panelu; dřív BE handler chyběl → socket zůstal ve `world:{id}`
+   * roomu a dál dostával `world:operation` eventy.
+   */
+  @SubscribeMessage('map:leave-world')
+  handleLeaveWorld(
+    @MessageBody() worldId: string,
+    @ConnectedSocket() client: AuthedSocket,
+  ): void {
+    void client.leave(`world:${worldId}`);
+  }
+
   // ───────────────────────────────────────────────────────────────────────
   // Legacy subscribe handlers — paralelně emit pro starý klient.
   // Po stabilizaci 10.2 release → remove.

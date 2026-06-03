@@ -244,6 +244,20 @@ describe('OperationsAuthorizer', () => {
       ).resolves.toBeUndefined();
     });
 
+    it('token.update zamčeného tokenu (isLocked) → FORBIDDEN (N-29)', async () => {
+      await expect(
+        authorizer.assertCanDo(
+          player,
+          makeScene({ tokens: [{ ...makeToken(player.id), isLocked: true }] }),
+          {
+            type: 'token.update',
+            tokenId: 't1',
+            patch: { currentHp: 3 },
+          } as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('token.update s armor → FORBIDDEN (mimo allowed fields)', async () => {
       await expect(
         authorizer.assertCanDo(

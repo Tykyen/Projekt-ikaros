@@ -272,10 +272,12 @@ export class WorldsController {
   }
 
   @Get(':id/members')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Členové světa s filtry ?role= &group=' })
   @ApiResponse({ status: 200, description: 'OK' })
   getMembers(
     @Param('id') id: string,
+    @CurrentUser() user: RequestUser | null,
     @Query('role') role?: string,
     @Query('group') group?: string,
   ) {
@@ -292,6 +294,7 @@ export class WorldsController {
     if (group !== undefined) filters.group = group;
     return this.worldsService.getMembers(
       id,
+      user,
       Object.keys(filters).length ? filters : undefined,
     );
   }

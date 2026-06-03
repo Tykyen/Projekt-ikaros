@@ -376,7 +376,24 @@ export class PagesService {
     }));
   }
 
-  async findAllSlugs(worldId: string): Promise<string[]> {
+  async findAllSlugs(
+    worldId: string,
+    requester: PagesRequester,
+  ): Promise<string[]> {
+    // N-37 — slug list je editor pomůcka (WikilinkSuggestion); bez gatingu
+    // leakoval existenci/slugy AKJ-chráněných stránek všem přihlášeným.
+    // PomocnyPJ+ (autorské role) nebo platform Admin+.
+    if (requester.role > UserRole.Admin) {
+      const m = await this.membershipRepo.findByUserAndWorld(
+        requester.id,
+        worldId,
+      );
+      if (!m || m.role < WorldRole.PomocnyPJ)
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Slugy stránek smí číst jen PomocnyPJ+',
+        });
+    }
     return this.pagesRepo.findAllSlugs(worldId);
   }
 
@@ -521,7 +538,14 @@ export class PagesService {
     return labels[role] ?? `Role ${role}`;
   }
 
-  async addFavorite(worldId: string, slug: string): Promise<void> {
+  async addFavorite(
+    worldId: string,
+    slug: string,
+    requester: PagesRequester,
+  ): Promise<void> {
+    // N-36 — oblíbené světa je sdílený dashboard seznam (kurátorství) → PJ+.
+    // Dřív bez checku mohl kdokoli přihlášený měnit favority cizího světa.
+    await this.assertCanWrite(worldId, requester);
     const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
     if (!exists)
       throw new NotFoundException({
@@ -531,7 +555,12 @@ export class PagesService {
     await this.worldsRepo.addFavoriteSlug(worldId, slug);
   }
 
-  async removeFavorite(worldId: string, slug: string): Promise<void> {
+  async removeFavorite(
+    worldId: string,
+    slug: string,
+    requester: PagesRequester,
+  ): Promise<void> {
+    await this.assertCanWrite(worldId, requester); // N-36
     await this.worldsRepo.removeFavoriteSlug(worldId, slug);
   }
 

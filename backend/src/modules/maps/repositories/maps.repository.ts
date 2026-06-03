@@ -157,6 +157,9 @@ export class MongoMapsRepository
       // 10.2c-edit-7 — per-scéna whitelist (PJ orchestrace).
       activeCharacterIds: (doc.activeCharacterIds as string[]) ?? [],
       activeBestieIds: (doc.activeBestieIds as string[]) ?? [],
+      // 10.2j — D-bug-audit N-25: diceRolls byl ve schématu, ale chyběl ve
+      // whitelist mapperu → log hodů se po reloadu/refetchi mazal.
+      diceRolls: (doc.diceRolls as Record<string, unknown>[]) ?? [],
     };
   }
 

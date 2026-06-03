@@ -664,15 +664,29 @@ describe('WorldsService', () => {
           akj: 0,
         },
       ]);
-      mockUsersService.publicProfile.mockResolvedValueOnce({
+      mockUsersService.publicProfile.mockResolvedValue({
         id: 'user1',
         username: 'Aragorn',
         avatarUrl: null,
       });
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'open',
+      });
 
-      const result = await service.getMembers('world1');
+      const result = await service.getMembers('world1', null);
 
       expect(result[0].user?.username).toBe('Aragorn');
+    });
+
+    it('N-7 — privátní svět + anon → 404 (žádný leak členů)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'private',
+      });
+      await expect(service.getMembers('world1', null)).rejects.toMatchObject({
+        response: { code: 'WORLD_NOT_FOUND' },
+      });
     });
 
     it('člen se smazaným účtem zůstane bez `user` (žádný throw)', async () => {
@@ -686,11 +700,13 @@ describe('WorldsService', () => {
           akj: 0,
         },
       ]);
-      mockUsersService.publicProfile.mockRejectedValueOnce(
-        new Error('not found'),
-      );
+      mockUsersService.publicProfile.mockRejectedValue(new Error('not found'));
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'open',
+      });
 
-      const result = await service.getMembers('world1');
+      const result = await service.getMembers('world1', null);
 
       expect(result[0].user).toBeUndefined();
     });

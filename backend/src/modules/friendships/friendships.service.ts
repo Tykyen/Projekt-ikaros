@@ -194,11 +194,15 @@ export class FriendshipsService {
       return;
     }
     // Sender cancels pending nebo unfriend accepted → hard delete.
+    const wasPending = friendship.status === 'pending';
     await this.friendsRepo.remove(friendshipId);
     this.events.emit('friendship.removed', {
       friendshipId,
       requesterId: friendship.requesterId,
       recipientId: friendship.recipientId,
+      // N-4 — gateway rozliší: pending = zrušená odeslaná žádost (canceled),
+      // jinak = rozpadlé přátelství (removed).
+      wasPending,
     });
   }
 

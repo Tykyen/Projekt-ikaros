@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { FriendshipsService } from './friendships.service';
 import { FriendshipsController } from './friendships.controller';
+import { FriendshipsGateway } from './friendships.gateway';
 import { FriendshipsPendingActionProvider } from './friendships-pending-action.provider';
 import { PendingActionsService } from '../pending-actions/pending-actions.service';
 import { PendingActionsModule } from '../pending-actions/pending-actions.module';
@@ -16,7 +17,11 @@ import { FriendshipsRepositoryModule } from './friendships-repository.module';
     FriendshipsRepositoryModule,
   ],
   controllers: [FriendshipsController],
-  providers: [FriendshipsService, FriendshipsPendingActionProvider],
+  providers: [
+    FriendshipsService,
+    FriendshipsGateway,
+    FriendshipsPendingActionProvider,
+  ],
   exports: [
     FriendshipsService,
     // Pro DataExportModule (GDPR export agreguje friend data).

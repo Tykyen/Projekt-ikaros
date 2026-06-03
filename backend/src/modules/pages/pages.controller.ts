@@ -71,8 +71,11 @@ export class PagesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Všechny slugy stránek světa' })
   @ApiResponse({ status: 200, description: 'OK' })
-  getDataSlugs(@Param('worldId') worldId: string) {
-    return this.pagesService.findAllSlugs(worldId);
+  getDataSlugs(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.pagesService.findAllSlugs(worldId, user);
   }
 
   @Get('data')
@@ -176,8 +179,12 @@ export class PagesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Přidat stránku do oblíbených' })
   @ApiResponse({ status: 200, description: 'OK' })
-  addFavorite(@Param('worldId') worldId: string, @Param('slug') slug: string) {
-    return this.pagesService.addFavorite(worldId, slug);
+  addFavorite(
+    @Param('worldId') worldId: string,
+    @Param('slug') slug: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.pagesService.addFavorite(worldId, slug, user);
   }
 
   @Delete(':slug/favorite')
@@ -187,7 +194,8 @@ export class PagesController {
   removeFavorite(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.pagesService.removeFavorite(worldId, slug);
+    return this.pagesService.removeFavorite(worldId, slug, user);
   }
 }
