@@ -1255,4 +1255,76 @@ describe('UsersService', () => {
       expect(mockRepo.findByIds).toHaveBeenCalledTimes(2);
     });
   });
+
+  describe('username-request CRUD (1.3b / N-6b)', () => {
+    beforeEach(() => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        usernameChangedAt: undefined,
+      });
+      mockRepo.findByUsername.mockResolvedValue(null);
+      mockUsernameRequestsRepo.findPendingByUserId.mockResolvedValue(null);
+      mockUsernameRequestsRepo.create.mockImplementation((i: object) =>
+        Promise.resolve({
+          id: 'req1',
+          status: 'pending',
+          requestedAt: new Date(),
+          ...i,
+        }),
+      );
+    });
+
+    it('vytvoří pending žádost', async () => {
+      const res = await service.requestUsernameChange('u1', 'NovaPrezdivka');
+      expect(mockUsernameRequestsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u1',
+          requestedUsername: 'NovaPrezdivka',
+        }),
+      );
+      expect(res.request.status).toBe('pending');
+    });
+
+    it('stejná přezdívka → SAME_USERNAME', async () => {
+      await expect(
+        service.requestUsernameChange('u1', mockUser.username),
+      ).rejects.toMatchObject({ response: { code: 'SAME_USERNAME' } });
+    });
+
+    it('obsazená přezdívka → USERNAME_TAKEN', async () => {
+      mockRepo.findByUsername.mockResolvedValue({ id: 'jiny' });
+      await expect(
+        service.requestUsernameChange('u1', 'Obsazena'),
+      ).rejects.toMatchObject({ response: { code: 'USERNAME_TAKEN' } });
+    });
+
+    it('existující pending → REQUEST_EXISTS', async () => {
+      mockUsernameRequestsRepo.findPendingByUserId.mockResolvedValue({
+        id: 'p1',
+      });
+      await expect(
+        service.requestUsernameChange('u1', 'Nova'),
+      ).rejects.toMatchObject({ response: { code: 'REQUEST_EXISTS' } });
+    });
+
+    it('aktivní cooldown → COOLDOWN_ACTIVE', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        usernameChangedAt: new Date(),
+      });
+      await expect(
+        service.requestUsernameChange('u1', 'Nova'),
+      ).rejects.toMatchObject({ response: { code: 'COOLDOWN_ACTIVE' } });
+    });
+
+    it('getPendingUsernameRequest vrátí null bez pending', async () => {
+      const res = await service.getPendingUsernameRequest('u1');
+      expect(res.request).toBeNull();
+    });
+
+    it('cancelUsernameRequest volá deletePending', async () => {
+      await service.cancelUsernameRequest('u1');
+      expect(mockUsernameRequestsRepo.deletePending).toHaveBeenCalledWith('u1');
+    });
+  });
 });

@@ -32,6 +32,7 @@ import { UpdateThemeDto } from './dto/update-theme.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RequestEmailChangeDto } from './dto/request-email-change.dto';
+import { RequestUsernameChangeDto } from './dto/request-username-change.dto';
 import { UpdateFavoriteCharactersDto } from './dto/update-favorite-characters.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -229,6 +230,48 @@ export class UsersController {
     @Body() dto: RequestEmailChangeDto,
   ) {
     return this.usersService.requestEmailChange(requester.id, dto);
+  }
+
+  // ── 1.3b (N-6b) — žádost o změnu username (base CRUD) ──────────────────
+
+  @Post('me/username-request')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '1.3b — vytvoří pending žádost o změnu username (admin schválí)',
+  })
+  @ApiResponse({ status: 201, description: '{ request: ... }' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'SAME_USERNAME / COOLDOWN_ACTIVE / USERNAME_TAKEN / REQUEST_EXISTS',
+  })
+  requestUsernameChange(
+    @CurrentUser() requester: Requester,
+    @Body() dto: RequestUsernameChangeDto,
+  ) {
+    return this.usersService.requestUsernameChange(
+      requester.id,
+      dto.newUsername,
+    );
+  }
+
+  @Get('me/username-request')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: '1.3b — aktuální pending username žádost, nebo null',
+  })
+  @ApiResponse({ status: 200, description: '{ request: ... | null }' })
+  getUsernameRequest(@CurrentUser() requester: Requester) {
+    return this.usersService.getPendingUsernameRequest(requester.id);
+  }
+
+  @Delete('me/username-request')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: '1.3b — zruší vlastní pending username žádost' })
+  @ApiResponse({ status: 204, description: 'Zrušeno' })
+  cancelUsernameRequest(@CurrentUser() requester: Requester) {
+    return this.usersService.cancelUsernameRequest(requester.id);
   }
 
   // ── D-028 — toast po loginu o rozhodnuté username žádosti ──────────────

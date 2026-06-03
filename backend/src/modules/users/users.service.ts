@@ -597,6 +597,79 @@ export class UsersService implements OnModuleInit {
     await this.usernameRequestsRepo.markSeen(requestId);
   }
 
+  // ── 1.3b (N-6b) — žádost o změnu username (base CRUD, FE je už volá) ─────
+
+  /**
+   * Vytvoří pending žádost o změnu username. Validace dle spec-1.3b:
+   * same / cooldown 30 dní (od poslední approved změny) / duplicate /
+   * jedna pending na uživatele. (D-025 — cooldown configurable odloženo → 30.)
+   */
+  async requestUsernameChange(
+    userId: string,
+    newUsername: string,
+  ): Promise<{ request: ReturnType<UsersService['toRequestDto']> }> {
+    const user = await this.repo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Uživatel neexistuje',
+      });
+
+    const requested = newUsername.trim();
+    if (requested.toLowerCase() === user.username.toLowerCase())
+      throw new ConflictException({
+        code: 'SAME_USERNAME',
+        message: 'Nová přezdívka je stejná jako současná.',
+      });
+
+    const COOLDOWN_DAYS = 30;
+    if (user.usernameChangedAt) {
+      const next = new Date(
+        user.usernameChangedAt.getTime() + COOLDOWN_DAYS * 24 * 60 * 60 * 1000,
+      );
+      if (next > new Date())
+        throw new ConflictException({
+          code: 'COOLDOWN_ACTIVE',
+          message: `Změnu přezdívky lze požádat jen jednou za ${COOLDOWN_DAYS} dní.`,
+        });
+    }
+
+    const taken = await this.repo.findByUsername(requested);
+    if (taken)
+      throw new ConflictException({
+        code: 'USERNAME_TAKEN',
+        message: 'Přezdívka je již obsazená.',
+      });
+
+    const existing =
+      await this.usernameRequestsRepo.findPendingByUserId(userId);
+    if (existing)
+      throw new ConflictException({
+        code: 'REQUEST_EXISTS',
+        message: 'Už máš čekající žádost o změnu přezdívky.',
+      });
+
+    const request = await this.usernameRequestsRepo.create({
+      userId,
+      username: user.username,
+      requestedUsername: requested,
+    });
+    return { request: this.toRequestDto(request) };
+  }
+
+  /** Vrátí aktuální pending žádost usera, nebo `null`. */
+  async getPendingUsernameRequest(
+    userId: string,
+  ): Promise<{ request: ReturnType<UsersService['toRequestDto']> | null }> {
+    const pending = await this.usernameRequestsRepo.findPendingByUserId(userId);
+    return { request: pending ? this.toRequestDto(pending) : null };
+  }
+
+  /** Zruší vlastní pending žádost (idempotentní). */
+  async cancelUsernameRequest(userId: string): Promise<void> {
+    await this.usernameRequestsRepo.deletePending(userId);
+  }
+
   private toRequestDto(req: UsernameChangeRequest) {
     return {
       id: req.id,
