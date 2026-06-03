@@ -88,6 +88,9 @@ export class IkarosMessagesService {
       messageId: msg.id,
       subject: msg.subject,
       senderName: msg.senderName,
+      // N-33 — příznak systémové pošty; FE záložka „Události" pak invaliduje
+      // jen při systémové zprávě, ne při každé běžné poště (zbytečné refetchy).
+      system: msg.senderId === 'system',
     });
     return msg;
   }

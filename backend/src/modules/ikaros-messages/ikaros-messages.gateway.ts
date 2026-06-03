@@ -33,11 +33,14 @@ export class IkarosMessagesGateway implements OnGatewayConnection {
     messageId: string;
     subject: string;
     senderName: string;
+    system?: boolean;
   }): void {
     this.server.to(`user:${payload.recipientId}`).emit('ikaros:new-message', {
       messageId: payload.messageId,
       subject: payload.subject,
       senderName: payload.senderName,
+      // N-33 — propaguj příznak systémové pošty klientovi.
+      system: payload.system ?? false,
     });
   }
 }
