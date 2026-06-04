@@ -36,7 +36,7 @@ jobs:
 
       - name: Create deployment directory
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "mkdir -p ${{ env.DEPLOY_PATH }}"
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "mkdir -p '${{ env.DEPLOY_PATH }}'"
 
       - name: Copy files to server
         run: |
@@ -51,7 +51,7 @@ jobs:
 
       - name: Create .env file on server
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cat > ${{ env.DEPLOY_PATH }}/.env << 'EOF'
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cat > '${{ env.DEPLOY_PATH }}/.env'" << 'EOF'
           BACKEND_PORT=${{ vars.BACKEND_PORT }}
           FRONTEND_URL=${{ vars.FRONTEND_URL }}
           BACKEND_BASE_URL=${{ vars.BACKEND_BASE_URL }}
@@ -69,41 +69,57 @@ jobs:
           DELETION_HOLD_DAYS=${{ vars.DELETION_HOLD_DAYS }}
           EMBEDDING_GRANITE107_ENABLED=${{ vars.EMBEDDING_GRANITE107_ENABLED }}
           EMBEDDING_GRANITE278_ENABLED=${{ vars.EMBEDDING_GRANITE278_ENABLED }}
-          EOF"
+          EOF
+
+      - name: Validate deployment environment
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" bash -se' << 'EOF'
+          set -e
+          cd "$DEPLOY_PATH"
+          env_value() {
+            sed -n "s/^$1=//p" .env | tail -n 1
+          }
+          JWT_SECRET="$(env_value JWT_SECRET)"
+          JWT_REFRESH_SECRET="$(env_value JWT_REFRESH_SECRET)"
+          MEILI_MASTER_KEY="$(env_value MEILI_MASTER_KEY)"
+          test -n "$JWT_SECRET" || { echo "JWT_SECRET is missing"; exit 1; }
+          test -n "$JWT_REFRESH_SECRET" || { echo "JWT_REFRESH_SECRET is missing"; exit 1; }
+          test "${#MEILI_MASTER_KEY}" -ge 16 || { echo "MEILI_MASTER_KEY must be at least 16 bytes"; exit 1; }
+          EOF
 
       - name: Build images
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} bash -c '
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
             set -e
-            cd ${{ env.DEPLOY_PATH }}
+            cd "$DEPLOY_PATH"
             docker image prune -f
-            docker compose -f ${{ env.COMPOSE_FILE }} build --no-cache
-          '
+            docker compose -f "$COMPOSE_FILE" build --no-cache
+          EOF
 
       - name: Deploy
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} bash -c '
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
             set -e
-            cd ${{ env.DEPLOY_PATH }}
-            docker compose -f ${{ env.COMPOSE_FILE }} down --remove-orphans || true
-            docker compose -f ${{ env.COMPOSE_FILE }} up -d
-            docker compose -f ${{ env.COMPOSE_FILE }} ps
-          '
+            cd "$DEPLOY_PATH"
+            docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+            docker compose -f "$COMPOSE_FILE" up -d
+            docker compose -f "$COMPOSE_FILE" ps
+          EOF
 
       - name: Verify deployment
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} bash -c '
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
             set -e
-            cd ${{ env.DEPLOY_PATH }}
+            cd "$DEPLOY_PATH"
             sleep 15
-            docker compose -f ${{ env.COMPOSE_FILE }} ps
-            TOTAL=$(docker compose -f ${{ env.COMPOSE_FILE }} ps -q | wc -l)
-            RUNNING=$(docker compose -f ${{ env.COMPOSE_FILE }} ps --status running -q | wc -l)
+            docker compose -f "$COMPOSE_FILE" ps
+            TOTAL=$(docker compose -f "$COMPOSE_FILE" ps -q | wc -l)
+            RUNNING=$(docker compose -f "$COMPOSE_FILE" ps --status running -q | wc -l)
             if [ "$TOTAL" -ne "$RUNNING" ]; then
-              docker compose -f ${{ env.COMPOSE_FILE }} logs --tail=80
+              docker compose -f "$COMPOSE_FILE" logs --tail=80
               exit 1
             fi
-          '
+          EOF
 
       - name: Cleanup old Docker images
         if: always()

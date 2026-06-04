@@ -56,7 +56,7 @@ services:
     environment:
       MEILI_ENV: production
       MEILI_NO_ANALYTICS: "true"
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set and at least 16 bytes}
     volumes:
       - meili-data:/meili_data
     networks:
@@ -75,12 +75,12 @@ services:
       REDIS_URL: redis://redis:6379
       SOCKET_IO_REDIS: "1"
       MEILI_HOST: http://meilisearch:7700
-      MEILI_API_KEY: ${MEILI_MASTER_KEY}
+      MEILI_API_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set and at least 16 bytes}
       FRONTEND_URL: ${FRONTEND_URL}
       BACKEND_BASE_URL: ${BACKEND_BASE_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       CLOUDINARY_URL: ${CLOUDINARY_URL}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
