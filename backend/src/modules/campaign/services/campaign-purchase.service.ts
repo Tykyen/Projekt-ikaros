@@ -19,6 +19,7 @@ import { CharactersService } from '../../characters/characters.service';
 import type { Character } from '../../characters/interfaces/character.interface';
 import type { PageSection } from '../../pages/interfaces/page.interface';
 import type { PurchaseShopItemDto } from '../dto/purchase-shop-item.dto';
+import { UserRole } from '../../users/interfaces/user.interface';
 
 const AUTO_SECTION_TITLE = 'Nakoupeno z obchodu';
 
@@ -69,6 +70,7 @@ export class CampaignPurchaseService {
     itemId: string,
     buyerUserId: string,
     dto: PurchaseShopItemDto,
+    buyerRole?: UserRole,
   ): Promise<{ purchase: CampaignPurchase; newBalance: number }> {
     const quantity =
       dto.quantity && dto.quantity > 0 ? Math.floor(dto.quantity) : 1;
@@ -91,6 +93,7 @@ export class CampaignPurchaseService {
     const isStaff = await this.charactersService.isWorldStaff(
       worldId,
       buyerUserId,
+      buyerRole,
     );
     if (!isStaff && character.userId !== buyerUserId)
       throw new ForbiddenException({
@@ -102,6 +105,7 @@ export class CampaignPurchaseService {
     const account = await this.accountsService.assertCanAdjust(
       dto.accountId,
       buyerUserId,
+      buyerRole,
     );
     if (account.worldId !== worldId)
       throw new NotFoundException({
@@ -166,6 +170,7 @@ export class CampaignPurchaseService {
           dto.accountId,
           { amount: -paidAmount, reason },
           buyerUserId,
+          buyerRole,
         );
         newBalance = updatedAcc.balance;
         accountTransactionId =
@@ -212,6 +217,7 @@ export class CampaignPurchaseService {
     worldId: string,
     purchaseId: string,
     userId: string,
+    userRole?: UserRole,
   ): Promise<{ purchase: CampaignPurchase; newBalance: number }> {
     const purchase = await this.purchaseRepo.findById(purchaseId);
     if (!purchase || purchase.worldId !== worldId)
@@ -228,7 +234,11 @@ export class CampaignPurchaseService {
     const character = await this.charactersService.findById(
       purchase.characterId,
     );
-    const isStaff = await this.charactersService.isWorldStaff(worldId, userId);
+    const isStaff = await this.charactersService.isWorldStaff(
+      worldId,
+      userId,
+      userRole,
+    );
     if (!isStaff && character?.userId !== userId)
       throw new ForbiddenException({
         code: 'NOT_YOUR_CHARACTER',
@@ -245,6 +255,7 @@ export class CampaignPurchaseService {
           reason: `Storno: ${purchase.itemSnapshot.name}`,
         },
         userId,
+        userRole,
       );
       newBalance = acc.balance;
     } else {
@@ -274,9 +285,14 @@ export class CampaignPurchaseService {
     worldId: string,
     userId: string,
     characterId?: string,
+    requesterRole?: UserRole,
   ): Promise<CampaignPurchase[]> {
     const filter: Record<string, unknown> = { worldId };
-    const isStaff = await this.charactersService.isWorldStaff(worldId, userId);
+    const isStaff = await this.charactersService.isWorldStaff(
+      worldId,
+      userId,
+      requesterRole,
+    );
     if (isStaff) {
       if (characterId) filter.characterId = characterId;
     } else {

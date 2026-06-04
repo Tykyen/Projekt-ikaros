@@ -1,5 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { AdminService } from './admin.service';
@@ -116,6 +120,98 @@ describe('AdminService', () => {
         limit: 20,
       });
       expect(result).toEqual({ items: [], total: 0 });
+    });
+  });
+
+  describe('setAdminPermissions (R-05 A)', () => {
+    const targetAdmin = {
+      id: 'adm-target',
+      role: UserRole.Admin,
+      adminPermissions: {
+        canManageAdmins: false,
+        canModerateContent: false,
+        canEditPlatformPages: false,
+      },
+    };
+
+    it('Superadmin nastaví flagy Adminovi', async () => {
+      mockUsersRepo.findById.mockResolvedValue(targetAdmin);
+      mockUsersRepo.update.mockResolvedValue({
+        ...targetAdmin,
+        adminPermissions: {
+          ...targetAdmin.adminPermissions,
+          canModerateContent: true,
+        },
+      });
+      await service.setAdminPermissions(superadmin, 'adm-target', {
+        canModerateContent: true,
+      });
+      expect(mockUsersRepo.update).toHaveBeenCalledWith('adm-target', {
+        adminPermissions: expect.objectContaining({ canModerateContent: true }),
+      });
+    });
+
+    it('Admin s canManageAdmins smí spravovat jiného Admina', async () => {
+      mockUsersRepo.findById.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === 'adm-mgr'
+            ? {
+                id: 'adm-mgr',
+                role: UserRole.Admin,
+                adminPermissions: {
+                  canManageAdmins: true,
+                  canModerateContent: false,
+                  canEditPlatformPages: false,
+                },
+              }
+            : targetAdmin,
+        ),
+      );
+      mockUsersRepo.update.mockResolvedValue(targetAdmin);
+      const actor = { id: 'adm-mgr', role: UserRole.Admin } as never;
+      await service.setAdminPermissions(actor, 'adm-target', {
+        canModerateContent: true,
+      });
+      expect(mockUsersRepo.update).toHaveBeenCalled();
+    });
+
+    it('Admin bez canManageAdmins → 403', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'adm-plain',
+        role: UserRole.Admin,
+        adminPermissions: {
+          canManageAdmins: false,
+          canModerateContent: false,
+          canEditPlatformPages: false,
+        },
+      });
+      const actor = { id: 'adm-plain', role: UserRole.Admin } as never;
+      await expect(
+        service.setAdminPermissions(actor, 'adm-target', {
+          canModerateContent: true,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockUsersRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('self-target → 400', async () => {
+      await expect(
+        service.setAdminPermissions(superadmin, 'sa', {
+          canModerateContent: true,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('target není Admin → 400 NOT_ADMIN', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'u1',
+        role: UserRole.Ikarus,
+      });
+      await expect(
+        service.setAdminPermissions(superadmin, 'u1', {
+          canModerateContent: true,
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

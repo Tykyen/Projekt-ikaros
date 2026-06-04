@@ -55,7 +55,15 @@ export class CharactersService {
    * 8.6 — Vrátí true pokud uživatel je PomocnyPJ+ ve světě.
    * Použito v `CharacterAccountsService` pro role-aware permission gating.
    */
-  async isWorldStaff(worldId: string, userId: string): Promise<boolean> {
+  async isWorldStaff(
+    worldId: string,
+    userId: string,
+    globalRole?: UserRole,
+  ): Promise<boolean> {
+    // R-02 — GlobalAdmin (Sa/Admin) bypass, konzistentně se sourozencem
+    // `campaign.getWorldRole` (admin→PJ). Volitelný param: volající bez role
+    // = bez bypassu (fail-safe — radši odepře, než aby tiše povolil).
+    if (globalRole !== undefined && globalRole <= UserRole.Admin) return true;
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
       worldId,

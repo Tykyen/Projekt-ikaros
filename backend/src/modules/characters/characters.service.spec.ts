@@ -7,6 +7,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CharactersService } from './characters.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 
 // 9.1 (cleanup) — Character drží jen subdoc data; bio polí (publicBio,
 // privateBio, etc.) jsou v Page entity. PublicView neukáže userId/diaryData;
@@ -84,6 +85,25 @@ describe('CharactersService', () => {
       ],
     }).compile();
     service = module.get(CharactersService);
+  });
+
+  describe('isWorldStaff (R-02 GlobalAdmin bypass)', () => {
+    it('GlobalAdmin bez membershipu → true (bypass)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      expect(
+        await service.isWorldStaff('world1', 'admin1', UserRole.Admin),
+      ).toBe(true);
+    });
+    it('hráč (bez staff role, bez globalRole) → false', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockMembership);
+      expect(await service.isWorldStaff('world1', 'user1')).toBe(false);
+    });
+    it('PomocnyPJ membership → true', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockPomocnyPjMembership,
+      );
+      expect(await service.isWorldStaff('world1', 'user1')).toBe(true);
+    });
   });
 
   describe('findBySlug', () => {

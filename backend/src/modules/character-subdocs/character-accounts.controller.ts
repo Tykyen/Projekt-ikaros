@@ -20,9 +20,11 @@ import { CharacterAccountsService } from './character-accounts.service';
 import { CharactersService } from '../characters/characters.service';
 import { AdjustBalanceDto } from './dto/adjust-balance.dto';
 import type { FantasyDateLike } from './interfaces/character-account.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 
 interface RequestUser {
   id: string;
+  role: UserRole;
 }
 
 interface CreateAccountBody {
@@ -129,7 +131,7 @@ export class CharacterAccountsController {
     @Param('accountId') accountId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.accountsService.assertReadAccess(accountId, user.id);
+    return this.accountsService.assertReadAccess(accountId, user.id, user.role);
   }
 
   @Patch('accounts/:accountId')
@@ -156,7 +158,11 @@ export class CharacterAccountsController {
     const hasSettings = settingsKeys.some((k) => body[k] !== undefined);
 
     if (hasContent) {
-      await this.accountsService.assertWriteContentAccess(accountId, user.id);
+      await this.accountsService.assertWriteContentAccess(
+        accountId,
+        user.id,
+        user.role,
+      );
       await this.accountsService.updateAccountContent(accountId, {
         label: body.label,
         notes: body.notes,
@@ -165,7 +171,11 @@ export class CharacterAccountsController {
       });
     }
     if (hasSettings) {
-      await this.accountsService.assertWriteSettingsAccess(accountId, user.id);
+      await this.accountsService.assertWriteSettingsAccess(
+        accountId,
+        user.id,
+        user.role,
+      );
       await this.accountsService.updateAccountSettings(accountId, {
         accountType: body.accountType,
         accessLocationCharacterId: body.accessLocationCharacterId,
@@ -182,7 +192,11 @@ export class CharacterAccountsController {
     @Param('accountId') accountId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertDeleteAccess(accountId, user.id);
+    await this.accountsService.assertDeleteAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     await this.accountsService.deleteAccount(accountId);
     return { ok: true };
   }
@@ -194,7 +208,11 @@ export class CharacterAccountsController {
     @Body() body: AddMonthlyBody = {},
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertWriteContentAccess(accountId, user.id);
+    await this.accountsService.assertWriteContentAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     return this.accountsService.addMonthly(
       accountId,
       user.id,
@@ -223,6 +241,7 @@ export class CharacterAccountsController {
         inGameDate: dto.inGameDate ?? null,
       },
       user.id,
+      user.role,
     );
   }
 
@@ -232,7 +251,11 @@ export class CharacterAccountsController {
     @Param('accountId') accountId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertWriteContentAccess(accountId, user.id);
+    await this.accountsService.assertWriteContentAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     return this.accountsService.undoLast(accountId);
   }
 
@@ -245,7 +268,11 @@ export class CharacterAccountsController {
   ) {
     // Permission: musí mít write-content na zdroj. Cíl není gatován
     // (transfer příchozí je benigní operace, viz Q8.3 instant doručení).
-    await this.accountsService.assertWriteContentAccess(accountId, user.id);
+    await this.accountsService.assertWriteContentAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     return this.accountsService.transfer(
       {
         fromAccountId: accountId,
@@ -265,7 +292,11 @@ export class CharacterAccountsController {
     @Body() body: CoOwnerBody,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertWriteSettingsAccess(accountId, user.id);
+    await this.accountsService.assertWriteSettingsAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     return this.accountsService.addCoOwner(accountId, body.characterId);
   }
 
@@ -276,7 +307,11 @@ export class CharacterAccountsController {
     @Param('characterId') characterId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertWriteSettingsAccess(accountId, user.id);
+    await this.accountsService.assertWriteSettingsAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     return this.accountsService.removeCoOwner(accountId, characterId);
   }
 
@@ -289,7 +324,11 @@ export class CharacterAccountsController {
     @Body() body: CoOwnerBody,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertWriteSettingsAccess(accountId, user.id);
+    await this.accountsService.assertWriteSettingsAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
     return this.accountsService.transferPrimaryOwnership(
       accountId,
       body.characterId,

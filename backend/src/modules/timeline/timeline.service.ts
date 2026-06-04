@@ -265,9 +265,14 @@ export class TimelineService {
         message: 'Nejsi členem tohoto světa',
       });
     if (membership.role < WorldRole.Hrac) {
+      // R-06 — rozliš Zadatel (pending, role 0) od Ctenar (role 1, nedostatečná
+      // role): Ctenar NENÍ pending, takže `PENDING_MEMBERSHIP` ho mátlo.
+      const pending = membership.role === WorldRole.Zadatel;
       throw new ForbiddenException({
-        code: 'PENDING_MEMBERSHIP',
-        message: 'Pending členství nemá přístup',
+        code: pending ? 'PENDING_MEMBERSHIP' : 'INSUFFICIENT_ROLE',
+        message: pending
+          ? 'Pending členství nemá přístup'
+          : 'Časová osa je dostupná od role Hráč.',
       });
     }
   }

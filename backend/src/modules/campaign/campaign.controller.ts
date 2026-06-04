@@ -684,7 +684,7 @@ export class CampaignController {
     @Body() dto: PurchaseShopItemDto,
   ) {
     await this.role(user, worldId);
-    return this.purchaseService.purchase(worldId, id, user.id, dto);
+    return this.purchaseService.purchase(worldId, id, user.id, dto, user.role);
   }
 
   @Post('purchases/:id/refund')
@@ -697,7 +697,7 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     await this.role(user, worldId);
-    return this.purchaseService.refund(worldId, id, user.id);
+    return this.purchaseService.refund(worldId, id, user.id, user.role);
   }
 
   @Get('purchases')
@@ -709,6 +709,11 @@ export class CampaignController {
     @Query('characterId') characterId?: string,
   ) {
     await this.role(user, worldId);
-    return this.purchaseService.listPurchases(worldId, user.id, characterId);
+    return this.purchaseService.listPurchases(
+      worldId,
+      user.id,
+      characterId,
+      user.role,
+    );
   }
 }

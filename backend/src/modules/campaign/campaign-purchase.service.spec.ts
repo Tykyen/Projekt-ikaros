@@ -110,6 +110,7 @@ describe('CampaignPurchaseService', () => {
         'acc1',
         expect.objectContaining({ amount: -100 }),
         'pj1',
+        undefined,
       );
       expect(mockPurchaseRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ paidAmount: 100, status: 'active' }),
@@ -131,6 +132,7 @@ describe('CampaignPurchaseService', () => {
         'acc1',
         expect.objectContaining({ amount: -80 }),
         'pj1',
+        undefined,
       );
     });
 
@@ -151,6 +153,7 @@ describe('CampaignPurchaseService', () => {
         'acc1',
         expect.objectContaining({ amount: -90 }),
         'pj1',
+        undefined,
       );
     });
 
@@ -179,6 +182,7 @@ describe('CampaignPurchaseService', () => {
         'acc1',
         expect.objectContaining({ amount: -800 }),
         'pj1',
+        undefined,
       );
     });
 
@@ -198,6 +202,7 @@ describe('CampaignPurchaseService', () => {
         'acc1',
         expect.objectContaining({ amount: -300 }),
         'pj1',
+        undefined,
       );
     });
 
@@ -280,6 +285,7 @@ describe('CampaignPurchaseService', () => {
         'acc1',
         expect.objectContaining({ amount: 100 }),
         'pj1',
+        undefined,
       );
       expect(mockSubdocs.updateInventory).toHaveBeenCalled();
       expect(mockPurchaseRepo.update).toHaveBeenCalledWith(

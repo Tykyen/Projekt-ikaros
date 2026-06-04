@@ -110,6 +110,26 @@ export class ChatService implements OnApplicationBootstrap {
     return this.hasAccessGivenMembership(channel, userId, membership);
   }
 
+  /**
+   * R-04 — gate pro WS `room:join chat:{id}` (AppGateway). REST cesty
+   * (`getMessages` apod.) gatuje `hasChannelAccess`, ale generický `room:join`
+   * do `chat:{id}` roomu byl bez kontroly → leak real-time zpráv restricted
+   * world kanálu (REST dveře zamčené, WS otevřené).
+   *
+   * Vynucuje přístup **jen u world kanálů** (mají `worldId`). Globální kanál /
+   * neznámé ID → `true` (generický join se ho netýká; globální chat má vlastní
+   * access model přes GlobalChatGateway — neregresujeme ho).
+   */
+  async canJoinChannelRoom(
+    channelId: string,
+    userId?: string,
+  ): Promise<boolean> {
+    const channel = await this.channelRepo.findById(channelId);
+    if (!channel || channel.isDeleted || !channel.worldId) return true;
+    if (!userId) return false; // world kanál vyžaduje ověřenou identitu
+    return this.hasChannelAccess(channel, userId);
+  }
+
   private hasAccessGivenMembership(
     channel: ChatChannel,
     userId: string,

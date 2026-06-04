@@ -618,6 +618,89 @@ describe('WorldsService', () => {
     });
   });
 
+  describe('updateMemberRole (R-03 strop role)', () => {
+    const world = { ...mockWorld, ownerId: 'owner' };
+
+    it('PomocnyPJ nesmí povýšit člena na PJ (strop role) → 403', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'm1',
+        userId: 'victim',
+        worldId: 'world1',
+        role: WorldRole.Hrac,
+      });
+      mockWorldsRepo.findById.mockResolvedValue(world);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mp',
+        userId: 'pp',
+        worldId: 'world1',
+        role: WorldRole.PomocnyPJ,
+      });
+      await expect(
+        service.updateMemberRole('m1', WorldRole.PJ, {
+          id: 'pp',
+          role: UserRole.Ikarus,
+          username: 'pp',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('roli vlastníka světa nelze měnit (immutable) → 403', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'mo',
+        userId: 'owner',
+        worldId: 'world1',
+        role: WorldRole.PJ,
+      });
+      mockWorldsRepo.findById.mockResolvedValue(world);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mo',
+        userId: 'owner',
+        worldId: 'world1',
+        role: WorldRole.PJ,
+      });
+      await expect(
+        service.updateMemberRole('mo', WorldRole.Hrac, {
+          id: 'owner',
+          role: UserRole.Ikarus,
+          username: 'owner',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('PJ (non-owner) smí nastavit hráče na Korektor (pod svou rolí)', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'm1',
+        userId: 'victim',
+        worldId: 'world1',
+        role: WorldRole.Hrac,
+      });
+      mockWorldsRepo.findById.mockResolvedValue(world);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mpj',
+        userId: 'pj',
+        worldId: 'world1',
+        role: WorldRole.PJ,
+      });
+      mockMembershipRepo.update.mockResolvedValue({
+        id: 'm1',
+        userId: 'victim',
+        worldId: 'world1',
+        role: WorldRole.Korektor,
+      });
+      const result = await service.updateMemberRole('m1', WorldRole.Korektor, {
+        id: 'pj',
+        role: UserRole.Ikarus,
+        username: 'pj',
+      });
+      expect(result.role).toBe(WorldRole.Korektor);
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m1', {
+        role: WorldRole.Korektor,
+      });
+    });
+  });
+
   describe('transferOwnership (D-NEW-world-transfer)', () => {
     const owner = { id: 'user1', role: UserRole.Ikarus, username: 'owner' };
 

@@ -1220,6 +1220,31 @@ export class WorldsService implements OnApplicationBootstrap {
         message: 'Nedostatečná oprávnění',
       });
 
+    // R-03 — strop role (vertikální eskalace). `canManageMembers` (výš) ověřuje
+    // jen roli REQUESTERA, ne CÍLOVOU roli ani roli cílového člena — bez tohoto
+    // bloku by PomocnyPJ(4) povýšil sebe/kohokoli na PJ(5) nebo demotoval PJ/ownera.
+    //  (a) roli vlastníka světa lze měnit jen přes transferOwnership (immutable zde),
+    //  (b) kdo není GlobalAdmin ani owner, nesmí udělit roli >= své vlastní
+    //      ani měnit roli člena, jehož role >= jeho vlastní (rovný/výše postavený).
+    if (world.ownerId === membership.userId)
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'WORLD_OWNER_ROLE_IMMUTABLE',
+        message: 'Roli vlastníka světa nelze měnit — použij předání světa.',
+      });
+    const isGlobalAdmin = requester.role <= UserRole.Admin;
+    const isOwner = world.ownerId === requester.id;
+    if (!isGlobalAdmin && !isOwner) {
+      const requesterRole = requesterMembership?.role ?? WorldRole.Zadatel;
+      if (role >= requesterRole || membership.role >= requesterRole)
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: 'WORLD_ROLE_CEILING',
+          message:
+            'Nelze udělit ani měnit roli na úrovni své vlastní role nebo vyšší.',
+        });
+    }
+
     const updated = await this.membershipRepo.update(membershipId, { role });
     if (!updated)
       throw new NotFoundException({

@@ -612,11 +612,32 @@ export class AdminService {
     userId: string,
     dto: SetAdminPermissionsDto,
   ) {
-    if (actor.role !== UserRole.Superadmin) {
+    // R-05 (A) — dřív Superadmin-only; nově i Admin s `canManageAdmins`.
+    // `actor` je RequestUser (jen id+role, bez adminPermissions) → pro flag
+    // načti plný záznam. Self-target i target=Admin gate zůstávají = Admin-manager
+    // smí editovat JEN jiné Adminy, ne sebe, ne Superadmina.
+    const isSuperadmin = actor.role === UserRole.Superadmin;
+    let canManage = isSuperadmin;
+    if (!isSuperadmin && actor.role === UserRole.Admin) {
+      const actorFull = await this.usersRepo.findById(actor.id);
+      canManage = !!actorFull?.adminPermissions?.canManageAdmins;
+    }
+    if (!canManage) {
       throw new ForbiddenException({
         statusCode: 403,
         code: 'INSUFFICIENT_ROLE',
-        message: 'Jen Superadmin smí spravovat oprávnění Adminů',
+        message:
+          'Spravovat oprávnění Adminů smí Superadmin nebo Admin s canManageAdmins.',
+      });
+    }
+    // R-05 (A) — flag `canManageAdmins` (mintit další admin-managery) smí měnit
+    // JEN Superadmin. Admin-manager smí delegovat jen `canModerateContent` —
+    // brání řetězovému šíření manage-práva mezi Adminy.
+    if (!isSuperadmin && dto.canManageAdmins !== undefined) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'SUPERADMIN_ONLY_FLAG',
+        message: 'Flag canManageAdmins smí měnit jen Superadmin.',
       });
     }
     if (actor.id === userId) {

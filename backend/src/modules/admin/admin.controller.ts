@@ -194,10 +194,10 @@ export class AdminController {
 
   @Patch('users/:id/admin-permissions')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.Superadmin)
+  @Roles(UserRole.Superadmin, UserRole.Admin)
   @ApiOperation({
     summary:
-      'Granular update admin oprávnění (Superadmin only). Aplikuje jen pole, která jsou v request body.',
+      'Granular update admin oprávnění (Superadmin, nebo Admin s canManageAdmins). Aplikuje jen pole, která jsou v request body.',
   })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 400, description: 'SELF_FORBIDDEN nebo NOT_ADMIN' })
