@@ -8,6 +8,7 @@ import {
   IsIn,
   IsBoolean,
 } from 'class-validator';
+import { THEME_IDS } from '../constants/theme-ids';
 
 export class UpdateUserDto {
   @IsOptional() @IsString() @MaxLength(32) displayName?: string;
@@ -34,7 +35,10 @@ export class UpdateUserDto {
   @IsOptional() @IsString() @MaxLength(1000) bio?: string;
   @IsOptional() @IsString() @MaxLength(64) characterName?: string;
   @IsOptional() @IsString() @MaxLength(1000) characterBio?: string;
-  @IsOptional() @IsString() @MaxLength(64) themeId?: string;
+  // N-11 — validace proti seznamu platných motivů (jinak by se uložil libovolný string).
+  @IsOptional()
+  @IsIn(THEME_IDS, { message: 'themeId není platný motiv' })
+  themeId?: string;
   @IsOptional()
   @IsIn(['male', 'female', 'being'])
   defaultAvatarType?: 'male' | 'female' | 'being';

@@ -23,10 +23,11 @@ import type { UpdateArticleDto } from './dto/update-article.dto';
 import type { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 import { IkarosCategoriesService } from '../ikaros-categories/ikaros-categories.service';
 
+// N-14 — články jsou platformový obsah → jen globální role, bez world-scoped PJ
+// (sjednoceno s ikaros-discussions/ikaros-gallery; PJ je role ve světě, ne platformě).
 const ADMIN_ROLES = [
   UserRole.Superadmin,
   UserRole.Admin,
-  UserRole.PJ,
   UserRole.SpravceClanku,
 ];
 const SYSTEM_SENDER = { id: 'system', username: 'Systém' };

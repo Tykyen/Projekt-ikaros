@@ -88,8 +88,8 @@ describe('IkarosArticlesService', () => {
   });
 
   describe('isAdmin', () => {
-    it('PJ je admin', () =>
-      expect(service.isAdmin(UserRole.PJ, 'nekdo')).toBe(true));
+    it('PJ NENÍ admin článků (N-14 — platformový obsah, PJ je world role)', () =>
+      expect(service.isAdmin(UserRole.PJ, 'nekdo')).toBe(false));
     it('SpravceClanku je admin', () =>
       expect(service.isAdmin(UserRole.SpravceClanku, 'nekdo')).toBe(true));
     it('Tyky je admin bez ohledu na roli', () =>
