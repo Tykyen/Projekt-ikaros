@@ -192,12 +192,13 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     @MessageBody() payload: { username: string; userId: string },
     @ConnectedSocket() client: Socket,
   ): void {
-    void this.registerPresence(
-      client,
-      'hospoda',
-      payload.username,
-      payload.userId,
-    );
+    // W-10 — identita z OVĚŘENÉHO JWT handshake (`client.data.userId` nastavuje
+    // ChatGateway na sdíleném socketu), NIKDY z payloadu. Jinak by klient mohl
+    // poslat cizí `userId`, joinnout cizí `user:{id}` room a odposlouchávat
+    // cizí privátní eventy (whispery, poštu, friend, transfery).
+    const userId = (client.data as { userId?: string }).userId;
+    if (!userId) return;
+    void this.registerPresence(client, 'hospoda', payload.username, userId);
   }
 
   @SubscribeMessage('chat:hospoda:leave')
@@ -213,12 +214,10 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
   ): void {
     if (!isRoomKey(payload.room)) return;
-    void this.registerPresence(
-      client,
-      payload.room,
-      payload.username,
-      payload.userId,
-    );
+    // W-10 — viz handleHospodaJoin: userId z ověřeného JWT, ne z payloadu.
+    const userId = (client.data as { userId?: string }).userId;
+    if (!userId) return;
+    void this.registerPresence(client, payload.room, payload.username, userId);
   }
 
   @SubscribeMessage('chat:room:leave')

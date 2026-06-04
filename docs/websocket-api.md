@@ -28,11 +28,11 @@ Zpracovává typing indikátory a presence konverzací. Zprávy, kanály, skupin
 | `chat:message` | `ChatMessage` | `chat:{channelId}` nebo `user:{userId}` | Nová zpráva; privátní zprávy jdou do `user:` roomu |
 | `chat:message:updated` | `ChatMessage` | `chat:{channelId}` | Zpráva byla upravena |
 | `chat:message:deleted` | `{ messageId: string; channelId: string }` | `chat:{channelId}` | Zpráva byla smazána |
-| `chat:channel:created` | `ChatChannel` | `world:{worldId}` | Nový kanál ve světě |
-| `chat:channel:updated` | `ChatChannel` | `world:{worldId}` | Kanál byl upraven |
+| `chat:channel:created` | `{ worldId: string }` | `world:{worldId}` | Nový kanál — W-4 leak-safe signál (FE refetchne filtrovaný `GET groups`, ne celý objekt → skrytý roles-kanál neleakne metadata) |
+| `chat:channel:updated` | `{ worldId: string }` | `world:{worldId}` | Kanál upraven — W-4 leak-safe signál |
 | `chat:channel:deleted` | `{ channelId: string; groupId: string }` | `world:{worldId}` | Kanál byl smazán |
-| `chat:group:created` | `ChatGroup` | `world:{worldId}` | Nová skupina kanálů |
-| `chat:group:updated` | `ChatGroup` | `world:{worldId}` | Skupina kanálů byla upravena |
+| `chat:group:created` | `{ worldId: string }` | `world:{worldId}` | Nová skupina — W-4 leak-safe signál |
+| `chat:group:updated` | `{ worldId: string }` | `world:{worldId}` | Skupina upravena — W-4 leak-safe signál |
 | `chat:group:deleted` | `string` (groupId) | `world:{worldId}` | Skupina kanálů byla smazána |
 | `chat:unread` | `{ channelId: string; count: number }` | `user:{userId}` | Aktualizace počtu nepřečtených zpráv |
 | `chat:feed:bump` | `{ worldId: string }` | `user:{userId}` | 13.2a — signál „nová zpráva v některém z tvých kanálů" do user roomů příjemců; klient refetchne `GET /chat/feed` (leak-safe: bez obsahu, server filtruje). Vlastní zprávy se odesílateli neposílají. |
@@ -57,6 +57,7 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `map:leave` | `string` (sceneId) | ano | Odchod z roomu scény |
 | `map:join-world` | `string` (worldId) | ano (**PJ+**) | Vstup do `world:{worldId}` roomu — PJ orchestrátor (cross-scene log) |
 | `map:spotlight` | `{ sceneId: string; tokenId: string }` | ano (**PJ+**) | Ephemeral „ukazováček" PJ — rozsvítí token všem na scéně ~3 s |
+| `map:ping` | `{ sceneId: string; x: number; y: number; userName: string }` | ano | Ephemeral ping na plochu (mapa-space `x`/`y`); relay ostatním na scéně |
 
 > Pohyb tokenu / efekty / fog / scéna / combat / zvuky / kostky **nejsou** WS eventy —
 > jdou přes `POST /maps/:id/operations` (per-scene) a `POST /worlds/:worldId/operations`
@@ -72,6 +73,7 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `map:member-left` | `{ sceneId; userId }` | `{sceneId}` | Hráč opustil scénu (cascade při `scene.deactivate`) |
 | `map:reassigned` | `{ newSceneId: string \| null }` | `user:{userId}` | Privát: PJ přesunul mě na jinou scénu (`null` = unassign) |
 | `map:spotlight` | `{ tokenId: string }` | `{sceneId}` | Ephemeral spotlight (relay z příchozího `map:spotlight`) |
+| `map:pinged` | `x, y, userName` (poziční argumenty) | `{sceneId}` | Ephemeral ping (relay z `map:ping`) — pozor: poziční args, ne objekt |
 | `weather:updated` | `{ worldId; generatorId: string \| null; generatorName: string \| null; weather: WeatherResult \| null; activeMapWeather?: null }` | `world:{worldId}` | Počasí vyslané/zrušené PJ (10.2i). `weather:null` = PJ vypnul počasí na mapě. Reaguje na interní `weather.updated`. |
 
 ### Catch-up (REST, ne WS)
@@ -81,11 +83,12 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `GET /maps/:id/operations?since=N&limit=500` | Per-scene ops se `seqNumber > N` (ascending). Gap recovery + reconnect catch-up. |
 | `GET /worlds/:id/operations?since=N&limit=200` | Cross-scene ops (PJ-only). |
 
-> **Deprecated (BC):** legacy relay handlery `map:token-moved`, `map:config-updated`,
-> `map:token-removed`, `map:reload-scene`, `map:scene-cleared`, `map:ping`/`map:pinged`,
+> **Legacy relay handlery odstraněny (W-5, 2026-06-04):** `map:token-moved`,
+> `map:config-updated`, `map:token-removed`, `map:reload-scene`, `map:scene-cleared`,
 > `map:effect-added/removed`, `map:fog-updated`, `map:dice-rolled`,
-> `map:scene-state-changed`, `map:sound-changed` v gateway stále existují, ale FE je
-> **nepoužívá** — nahrazeny operation modelem. Nepoužívat v nové práci.
+> `map:scene-state-changed`, `map:sound-changed` byly smazány — nahrazeny operation
+> modelem, FE je nepoužíval, tvořily mrtvý kód + relay surface. Ephemeral `map:ping`
+> a `map:spotlight` zůstávají (živé).
 
 ---
 

@@ -3,11 +3,16 @@ import type { GlobalChatService } from './global-chat.service';
 import type { UsersService } from '../users/users.service';
 import type { Server, Socket } from 'socket.io';
 
-/** Mock socket — `id`, `join`, `leave`, `to().emit()`. */
-const mockSocket = (id: string): Socket => {
+/**
+ * Mock socket — `id`, `data.userId` (W-10: identita z ověřeného JWT handshake,
+ * ChatGateway ji nastavuje; presence join ji bere odtud, ne z payloadu),
+ * `join`, `leave`, `to().emit()`. Default `userId` páruje konvenci `s{n}`→`u{n}`.
+ */
+const mockSocket = (id: string, userId = id.replace(/^s/, 'u')): Socket => {
   const emit = jest.fn();
   return {
     id,
+    data: { userId },
     join: jest.fn(),
     leave: jest.fn(),
     to: jest.fn(() => ({ emit })),
@@ -50,6 +55,29 @@ describe('GlobalChatGateway', () => {
       to: jest.fn(() => ({ emit })),
       emit: jest.fn(),
     } as unknown as Server;
+  });
+
+  describe('W-10 — identita presence z JWT, ne z payloadu', () => {
+    it('joinne ověřený user:{id} room a ignoruje podvržené payload.userId', async () => {
+      const sock = mockSocket('s1', 'u1');
+      // Útočník deklaruje cizí userId v payloadu.
+      gateway.handleHospodaJoin({ username: 'Fake', userId: 'victim' }, sock);
+      await flush();
+      // Socket joinne SVŮJ ověřený room, ne 'user:victim'.
+      expect(sock.join).toHaveBeenCalledWith('user:u1');
+      expect(sock.join).not.toHaveBeenCalledWith('user:victim');
+      expect(gateway.getPresence('hospoda')).toEqual([
+        { userId: 'u1', username: 'Fake' },
+      ]);
+    });
+
+    it('neautentizovaný socket (bez data.userId) se nezaregistruje', async () => {
+      const sock = { id: 's1', data: {}, join: jest.fn() } as unknown as Socket;
+      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+      await flush();
+      expect(sock.join).not.toHaveBeenCalled();
+      expect(gateway.getPresence('hospoda')).toEqual([]);
+    });
   });
 
   describe('presence — multi-room (krok 4.2d §1)', () => {
@@ -114,13 +142,14 @@ describe('GlobalChatGateway', () => {
     });
 
     it('deduplicates presence by userId across multiple sockets', async () => {
+      // Jeden uživatel (u1) na dvou tabech → ověřený userId stejný pro oba.
       gateway.handleHospodaJoin(
         { username: 'a', userId: 'u1' },
-        mockSocket('s1'),
+        mockSocket('s1', 'u1'),
       );
       gateway.handleHospodaJoin(
         { username: 'a', userId: 'u1' },
-        mockSocket('s2'),
+        mockSocket('s2', 'u1'),
       );
       await flush();
       expect(gateway.getPresence('hospoda')).toHaveLength(1);

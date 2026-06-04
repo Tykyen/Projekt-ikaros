@@ -12,7 +12,9 @@ function mockServer() {
   return { server: { to } as unknown as Server, to, emit };
 }
 
-const socket = (id: string) => ({ id }) as Socket;
+// Socket po handleConnection nese ověřený `data.userId` (z JWT handshake).
+const socket = (id: string, userId = 'u1') =>
+  ({ id, data: { userId } }) as unknown as Socket;
 
 describe('ChatGateway — presence (krok 6.1d)', () => {
   let gateway: ChatGateway;
@@ -102,6 +104,34 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
       expect.objectContaining({ action: 'join', userId: 'u1', worldRole: 5 }),
     );
     expect(presence.list('ch1')).toHaveLength(1);
+  });
+
+  it('W-3 — handleChannelJoin ignoruje payload.userId, identitu bere z JWT (client.data.userId)', async () => {
+    chatService.resolveChannelPresenceRole.mockResolvedValue(5);
+    // Útočník pošle cizí userId v payloadu, ale ověřený socket patří 'u1'.
+    await gateway.handleChannelJoin(
+      { channelId: 'ch1', userId: 'victim-id', username: 'Fake' },
+      socket('s1', 'u1'),
+    );
+    // Role se resolvuje pro OVĚŘENÝ userId, ne pro podvržený payload.
+    expect(chatService.resolveChannelPresenceRole).toHaveBeenCalledWith(
+      'ch1',
+      'u1',
+    );
+    // Presence broadcast nese ověřenou identitu, ne 'victim-id'.
+    expect(srv.emit).toHaveBeenCalledWith(
+      'chat:presence',
+      expect.objectContaining({ action: 'join', userId: 'u1' }),
+    );
+  });
+
+  it('W-3 — handleChannelJoin neudělá nic na neautentizovaném socketu (bez data.userId)', async () => {
+    await gateway.handleChannelJoin(
+      { channelId: 'ch1', userId: 'u1', username: 'A' },
+      { id: 's1', data: {} } as unknown as Socket,
+    );
+    expect(chatService.resolveChannelPresenceRole).not.toHaveBeenCalled();
+    expect(srv.emit).not.toHaveBeenCalled();
   });
 
   it('handleChannelJoin nic neudělá když uživatel není člen světa', async () => {

@@ -76,4 +76,20 @@ export class FriendshipsGateway extends BaseGateway {
       }
     }
   }
+
+  /**
+   * W-1 — blokace ruší případné přátelství (anti-stalk). Obě strany dostanou
+   * signál, aby si refetchly seznam přátel + friendship-status; blokovanému se
+   * záměrně nepushuje toast (jen tichá invalidace na FE). `blocked: true`
+   * rozlišuje pohled blokujícího (`by === sám`) od blokovaného.
+   */
+  @OnEvent('friendship.blocked')
+  onBlocked(e: { blockerId: string; blockedId: string }): void {
+    for (const uid of [e.blockerId, e.blockedId]) {
+      this.server.to(`user:${uid}`).emit('friend:blocked', {
+        blockerId: e.blockerId,
+        blockedId: e.blockedId,
+      });
+    }
+  }
 }

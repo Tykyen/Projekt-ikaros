@@ -15,12 +15,19 @@ interface PresenceSocketData {
  *
  * In-memory registry (single-instance). Multi-instance = Redis adapter
  * (sledováno jako dluh „chat-presence-scale" / D-051).
+ *
+ * W-11 — idle se trackuje **per-socket**: uživatel je idle ⟺ jsou idle
+ * VŠECHNY jeho sockety. Dřív byl `idle` per-userId flag přepsaný posledním
+ * eventem → tab, který zahálel, označil idle i uživatele aktivně pracujícího
+ * v jiném tabu.
  */
 @Injectable()
 export class PresenceGateway extends BaseGateway {
   /** userId → set aktivních socketů (multi-tab/zařízení). */
   private readonly sockets = new Map<string, Set<string>>();
-  /** userId v idle stavu. */
+  /** userId → set socketů hlásících idle. User je idle ⟺ všechny jeho sockety idle. */
+  private readonly idleSockets = new Map<string, Set<string>>();
+  /** userId aktuálně VYHLÁŠENÝ jako idle (poslední broadcastnutý stav). */
   private readonly idle = new Set<string>();
 
   constructor(private readonly jwtService: JwtService) {
@@ -44,9 +51,13 @@ export class PresenceGateway extends BaseGateway {
     }));
     client.emit('presence:snapshot', { entries });
 
-    // Ostatním oznam nově příchozího (jen při prvním socketu uživatele).
     if (wasOffline) {
+      // Ostatním oznam nově příchozího (jen při prvním socketu uživatele).
       client.broadcast.emit('presence:update', { userId, status: 'online' });
+    } else {
+      // Další tab/zařízení = aktivní socket → pokud byl uživatel vyhlášen idle,
+      // přejde zpět na online (nový socket není v idleSockets).
+      this.recomputeIdle(userId);
     }
   }
 
@@ -57,27 +68,56 @@ export class PresenceGateway extends BaseGateway {
     const set = this.sockets.get(userId);
     if (!set) return;
     set.delete(client.id);
+    this.idleSockets.get(userId)?.delete(client.id);
     if (set.size === 0) {
       this.sockets.delete(userId);
+      this.idleSockets.delete(userId);
       this.idle.delete(userId);
       this.server.emit('presence:update', { userId, status: 'offline' });
+    } else {
+      // Odpojil se aktivní socket → zbývající mohou být všechny idle.
+      this.recomputeIdle(userId);
     }
   }
 
   @SubscribeMessage('presence:idle')
   onIdle(@ConnectedSocket() client: Socket): void {
     const userId = (client.data as PresenceSocketData).presenceUserId;
-    if (!userId || this.idle.has(userId)) return;
-    this.idle.add(userId);
-    this.server.emit('presence:update', { userId, status: 'idle' });
+    if (!userId) return;
+    let set = this.idleSockets.get(userId);
+    if (!set) {
+      set = new Set();
+      this.idleSockets.set(userId, set);
+    }
+    set.add(client.id);
+    this.recomputeIdle(userId);
   }
 
   @SubscribeMessage('presence:active')
   onActive(@ConnectedSocket() client: Socket): void {
     const userId = (client.data as PresenceSocketData).presenceUserId;
-    if (!userId || !this.idle.has(userId)) return;
-    this.idle.delete(userId);
-    this.server.emit('presence:update', { userId, status: 'online' });
+    if (!userId) return;
+    this.idleSockets.get(userId)?.delete(client.id);
+    this.recomputeIdle(userId);
+  }
+
+  /**
+   * Sladí vyhlášený idle stav uživatele s realitou: idle ⟺ všechny aktivní
+   * sockety hlásí idle. Broadcastne `presence:update` jen při reálné změně.
+   */
+  private recomputeIdle(userId: string): void {
+    const all = this.sockets.get(userId);
+    if (!all || all.size === 0) return;
+    const idleSet = this.idleSockets.get(userId);
+    const allIdle = !!idleSet && idleSet.size >= all.size;
+    const wasIdle = this.idle.has(userId);
+    if (allIdle && !wasIdle) {
+      this.idle.add(userId);
+      this.server.emit('presence:update', { userId, status: 'idle' });
+    } else if (!allIdle && wasIdle) {
+      this.idle.delete(userId);
+      this.server.emit('presence:update', { userId, status: 'online' });
+    }
   }
 
   private authUser(client: Socket): string | null {

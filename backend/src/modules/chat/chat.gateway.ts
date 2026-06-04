@@ -88,14 +88,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     },
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
+    // W-3 — identita z OVĚŘENÉHO JWT handshake (`client.data.userId`), NE z
+    // klientského payloadu. Jinak hráč pošle cizí `userId` a vyrobí falešnou
+    // presence s cizí identitou/rolí v PJ panelu (stejná třída jako N-9 sound).
+    const userId = (client.data as { userId?: string }).userId;
+    if (!userId) return;
     // World role z membership — autoritativní (klientu se nevěří).
     const worldRole = await this.chatService.resolveChannelPresenceRole(
       payload.channelId,
-      payload.userId,
+      userId,
     );
     if (worldRole === null) return;
     const user = {
-      userId: payload.userId,
+      userId,
       username: payload.username,
       avatarUrl: payload.avatarUrl,
       worldRole,
@@ -280,6 +285,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // ─── Channel events ──────────────────────────────────────────────────────
 
+  // W-4 — channel/group created+updated emitují jen leak-safe signál
+  // `{ worldId }`, NE celý objekt. Jinak by `accessMode:'roles'` (skrytý) kanál
+  // poslal metadata (název/ikona) všem ve `world:{id}` roomu, i hráčům bez
+  // přístupu (viditelné ve WS frame). FE jen invaliduje groups cache →
+  // refetch `GET groups` je server-filtrovaný (skrytý kanál se nevrátí).
   @OnEvent('chat.channel.created')
   handleChannelCreated(payload: {
     worldId: string;
@@ -287,7 +297,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }): void {
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('chat:channel:created', payload.channel);
+      .emit('chat:channel:created', { worldId: payload.worldId });
   }
 
   @OnEvent('chat.channel.updated')
@@ -297,7 +307,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }): void {
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('chat:channel:updated', payload.channel);
+      .emit('chat:channel:updated', { worldId: payload.worldId });
   }
 
   @OnEvent('chat.channel.deleted')
@@ -314,18 +324,19 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // ─── Group events ────────────────────────────────────────────────────────
 
+  // W-4 — viz channel created/updated: leak-safe signál místo celého objektu.
   @OnEvent('chat.group.created')
   handleGroupCreated(payload: { worldId: string; group: ChatGroup }): void {
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('chat:group:created', payload.group);
+      .emit('chat:group:created', { worldId: payload.worldId });
   }
 
   @OnEvent('chat.group.updated')
   handleGroupUpdated(payload: { worldId: string; group: ChatGroup }): void {
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('chat:group:updated', payload.group);
+      .emit('chat:group:updated', { worldId: payload.worldId });
   }
 
   @OnEvent('chat.group.deleted')

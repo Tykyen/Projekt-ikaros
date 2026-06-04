@@ -91,6 +91,16 @@ describe('FriendshipsGateway (N-4 — EventEmitter2 → Socket.IO most)', () => 
     });
   });
 
+  it('W-1 — blocked → friend:blocked oběma stranám', () => {
+    gateway.onBlocked({ blockerId: 'u1', blockedId: 'u2' });
+    expect(srv.to).toHaveBeenCalledWith('user:u1');
+    expect(srv.to).toHaveBeenCalledWith('user:u2');
+    expect(srv.emit).toHaveBeenCalledWith('friend:blocked', {
+      blockerId: 'u1',
+      blockedId: 'u2',
+    });
+  });
+
   it('selhání publicProfile → fallback username, žádný throw', async () => {
     (usersService.publicProfile as jest.Mock).mockRejectedValue(
       new Error('not found'),

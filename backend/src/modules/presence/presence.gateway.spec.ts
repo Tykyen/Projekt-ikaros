@@ -103,4 +103,35 @@ describe('PresenceGateway (N-5 — presence přes Socket.IO)', () => {
       status: 'offline',
     });
   });
+
+  it('W-11 — multi-tab: idle až když VŠECHNY sockety idle; active z jednoho → online', () => {
+    (jwt.verify as jest.Mock).mockReturnValue({ sub: 'u1' });
+    const d1: Record<string, unknown> = {};
+    const d2: Record<string, unknown> = {};
+    gateway.handleConnection(mockClient('s1', 'tok', d1));
+    gateway.handleConnection(mockClient('s2', 'tok', d2));
+    jest.clearAllMocks();
+
+    // První tab zahálí → uživatel JEŠTĚ není idle (druhý je aktivní).
+    gateway.onIdle({ id: 's1', data: d1 } as unknown as Socket);
+    expect(srv.emit).not.toHaveBeenCalledWith('presence:update', {
+      userId: 'u1',
+      status: 'idle',
+    });
+
+    // Druhý tab taky zahálí → teprve teď je uživatel idle.
+    gateway.onIdle({ id: 's2', data: d2 } as unknown as Socket);
+    expect(srv.emit).toHaveBeenCalledWith('presence:update', {
+      userId: 'u1',
+      status: 'idle',
+    });
+
+    // Aktivita v jednom tabu → uživatel zpět online.
+    jest.clearAllMocks();
+    gateway.onActive({ id: 's1', data: d1 } as unknown as Socket);
+    expect(srv.emit).toHaveBeenCalledWith('presence:update', {
+      userId: 'u1',
+      status: 'online',
+    });
+  });
 });
