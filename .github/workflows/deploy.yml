@@ -1,0 +1,111 @@
+name: Deploy to Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+
+env:
+  DEPLOY_PATH: /opt/projekt-ikaros-be
+  COMPOSE_FILE: docker-compose.prod.yml
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment directory
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "mkdir -p ${{ env.DEPLOY_PATH }}"
+
+      - name: Copy files to server
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${{ vars.SERVER_PORT }}" \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude 'dist' \
+            --exclude 'coverage' \
+            --exclude '.env' \
+            ./ ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Create .env file on server
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cat > ${{ env.DEPLOY_PATH }}/.env << 'EOF'
+          BACKEND_PORT=${{ vars.BACKEND_PORT }}
+          FRONTEND_URL=${{ vars.FRONTEND_URL }}
+          BACKEND_BASE_URL=${{ vars.BACKEND_BASE_URL }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
+          JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
+          JWT_REFRESH_TTL_DAYS=${{ vars.JWT_REFRESH_TTL_DAYS }}
+          CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}
+          CLOUDINARY_CLOUD_NAME=${{ vars.CLOUDINARY_CLOUD_NAME }}
+          TURNSTILE_SECRET=${{ secrets.TURNSTILE_SECRET }}
+          VAPID_SUBJECT=${{ vars.VAPID_SUBJECT }}
+          VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
+          MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
+          DELETION_HOLD_DAYS=${{ vars.DELETION_HOLD_DAYS }}
+          EMBEDDING_GRANITE107_ENABLED=${{ vars.EMBEDDING_GRANITE107_ENABLED }}
+          EMBEDDING_GRANITE278_ENABLED=${{ vars.EMBEDDING_GRANITE278_ENABLED }}
+          EOF"
+
+      - name: Build images
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} bash -c '
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            docker image prune -f
+            docker compose -f ${{ env.COMPOSE_FILE }} build --no-cache
+          '
+
+      - name: Deploy
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} bash -c '
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            docker compose -f ${{ env.COMPOSE_FILE }} down --remove-orphans || true
+            docker compose -f ${{ env.COMPOSE_FILE }} up -d
+            docker compose -f ${{ env.COMPOSE_FILE }} ps
+          '
+
+      - name: Verify deployment
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} bash -c '
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+            sleep 15
+            docker compose -f ${{ env.COMPOSE_FILE }} ps
+            TOTAL=$(docker compose -f ${{ env.COMPOSE_FILE }} ps -q | wc -l)
+            RUNNING=$(docker compose -f ${{ env.COMPOSE_FILE }} ps --status running -q | wc -l)
+            if [ "$TOTAL" -ne "$RUNNING" ]; then
+              docker compose -f ${{ env.COMPOSE_FILE }} logs --tail=80
+              exit 1
+            fi
+          '
+
+      - name: Cleanup old Docker images
+        if: always()
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "docker image prune -f"

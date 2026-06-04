@@ -1,0 +1,116 @@
+services:
+  mongo:
+    image: docker.io/library/mongo:7
+    container_name: projekt-ikaros-mongo
+    restart: unless-stopped
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --port
+      - "27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |
+          mongosh --quiet --eval "
+            try {
+              rs.status();
+            } catch (err) {
+              if (err.codeName === 'NotYetInitialized' || err.code === 94) {
+                rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongo:27017'}]});
+              } else {
+                throw err;
+              }
+            }
+          "
+      interval: 10s
+      start_period: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ikaros-net
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: projekt-ikaros-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ikaros-net
+
+  meilisearch:
+    image: docker.io/getmeili/meilisearch:v1.6
+    container_name: projekt-ikaros-meili
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+    volumes:
+      - meili-data:/meili_data
+    networks:
+      - ikaros-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: projekt-ikaros-be
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://mongo:27017/ikaros?replicaSet=rs0
+      REDIS_URL: redis://redis:6379
+      SOCKET_IO_REDIS: "1"
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_API_KEY: ${MEILI_MASTER_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      CLOUDINARY_URL: ${CLOUDINARY_URL}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET}
+      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
+      DELETION_HOLD_DAYS: ${DELETION_HOLD_DAYS:-14}
+      EMBEDDING_GRANITE107_ENABLED: ${EMBEDDING_GRANITE107_ENABLED:-true}
+      EMBEDDING_GRANITE278_ENABLED: ${EMBEDDING_GRANITE278_ENABLED:-true}
+    volumes:
+      - uploads-data:/app/uploads
+    ports:
+      - "${BACKEND_PORT:-3001}:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+    networks:
+      - ikaros-net
+
+volumes:
+  mongo-data:
+  redis-data:
+  meili-data:
+  uploads-data:
+
+networks:
+  ikaros-net:
+    driver: bridge
