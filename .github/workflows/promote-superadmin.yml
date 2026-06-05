@@ -1,0 +1,34 @@
+name: Promote to Superadmin
+
+# Jednorázový/údržbový nástroj: povýší existujícího uživatele (dle e-mailu)
+# na roli Superadmin (role = 1) přímo v produkční databázi na serveru.
+# Spouští se RUČNĚ: Actions → "Promote to Superadmin" → Run workflow → zadej e-mail.
+# Hesla se nedotýká, mění jen pole `role`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: E-mail uživatele, který se povýší na Superadmin
+        required: true
+        default: tykytanjunior@gmail.com
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Promote user to Superadmin
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet --eval 'var e=\"${{ github.event.inputs.email }}\".toLowerCase(); var r=db.users.updateOne({email:e},{\$set:{role:1}}); print(\"matched=\"+r.matchedCount+\" modified=\"+r.modifiedCount); printjson(db.users.findOne({email:e},{email:1,username:1,role:1}));'"
