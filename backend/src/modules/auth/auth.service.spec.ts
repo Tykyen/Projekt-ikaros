@@ -139,6 +139,7 @@ describe('AuthService', () => {
           email: 'a@a.com',
           username: 'new',
           password: 'pass123',
+          acceptedTerms: true,
         });
         fail('expected ConflictException');
       } catch (err) {
@@ -160,6 +161,7 @@ describe('AuthService', () => {
           email: 'new@new.com',
           username: 'user',
           password: 'pass123',
+          acceptedTerms: true,
         });
         fail('expected ConflictException');
       } catch (err) {
@@ -182,6 +184,7 @@ describe('AuthService', () => {
         email: 'a@a.com',
         username: 'new',
         password: 'pass123',
+        acceptedTerms: true,
       });
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
@@ -205,6 +208,7 @@ describe('AuthService', () => {
         email: 'a@a.com',
         username: 'new',
         password: 'pass123',
+        acceptedTerms: true,
       });
       expect(mockUsersRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ lastLoginAt: expect.any(Date) }),

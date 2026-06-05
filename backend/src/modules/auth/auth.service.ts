@@ -53,6 +53,9 @@ export class AuthService {
 
   static readonly PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hodina
   static readonly EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hodin
+  // F-03 (GDPR) — verze podmínek platná pro nově ukládaný souhlas. Při změně textu
+  // podmínek zvyš (provozovatel řeší re-souhlas existujících účtů dle potřeby).
+  static readonly TERMS_VERSION = '2026-06-05';
 
   constructor(
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
@@ -91,6 +94,15 @@ export class AuthService {
       });
     }
 
+    // F-03 (GDPR) — souhlas s podmínkami vynucený i server-side (ne jen FE refine).
+    if (dto.acceptedTerms !== true) {
+      throw new BadRequestException({
+        statusCode: 400,
+        message: 'Pro vytvoření účtu musíš souhlasit s podmínkami.',
+        code: 'TERMS_NOT_ACCEPTED',
+      });
+    }
+
     const existing = await this.usersRepo.findByEmail(dto.email);
     if (existing) {
       throw new ConflictException({
@@ -119,6 +131,9 @@ export class AuthService {
       lastSeenAt: new Date(),
       // 1.3a — registrace je zároveň první přihlášení.
       lastLoginAt: new Date(),
+      // F-03 (GDPR) — doklad souhlasu s podmínkami.
+      acceptedTermsAt: new Date(),
+      termsVersion: AuthService.TERMS_VERSION,
     });
 
     // SP2: po vytvoření vystavit verify token + poslat mail (fire-and-forget).

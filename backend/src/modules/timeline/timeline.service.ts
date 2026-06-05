@@ -23,6 +23,7 @@ import {
   encodeCursor,
   type TimelineSort,
 } from './lib/timeline-cursor';
+import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
@@ -86,6 +87,10 @@ export class TimelineService {
       : [];
     return {
       ...event,
+      // F-02 — read-time sanitizace jako druhá obrana: očistí i záznamy uložené
+      // PŘED zavedením write-sanitizace (bez nutnosti migrace produkční DB).
+      // Idempotentní vůči už sanitizovaným (write) textům.
+      text: sanitizeRichText(event.text),
       imageUrl: preserveImageUrl ? event.imageUrl : stripBase64(event.imageUrl),
       celestialStates,
     };
@@ -153,7 +158,9 @@ export class TimelineService {
       day: dto.day,
       hour: dto.hour,
       title: dto.title,
-      text: dto.text,
+      // F-02 — rich-text `text` se renderuje přes dangerouslySetInnerHTML
+      // (TimelineEventCard) → sanitizace na write (allowlist, jako pages/articles).
+      text: sanitizeRichText(dto.text),
       imageUrl: dto.imageUrl ?? null,
       imageFocalX: dto.imageFocalX ?? null,
       imageFocalY: dto.imageFocalY ?? null,
@@ -194,7 +201,8 @@ export class TimelineService {
     // hour: null v body znamená "smazat hodinu" (uloží null do DB).
     const patch: Record<string, unknown> = {
       ...(dto.title !== undefined && { title: dto.title }),
-      ...(dto.text !== undefined && { text: dto.text }),
+      // F-02 — sanitizace rich-textu i při update (viz create).
+      ...(dto.text !== undefined && { text: sanitizeRichText(dto.text) }),
       ...(dto.year !== undefined && { year: dto.year }),
       ...(dto.month !== undefined && { month: dto.month }),
       ...(dto.day !== undefined && { day: dto.day }),

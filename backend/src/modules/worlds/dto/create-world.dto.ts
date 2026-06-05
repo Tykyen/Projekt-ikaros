@@ -18,7 +18,13 @@ import { CreateWorldCalendarConfigDto } from '../../world-calendar-config/dto/cr
 
 export class CreateWorldDto {
   @IsString() @MinLength(2) @MaxLength(60) name: string;
-  @IsString() @MinLength(2) @MaxLength(40) slug: string;
+  @IsString()
+  @MinLength(2)
+  @MaxLength(40)
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'slug musí být kebab-case (a-z, 0-9, pomlčka)',
+  })
+  slug: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsString() imageUrl?: string;
   @IsOptional() @IsString() genre?: string;

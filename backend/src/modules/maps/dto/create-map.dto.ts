@@ -3,6 +3,7 @@ import {
   IsString,
   IsBoolean,
   IsArray,
+  IsNumber,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -16,9 +17,9 @@ import { Type } from 'class-transformer';
  * `required: true` failnula s 500). Pre-existing dluh z 8.x maps modulu.
  */
 export class HexConfigDto {
-  @IsOptional() size?: number;
-  @IsOptional() originX?: number;
-  @IsOptional() originY?: number;
+  @IsOptional() @IsNumber() size?: number;
+  @IsOptional() @IsNumber() originX?: number;
+  @IsOptional() @IsNumber() originY?: number;
   @IsOptional() @IsBoolean() showGrid?: boolean;
 }
 

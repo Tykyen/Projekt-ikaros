@@ -7,6 +7,7 @@ import {
   ValidateNested,
   IsIn,
   IsObject,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PAGE_TYPES, type PageType } from '../interfaces/page.interface';
@@ -184,6 +185,7 @@ export class CreatePageDto {
   type: PageType;
 
   @IsString()
+  @MaxLength(200)
   title: string;
 
   @IsOptional()

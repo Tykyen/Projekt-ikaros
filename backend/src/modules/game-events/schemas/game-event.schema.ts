@@ -44,7 +44,8 @@ export class GameEventSchemaClass {
   imageFit: 'cover' | 'contain' | null;
   @Prop({ default: null, type: String }) targetGroup: string | null;
   @Prop({ default: false }) groupOnly: boolean;
-  @Prop({ default: false }) confirmable: boolean;
+  // F-11 — align na FE/UI: zod default(true), UI očekává potvrzování zapnuté.
+  @Prop({ default: true }) confirmable: boolean;
   @Prop({ type: [EventConfirmationSchema], default: [] })
   confirmedBy: EventConfirmationSchemaClass[];
   @Prop({ type: [EventCommentSchema], default: [] })

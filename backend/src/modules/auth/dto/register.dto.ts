@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -17,6 +18,14 @@ export class RegisterDto {
   username: string;
 
   @IsString() @MinLength(6) @MaxLength(128) password: string;
+
+  /**
+   * F-03 (D-010 GDPR) — souhlas s podmínkami. FE ho vynucuje `refine(===true)`,
+   * ale dosud chyběl v DTO → `whitelist` ho zahodil a BE souhlas nikde
+   * nezaznamenal. Service ověří `=== true` a uloží `acceptedTermsAt` + `termsVersion`.
+   */
+  @IsBoolean()
+  acceptedTerms: boolean;
 
   /**
    * D-011 — Cloudflare Turnstile token. Pro dev (test keys) vždy projde;

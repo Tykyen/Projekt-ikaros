@@ -78,6 +78,12 @@ export class UserSchemaClass {
   @Prop({ type: Date }) emailVerifiedAt?: Date;
   @Prop() deletionRequestedBy?: string;
 
+  // F-03 (D-010 GDPR) — doklad souhlasu s podmínkami při registraci.
+  // `acceptedTermsAt` = kdy uživatel odsouhlasil, `termsVersion` = verze podmínek
+  // platná v ten okamžik (server-side konstanta). Retenci souhlasu řeší provozovatel.
+  @Prop({ type: Date }) acceptedTermsAt?: Date;
+  @Prop() termsVersion?: string;
+
   @Prop({
     type: [
       {

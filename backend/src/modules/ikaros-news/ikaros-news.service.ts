@@ -24,6 +24,7 @@ import type {
   AdminAuditAction,
   IAdminAuditLogRepository,
 } from '../admin/interfaces/admin-audit-log.interface';
+import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
 
 @Injectable()
 export class IkarosNewsService {
@@ -111,7 +112,8 @@ export class IkarosNewsService {
     this.assertCanWrite(role);
     const item = await this.repo.create({
       title: dto.title,
-      content: dto.content,
+      // F-10 — sanitizace rich-text obsahu před uložením (konzistence s articles/pages/timeline).
+      content: sanitizeRichText(dto.content),
       authorId,
       createdAtUtc: new Date(),
       archived: false,
@@ -156,7 +158,10 @@ export class IkarosNewsService {
     }
     const updated = await this.repo.update(id, {
       ...(dto.title !== undefined && { title: dto.title }),
-      ...(dto.content !== undefined && { content: dto.content }),
+      // F-10 — sanitizace rich-text obsahu před uložením.
+      ...(dto.content !== undefined && {
+        content: sanitizeRichText(dto.content),
+      }),
       ...(dto.type !== undefined && { type: dto.type }),
       ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
     });

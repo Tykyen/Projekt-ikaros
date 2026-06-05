@@ -9,7 +9,10 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { AbilityDto } from './create-bestie.dto';
 
 export class UpdateBestieDto {
   @IsOptional()
@@ -20,6 +23,7 @@ export class UpdateBestieDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(2048)
   imageUrl?: string;
 
   @IsOptional()
@@ -29,7 +33,9 @@ export class UpdateBestieDto {
 
   @IsOptional()
   @IsArray()
-  abilities?: Array<{ label: string; value: string }>;
+  @ValidateNested({ each: true })
+  @Type(() => AbilityDto)
+  abilities?: AbilityDto[];
 
   @IsOptional()
   @IsObject()

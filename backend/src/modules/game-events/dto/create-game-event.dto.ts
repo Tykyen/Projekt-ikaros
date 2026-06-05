@@ -4,11 +4,13 @@ import {
   IsBoolean,
   IsNumber,
   IsIn,
+  IsNotEmpty,
   Min,
   Max,
   MaxLength,
   MinLength,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateGameEventDto {
@@ -65,7 +67,10 @@ export class CreateGameEventDto {
   @IsIn(['cover', 'contain'])
   imageFit?: 'cover' | 'contain';
 
+  // F-08 — když groupOnly===true, targetGroup musí být neprázdný.
   @IsOptional()
+  @ValidateIf((o: CreateGameEventDto) => o.groupOnly === true)
+  @IsNotEmpty({ message: 'targetGroup je povinný, když groupOnly===true' })
   @IsString()
   @MaxLength(64)
   targetGroup?: string | null;

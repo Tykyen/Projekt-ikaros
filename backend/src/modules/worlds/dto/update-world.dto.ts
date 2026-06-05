@@ -23,12 +23,20 @@ class DiceVisibilityDto {
 }
 
 export class UpdateWorldDto {
-  @IsOptional() @IsString() name?: string;
-  @IsOptional() @IsString() description?: string;
-  @IsOptional() @IsUrl() imageUrl?: string;
+  @IsOptional() @IsString() @MaxLength(60) name?: string;
+  @IsOptional() @IsString() @MaxLength(1000) description?: string;
+  /**
+   * F-07 — smazání titulky FE posílá `''`. `@IsUrl()` by prázdný řetězec odmítl
+   * (400), proto stejný vzor jako `themeBackgroundUrl`: prázdný/nullový vstup
+   * přeskočí validaci (= clear), neprázdná hodnota se validuje jako URL.
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsUrl()
+  imageUrl?: string | null;
   @IsOptional() @IsString() genre?: string;
   @IsOptional() @IsArray() tones?: string[];
-  @IsOptional() @IsString() playersWanted?: string;
+  @IsOptional() @IsString() @MaxLength(500) playersWanted?: string;
   @IsOptional() @IsNumber() playerCount?: number;
   @IsOptional() @IsInt() @Min(1) @Max(999) maxPlayers?: number | null;
   @IsOptional() @IsArray() dice?: string[];

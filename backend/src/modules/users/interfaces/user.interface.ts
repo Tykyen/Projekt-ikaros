@@ -90,6 +90,10 @@ export interface User {
   deletionRequestedBy?: string;
   deletionPromotions?: DeletionPromotion[];
 
+  // F-03 (GDPR) — doklad souhlasu s podmínkami při registraci.
+  acceptedTermsAt?: Date;
+  termsVersion?: string;
+
   // SP3 / D-052 (2026-05-14):
   hiddenPresence?: boolean;
 
