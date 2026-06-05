@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type {
   FindOptions,
   IIkarosNewsRepository,
@@ -38,6 +39,7 @@ export class IkarosNewsService {
     private readonly pushService: PushService,
     @Inject('IAdminAuditLogRepository')
     private readonly auditRepo: IAdminAuditLogRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -131,6 +133,8 @@ export class IkarosNewsService {
         this.logger.warn('notifyAll selhal pro Ikaros novinku', err),
       );
 
+    this.eventEmitter.emit('ikaros-news.changed', {});
+
     const [enriched] = await this.joinAuthorNames([item]);
     return enriched;
   }
@@ -170,6 +174,7 @@ export class IkarosNewsService {
         code: 'IKAROS_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    this.eventEmitter.emit('ikaros-news.changed', {});
     const [enriched] = await this.joinAuthorNames([updated]);
     return enriched;
   }
@@ -197,6 +202,7 @@ export class IkarosNewsService {
       { archived: false },
       { archived: true },
     );
+    this.eventEmitter.emit('ikaros-news.changed', {});
     const [enriched] = await this.joinAuthorNames([updated]);
     return enriched;
   }
@@ -223,6 +229,7 @@ export class IkarosNewsService {
       { archived: true },
       { archived: false },
     );
+    this.eventEmitter.emit('ikaros-news.changed', {});
     const [enriched] = await this.joinAuthorNames([updated]);
     return enriched;
   }
@@ -246,6 +253,7 @@ export class IkarosNewsService {
         null,
       );
     }
+    this.eventEmitter.emit('ikaros-news.changed', {});
   }
 
   /**

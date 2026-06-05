@@ -17,6 +17,7 @@ import { MongoAdminAuditLogRepository } from './repositories/admin-audit-log.rep
 import { AccountCleanupCron } from '../users/services/account-cleanup.cron';
 import { AdminFriendshipsService } from './admin-friendships.service';
 import { FriendshipsRepositoryModule } from '../friendships/friendships-repository.module';
+import { UsersIdentityGateway } from './users-identity.gateway';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { FriendshipsRepositoryModule } from '../friendships/friendships-reposito
     AdminStatsService,
     AdminFriendshipsService,
     AccountCleanupCron,
+    UsersIdentityGateway,
     {
       provide: 'IAdminAuditLogRepository',
       useClass: MongoAdminAuditLogRepository,

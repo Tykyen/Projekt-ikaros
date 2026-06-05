@@ -7,6 +7,7 @@ import {
 import { MongoIkarosNewsRepository } from './repositories/ikaros-news.repository';
 import { IkarosNewsService } from './ikaros-news.service';
 import { IkarosNewsController } from './ikaros-news.controller';
+import { IkarosNewsGateway } from './ikaros-news.gateway';
 import { AdminModule } from '../admin/admin.module';
 
 @Module({
@@ -20,6 +21,7 @@ import { AdminModule } from '../admin/admin.module';
   controllers: [IkarosNewsController],
   providers: [
     IkarosNewsService,
+    IkarosNewsGateway,
     { provide: 'IIkarosNewsRepository', useClass: MongoIkarosNewsRepository },
   ],
 })

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { IkarosNewsService } from './ikaros-news.service';
 import { PushService } from '../push/push.service';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -54,6 +55,8 @@ describe('IkarosNewsService', () => {
           useValue: { notifyAll: jest.fn().mockResolvedValue(undefined) },
         },
         { provide: 'IAdminAuditLogRepository', useValue: mockAuditRepo },
+        // C-47 — service emituje 'ikaros-news.changed' po mutaci.
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get(IkarosNewsService);

@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BestiaeService } from './bestiae.service';
 import { BestiaeRepository } from './repositories/bestiae.repository';
 import { SystemStatsValidatorService } from '../maps/schemas/system-entity-schema/system-stats-validator.service';
@@ -27,6 +28,8 @@ describe('BestiaeService', () => {
     validateForPatch: jest.fn(),
   };
   const mockMemberRepo = { findByUserAndWorld: jest.fn() };
+  // C-34 — service emituje 'bestiae.changed' po každé mutaci.
+  const mockEventEmitter = { emit: jest.fn() };
 
   const admin = { id: 'sa', role: UserRole.Superadmin };
   const hrac = { id: 'h', role: UserRole.Hrac };
@@ -52,6 +55,7 @@ describe('BestiaeService', () => {
         { provide: BestiaeRepository, useValue: mockRepo },
         { provide: SystemStatsValidatorService, useValue: mockValidator },
         { provide: 'IWorldMembershipRepository', useValue: mockMemberRepo },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
     service = module.get(BestiaeService);

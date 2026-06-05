@@ -44,6 +44,20 @@ export class WorldsGateway implements OnGatewayConnection {
     this.server.to(`world:${payload.worldId}`).emit('world:deleted', payload);
   }
 
+  /**
+   * C-04 — novinka světa se změnila (create/update/delete/archive). Leak-safe
+   * signál do `world:{id}` roomu, klient si refetchne filtrovaný GET. Globální
+   * novinka (worldId === null) se do žádného world roomu neemituje.
+   */
+  @OnEvent('world-news.changed')
+  handleWorldNewsChanged(payload: { worldId: string | null }) {
+    if (payload.worldId) {
+      this.server
+        .to(`world:${payload.worldId}`)
+        .emit('world:news:changed', payload);
+    }
+  }
+
   @OnEvent('world.membership.changed')
   handleMembershipChanged(payload: {
     worldId: string;

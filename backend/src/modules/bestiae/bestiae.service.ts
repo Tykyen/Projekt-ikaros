@@ -16,6 +16,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BestiaeRepository } from './repositories/bestiae.repository';
 import { SystemStatsValidatorService } from '../maps/schemas/system-entity-schema/system-stats-validator.service';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -44,7 +45,23 @@ export class BestiaeService {
     private readonly statsValidator: SystemStatsValidatorService,
     @Inject('IWorldMembershipRepository')
     private readonly memberRepo: IWorldMembershipRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  /**
+   * C-34 — leak-safe signál „bestiář se změnil" pro daný scope. Klient
+   * refetchne filtrovaný `GET /bestiae`. Payload nese jen routing identifikátory
+   * (scope + systemId + world/owner dle scope), ne plnou bestii.
+   */
+  private emitChanged(bestie: Bestie): void {
+    this.eventEmitter.emit('bestiae.changed', {
+      scope: bestie.scope,
+      worldId: bestie.scope === 'world' ? (bestie.worldId ?? null) : null,
+      ownerUserId:
+        bestie.scope === 'user' ? (bestie.ownerUserId ?? null) : null,
+      systemId: bestie.systemId,
+    });
+  }
 
   async list(
     systemId: string,
@@ -101,7 +118,7 @@ export class BestiaeService {
         errors: result.errors,
       });
     }
-    return this.repo.create({
+    const created = await this.repo.create({
       scope: dto.scope,
       systemId: dto.systemId,
       ownerUserId: dto.scope === 'user' ? user.id : undefined,
@@ -112,6 +129,8 @@ export class BestiaeService {
       abilities: dto.abilities ?? [],
       systemStats: result.filled,
     });
+    this.emitChanged(created);
+    return created;
   }
 
   async update(
@@ -139,6 +158,7 @@ export class BestiaeService {
     }
     const updated = await this.repo.updateAtomic(id, dto);
     if (!updated) throw new NotFoundException();
+    this.emitChanged(updated);
     return updated;
   }
 
@@ -147,6 +167,7 @@ export class BestiaeService {
     if (!existing) throw new NotFoundException();
     await this.assertCanWrite(existing, user);
     await this.repo.softDelete(id);
+    this.emitChanged(existing);
   }
 
   async restore(id: string, user: CurrentUser): Promise<Bestie> {
@@ -155,6 +176,7 @@ export class BestiaeService {
     await this.assertCanWrite(existing, user);
     const restored = await this.repo.restore(id);
     if (!restored) throw new NotFoundException();
+    this.emitChanged(restored);
     return restored;
   }
 
@@ -176,7 +198,7 @@ export class BestiaeService {
       await this.assertCanManageWorld(dto.worldId, user);
     }
 
-    return this.repo.create({
+    const cloned = await this.repo.create({
       scope: dto.scope,
       systemId: source.systemId,
       ownerUserId: dto.scope === 'user' ? user.id : undefined,
@@ -188,6 +210,8 @@ export class BestiaeService {
       systemStats: { ...source.systemStats },
       clonedFromId: source.id,
     });
+    this.emitChanged(cloned);
+    return cloned;
   }
 
   // ───────── Authorization helpers ─────────

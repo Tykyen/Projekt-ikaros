@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldNewsService } from './world-news.service';
 import type { WorldNewsItem } from './interfaces/world-news.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
@@ -55,6 +56,8 @@ describe('WorldNewsService', () => {
         { provide: 'IWorldNewsRepository', useValue: mockRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembership },
         { provide: 'IWorldsRepository', useValue: mockWorlds },
+        // C-04 — service emituje 'world-news.changed' po mutaci.
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get(WorldNewsService);

@@ -7,6 +7,7 @@ import {
 import { MongoIkarosEventRepository } from './repositories/ikaros-event.repository';
 import { IkarosEventsService } from './ikaros-events.service';
 import { IkarosEventsController } from './ikaros-events.controller';
+import { IkarosEventsGateway } from './ikaros-events.gateway';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { IkarosEventsController } from './ikaros-events.controller';
   controllers: [IkarosEventsController],
   providers: [
     IkarosEventsService,
+    IkarosEventsGateway,
     { provide: 'IIkarosEventRepository', useClass: MongoIkarosEventRepository },
   ],
 })

@@ -148,6 +148,11 @@ export class AdminService {
         { role: target.role },
         { role: user.role },
       );
+      // C-31 — real-time signál cílovému uživateli (refetch identity).
+      this.eventEmitter.emit('user.identity.changed', {
+        userId,
+        kind: 'role',
+      });
     }
     return user ? stripPassword(user) : null;
   }
@@ -401,6 +406,11 @@ export class AdminService {
       },
       dto.reason,
     );
+    // C-31 — real-time signál cílovému uživateli (ban = force logout / refetch).
+    this.eventEmitter.emit('user.identity.changed', {
+      userId,
+      kind: 'ban',
+    });
     return { user: stripPassword(updated) };
   }
 
@@ -444,6 +454,11 @@ export class AdminService {
       },
       { bannedAt: null },
     );
+    // C-31 — real-time signál cílovému uživateli (unban = refetch identity).
+    this.eventEmitter.emit('user.identity.changed', {
+      userId,
+      kind: 'unban',
+    });
     return { user: stripPassword(updated) };
   }
 

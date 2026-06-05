@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { IkarosEventsService } from './ikaros-events.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { IkarosEventItem } from './interfaces/ikaros-event.interface';
@@ -45,6 +46,8 @@ describe('IkarosEventsService', () => {
         IkarosEventsService,
         { provide: 'IIkarosEventRepository', useValue: mockRepo },
         { provide: 'IUsersRepository', useValue: mockUsersRepo },
+        // C-47 — service emituje 'ikaros-events.changed' po mutaci.
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get(IkarosEventsService);

@@ -6,6 +6,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IIkarosEventRepository } from './interfaces/ikaros-event-repository.interface';
 import type {
   IkarosEventAttendee,
@@ -24,6 +25,7 @@ export class IkarosEventsService {
     private readonly repo: IIkarosEventRepository,
     @Inject('IUsersRepository')
     private readonly usersRepo: IUsersRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -81,6 +83,7 @@ export class IkarosEventsService {
       createdAtUtc: new Date(),
       isActive: true,
     });
+    this.eventEmitter.emit('ikaros-events.changed', {});
     const [res] = await this.toResponses([item], authorId);
     return res;
   }
@@ -118,6 +121,7 @@ export class IkarosEventsService {
         code: 'IKAROS_EVENT_NOT_FOUND',
         message: 'Akce nenalezena',
       });
+    this.eventEmitter.emit('ikaros-events.changed', {});
     const [res] = await this.toResponses([updated], requestUserId);
     return res;
   }
@@ -130,6 +134,7 @@ export class IkarosEventsService {
         code: 'IKAROS_EVENT_NOT_FOUND',
         message: 'Akce nenalezena',
       });
+    this.eventEmitter.emit('ikaros-events.changed', {});
   }
 
   /**
@@ -162,6 +167,7 @@ export class IkarosEventsService {
         code: 'IKAROS_EVENT_NOT_FOUND',
         message: 'Akce nenalezena',
       });
+    this.eventEmitter.emit('ikaros-events.changed', {});
     const [res] = await this.toResponses([updated], requestUserId);
     return res;
   }

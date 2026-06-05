@@ -7,8 +7,10 @@ import { BestieSchema, BestieSchemaClass } from './schemas/bestie.schema';
 import { BestiaeRepository } from './repositories/bestiae.repository';
 import { BestiaeService } from './bestiae.service';
 import { BestiaeController } from './bestiae.controller';
+import { BestiaeGateway } from './bestiae.gateway';
 import { MapsModule } from '../maps/maps.module';
 import { WorldsModule } from '../worlds/worlds.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -17,9 +19,10 @@ import { WorldsModule } from '../worlds/worlds.module';
     ]),
     MapsModule, // pro SystemStatsValidatorService z prep-A
     WorldsModule, // pro IWorldMembershipRepository
+    AuthModule, // C-34 — JwtService pro BestiaeGateway user-room join
   ],
   controllers: [BestiaeController],
-  providers: [BestiaeRepository, BestiaeService],
+  providers: [BestiaeRepository, BestiaeService, BestiaeGateway],
   exports: [BestiaeService, BestiaeRepository],
 })
 export class BestiaeModule {}

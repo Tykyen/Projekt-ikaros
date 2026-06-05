@@ -6,6 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IWorldNewsRepository } from './interfaces/world-news-repository.interface';
 import type {
   WorldNewsItem,
@@ -51,6 +52,7 @@ export class WorldNewsService {
     private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldsRepository')
     private readonly worldsRepo: IWorldsRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async findMany(args: FindManyArgs): Promise<WorldNewsItem[]> {
@@ -88,7 +90,7 @@ export class WorldNewsService {
     const worldId = dto.worldId ?? null;
     await this.assertCanWrite(worldId, requester);
 
-    return this.repo.create({
+    const created = await this.repo.create({
       worldId,
       title: dto.title,
       content: dto.content,
@@ -108,6 +110,10 @@ export class WorldNewsService {
       createdBy: requester.id,
       archived: false,
     });
+    this.eventEmitter.emit('world-news.changed', {
+      worldId: created.worldId,
+    });
+    return created;
   }
 
   async update(
@@ -163,6 +169,9 @@ export class WorldNewsService {
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    this.eventEmitter.emit('world-news.changed', {
+      worldId: updated.worldId,
+    });
     return updated;
   }
 
@@ -182,6 +191,9 @@ export class WorldNewsService {
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    this.eventEmitter.emit('world-news.changed', {
+      worldId: existing.worldId,
+    });
   }
 
   /** 5.5b — archivace / obnova. Idempotentní; oprávnění = jako write. */
@@ -219,6 +231,9 @@ export class WorldNewsService {
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    this.eventEmitter.emit('world-news.changed', {
+      worldId: updated.worldId,
+    });
     return updated;
   }
 
