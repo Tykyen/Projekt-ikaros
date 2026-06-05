@@ -75,6 +75,10 @@ export class MongoPagesRepository
       | 'order'
       | 'updatedAt'
       | 'imageUrl'
+      | 'imageFocalX'
+      | 'imageFocalY'
+      | 'imageZoom'
+      | 'imageFit'
       | 'ownerUserId'
       | 'accessRequirements'
       | 'isWoodWide'
@@ -92,6 +96,11 @@ export class MongoPagesRepository
         updatedAt: 1,
         // Krok 9.1 — pro CharactersPage potřebujeme avatar + owner do karty.
         imageUrl: 1,
+        // Parita s GameEvent — focal/zoom/fit pro výřez avataru v kartě.
+        imageFocalX: 1,
+        imageFocalY: 1,
+        imageZoom: 1,
+        imageFit: 1,
         ownerUserId: 1,
         // D-062c — AKJ ochrana pro stub karty v listings (shieldedBy se počítá
         // per-user v service.findDirectory).
@@ -109,6 +118,11 @@ export class MongoPagesRepository
       order: doc.order ?? 0,
       updatedAt: (doc as { updatedAt?: Date }).updatedAt as Date,
       imageUrl: (doc as { imageUrl?: string }).imageUrl,
+      imageFocalX: (doc as { imageFocalX?: number | null }).imageFocalX ?? null,
+      imageFocalY: (doc as { imageFocalY?: number | null }).imageFocalY ?? null,
+      imageZoom: (doc as { imageZoom?: number | null }).imageZoom ?? null,
+      imageFit:
+        (doc as { imageFit?: 'cover' | 'contain' | null }).imageFit ?? null,
       ownerUserId: (doc as { ownerUserId?: string }).ownerUserId,
       accessRequirements:
         (doc as { accessRequirements?: Page['accessRequirements'] })
@@ -205,6 +219,11 @@ export class MongoPagesRepository
       content: (doc.content as string) ?? '',
       imageUrl: doc.imageUrl as string | undefined,
       bigImage: (doc.bigImage as boolean) ?? false,
+      // Parita s GameEvent — výřez hlavního obrázku (focal/zoom/fit).
+      imageFocalX: (doc.imageFocalX as number | null) ?? null,
+      imageFocalY: (doc.imageFocalY as number | null) ?? null,
+      imageZoom: (doc.imageZoom as number | null) ?? null,
+      imageFit: (doc.imageFit as 'cover' | 'contain' | null) ?? null,
       // Krok 8.4 — normalizace table.values na `PageTableCell[]` (stará data
       // mohou být `string[]` / HTML stringy).
       table: normalizePageTable(doc.table),

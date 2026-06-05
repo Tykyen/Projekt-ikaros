@@ -128,6 +128,12 @@ export interface Page {
   content: string;
   imageUrl?: string;
   bigImage?: boolean;
+  // Parita s GameEvent — výřez hlavního obrázku (focal point + zoom + fit).
+  // null = default (focal 50/50, zoom 100, fit cover); řeší FE getImageStyle.
+  imageFocalX?: number | null;
+  imageFocalY?: number | null;
+  imageZoom?: number | null;
+  imageFit?: 'cover' | 'contain' | null;
   table?: PageTable;
   sections: PageSection[];
   galleryImages: GalleryImage[];

@@ -13,6 +13,12 @@ export class PageSchemaClass {
   @Prop({ default: '' }) content: string;
   @Prop() imageUrl?: string;
   @Prop({ default: false }) bigImage?: boolean;
+  // Parita s GameEvent — výřez hlavního obrázku (focal/zoom/fit), default null.
+  @Prop({ default: null, type: Number }) imageFocalX?: number | null;
+  @Prop({ default: null, type: Number }) imageFocalY?: number | null;
+  @Prop({ default: null, type: Number }) imageZoom?: number | null;
+  @Prop({ default: null, type: String, enum: ['cover', 'contain', null] })
+  imageFit?: 'cover' | 'contain' | null;
   @Prop({ type: Object }) table?: Record<string, unknown>;
   @Prop({
     type: [MixedArraySubSchema],

@@ -5,9 +5,12 @@ import {
   IsArray,
   IsNumber,
   ValidateNested,
+  ValidateIf,
   IsIn,
   IsObject,
   MaxLength,
+  Min,
+  Max,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PAGE_TYPES, type PageType } from '../interfaces/page.interface';
@@ -199,6 +202,34 @@ export class CreatePageDto {
   @IsOptional()
   @IsBoolean()
   bigImage?: boolean;
+
+  // Parita s GameEvent — výřez hlavního obrázku. `ValidateIf` povolí `null`
+  // (clear při odebrání obrázku); PartialType ho propaguje do UpdatePageDto.
+  @IsOptional()
+  @ValidateIf((o: CreatePageDto) => o.imageFocalX !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  imageFocalX?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o: CreatePageDto) => o.imageFocalY !== null)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  imageFocalY?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o: CreatePageDto) => o.imageZoom !== null)
+  @IsNumber()
+  @Min(100)
+  @Max(400)
+  imageZoom?: number | null;
+
+  @IsOptional()
+  @ValidateIf((o: CreatePageDto) => o.imageFit !== null)
+  @IsIn(['cover', 'contain'])
+  imageFit?: 'cover' | 'contain' | null;
 
   @IsOptional()
   @IsArray()
