@@ -38,6 +38,7 @@ import { ReorderItemsDto } from './dto/reorder-items.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { UpdateAppearanceDto } from './dto/update-appearance.dto';
+import { UpdateChatPrefsDto } from './dto/update-chat-prefs.dto';
 import { UploadService } from '../upload/upload.service';
 import { MulterExceptionFilter } from '../upload/filters/multer-exception.filter';
 
@@ -177,6 +178,22 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.chatService.deleteChannel(channelId, user);
+  }
+
+  // ─── Osobní prefs sidebaru (6.7b/c) ───────────────────────────────────────
+
+  @Patch('my-prefs')
+  @ApiOperation({
+    summary: '6.7b/c — osobní pořadí + sbalení chat sidebaru (per hráč)',
+  })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Nejsi členem světa' })
+  updateMyChatPrefs(
+    @Param('worldId') worldId: string,
+    @Body() dto: UpdateChatPrefsDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.updateMyChatPrefs(worldId, user.id, dto);
   }
 
   // ─── Messages ─────────────────────────────────────────────────────────────

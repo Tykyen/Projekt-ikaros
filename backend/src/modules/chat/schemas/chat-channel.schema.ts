@@ -20,6 +20,12 @@ export class ChatChannelSchemaClass {
   @Prop({ type: String, default: 'all' }) type: string;
   /** Obrázek konverzace (Cloudinary URL) — thumbnail v sidebaru. */
   @Prop({ type: String }) imageUrl?: string;
+  /**
+   * 6.7a — soukromá konverzace postavy je vázaná na HRÁČE (ne postavu).
+   * `userId` člena, jehož je to soukromá linka s vedením. `type === 'character'`.
+   * Idempotence auto-zakládání hledá konverzaci podle tohoto pole v kanálu „Postavy".
+   */
+  @Prop({ type: String }) linkedMemberUserId?: string;
 }
 
 export const ChatChannelSchema = SchemaFactory.createForClass(

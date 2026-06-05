@@ -701,6 +701,51 @@ describe('WorldsService', () => {
     });
   });
 
+  describe('updateMemberGroup (#2 — chat sync emit)', () => {
+    const world = { ...mockWorld, ownerId: 'owner' };
+
+    it('uloží skupinu a emitne world.membership.changed (chat dorovná kanál)', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'm1',
+        userId: 'victim',
+        worldId: 'world1',
+        role: WorldRole.Hrac,
+      });
+      mockWorldsRepo.findById.mockResolvedValue(world);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mpj',
+        userId: 'pj',
+        worldId: 'world1',
+        role: WorldRole.PJ,
+      });
+      const updated = {
+        id: 'm1',
+        userId: 'victim',
+        worldId: 'world1',
+        role: WorldRole.Hrac,
+        group: 'Rytíři',
+      };
+      mockMembershipRepo.update.mockResolvedValue(updated);
+      const emit = service['eventEmitter'].emit as jest.Mock;
+      emit.mockClear();
+
+      const result = await service.updateMemberGroup('m1', 'Rytíři', {
+        id: 'pj',
+        role: UserRole.Ikarus,
+        username: 'pj',
+      });
+
+      expect(result.group).toBe('Rytíři');
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m1', {
+        group: 'Rytíři',
+      });
+      expect(emit).toHaveBeenCalledWith('world.membership.changed', {
+        worldId: 'world1',
+        membership: updated,
+      });
+    });
+  });
+
   describe('transferOwnership (D-NEW-world-transfer)', () => {
     const owner = { id: 'user1', role: UserRole.Ikarus, username: 'owner' };
 

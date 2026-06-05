@@ -196,6 +196,11 @@ export class MongoWorldMembershipRepository
         null,
       jailedDiceSkins: (doc.jailedDiceSkins as string[] | undefined) ?? [],
       currentSceneId: (doc.currentSceneId as string | null | undefined) ?? null,
+      chatGroupOrder: doc.chatGroupOrder as string[] | undefined,
+      chatChannelOrder: doc.chatChannelOrder as
+        | Record<string, string[]>
+        | undefined,
+      chatExpandedGroups: doc.chatExpandedGroups as string[] | undefined,
     };
   }
 

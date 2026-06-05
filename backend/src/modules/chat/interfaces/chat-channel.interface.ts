@@ -16,5 +16,7 @@ export interface ChatChannel {
   isDeleted: boolean;
   type: string;
   imageUrl?: string;
+  /** 6.7a — userId hráče, jehož je tato konverzace soukromou linkou s vedením. */
+  linkedMemberUserId?: string;
   createdAt: Date;
 }

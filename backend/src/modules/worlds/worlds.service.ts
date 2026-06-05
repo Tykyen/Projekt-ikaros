@@ -1294,6 +1294,13 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
+    // D-NEW-channel-group-sync — chat naslouchá `world.membership.changed` a
+    // dorovná `allowedMemberIds` linked kanálů (přidá člena do kanálu jeho
+    // družiny). Bez tohoto emitu se přiřazení do skupiny do chatu nepropsalo.
+    this.eventEmitter.emit('world.membership.changed', {
+      worldId: updated.worldId,
+      membership: updated,
+    });
     return updated;
   }
 

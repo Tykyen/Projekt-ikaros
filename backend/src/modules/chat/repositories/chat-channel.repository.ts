@@ -98,6 +98,7 @@ export class MongoChatChannelRepository
       isDeleted: (doc.isDeleted as boolean) ?? false,
       type: (doc.type as string) ?? 'all',
       imageUrl: doc.imageUrl as string | undefined,
+      linkedMemberUserId: doc.linkedMemberUserId as string | undefined,
       createdAt: doc.createdAt as Date,
     };
   }

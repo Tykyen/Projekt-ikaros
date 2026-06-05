@@ -143,7 +143,10 @@ describe('ChatService', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
           provide: 'IUsersRepository',
-          useValue: { findByUsernames: jest.fn().mockResolvedValue([]) },
+          useValue: {
+            findByUsernames: jest.fn().mockResolvedValue([]),
+            findById: jest.fn(),
+          },
         },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -688,6 +691,179 @@ describe('ChatService', () => {
       };
       const result = await service.hasChannelAccess(membersChannel, 'user2');
       expect(result).toBe(true);
+    });
+
+    it('6.7a — members: PJ (manager) mimo allowedMemberIds má přístup (bypass)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+      const membersChannel = {
+        ...mockChannel,
+        accessMode: 'members' as const,
+        allowedMemberIds: [],
+      };
+      const result = await service.hasChannelAccess(membersChannel, 'user1');
+      expect(result).toBe(true);
+    });
+
+    it('6.7a — members: cizí ne-manager nemá přístup', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      (service['usersRepo'].findById as jest.Mock).mockResolvedValue({
+        id: 'stranger',
+        role: UserRole.Hrac,
+        username: 'stranger',
+      });
+      const membersChannel = {
+        ...mockChannel,
+        accessMode: 'members' as const,
+        allowedMemberIds: [],
+      };
+      const result = await service.hasChannelAccess(membersChannel, 'stranger');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('6.7a — auto-konverzace postavy', () => {
+    const postavyGroup = { ...mockGroup, id: 'gp', name: 'Postavy', order: 1 };
+
+    it('character.created (PC s vlastníkem) → soukromá konverzace v Postavy', async () => {
+      mockGroupRepo.findByWorldId.mockResolvedValue([mockGroup, postavyGroup]);
+      mockChannelRepo.findByGroupId.mockResolvedValue([]);
+      mockChannelRepo.save.mockResolvedValue({ ...mockChannel, id: 'chc' });
+      await service.handleCharacterCreatedChat({
+        worldId: 'world1',
+        userId: 'user2',
+        isNpc: false,
+        name: 'Aragorn',
+      });
+      expect(mockChannelRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          groupId: 'gp',
+          name: 'Aragorn',
+          accessMode: 'members',
+          allowedMemberIds: ['user2'],
+          type: 'character',
+          linkedMemberUserId: 'user2',
+        }),
+      );
+    });
+
+    it('NPC nebo bez userId → nic nevytvoří', async () => {
+      await service.handleCharacterCreatedChat({
+        worldId: 'world1',
+        userId: 'user2',
+        isNpc: true,
+        name: 'Skřet',
+      });
+      await service.handleCharacterCreatedChat({
+        worldId: 'world1',
+        userId: undefined,
+        isNpc: false,
+        name: 'Bezejmenný',
+      });
+      expect(mockChannelRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('idempotence: existující se nevytváří znovu, jen přejmenuje', async () => {
+      const existing = {
+        ...mockChannel,
+        id: 'chc',
+        groupId: 'gp',
+        name: 'Aragorn',
+        accessMode: 'members' as const,
+        allowedMemberIds: ['user2'],
+        type: 'character',
+        linkedMemberUserId: 'user2',
+      };
+      mockGroupRepo.findByWorldId.mockResolvedValue([mockGroup, postavyGroup]);
+      mockChannelRepo.findByGroupId.mockResolvedValue([existing]);
+      mockChannelRepo.update.mockResolvedValue({
+        ...existing,
+        name: 'Gandalf',
+      });
+      await service.handleCharacterUpdatedChat({
+        worldId: 'world1',
+        userId: 'user2',
+        isNpc: false,
+        name: 'Gandalf',
+      });
+      expect(mockChannelRepo.save).not.toHaveBeenCalled();
+      expect(mockChannelRepo.update).toHaveBeenCalledWith('chc', {
+        name: 'Gandalf',
+      });
+    });
+
+    it('world.character.assigned (bez jména) → název = username hráče', async () => {
+      mockGroupRepo.findByWorldId.mockResolvedValue([mockGroup, postavyGroup]);
+      mockChannelRepo.findByGroupId.mockResolvedValue([]);
+      (service['usersRepo'].findById as jest.Mock).mockResolvedValue({
+        id: 'user2',
+        role: UserRole.Hrac,
+        username: 'FOksiGen',
+      });
+      mockChannelRepo.save.mockResolvedValue({ ...mockChannel, id: 'chc' });
+      await service.handleCharacterAssignedChat({
+        worldId: 'world1',
+        userId: 'user2',
+      });
+      expect(mockChannelRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'FOksiGen',
+          linkedMemberUserId: 'user2',
+        }),
+      );
+    });
+
+    it('backfill při startu: jen člen s přiřazenou postavou dostane konverzaci', async () => {
+      mockWorldsService.findAll.mockResolvedValue([{ id: 'world1' }]);
+      mockWorldsService.getSettings.mockResolvedValue(null);
+      mockGroupRepo.findByWorldId.mockResolvedValue([mockGroup, postavyGroup]);
+      mockChannelRepo.findByGroupId.mockResolvedValue([]);
+      mockMembershipRepo.findByWorldId.mockResolvedValue([
+        { ...mockHracMembership, userId: 'u1', characterPath: 'aragorn' },
+        { ...mockHracMembership, userId: 'u2', characterPath: undefined },
+      ]);
+      (service['usersRepo'].findById as jest.Mock).mockResolvedValue({
+        id: 'u1',
+        role: UserRole.Hrac,
+        username: 'Hrac1',
+      });
+      mockChannelRepo.save.mockResolvedValue({ ...mockChannel, id: 'chc' });
+
+      await service.onApplicationBootstrap();
+
+      const saves = mockChannelRepo.save.mock.calls.filter(
+        (c) => c[0].type === 'character',
+      );
+      expect(saves).toHaveLength(1);
+      expect(saves[0][0]).toMatchObject({ linkedMemberUserId: 'u1' });
+    });
+  });
+
+  describe('6.7b/c — updateMyChatPrefs', () => {
+    it('člen: uloží jen poslaná pole (partial)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockMembershipRepo.update.mockResolvedValue({
+        ...mockHracMembership,
+        chatExpandedGroups: ['g1'],
+      });
+      const res = await service.updateMyChatPrefs('world1', 'user2', {
+        expandedGroups: ['g1'],
+      });
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m2', {
+        chatExpandedGroups: ['g1'],
+      });
+      expect(res.chatExpandedGroups).toEqual(['g1']);
+    });
+
+    it('ne-člen světa → 403, nic neuloží', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.updateMyChatPrefs('world1', 'stranger', {
+          groupOrder: ['g1'],
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.update).not.toHaveBeenCalled();
     });
   });
 
@@ -1524,7 +1700,8 @@ describe('ChatService', () => {
       mockChannelRepo.save.mockResolvedValue(mockChannel);
       await service.handleWorldCreated(world);
       expect(mockGroupRepo.save).toHaveBeenCalledTimes(2);
-      expect(mockChannelRepo.save).toHaveBeenCalledTimes(2);
+      // 6.7a — kanál „Postavy" vzniká prázdný; jen „globální" konverzace.
+      expect(mockChannelRepo.save).toHaveBeenCalledTimes(1);
       expect(mockGroupRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'Globální' }),
       );
@@ -1715,7 +1892,10 @@ describe('sendMessage — new fields', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
           provide: 'IUsersRepository',
-          useValue: { findByUsernames: jest.fn().mockResolvedValue([]) },
+          useValue: {
+            findByUsernames: jest.fn().mockResolvedValue([]),
+            findById: jest.fn(),
+          },
         },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -1925,7 +2105,10 @@ describe('toggleReaction', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
           provide: 'IUsersRepository',
-          useValue: { findByUsernames: jest.fn().mockResolvedValue([]) },
+          useValue: {
+            findByUsernames: jest.fn().mockResolvedValue([]),
+            findById: jest.fn(),
+          },
         },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -2269,7 +2452,10 @@ describe('sendMessage — attachments', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
           provide: 'IUsersRepository',
-          useValue: { findByUsernames: jest.fn().mockResolvedValue([]) },
+          useValue: {
+            findByUsernames: jest.fn().mockResolvedValue([]),
+            findById: jest.fn(),
+          },
         },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -2388,7 +2574,10 @@ describe('findChannelForUpload', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
           provide: 'IUsersRepository',
-          useValue: { findByUsernames: jest.fn().mockResolvedValue([]) },
+          useValue: {
+            findByUsernames: jest.fn().mockResolvedValue([]),
+            findById: jest.fn(),
+          },
         },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -2513,7 +2702,10 @@ describe('getMessages — whisper filtering', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
           provide: 'IUsersRepository',
-          useValue: { findByUsernames: jest.fn().mockResolvedValue([]) },
+          useValue: {
+            findByUsernames: jest.fn().mockResolvedValue([]),
+            findById: jest.fn(),
+          },
         },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },

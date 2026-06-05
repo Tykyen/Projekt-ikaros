@@ -62,6 +62,14 @@ export interface WorldMembership {
    */
   currentSceneId?: string | null;
   /**
+   * 6.7b — osobní pořadí kanálů (`groupId[]`) a konverzací (`groupId → channelId[]`)
+   * v sidebaru chatu, per hráč. Chybí/prázdné = fallback na globální `order`.
+   */
+  chatGroupOrder?: string[];
+  chatChannelOrder?: Record<string, string[]>;
+  /** 6.7c — `groupId` kanálů, které má hráč ROZBALENÉ (default: vše sbalené). */
+  chatExpandedGroups?: string[];
+  /**
    * Krok 5.3 — public summary uživatele (username, avatar účtu). Populuje
    * `getMembers` přes `enrichMembers`. Smazaný účet → undefined.
    */

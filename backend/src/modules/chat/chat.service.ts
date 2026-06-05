@@ -34,6 +34,7 @@ import type { UpdateChannelDto } from './dto/update-channel.dto';
 import type { CreateMessageDto } from './dto/create-message.dto';
 import type { UpdateMessageDto } from './dto/update-message.dto';
 import type { UpdateAppearanceDto } from './dto/update-appearance.dto';
+import type { UpdateChatPrefsDto } from './dto/update-chat-prefs.dto';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import { UsersService } from '../users/users.service';
 import type { World } from '../worlds/interfaces/world.interface';
@@ -96,12 +97,34 @@ export class ChatService implements OnApplicationBootstrap {
     return membership.role >= WorldRole.PomocnyPJ;
   }
 
+  /**
+   * 6.7a — „vedení" světa: world role PomocnyPJ+ NEBO platform Admin+.
+   * Stejná sémantika jako `canManageChat`, ale jen z `userId` (bez RequestUser).
+   */
+  private async isWorldManagerByUserId(
+    userId: string,
+    worldId: string,
+  ): Promise<boolean> {
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (membership && membership.role >= WorldRole.PomocnyPJ) return true;
+    const user = await this.usersRepo.findById(userId);
+    return !!user && user.role <= UserRole.Admin;
+  }
+
   async hasChannelAccess(
     channel: ChatChannel,
     userId: string,
   ): Promise<boolean> {
     if (channel.accessMode === 'members') {
-      return channel.allowedMemberIds.includes(userId);
+      if (channel.allowedMemberIds.includes(userId)) return true;
+      // 6.7a — vedení (PJ+/Admin) vidí i píše do všech soukromých konverzací,
+      // sjednoceno s `getGroupsWithChannels` + spec 6.1 §4. Bez tohoto by PJ
+      // soukromou konverzaci viděl v sidebaru, ale dostal 403 na čtení/odeslání
+      // (auto-konverzace postavy nemá PJ v `allowedMemberIds`).
+      return this.isWorldManagerByUserId(userId, channel.worldId!);
     }
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
@@ -200,6 +223,45 @@ export class ChatService implements OnApplicationBootstrap {
       group,
       channels: channelsByGroup.get(group.id) ?? [],
     }));
+  }
+
+  /**
+   * 6.7b/c — uloží osobní prefs chat sidebaru (pořadí kanálů/konverzací +
+   * sbalení) na requesterův membership. Partial: zapíše jen poslaná pole. Cizí
+   * membership nelze měnit (bere se `userId` requestera). Vyžaduje členství.
+   */
+  async updateMyChatPrefs(
+    worldId: string,
+    userId: string,
+    dto: UpdateChatPrefsDto,
+  ): Promise<{
+    chatGroupOrder?: string[];
+    chatChannelOrder?: Record<string, string[]>;
+    chatExpandedGroups?: string[];
+  }> {
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership)
+      throw new ForbiddenException({
+        code: 'CHAT_FORBIDDEN',
+        message: 'Nejsi členem světa',
+      });
+    const patch: Partial<WorldMembership> = {};
+    if (dto.groupOrder !== undefined) patch.chatGroupOrder = dto.groupOrder;
+    if (dto.channelOrder !== undefined) {
+      patch.chatChannelOrder = dto.channelOrder;
+    }
+    if (dto.expandedGroups !== undefined) {
+      patch.chatExpandedGroups = dto.expandedGroups;
+    }
+    const updated = await this.membershipRepo.update(membership.id, patch);
+    return {
+      chatGroupOrder: updated?.chatGroupOrder,
+      chatChannelOrder: updated?.chatChannelOrder,
+      chatExpandedGroups: updated?.chatExpandedGroups,
+    };
   }
 
   async createGroup(
@@ -1263,22 +1325,40 @@ export class ChatService implements OnApplicationBootstrap {
       isDeleted: false,
       type: 'all',
     });
-    const playersGroup = await this.groupRepo.save({
+    // 6.7a — kanál „Postavy" vzniká PRÁZDNÝ. Soukromé konverzace postav se
+    // zakládají automaticky při přidělení postavy hráči (`ensureCharacterChannel`).
+    await this.groupRepo.save({
       worldId,
       name: 'Postavy',
       order: 1,
     });
-    await this.channelRepo.save({
-      groupId: playersGroup.id,
-      worldId,
-      name: 'hráči',
-      accessMode: 'all',
-      allowedRoles: [],
-      allowedMemberIds: [],
-      order: 0,
-      isDeleted: false,
-      type: 'all',
+  }
+
+  /**
+   * 6.7a migrace — starý seed zakládal v kanálu „Postavy" veřejnou konverzaci
+   * „hráči" (`accessMode: 'all'`). Postavy jsou soukromé → konverzaci
+   * soft-deletni, ale JEN když je prázdná (0 zpráv), ať nezahodíme reálnou
+   * historii. Idempotentní (po smazání ji `findByGroupId` nevrátí).
+   */
+  private async cleanupLegacyPostavyChannel(worldId: string): Promise<void> {
+    const groups = await this.groupRepo.findByWorldId(worldId);
+    const postavy = groups.find(
+      (g) => g.name === 'Postavy' && !g.linkedWorldGroup,
+    );
+    if (!postavy) return;
+    const channels = await this.channelRepo.findByGroupId(postavy.id);
+    const legacy = channels.find(
+      (c) => c.name === 'hráči' && c.accessMode === 'all',
+    );
+    if (!legacy) return;
+    const msgs = await this.messageRepo.findByChannelId(legacy.id, {
+      limit: 1,
     });
+    if (msgs.length > 0) return; // má historii → zachovat
+    await this.channelRepo.update(legacy.id, { isDeleted: true });
+    this.logger.log(
+      `6.7a: smazána prázdná konverzace „hráči" v kanálu Postavy (svět ${worldId})`,
+    );
   }
 
   /**
@@ -1348,6 +1428,7 @@ export class ChatService implements OnApplicationBootstrap {
     if (groups.length === 0) await this.seedDefaultGroups(worldId);
     const settings = await this.worldsService.getSettings(worldId);
     await this.syncWorldGroupChannels(worldId, settings?.customGroups ?? []);
+    await this.cleanupLegacyPostavyChannel(worldId); // 6.7a migrace
   }
 
   /**
@@ -1360,10 +1441,27 @@ export class ChatService implements OnApplicationBootstrap {
       const worlds = await this.worldsService.findAll();
       for (const world of worlds) {
         await this.ensureWorldChat(world.id);
+        await this.backfillCharacterChannels(world.id);
       }
       this.logger.log(`Chat backfill dokončen (${worlds.length} světů)`);
     } catch (err) {
       this.logger.error('Chat backfill při startu selhal', err);
+    }
+  }
+
+  /**
+   * 6.7a backfill — členové s UŽ přiřazenou postavou (před zavedením 6.7)
+   * dostanou svou soukromou konverzaci; event `world.character.assigned` se na
+   * ně retroaktivně nespustí. Jméno = username (fallback), přejmenuje se na
+   * jméno postavy při příští úpravě. Idempotentní (`ensureCharacterChannel`
+   * existující přeskočí).
+   */
+  private async backfillCharacterChannels(worldId: string): Promise<void> {
+    const members = await this.membershipRepo.findByWorldId(worldId);
+    for (const m of members) {
+      if (m.characterPath) {
+        await this.ensureCharacterChannel(worldId, m.userId);
+      }
     }
   }
 
@@ -1442,6 +1540,137 @@ export class ChatService implements OnApplicationBootstrap {
         err,
       );
     }
+  }
+
+  // ─── 6.7a — Auto-zakládání soukromé konverzace postavy ────────────────────
+
+  /** Postava vytvořena s vlastníkem-hráčem → jeho soukromá konverzace. */
+  @OnEvent('character.created')
+  async handleCharacterCreatedChat(payload: {
+    worldId: string;
+    userId?: string;
+    isNpc?: boolean;
+    name?: string;
+  }): Promise<void> {
+    if (payload.isNpc || !payload.userId) return;
+    await this.safeEnsureCharacterChannel(
+      payload.worldId,
+      payload.userId,
+      payload.name,
+    );
+  }
+
+  /** Postava přejmenována/upravena → přejmenuj konverzaci na aktuální jméno. */
+  @OnEvent('character.updated')
+  async handleCharacterUpdatedChat(payload: {
+    worldId: string;
+    userId?: string;
+    isNpc?: boolean;
+    name?: string;
+  }): Promise<void> {
+    if (payload.isNpc || !payload.userId) return;
+    await this.safeEnsureCharacterChannel(
+      payload.worldId,
+      payload.userId,
+      payload.name,
+    );
+  }
+
+  /** Konverze NPC→PC → soukromá konverzace nového hráče-vlastníka. */
+  @OnEvent('character.converted')
+  async handleCharacterConvertedChat(payload: {
+    worldId: string;
+    userId?: string;
+    toNpc?: boolean;
+    name?: string;
+  }): Promise<void> {
+    if (payload.toNpc || !payload.userId) return;
+    await this.safeEnsureCharacterChannel(
+      payload.worldId,
+      payload.userId,
+      payload.name,
+    );
+  }
+
+  /**
+   * Ruční přiřazení existující postavy hráči (nastavení členů) — event nenese
+   * jméno postavy → fallback na username. Postava se nemění, takže `character.*`
+   * event nepřijde; tady je jediný spouštěč pro tenhle tok.
+   */
+  @OnEvent('world.character.assigned')
+  async handleCharacterAssignedChat(payload: {
+    worldId: string;
+    userId?: string;
+  }): Promise<void> {
+    if (!payload.userId) return;
+    await this.safeEnsureCharacterChannel(payload.worldId, payload.userId);
+  }
+
+  /** Wrapper — auto-konverzace nikdy nesmí shodit zdrojovou operaci (assign/create). */
+  private async safeEnsureCharacterChannel(
+    worldId: string,
+    userId: string,
+    name?: string,
+  ): Promise<void> {
+    try {
+      await this.ensureCharacterChannel(worldId, userId, name);
+    } catch (err) {
+      this.logger.error(
+        `ensureCharacterChannel failed (world ${worldId}, user ${userId})`,
+        err,
+      );
+    }
+  }
+
+  /**
+   * 6.7a — zajistí soukromou konverzaci postavy (vázanou na HRÁČE) v kanálu
+   * „Postavy". Idempotentní per `userId`: neexistuje → vytvoř; existuje →
+   * přejmenuj na aktuální postavu (jen když `name` dodáno a liší se). Vedení
+   * (PJ+) má přístup přes `hasChannelAccess`, není v `allowedMemberIds`.
+   */
+  private async ensureCharacterChannel(
+    worldId: string,
+    userId: string,
+    name?: string,
+  ): Promise<void> {
+    let groups = await this.groupRepo.findByWorldId(worldId);
+    let postavy = groups.find(
+      (g) => g.name === 'Postavy' && !g.linkedWorldGroup,
+    );
+    if (!postavy) {
+      await this.ensureWorldChat(worldId);
+      groups = await this.groupRepo.findByWorldId(worldId);
+      postavy = groups.find((g) => g.name === 'Postavy' && !g.linkedWorldGroup);
+    }
+    if (!postavy) return;
+    const channels = await this.channelRepo.findByGroupId(postavy.id);
+    const existing = channels.find((c) => c.linkedMemberUserId === userId);
+    if (existing) {
+      if (name && name !== existing.name) {
+        const updated = await this.channelRepo.update(existing.id, { name });
+        if (updated)
+          this.eventEmitter.emit('chat.channel.updated', {
+            worldId,
+            channel: updated,
+          });
+      }
+      return;
+    }
+    const user = name ? null : await this.usersRepo.findById(userId);
+    const label = name ?? user?.username ?? 'Postava';
+    const channel = await this.channelRepo.save({
+      groupId: postavy.id,
+      worldId,
+      name: label,
+      accessMode: 'members',
+      allowedRoles: [],
+      allowedMemberIds: [userId],
+      order: channels.length,
+      isDeleted: false,
+      type: 'character',
+      linkedMemberUserId: userId,
+    });
+    this.eventEmitter.emit('chat.channel.created', { worldId, channel });
   }
 
   /**

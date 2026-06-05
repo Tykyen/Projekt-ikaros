@@ -50,6 +50,17 @@ export class WorldMembershipSchemaClass {
    * Persistentní napříč session — hráč se po přihlášení vrací tam, kde byl.
    */
   @Prop({ type: String, default: null }) currentSceneId: string | null;
+
+  /**
+   * 6.7b/c — osobní stav chat sidebaru per hráč (nezávislý na globálním pořadí
+   * a sbalení). Absence pole = fallback: pořadí dle globálního `order`, kanály
+   * defaultně sbalené. `default: undefined` → dokud hráč nezasáhne, pole v DB
+   * nevzniká.
+   */
+  @Prop({ type: [String], default: undefined }) chatGroupOrder?: string[];
+  @Prop({ type: Object, default: undefined })
+  chatChannelOrder?: Record<string, string[]>;
+  @Prop({ type: [String], default: undefined }) chatExpandedGroups?: string[];
 }
 
 export const WorldMembershipSchema = SchemaFactory.createForClass(
