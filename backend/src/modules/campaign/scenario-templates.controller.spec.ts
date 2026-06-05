@@ -65,11 +65,10 @@ describe('ScenarioTemplatesController', () => {
       expect(mockRepo.create).toHaveBeenCalledWith({ ...dto, ownerId: 'pj1' });
     });
 
-    it('Hráč → 403', async () => {
-      await expect(controller.create(dto, hrac)).rejects.toBeInstanceOf(
-        ForbiddenException,
-      );
-      expect(mockRepo.create).not.toHaveBeenCalled();
+    it('Hráč vytvoří VLASTNÍ šablonu (R-15 — mrtvý global gate odstraněn)', async () => {
+      mockRepo.create.mockResolvedValue(makeTpl({ ownerId: 'h1' }));
+      await controller.create(dto, hrac);
+      expect(mockRepo.create).toHaveBeenCalledWith({ ...dto, ownerId: 'h1' });
     });
   });
 

@@ -69,7 +69,35 @@ export class MapsService {
     return !!membership && membership.role >= WorldRole.PJ;
   }
 
-  async findByWorld(worldId: string): Promise<MapScene[]> {
+  /**
+   * R-11 — orchestrator read (všechny / aktivní scény) = staff-only (PomocnyPJ+
+   * || GlobalAdmin). Dřív byl HTTP endpoint BEZ guardu → anonymní dump celé
+   * taktické mapy (HP/fog/pozice/kostky). Per-hráč scéna (`findActiveForUser`)
+   * zůstává členská přes `currentSceneId`.
+   */
+  private async assertStaff(
+    userId: string,
+    userRole: UserRole,
+    worldId: string,
+  ): Promise<void> {
+    if (userRole <= UserRole.Admin) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership || membership.role < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'MAP_FORBIDDEN',
+        message: 'Scény světa smí číst jen PJ / pomocný PJ.',
+      });
+  }
+
+  async findByWorld(
+    worldId: string,
+    requesterId: string,
+    requesterRole: UserRole,
+  ): Promise<MapScene[]> {
+    await this.assertStaff(requesterId, requesterRole, worldId);
     return this.repo.findByWorld(worldId);
   }
 
@@ -77,7 +105,12 @@ export class MapsService {
    * 10.2-prep-1 — list jen aktivních scén ve světě (PJ orchestrator panel).
    * Uvolněná `isActive` semantika dovoluje víc paralelně aktivních scén.
    */
-  async findActiveScenes(worldId: string): Promise<MapScene[]> {
+  async findActiveScenes(
+    worldId: string,
+    requesterId: string,
+    requesterRole: UserRole,
+  ): Promise<MapScene[]> {
+    await this.assertStaff(requesterId, requesterRole, worldId);
     return this.repo.findActiveScenesByWorld(worldId);
   }
 

@@ -41,17 +41,28 @@ export class DungeonMapsService {
       });
   }
 
-  async findByWorld(worldId: string): Promise<DungeonMap[]> {
+  async findByWorld(
+    worldId: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<DungeonMap[]> {
+    // R-12 — read-gate stejný jako write (PJ): dungeon je PJ prep obsah.
+    await this.assertCanManage(userId, userRole, worldId);
     return this.repo.findByWorld(worldId);
   }
 
-  async findById(id: string): Promise<DungeonMap> {
+  async findById(
+    id: string,
+    userId: string,
+    userRole: UserRole,
+  ): Promise<DungeonMap> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon)
       throw new NotFoundException({
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
+    await this.assertCanManage(userId, userRole, dungeon.worldId);
     return dungeon;
   }
 

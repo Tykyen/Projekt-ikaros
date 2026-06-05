@@ -1530,7 +1530,7 @@ export class WorldsService implements OnApplicationBootstrap {
     if (membership.userId === requester.id && world.ownerId === requester.id) {
       throw new BadRequestException({
         statusCode: 400,
-        code: 'BAD_REQUEST',
+        code: 'WORLD_OWNER_CANNOT_LEAVE', // R-19 — dřív generický BAD_REQUEST
         message: 'Vlastník nemůže opustit svůj svět',
       });
     }

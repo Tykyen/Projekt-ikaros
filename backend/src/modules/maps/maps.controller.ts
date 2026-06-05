@@ -53,13 +53,20 @@ export class MapsController {
       'Scény světa (volitelně filter ?isActive=true pro PJ orchestrator)',
   })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'MAP_FORBIDDEN (PomocnyPJ+)' })
   @Get()
+  @UseGuards(JwtAuthGuard)
   findByWorld(
     @Query('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
     @Query('isActive') isActive?: string,
   ) {
-    if (isActive === 'true') return this.service.findActiveScenes(worldId);
-    return this.service.findByWorld(worldId);
+    // R-11 — dřív BEZ guardu → anonymní dump celé taktické mapy (HP/fog/pozice).
+    // Teď JWT + staff (PomocnyPJ+) — orchestrator read. Per-hráč scéna jde přes
+    // `GET /maps/active` (membership.currentSceneId).
+    if (isActive === 'true')
+      return this.service.findActiveScenes(worldId, user.id, user.role);
+    return this.service.findByWorld(worldId, user.id, user.role);
   }
 
   @ApiOperation({

@@ -39,17 +39,24 @@ export class DungeonMapsController {
 
   @ApiOperation({ summary: 'Tile-based dungeony světa (PJ+)' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'NOT_WORLD_PJ' })
   @Get()
-  findByWorld(@Query('worldId') worldId: string) {
-    return this.service.findByWorld(worldId);
+  findByWorld(
+    @Query('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // R-12 — read-gate: dungeon je PJ prep (fog/layout); dřív bez kontroly →
+    // každý přihlášený četl dungeony cizího světa.
+    return this.service.findByWorld(worldId, user.id, user.role);
   }
 
   @ApiOperation({ summary: 'Detail dungeonu' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'NOT_WORLD_PJ' })
   @ApiResponse({ status: 404 })
   @Get(':id')
-  findById(@Param('id') id: string) {
-    return this.service.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.service.findById(id, user.id, user.role);
   }
 
   @ApiOperation({ summary: 'Vytvoření dungeonu' })

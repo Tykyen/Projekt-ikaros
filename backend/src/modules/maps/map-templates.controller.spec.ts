@@ -170,13 +170,12 @@ describe('MapTemplatesController', () => {
       );
     });
 
-    it('Hráč → 403 MAP_TEMPLATE_FORBIDDEN (bug fix: dříve NotFoundException)', async () => {
-      const promise = controller.create(dto, hrac);
-      await expect(promise).rejects.toThrow(ForbiddenException);
-      await expect(promise).rejects.toMatchObject({
-        response: { code: 'MAP_TEMPLATE_FORBIDDEN' },
-      });
-      expect(mockRepo.create).not.toHaveBeenCalled();
+    it('Hráč vytvoří VLASTNÍ šablonu (R-15 — mrtvý global gate odstraněn)', async () => {
+      mockRepo.create.mockResolvedValue(makeTemplate());
+      await controller.create(dto, hrac);
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ ownerId: 'h1' }),
+      );
     });
   });
 

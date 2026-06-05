@@ -48,12 +48,10 @@ export class ScenarioTemplatesController {
     @Body() dto: CreateScenarioTemplateDto,
     @CurrentUser() user: RequestUser,
   ): Promise<ScenarioTemplate> {
-    if (user.role > UserRole.PJ) {
-      throw new ForbiddenException({
-        code: 'SCENARIO_TEMPLATE_FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
+    // R-15 — dřív `role > UserRole.PJ(3)` = mrtvý GLOBÁLNÍ práh (po D-053 nikdo
+    // globálního PJ nemá → zamykalo VŠECHNY world-PJ, rozbitá featura). Knihovna
+    // je per-owner privátní (findByOwner, ownerId server-enforced) → stačí
+    // přihlášení; každý spravuje JEN svou knihovnu.
     return this.repo.create({ ...dto, ownerId: user.id });
   }
 
@@ -63,12 +61,8 @@ export class ScenarioTemplatesController {
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
   ): Promise<void> {
-    if (user.role > UserRole.PJ) {
-      throw new ForbiddenException({
-        code: 'SCENARIO_TEMPLATE_FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
+    // R-15 — mrtvý globální `role > PJ(3)` gate odstraněn; cross-owner mazání
+    // chrání owner check níže.
     const existing = await this.repo.findById(id);
     if (!existing) {
       throw new NotFoundException({

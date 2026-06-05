@@ -106,13 +106,9 @@ export class MapTemplatesController {
     @Body() dto: CreateMapTemplateDto,
     @CurrentUser() user: RequestUser,
   ): Promise<MapTemplate> {
-    // 10.2c-edit-2 — bug fix: dříve hodil NotFoundException u 403 case.
-    if (user.role > UserRole.PJ) {
-      throw new ForbiddenException({
-        code: 'MAP_TEMPLATE_FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
+    // R-15 — mrtvý GLOBÁLNÍ práh `role > PJ(3)` odstraněn (po D-053 nikdo
+    // globálního PJ nemá → zamykalo VŠECHNY world-PJ). Knihovna per-owner
+    // privátní (ownerId server-enforced) → stačí přihlášení.
     return this.repo.create({
       ...dto,
       config: dto.config as unknown as MapTemplate['config'],
@@ -136,12 +132,8 @@ export class MapTemplatesController {
     @Body() dto: CreateMapTemplateDto,
     @CurrentUser() user: RequestUser,
   ): Promise<void> {
-    if (user.role > UserRole.PJ) {
-      throw new ForbiddenException({
-        code: 'MAP_TEMPLATE_FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
+    // R-15 — mrtvý globální `role > PJ(3)` gate odstraněn; cross-owner přístup
+    // chrání owner check níže.
     const existing = await this.repo.findById(id);
     if (!existing) {
       throw new NotFoundException({
@@ -178,12 +170,8 @@ export class MapTemplatesController {
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
   ): Promise<void> {
-    if (user.role > UserRole.PJ) {
-      throw new ForbiddenException({
-        code: 'MAP_TEMPLATE_FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
+    // R-15 — mrtvý globální `role > PJ(3)` gate odstraněn; cross-owner přístup
+    // chrání owner check níže.
     const existing = await this.repo.findById(id);
     if (!existing) {
       throw new NotFoundException({

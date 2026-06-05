@@ -167,6 +167,14 @@ export class AuthService {
         code: 'DELETED',
         message: 'Účet byl smazán',
       });
+    // R-08 — ban enforcement při loginu. Dřív se `bannedAt` nikde nečetl, takže
+    // zabanovaný uživatel se normálně přihlásil a dál pracoval. FE `client.ts`
+    // na kód BANNED dělá instant logout.
+    if (user.bannedAt)
+      throw new UnauthorizedException({
+        code: 'BANNED',
+        message: 'Účet byl zablokován',
+      });
     if (user.deletionRequestedAt)
       return {
         status: 'deletion_pending',

@@ -46,27 +46,43 @@ describe('DungeonMapsService', () => {
     service = module.get(DungeonMapsService);
   });
 
-  describe('findByWorld', () => {
-    it('vrátí seznam dungeonů světa', async () => {
+  describe('findByWorld (R-12 read-gate)', () => {
+    it('vrátí seznam dungeonů světa pro PJ', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
       mockRepo.findByWorld.mockResolvedValue([mockDungeon]);
-      const result = await service.findByWorld('world1');
+      const result = await service.findByWorld('world1', 'pj', UserRole.Ikarus);
       expect(result).toEqual([mockDungeon]);
       expect(mockRepo.findByWorld).toHaveBeenCalledWith('world1');
+    });
+
+    it('hráč (ne-PJ) → 403, žádný dump dungeonů', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.findByWorld('world1', 'h', UserRole.Ikarus),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepo.findByWorld).not.toHaveBeenCalled();
     });
   });
 
   describe('findById', () => {
-    it('vrátí dungeon pokud existuje', async () => {
+    it('vrátí dungeon pokud existuje (PJ)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
       mockRepo.findById.mockResolvedValue(mockDungeon);
-      const result = await service.findById('dun1');
+      const result = await service.findById('dun1', 'pj', UserRole.Ikarus);
       expect(result).toEqual(mockDungeon);
     });
 
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
-      await expect(service.findById('neexistuje')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findById('neexistuje', 'x', UserRole.Admin),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 

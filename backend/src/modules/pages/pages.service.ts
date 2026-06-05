@@ -101,14 +101,23 @@ export class PagesService {
     worldId: string,
     type?: string,
     userId?: string,
+    platformRole?: UserRole,
   ): Promise<Page[]> {
     const pages = await this.pagesRepo.findByWorld(worldId, type);
-    // Bez userId (legacy callers) nefiltruji. Jinak odřízni AKJ chráněné
-    // záložky, na které viewer nemá přístup (listing nesmí leaknout obsah).
+    // Bez userId (legacy callers) nefiltruji. Jinak: R-09 — page-level access
+    // filtr (dřív CHYBĚL → listing vracel plný obsah page-level chráněných
+    // stránek každému členu) + odřízni AKJ chráněné záložky bez přístupu.
     if (!userId) return pages;
     const filtered: Page[] = [];
     for (const page of pages) {
-      filtered.push(await this.filterAkjTabsForViewer(page, userId, worldId));
+      try {
+        await this.assertAccess(page, userId, worldId, platformRole);
+      } catch {
+        continue; // bez page-level přístupu — stránka se v listingu vynechá
+      }
+      filtered.push(
+        await this.filterAkjTabsForViewer(page, userId, worldId, platformRole),
+      );
     }
     return filtered;
   }

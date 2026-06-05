@@ -89,12 +89,36 @@ describe('MapsService', () => {
     service = module.get(MapsService);
   });
 
-  describe('findByWorld', () => {
-    it('vrátí scény světa', async () => {
+  describe('findByWorld (R-11 staff-only)', () => {
+    it('vrátí scény světa pro staff (PomocnyPJ+)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PomocnyPJ,
+      });
       mockRepo.findByWorld.mockResolvedValue([mockScene]);
-      const result = await service.findByWorld('world1');
+      const result = await service.findByWorld('world1', 'pp', UserRole.Ikarus);
       expect(result).toHaveLength(1);
       expect(mockRepo.findByWorld).toHaveBeenCalledWith('world1');
+    });
+
+    it('hráč (ne-staff) → 403, žádný dump scén', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.findByWorld('world1', 'hrac', UserRole.Ikarus),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepo.findByWorld).not.toHaveBeenCalled();
+    });
+
+    it('GlobalAdmin bez membershipu → projde', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockRepo.findByWorld.mockResolvedValue([mockScene]);
+      const result = await service.findByWorld(
+        'world1',
+        'admin',
+        UserRole.Admin,
+      );
+      expect(result).toHaveLength(1);
     });
   });
 

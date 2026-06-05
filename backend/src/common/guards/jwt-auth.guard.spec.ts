@@ -43,7 +43,7 @@ describe('JwtAuthGuard', () => {
     jest
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockResolvedValue(true);
-    const ctx = makeContext({ sub: 'user123' });
+    const ctx = makeContext({ id: 'user123' });
 
     await guard.canActivate(ctx);
     await new Promise((resolve) => setImmediate(resolve));
@@ -69,7 +69,7 @@ describe('JwtAuthGuard', () => {
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockResolvedValue(true);
     mockUpdateLastSeen.mockRejectedValueOnce(new Error('DB down'));
-    const ctx = makeContext({ sub: 'user123' });
+    const ctx = makeContext({ id: 'user123' });
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     await new Promise((resolve) => setImmediate(resolve));
@@ -82,7 +82,7 @@ describe('JwtAuthGuard', () => {
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockResolvedValue(true);
     mockFindById.mockResolvedValue(null);
-    const ctx = makeContext({ sub: 'gone' });
+    const ctx = makeContext({ id: 'gone' });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
     expect(mockUpdateLastSeen).not.toHaveBeenCalled();
@@ -93,9 +93,20 @@ describe('JwtAuthGuard', () => {
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockResolvedValue(true);
     mockFindById.mockResolvedValue(activeUser({ isDeleted: true }));
-    const ctx = makeContext({ sub: 'user123' });
+    const ctx = makeContext({ id: 'user123' });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('throws BANNED when user.bannedAt set (R-08)', async () => {
+    jest
+      .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
+      .mockResolvedValue(true);
+    mockFindById.mockResolvedValue(activeUser({ bannedAt: new Date() }));
+    const ctx = makeContext({ id: 'user123' });
+
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+    expect(mockUpdateLastSeen).not.toHaveBeenCalled();
   });
 
   it('throws DELETION_PENDING when deletionRequestedAt set (default route)', async () => {
@@ -105,7 +116,7 @@ describe('JwtAuthGuard', () => {
     mockFindById.mockResolvedValue(
       activeUser({ deletionRequestedAt: new Date() }),
     );
-    const ctx = makeContext({ sub: 'user123' });
+    const ctx = makeContext({ id: 'user123' });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
     expect(mockUpdateLastSeen).not.toHaveBeenCalled();
@@ -119,7 +130,7 @@ describe('JwtAuthGuard', () => {
     mockFindById.mockResolvedValue(
       activeUser({ deletionRequestedAt: new Date() }),
     );
-    const ctx = makeContext({ sub: 'user123' });
+    const ctx = makeContext({ id: 'user123' });
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     await new Promise((resolve) => setImmediate(resolve));
@@ -132,7 +143,7 @@ describe('JwtAuthGuard', () => {
       .mockResolvedValue(true);
     mockGetAllAndOverride.mockReturnValue(true);
     mockFindById.mockResolvedValue(activeUser({ isDeleted: true }));
-    const ctx = makeContext({ sub: 'user123' });
+    const ctx = makeContext({ id: 'user123' });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
   });

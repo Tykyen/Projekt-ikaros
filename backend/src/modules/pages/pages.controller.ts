@@ -42,7 +42,7 @@ export class PagesController {
     @CurrentUser() user: RequestUser,
     @Query('type') type?: string,
   ) {
-    return this.pagesService.findByWorld(worldId, type, user.id);
+    return this.pagesService.findByWorld(worldId, type, user.id, user.role);
   }
 
   @Get('directory')

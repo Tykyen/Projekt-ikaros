@@ -26,17 +26,28 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (result) {
       const request = context
         .switchToHttp()
-        .getRequest<{ user?: { sub?: string } }>();
-      const userId = request.user?.sub;
+        .getRequest<{ user?: { id?: string } }>();
+      // R-07 — `JwtStrategy.validate` vrací `{ id: payload.sub, … }`, NE `{ sub }`.
+      // Dřív tu bylo `request.user?.sub` → vždy `undefined` → CELÝ gate níže byl
+      // mrtvý (smazaný/pending/banned účet s 7d tokenem prošel týden). Čteme `.id`
+      // (stejně jako @CurrentUser a všechny controllery).
+      const userId = request.user?.id;
       if (userId) {
         // 1.3c (N-6b) — per-request gate na stav účtu. Access token žije až 7 dní,
-        // takže login-only reject by smazaného/pending usera nechal týden aktivního.
+        // takže login-only reject by smazaného/pending/banned usera nechal týden aktivního.
         // Optional routy (OptionalJwtAuthGuard) gate záměrně nemají — jsou public read-only.
         const user = await this.usersRepo.findById(userId);
         if (!user || user.isDeleted)
           throw new UnauthorizedException({
             code: 'DELETED',
             message: 'Účet byl smazán',
+          });
+        // R-08 — ban enforcement per-request (ban nastavený za běhu, token žije 7d).
+        // FE `client.ts` na kód BANNED dělá instant logout.
+        if (user.bannedAt)
+          throw new UnauthorizedException({
+            code: 'BANNED',
+            message: 'Účet byl zablokován',
           });
         const allowPending = this.reflector.getAllAndOverride<boolean>(
           ALLOW_PENDING_DELETION,

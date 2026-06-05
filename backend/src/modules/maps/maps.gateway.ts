@@ -163,7 +163,12 @@ export class MapsGateway implements OnGatewayConnection {
         return;
       }
     }
-    void client.join(`world:${worldId}`);
+    // R-13 — PJ-only room `world-ops:{id}`. Pomlčka rozbije regex generického
+    // `room:join` (`^[a-z]+:[a-zA-Z0-9]+$`) → běžný člen (který do `world:{id}`
+    // vstupuje kvůli počasí) sem NEdosáhne; jen tento PJ-gated handler.
+    // `world:operation` (kdo na které scéně + kdo to změnil) tím přestal téct
+    // všem členům ve WS frame. Počasí/universe zůstávají v `world:{id}`.
+    void client.join(`world-ops:${worldId}`);
   }
 
   /**
@@ -176,7 +181,7 @@ export class MapsGateway implements OnGatewayConnection {
     @MessageBody() worldId: string,
     @ConnectedSocket() client: AuthedSocket,
   ): void {
-    void client.leave(`world:${worldId}`);
+    void client.leave(`world-ops:${worldId}`); // R-13
   }
 
   // W-5 — legacy relay handlery (map:token-moved/config-updated/token-removed/
@@ -261,7 +266,7 @@ export class MapsGateway implements OnGatewayConnection {
     this.server.to(sceneId).emit('map:operation', payload);
   }
 
-  /** Broadcast `world:operation` na room world:{worldId} (PJ orchestrator). */
+  /** R-13 — Broadcast `world:operation` na PJ-only room `world-ops:{worldId}`. */
   emitWorldOperation(
     worldId: string,
     payload: {
@@ -273,7 +278,7 @@ export class MapsGateway implements OnGatewayConnection {
       cascadeMapOpIds: string[];
     },
   ): void {
-    this.server.to(`world:${worldId}`).emit('world:operation', payload);
+    this.server.to(`world-ops:${worldId}`).emit('world:operation', payload);
   }
 
   /** Broadcast `map:member-joined` na novou scénu (PJ orchestrator vizualizace). */

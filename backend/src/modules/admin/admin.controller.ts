@@ -342,9 +342,11 @@ export class AdminController {
 
   @Get('recent-pages')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.Superadmin, UserRole.Admin, UserRole.PJ)
+  // R-01/N-14 — globální `UserRole.PJ`(3) zrušen D-053 (žádný user ho nemá);
+  // mrtvý z dekorátoru pryč. Endpoint je Superadmin+Admin (platform).
+  @Roles(UserRole.Superadmin, UserRole.Admin)
   @ApiOperation({
-    summary: 'Nedávno upravené stránky (Superadmin vidí vše, PJ jen své světy)',
+    summary: 'Nedávno upravené stránky (platform Admin+)',
   })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
