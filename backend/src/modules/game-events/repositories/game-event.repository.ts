@@ -104,7 +104,12 @@ export class MongoGameEventRepository
       confirmable: (doc.confirmable as boolean) ?? false,
       confirmedBy:
         (doc.confirmedBy as Array<{ userId: string; userName: string }>) ?? [],
-      comments: (doc.comments as GameEvent['comments']) ?? [],
+      // Legacy komentáře z doby před reakcemi nemají pole `reactions` → default
+      // `{}`, jinak FE (ReactionsRow) spadne na `reactions['👍']` a shodí stránku.
+      comments: ((doc.comments as GameEvent['comments']) ?? []).map((c) => ({
+        ...c,
+        reactions: c.reactions ?? {},
+      })),
       reminderSent: (doc.reminderSent as boolean) ?? false,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
