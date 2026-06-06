@@ -1,0 +1,64 @@
+name: Import Matrix users (one-off)
+
+# Jednorazovy nastroj: vlozi migrovane ucty (jmeno + heslo) ze stareho Matrixu
+# do Ikaros DB jako GLOBALNI ucty (role Hrac = 5). Zadne role/svet/postavy.
+#
+# Data se berou ze SECRETU `MIGRATION_USERS` (JSON pole), takze bcrypt hashe
+# NEJSOU v gitu a v logu se maskuji. Skript je IDEMPOTENTNI: ucet s existujicim
+# jmenem nebo emailem PRESKOCI (nikdy neprepise/nemaze existujici ucet).
+#
+# Spusteni: Actions -> "Import Matrix users (one-off)" -> Run workflow ->
+# do pole napis  IMPORT  -> Run. Bez slova IMPORT se job preskoci.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Napis IMPORT pro potvrzeni (jinak se nic nestane)'
+        required: true
+        default: ''
+
+jobs:
+  import:
+    if: ${{ github.event.inputs.confirm == 'IMPORT' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Build mongosh import script
+        env:
+          USERS_JSON: ${{ secrets.MIGRATION_USERS }}
+        run: |
+          if [ -z "$USERS_JSON" ]; then
+            echo "CHYBA: secret MIGRATION_USERS je prazdny nebo neexistuje."
+            exit 1
+          fi
+          {
+            echo 'const users ='
+            printf '%s' "$USERS_JSON"
+            echo ';'
+            echo 'let ins = 0, skip = 0;'
+            echo 'for (const u of users) {'
+            echo '  const ex = db.users.findOne({ $or: [ { usernameLower: u.usernameLower }, { email: u.email } ] }, { _id: 1 });'
+            echo '  if (ex) { print("SKIP " + u.username); skip++; continue; }'
+            echo '  const now = new Date();'
+            echo '  db.users.insertOne(Object.assign({}, u, { isOnline: false, lastSeenAt: now, emailVerified: false, createdAt: now, updatedAt: now }));'
+            echo '  print("INS  " + u.username); ins++;'
+            echo '}'
+            echo 'print("--- inserted=" + ins + " skipped=" + skip + " total=" + users.length);'
+          } > import.js
+          echo "Skript pripraven, radku: $(wc -l < import.js)"
+
+      - name: Run import on server
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < import.js
