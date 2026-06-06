@@ -1,0 +1,18 @@
+import {
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+
+export class UpdateMapDto {
+  @IsOptional() @IsString() @MaxLength(200) title?: string;
+  @IsOptional() @IsString() @MaxLength(2000) description?: string;
+  @IsOptional() @IsString() imageUrl?: string;
+  @IsOptional() @IsBoolean() isPublic?: boolean;
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visibleToPlayerIds?: string[];
+}

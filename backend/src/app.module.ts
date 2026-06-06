@@ -28,6 +28,7 @@ import { CharactersModule } from './modules/characters/characters.module';
 import { CharacterSubdocsModule } from './modules/character-subdocs/character-subdocs.module';
 import { CalendarsModule } from './modules/calendars/calendars.module';
 import { UniverseModule } from './modules/universe/universe.module';
+import { WorldMapsModule } from './modules/world-maps/world-maps.module';
 import { CampaignModule } from './modules/campaign/campaign.module';
 import { WorldGmNotesModule } from './modules/world-gm-notes/world-gm-notes.module';
 import { MapsModule } from './modules/maps/maps.module';
@@ -88,6 +89,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     CharacterSubdocsModule,
     CalendarsModule,
     UniverseModule,
+    WorldMapsModule,
     CampaignModule,
     WorldGmNotesModule,
     MapsModule,
