@@ -68,6 +68,8 @@ export interface WorldSettings {
   hiddenNavItems: string[];
   customGroups: string[];
   groupColors: Record<string, string>;
+  /** Znak skupiny (emblém): název skupiny → url. Zrcadlí se do ikony chat kanálu. */
+  groupImages: Record<string, string>;
   customHeadline: HeadlineNode[];
   currencies: WorldCurrencyItem[];
   hideDefaultWeather: boolean;

@@ -42,6 +42,7 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
       hiddenNavItems: (doc.hiddenNavItems as string[]) ?? [],
       customGroups: (doc.customGroups as string[]) ?? [],
       groupColors: (doc.groupColors as Record<string, string>) ?? {},
+      groupImages: (doc.groupImages as Record<string, string>) ?? {},
       customHeadline:
         (doc.customHeadline as WorldSettings['customHeadline']) ?? [],
       currencies: (doc.currencies as WorldSettings['currencies']) ?? [],

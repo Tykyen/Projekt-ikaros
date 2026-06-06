@@ -219,10 +219,20 @@ export class ChatService implements OnApplicationBootstrap {
       list.push(c);
       channelsByGroup.set(c.groupId, list);
     }
-    return groups.map((group) => ({
-      group,
-      channels: channelsByGroup.get(group.id) ?? [],
-    }));
+    // Znak skupiny členů (`WorldSettings.groupImages`) je single source of truth
+    // pro ikonu linkovaného kanálu — read-time override `imageUrl` (žádný sync/
+    // event, znak vždy vyhraje nad ručně nastavenou chat ikonou).
+    const settings = await this.worldsService.getSettings(worldId);
+    const groupImages = settings?.groupImages ?? {};
+    return groups.map((group) => {
+      const emblem = group.linkedWorldGroup
+        ? groupImages[group.linkedWorldGroup]
+        : undefined;
+      return {
+        group: emblem ? { ...group, imageUrl: emblem } : group,
+        channels: channelsByGroup.get(group.id) ?? [],
+      };
+    });
   }
 
   /**

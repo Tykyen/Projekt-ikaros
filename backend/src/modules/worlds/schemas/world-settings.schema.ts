@@ -10,6 +10,9 @@ export class WorldSettingsSchemaClass {
   @Prop({ type: [String], default: [] }) hiddenNavItems: string[];
   @Prop({ type: [String], default: [] }) customGroups: string[];
   @Prop({ type: Object, default: {} }) groupColors: Record<string, string>;
+  // Znak skupiny (emblém) — název skupiny → url obrázku. Read-time enrich
+  // do `imageUrl` linkovaného chat ChatGroup (ikona kanálu). Single source.
+  @Prop({ type: Object, default: {} }) groupImages: Record<string, string>;
   @Prop({
     type: [MixedArraySubSchema],
     default: (): Record<string, unknown>[] => [],

@@ -94,6 +94,7 @@ export class UpdateWorldSettingsDto {
   @IsOptional() @IsArray() hiddenNavItems?: string[];
   @IsOptional() @IsArray() customGroups?: string[];
   @IsOptional() @IsObject() groupColors?: Record<string, string>;
+  @IsOptional() @IsObject() groupImages?: Record<string, string>;
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
