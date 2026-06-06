@@ -749,8 +749,12 @@ export class PagesService {
     const akjTypes = needsAkjTypes
       ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
       : [];
-    const visible = page.akjTabs.filter((tab) =>
-      this.passesAccess(tab.access, userId, membership, akjTypes),
+    const visible = page.akjTabs.filter(
+      (tab) =>
+        this.passesAccess(tab.access, userId, membership, akjTypes) ||
+        // Vlastník postavy vidí AKJ záložky na své PC, dokud mu PJ právo
+        // neodebere (ownerHidden). Mimo PC je ownerUserId undefined → bez efektu.
+        (!!page.ownerUserId && page.ownerUserId === userId && !tab.ownerHidden),
     );
     return { ...page, akjTabs: visible };
   }

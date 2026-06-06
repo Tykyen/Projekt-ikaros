@@ -174,6 +174,11 @@ export class AkjTabDto {
   @Type(() => AccessRequirementDto)
   access: AccessRequirementDto[] = [];
 
+  // Skryje záložku i vlastníkovi postavy. Default false = vlastník PC vidí.
+  @IsOptional()
+  @IsBoolean()
+  ownerHidden?: boolean;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => AkjTabContentOverrideDto)

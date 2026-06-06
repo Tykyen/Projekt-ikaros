@@ -116,6 +116,10 @@ export interface AkjTab {
   /** Podmínky viditelnosti (OR). Clearance = { type:'AKJ', value }, konkrétní
    *  hráč = { type:'UserId' }, role práh = { type:'Role' }. Prázdné = jen PJ. */
   access: AccessRequirement[];
+  /** Skryje záložku i vlastníkovi postavy (page.ownerUserId). Default/undefined
+   *  = false = vlastník PC záložku vidí i bez explicitního grantu. Mimo PC
+   *  (page bez ownerUserId) bez efektu. Viz spec-akj-owner-visibility. */
+  ownerHidden?: boolean;
   contentOverride?: AkjTabContentOverride;
 }
 

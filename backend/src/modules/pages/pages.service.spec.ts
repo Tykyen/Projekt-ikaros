@@ -585,6 +585,59 @@ describe('PagesService', () => {
     });
   });
 
+  // spec-akj-owner-visibility — vlastník postavy (page.ownerUserId) vidí AKJ
+  // záložky na své PC defaultně; ownerHidden:true mu je odebere.
+  describe('findBySlug — vlastník postavy vidí AKJ záložky', () => {
+    const pcTabs = [
+      // ownerHidden nezadané → vlastník vidí (default)
+      { id: 's1', name: 'Soukromé', order: 0, access: [] },
+      // ownerHidden:true → jen PJ tým, vlastník NEvidí
+      {
+        id: 's2',
+        name: 'PJ informace',
+        order: 1,
+        access: [{ type: 'Role', value: String(WorldRole.PomocnyPJ) }],
+        ownerHidden: true,
+      },
+    ];
+    const pc = {
+      ...mockPage,
+      accessRequirements: [],
+      ownerUserId: 'hrac-vlastnik',
+      akjTabs: pcTabs,
+    };
+
+    it('vlastník vidí Soukromé (bez grantu), ne PJ informace (ownerHidden)', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(pc);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 0,
+      });
+      const result = await service.findBySlug(
+        'alambert',
+        'world1',
+        'hrac-vlastnik',
+      );
+      expect(result.akjTabs?.map((t) => t.id)).toEqual(['s1']);
+    });
+
+    it('cizí hráč (ne vlastník) bez grantu nevidí nic — žádná owner výjimka', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(pc);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+        akj: 0,
+      });
+      const result = await service.findBySlug(
+        'alambert',
+        'world1',
+        'cizi-hrac',
+      );
+      expect(result.akjTabs).toEqual([]);
+    });
+  });
+
   // spec-akj-protected-tabs — sanitace contentOverride v create
   describe('create — sanitace akjTabs', () => {
     it('odstraní <script> z contentOverride.content', async () => {

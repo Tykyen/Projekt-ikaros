@@ -291,6 +291,7 @@ export class MongoPagesRepository
               value: r.value as string,
             }),
           ),
+          ownerHidden: tab.ownerHidden as boolean | undefined,
           contentOverride: co
             ? {
                 imageUrl: co.imageUrl as string | undefined,
