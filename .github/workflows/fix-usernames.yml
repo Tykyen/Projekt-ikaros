@@ -1,0 +1,59 @@
+name: Fix imported usernames (one-off)
+
+# Jednorazova oprava: import probehl s rozbitym kodovanim diakritiky, takze 3 ucty
+# (Medak, Priba, Mandlon) maji mojibake username/usernameLower. Tady je opravime
+# cilene podle (spravneho ASCII) emailu. Jmena jsou zapsana jako \uXXXX escapy
+# (ciste ASCII), aby je mongosh dekodoval spravne bez ohledu na kodovani.
+# Hesla ani jine ucty se nedotyka.
+#
+# Spusteni: Actions -> "Fix imported usernames (one-off)" -> Run workflow ->
+# do pole napis  FIX  -> Run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Napis FIX pro potvrzeni'
+        required: true
+        default: ''
+
+jobs:
+  fix:
+    if: ${{ github.event.inputs.confirm == 'FIX' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Build + run fix script
+        run: |
+          cat > fix.js <<'EOF'
+          const fixes = [
+            { email: "medak@matrix.invalid",   username: "M\u011b\u010f\u00e1k", usernameLower: "m\u011b\u010f\u00e1k" },
+            { email: "priba@matrix.invalid",   username: "P\u0159\u00edba",      usernameLower: "p\u0159\u00edba" },
+            { email: "mandlon@matrix.invalid", username: "Mandlo\u0148",         usernameLower: "mandlo\u0148" },
+          ];
+          for (const f of fixes) {
+            const r = db.users.updateOne(
+              { email: f.email },
+              { $set: { username: f.username, usernameLower: f.usernameLower } },
+            );
+            print(f.email + "  matched=" + r.matchedCount + " modified=" + r.modifiedCount);
+          }
+          print("--- vysledek:");
+          printjson(
+            db.users
+              .find({ email: { $in: fixes.map(function (f) { return f.email; }) } }, { email: 1, username: 1, usernameLower: 1 })
+              .toArray(),
+          );
+          EOF
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < fix.js
