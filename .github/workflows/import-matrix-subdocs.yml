@@ -1,0 +1,83 @@
+name: Import Matrix PC subdocs F4c (one-off)
+
+# Naveze PC Vybavu/Finance/Poznamky na postavy (subdoc kolekce).
+# Data: migration/f4c-subdocs.json.gz. Linkuje pres characterSlug -> _id.
+#
+# Vybava -> character_inventories.sections (1:1, Medak=59 polozek)
+# Finance -> character_finances (balance/ucet/notes)
+# Poznamky -> character_notes.content
+#
+# BEZPECNOST: upsert dle characterId (idempotentni), tag _mig:'f4c',
+# dry-run default, rollback maze _mig:'f4c' ze vsech 3 kolekci.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const ri=db.character_inventories.deleteMany({_mig:"f4c"});'
+              echo 'const rf=db.character_finances.deleteMany({_mig:"f4c"});'
+              echo 'const rn=db.character_notes.deleteMany({_mig:"f4c"});'
+              echo 'print("ROLLBACK: inventories="+ri.deletedCount+" finances="+rf.deletedCount+" notes="+rn.deletedCount);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const docs ="
+              gunzip -c migration/f4c-subdocs.json.gz
+              echo ";"
+              echo 'let proc=0,noChar=0,would=0,inv=0,fin=0,nt=0;'
+              echo 'for(const d of docs){'
+              echo '  const ch=db.characters.findOne({worldId:"matrix",slug:d.characterSlug},{_id:1});'
+              echo '  if(!ch){noChar++;continue;}'
+              echo '  if(DRY){would++;continue;}'
+              echo '  const cid=String(ch._id); const now=new Date();'
+              echo '  if(d.kind==="inventory"){db.character_inventories.updateOne({characterId:cid},{$set:{characterId:cid,sections:d.sections,notes:d.notes||"",isHidden:false,_mig:"f4c",updatedAt:now},$setOnInsert:{createdAt:now}},{upsert:true});inv++;}'
+              echo '  else if(d.kind==="finance"){db.character_finances.updateOne({characterId:cid},{$set:{characterId:cid,balance:d.balance||0,accountType:d.accountType||"Osobni",accessLocation:d.accessLocation||"",currency:d.currency||"",lastSyncDate:d.lastSyncDate?new Date(d.lastSyncDate):null,notes:d.notes||"",entries:[],transactions:[],isHidden:false,_mig:"f4c",updatedAt:now},$setOnInsert:{createdAt:now}},{upsert:true});fin++;}'
+              echo '  else if(d.kind==="notes"){db.character_notes.updateOne({characterId:cid},{$set:{characterId:cid,content:d.content||"",_mig:"f4c",updatedAt:now},$setOnInsert:{createdAt:now}},{upsert:true});nt++;}'
+              echo '  proc++;'
+              echo '}'
+              echo 'print(DRY?("DRY-RUN: zpracovalo by se "+would+", bez karty "+noChar+", v souboru "+docs.length):("IMPORT HOTOVO: zpracovano "+proc+" (inv "+inv+", fin "+fin+", notes "+nt+"), bez karty "+noChar));'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
