@@ -40,17 +40,30 @@ export class UniverseService {
     @Optional() private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  /**
+   * Globální Admin+ NEBO world PJ+ smí spravovat / vidět plnou mapu.
+   * Jednotné pravidlo pro GET (visibility) i mutace (assertCanManage).
+   */
+  async resolveIsWorldPjOrAdmin(
+    userId: string | null,
+    userRole: UserRole | null,
+    worldId: string,
+  ): Promise<boolean> {
+    if (userRole !== null && userRole <= UserRole.Admin) return true;
+    if (!userId) return false;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    return !!membership && membership.role >= WorldRole.PJ;
+  }
+
   async assertCanManage(
     userId: string,
     userRole: UserRole,
     worldId: string,
   ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
-    const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
-      worldId,
-    );
-    if (!membership || membership.role < WorldRole.PJ)
+    if (!(await this.resolveIsWorldPjOrAdmin(userId, userRole, worldId)))
       throw new ForbiddenException({
         code: 'NOT_WORLD_PJ',
         message: 'Nedostatečná oprávnění',
@@ -60,7 +73,7 @@ export class UniverseService {
   async findByWorld(
     worldId: string,
     userId: string | null,
-    isPjOrAdmin: boolean,
+    userRole: UserRole | null,
   ): Promise<UniverseMap> {
     let map = await this.repo.findByWorld(worldId);
 
@@ -71,6 +84,11 @@ export class UniverseService {
       map = await this.repo.upsert(worldId, nodes, links);
     }
 
+    const isPjOrAdmin = await this.resolveIsWorldPjOrAdmin(
+      userId,
+      userRole,
+      worldId,
+    );
     if (isPjOrAdmin) return map;
     return this.applyVisibilityFilter(map, userId);
   }

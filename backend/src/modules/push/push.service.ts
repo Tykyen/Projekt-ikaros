@@ -3,7 +3,10 @@ import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as webpush from 'web-push';
 import type { IPushSubscriptionRepository } from './interfaces/push-subscription-repository.interface';
-import type { PushSubscription } from './interfaces/push-subscription.interface';
+import type {
+  PushSubscription,
+  PushSubscriptionSummary,
+} from './interfaces/push-subscription.interface';
 
 export interface PushPayload {
   title: string;
@@ -37,12 +40,35 @@ export class PushService implements OnModuleInit {
   async subscribe(
     userId: string,
     data: { endpoint: string; p256dh: string; auth: string },
+    userAgent?: string,
   ): Promise<PushSubscription> {
-    return this.repo.upsertByEndpoint({ userId, ...data });
+    return this.repo.upsertByEndpoint({
+      userId,
+      ...data,
+      userAgent,
+      lastUsedAt: new Date(),
+    });
   }
 
   async unsubscribe(userId: string, endpoint: string): Promise<void> {
     await this.repo.deleteByEndpoint(endpoint, userId);
+  }
+
+  /** D-030 — vlastní zařízení uživatele (bez kryptografických klíčů). */
+  async getSubscriptions(userId: string): Promise<PushSubscriptionSummary[]> {
+    const subs = await this.repo.findByUserId(userId);
+    return subs.map((s) => ({
+      id: s.id,
+      endpoint: s.endpoint,
+      userAgent: s.userAgent,
+      createdAt: s.createdAt,
+      lastUsedAt: s.lastUsedAt,
+    }));
+  }
+
+  /** D-030 — odhlášení konkrétního zařízení ze seznamu (jen vlastníkem). */
+  async unsubscribeById(userId: string, id: string): Promise<void> {
+    await this.repo.deleteByIdAndUser(id, userId);
   }
 
   async notify(userId: string, payload: PushPayload): Promise<void> {

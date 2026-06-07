@@ -69,7 +69,7 @@ describe('UniverseService', () => {
   describe('findByWorld', () => {
     it('vrátí existující mapu', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', null, false);
+      const result = await service.findByWorld('world1', null, null);
       expect(result).toBeDefined();
       expect(mockRepo.findByWorld).toHaveBeenCalledWith('world1');
     });
@@ -77,23 +77,45 @@ describe('UniverseService', () => {
     it('vrátí prázdnou mapu pro neexistující svět (ne Matrix)', async () => {
       mockRepo.findByWorld.mockResolvedValue(null);
       mockRepo.upsert.mockResolvedValue({ ...mockMap, nodes: [], links: [] });
-      const result = await service.findByWorld('other-world', null, false);
+      const result = await service.findByWorld('other-world', null, null);
       expect(result.nodes).toHaveLength(0);
       expect(mockRepo.upsert).toHaveBeenCalledWith('other-world', [], []);
     });
   });
 
   describe('visibility filtr', () => {
-    it('PJ vidí všechny uzly', async () => {
+    it('globální Admin vidí všechny uzly (bez membership dotazu)', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', 'pj1', true);
+      const result = await service.findByWorld(
+        'world1',
+        'admin1',
+        UserRole.Admin,
+      );
+      expect(result.nodes).toHaveLength(3);
+      expect(result.links).toHaveLength(3);
+      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('world PJ (globálně Hrac) vidí všechny uzly přes membership [D-034]', async () => {
+      mockRepo.findByWorld.mockResolvedValue(mockMap);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      const result = await service.findByWorld('world1', 'pj1', UserRole.Hrac);
       expect(result.nodes).toHaveLength(3);
       expect(result.links).toHaveLength(3);
     });
 
     it('hráč vidí jen isPublic=true uzly a uzly kde je v visibleToPlayerIds', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', 'player1', false);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      const result = await service.findByWorld(
+        'world1',
+        'player1',
+        UserRole.Hrac,
+      );
       // Midgard (isPublic) + Asgard (player1 v visibleToPlayerIds)
       expect(result.nodes).toHaveLength(2);
       expect(result.nodes.map((n) => n.id)).toEqual(
@@ -103,7 +125,14 @@ describe('UniverseService', () => {
 
     it('hráč nevidí uzly kde není ani isPublic ani v visibleToPlayerIds', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', 'player2', false);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      const result = await service.findByWorld(
+        'world1',
+        'player2',
+        UserRole.Hrac,
+      );
       // jen Midgard (isPublic)
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].id).toBe('Midgard');
@@ -111,14 +140,21 @@ describe('UniverseService', () => {
 
     it('filtruje linky na skryté uzly', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', 'player2', false);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      const result = await service.findByWorld(
+        'world1',
+        'player2',
+        UserRole.Hrac,
+      );
       // player2 vidí jen Midgard → žádný link není platný (Asgard a Niflheim skryté)
       expect(result.links).toHaveLength(0);
     });
 
     it('anon uživatel (null userId) vidí jen isPublic uzly', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', null, false);
+      const result = await service.findByWorld('world1', null, null);
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].id).toBe('Midgard');
     });

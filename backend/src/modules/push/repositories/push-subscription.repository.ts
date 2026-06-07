@@ -43,10 +43,18 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
   async upsertByEndpoint(
     data: Omit<PushSubscription, 'id' | 'createdAt'>,
   ): Promise<PushSubscription> {
+    const set: Record<string, unknown> = {
+      userId: data.userId,
+      p256dh: data.p256dh,
+      auth: data.auth,
+      lastUsedAt: data.lastUsedAt,
+    };
+    // undefined by Mongo přepsalo na null — nastavíme jen když UA dorazil.
+    if (data.userAgent !== undefined) set.userAgent = data.userAgent;
     const doc = await this.model
       .findOneAndUpdate(
         { endpoint: data.endpoint },
-        { $set: { userId: data.userId, p256dh: data.p256dh, auth: data.auth } },
+        { $set: set },
         { upsert: true, new: true },
       )
       .lean()
@@ -63,6 +71,11 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
     await this.model.deleteOne({ endpoint }).exec();
   }
 
+  async deleteByIdAndUser(id: string, userId: string): Promise<boolean> {
+    const result = await this.model.deleteOne({ _id: id, userId }).exec();
+    return result.deletedCount > 0;
+  }
+
   private toEntity(doc: Record<string, unknown>): PushSubscription {
     return {
       id: String(doc._id),
@@ -70,7 +83,10 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
       endpoint: doc.endpoint as string,
       p256dh: doc.p256dh as string,
       auth: doc.auth as string,
+      userAgent: doc.userAgent as string | undefined,
       createdAt: doc.createdAt as Date,
+      // Staré záznamy bez lastUsedAt → fallback na createdAt.
+      lastUsedAt: (doc.lastUsedAt ?? doc.createdAt) as Date,
     };
   }
 }

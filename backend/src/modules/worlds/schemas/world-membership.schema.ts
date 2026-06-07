@@ -61,6 +61,12 @@ export class WorldMembershipSchemaClass {
   @Prop({ type: Object, default: undefined })
   chatChannelOrder?: Record<string, string[]>;
   @Prop({ type: [String], default: undefined }) chatExpandedGroups?: string[];
+  /**
+   * D-032 — osobní pořadí PŘIPNUTÝCH konverzací (`channelId` v cílovém pořadí).
+   * Samotné připnutí je globální (`User.chatPreferences.pinnedChannelIds`),
+   * pořadí je per-svět (zobrazují se jen pinned konverzace daného světa).
+   */
+  @Prop({ type: [String], default: undefined }) chatPinnedOrder?: string[];
 }
 
 export const WorldMembershipSchema = SchemaFactory.createForClass(

@@ -2,7 +2,10 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
+  Param,
+  Headers,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -40,20 +43,46 @@ export class PushController {
     summary: 'Registrace push subscription (upsert dle endpoint)',
   })
   @ApiResponse({ status: 201 })
-  async subscribe(@Body() dto: SubscribeDto, @CurrentUser() user: RequestUser) {
-    return this.pushService.subscribe(user.id, dto);
+  async subscribe(
+    @Body() dto: SubscribeDto,
+    @CurrentUser() user: RequestUser,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.pushService.subscribe(user.id, dto, userAgent);
+  }
+
+  @Get('subscriptions')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Vlastní push zařízení uživatele (bez klíčů)' })
+  @ApiResponse({ status: 200 })
+  async getSubscriptions(@CurrentUser() user: RequestUser) {
+    return this.pushService.getSubscriptions(user.id);
   }
 
   @Post('unsubscribe')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Odhlášení push subscription' })
+  @ApiOperation({ summary: 'Odhlášení push subscription (dle endpoint)' })
   @ApiResponse({ status: 200 })
   async unsubscribe(
     @Body() dto: UnsubscribeDto,
     @CurrentUser() user: RequestUser,
   ): Promise<void> {
     await this.pushService.unsubscribe(user.id, dto.endpoint);
+  }
+
+  @Delete('subscriptions/:id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Odhlášení konkrétního zařízení ze seznamu' })
+  @ApiResponse({ status: 204 })
+  async deleteSubscription(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<void> {
+    await this.pushService.unsubscribeById(user.id, id);
   }
 }

@@ -865,6 +865,23 @@ describe('ChatService', () => {
       ).rejects.toThrow(ForbiddenException);
       expect(mockMembershipRepo.update).not.toHaveBeenCalled();
     });
+
+    it('D-032: uloží osobní pořadí připnutých (pinnedOrder)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockMembershipRepo.update.mockResolvedValue({
+        ...mockHracMembership,
+        chatPinnedOrder: ['c2', 'c1'],
+      });
+      const res = await service.updateMyChatPrefs('world1', 'user2', {
+        pinnedOrder: ['c2', 'c1'],
+      });
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m2', {
+        chatPinnedOrder: ['c2', 'c1'],
+      });
+      expect(res.chatPinnedOrder).toEqual(['c2', 'c1']);
+    });
   });
 
   describe('searchMessages', () => {

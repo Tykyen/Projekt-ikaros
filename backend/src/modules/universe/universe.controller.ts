@@ -42,8 +42,8 @@ export class UniverseController {
   async findByWorld(@Query('worldId') worldId: string, @Req() req: Request) {
     const user = (req as Request & { user?: RequestUser }).user;
     const userId = user?.id ?? null;
-    const isPjOrAdmin = user ? user.role <= UserRole.Admin : false;
-    return this.service.findByWorld(worldId, userId, isPjOrAdmin);
+    const userRole = user?.role ?? null;
+    return this.service.findByWorld(worldId, userId, userRole);
   }
 
   @Put()

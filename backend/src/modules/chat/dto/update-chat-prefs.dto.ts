@@ -21,4 +21,10 @@ export class UpdateChatPrefsDto {
   @IsArray()
   @IsMongoId({ each: true })
   expandedGroups?: string[];
+
+  /** D-032 — osobní pořadí připnutých konverzací (`channelId` v cílovém pořadí). */
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  pinnedOrder?: string[];
 }

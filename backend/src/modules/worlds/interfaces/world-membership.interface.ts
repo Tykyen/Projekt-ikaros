@@ -69,6 +69,8 @@ export interface WorldMembership {
   chatChannelOrder?: Record<string, string[]>;
   /** 6.7c — `groupId` kanálů, které má hráč ROZBALENÉ (default: vše sbalené). */
   chatExpandedGroups?: string[];
+  /** D-032 — osobní pořadí připnutých konverzací (`channelId[]`), per svět. */
+  chatPinnedOrder?: string[];
   /**
    * Krok 5.3 — public summary uživatele (username, avatar účtu). Populuje
    * `getMembers` přes `enrichMembers`. Smazaný účet → undefined.

@@ -16,7 +16,9 @@ const makeSub = (
   endpoint: 'https://push.example.com/sub1',
   p256dh: 'key',
   auth: 'auth',
+  userAgent: 'Mozilla/5.0',
   createdAt: new Date(),
+  lastUsedAt: new Date(),
   ...overrides,
 });
 
@@ -31,6 +33,7 @@ describe('PushService', () => {
       upsertByEndpoint: jest.fn(),
       deleteByEndpoint: jest.fn(),
       deleteByEndpointOnly: jest.fn(),
+      deleteByIdAndUser: jest.fn(),
     };
 
     const module = await Test.createTestingModule({
@@ -115,18 +118,20 @@ describe('PushService', () => {
     );
   });
 
-  it('subscribe — upsertne subscription', async () => {
+  it('subscribe — upsertne subscription s user-agentem a lastUsedAt', async () => {
     repo.upsertByEndpoint.mockResolvedValue(makeSub());
-    await service.subscribe('user1', {
-      endpoint: 'https://...',
-      p256dh: 'k',
-      auth: 'a',
-    });
+    await service.subscribe(
+      'user1',
+      { endpoint: 'https://...', p256dh: 'k', auth: 'a' },
+      'Mozilla/5.0',
+    );
     expect(repo.upsertByEndpoint).toHaveBeenCalledWith({
       userId: 'user1',
       endpoint: 'https://...',
       p256dh: 'k',
       auth: 'a',
+      userAgent: 'Mozilla/5.0',
+      lastUsedAt: expect.any(Date),
     });
   });
 
@@ -134,5 +139,27 @@ describe('PushService', () => {
     repo.deleteByEndpoint.mockResolvedValue(true);
     await service.unsubscribe('user1', 'https://...');
     expect(repo.deleteByEndpoint).toHaveBeenCalledWith('https://...', 'user1');
+  });
+
+  it('getSubscriptions — vrátí vlastní zařízení BEZ kryptografických klíčů [D-030]', async () => {
+    repo.findByUserId.mockResolvedValue([makeSub()]);
+    const result = await service.getSubscriptions('user1');
+    expect(repo.findByUserId).toHaveBeenCalledWith('user1');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      id: 'sub1',
+      endpoint: 'https://push.example.com/sub1',
+      userAgent: 'Mozilla/5.0',
+      createdAt: expect.any(Date),
+      lastUsedAt: expect.any(Date),
+    });
+    expect(result[0]).not.toHaveProperty('p256dh');
+    expect(result[0]).not.toHaveProperty('auth');
+  });
+
+  it('unsubscribeById — smaže konkrétní zařízení vlastníka [D-030]', async () => {
+    repo.deleteByIdAndUser.mockResolvedValue(true);
+    await service.unsubscribeById('user1', 'sub1');
+    expect(repo.deleteByIdAndUser).toHaveBeenCalledWith('sub1', 'user1');
   });
 });

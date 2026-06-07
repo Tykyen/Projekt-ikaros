@@ -201,6 +201,7 @@ export class MongoWorldMembershipRepository
         | Record<string, string[]>
         | undefined,
       chatExpandedGroups: doc.chatExpandedGroups as string[] | undefined,
+      chatPinnedOrder: doc.chatPinnedOrder as string[] | undefined,
     };
   }
 

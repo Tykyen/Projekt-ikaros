@@ -248,6 +248,7 @@ export class ChatService implements OnApplicationBootstrap {
     chatGroupOrder?: string[];
     chatChannelOrder?: Record<string, string[]>;
     chatExpandedGroups?: string[];
+    chatPinnedOrder?: string[];
   }> {
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
@@ -266,11 +267,15 @@ export class ChatService implements OnApplicationBootstrap {
     if (dto.expandedGroups !== undefined) {
       patch.chatExpandedGroups = dto.expandedGroups;
     }
+    if (dto.pinnedOrder !== undefined) {
+      patch.chatPinnedOrder = dto.pinnedOrder;
+    }
     const updated = await this.membershipRepo.update(membership.id, patch);
     return {
       chatGroupOrder: updated?.chatGroupOrder,
       chatChannelOrder: updated?.chatChannelOrder,
       chatExpandedGroups: updated?.chatExpandedGroups,
+      chatPinnedOrder: updated?.chatPinnedOrder,
     };
   }
 
