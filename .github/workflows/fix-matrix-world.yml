@@ -1,0 +1,84 @@
+name: Fix Matrix world binding (one-off)
+
+# Oprava: migrovana data maji worldId="matrix" (slug) misto skutecneho _id svetu.
+# Premapuje worldId na 6d6174726978000000000001, prida PJ membership, nastavi isPublic.
+#
+# dry-run: spocita co by se zmenilo + KOLIZE slugu (unique {worldId,slug}) + membership.
+# fix: premapuje pages+characters, upsert membership PJ, isPublic=true.
+# rollback: vrati worldId zpet na "matrix", smaze membership _mig:fixworld.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, fix, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro fix napis FIX, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          {
+            echo 'const OID="6d6174726978000000000001";'
+            echo 'const SLUG="matrix";'
+            echo 'const TYKY=db.worlds.findOne({slug:SLUG}).ownerId;'
+          } > script.js
+          if [ "$MODE" = "fix" ]; then
+            if [ "$CONFIRM" != "FIX" ]; then echo "CHYBA: fix vyzaduje confirm=FIX"; exit 1; fi
+            {
+              echo 'const collP=db.pages.find({worldId:SLUG}).toArray().filter(p=>db.pages.findOne({worldId:OID,slug:p.slug}));'
+              echo 'const collC=db.characters.find({worldId:SLUG}).toArray().filter(c=>db.characters.findOne({worldId:OID,slug:c.slug}));'
+              echo 'print("KOLIZE pages="+collP.length+" characters="+collC.length+(collP.length?" -> "+collP.slice(0,10).map(p=>p.slug).join(", "):""));'
+              echo 'if(collP.length||collC.length){print("!!! STOP: nejdriv vyresit kolize (pravdepodobne duplikat rulebooku) !!!");}'
+              echo 'else{'
+              echo '  const rp=db.pages.updateMany({worldId:SLUG},{$set:{worldId:OID}});'
+              echo '  const rc=db.characters.updateMany({worldId:SLUG},{$set:{worldId:OID}});'
+              echo '  db.world_memberships.updateOne({userId:String(TYKY),worldId:OID},{$set:{userId:String(TYKY),worldId:OID,role:5,_mig:"fixworld"},$setOnInsert:{createdAt:new Date()}},{upsert:true});'
+              echo '  db.worlds.updateOne({_id:db.worlds.findOne({slug:SLUG})._id},{$set:{isPublic:true}});'
+              echo '  print("FIX HOTOVO: pages premapovano="+rp.modifiedCount+" characters="+rc.modifiedCount+", membership PJ upsert, isPublic=true");'
+              echo '}'
+            } >> script.js
+          elif [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const rp=db.pages.updateMany({worldId:OID,_mig:{$exists:true}},{$set:{worldId:SLUG}});'
+              echo 'const rc=db.characters.updateMany({worldId:OID,_mig:{$exists:true}},{$set:{worldId:SLUG}});'
+              echo 'const rm=db.world_memberships.deleteMany({worldId:OID,_mig:"fixworld"});'
+              echo 'print("ROLLBACK: pages="+rp.modifiedCount+" characters="+rc.modifiedCount+" membership smazano="+rm.deletedCount+" (isPublic ponechano)");'
+            } >> script.js
+          else
+            {
+              echo 'print("pages worldId=slug: "+db.pages.countDocuments({worldId:SLUG})+" -> premapovat na "+OID);'
+              echo 'print("characters worldId=slug: "+db.characters.countDocuments({worldId:SLUG}));'
+              echo 'const collP=db.pages.find({worldId:SLUG}).toArray().filter(p=>db.pages.findOne({worldId:OID,slug:p.slug}));'
+              echo 'const collC=db.characters.find({worldId:SLUG}).toArray().filter(c=>db.characters.findOne({worldId:OID,slug:c.slug}));'
+              echo 'print("KOLIZE slugu s rulebookem: pages="+collP.length+" characters="+collC.length+(collP.length?"  ["+collP.slice(0,15).map(p=>p.slug).join(", ")+"]":""));'
+              echo 'print("Tyky="+String(TYKY)+" membership v matrix: "+db.world_memberships.countDocuments({userId:String(TYKY),worldId:OID})+" (0=neni PJ)");'
+              echo 'print(collP.length||collC.length?"DRY-RUN: jsou KOLIZE -> fix je preskoci, nutno doresit":"DRY-RUN: 0 kolizi -> fix je bezpecny");'
+            } >> script.js
+          fi
+          echo "skript pripraven"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
