@@ -8,6 +8,7 @@ import { WorldsModule } from '../worlds/worlds.module';
 import { CharactersModule } from '../characters/characters.module';
 import { TipTapExtractor } from './tiptap-extractor.service';
 import { PagesWorldSeedListener } from './pages-world-seed.listener';
+import { RulebookMatrixSeed } from './rulebook/rulebook-matrix-seed';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { PagesWorldSeedListener } from './pages-world-seed.listener';
     TipTapExtractor,
     { provide: 'IPagesRepository', useClass: MongoPagesRepository },
     PagesWorldSeedListener,
+    RulebookMatrixSeed,
   ],
   exports: [PagesService, 'IPagesRepository'],
 })

@@ -217,6 +217,7 @@ export class MongoPagesRepository
       type: doc.type as PageType,
       title: doc.title as string,
       content: (doc.content as string) ?? '',
+      quickRef: (doc.quickRef as string) ?? '',
       imageUrl: doc.imageUrl as string | undefined,
       bigImage: (doc.bigImage as boolean) ?? false,
       // Parita s GameEvent — výřez hlavního obrázku (focal/zoom/fit).

@@ -8,6 +8,7 @@ import { buildMagicPage } from './magic-template';
 import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { World } from '../worlds/interfaces/world.interface';
 import type { Page, PageType } from './interfaces/page.interface';
+import { RULEBOOK_SEED_PAGES } from './rulebook/rulebook-seed-data';
 
 const PAGE_TEMPLATES: Array<{
   slug: string;
@@ -26,6 +27,16 @@ const PAGE_TEMPLATES: Array<{
   { slug: 'faq', type: 'Ostatní', title: 'FAQ', order: 3 },
   { slug: 'videa', type: 'Obrazovka', title: 'Instruktážní videa', order: 4 },
 ];
+
+/**
+ * Svět se systémem „Ikaros pravidla" (matrix) má vlastní Pravidlovou knihu, která
+ * nahrazuje tyto generické seedy (prázdná Pravidla + univerzální škály MÚ/TÚ).
+ */
+const MATRIX_RULEBOOK_REPLACES = new Set([
+  'pravidla',
+  'magicky-system',
+  'technologie',
+]);
 
 @Injectable()
 export class PagesWorldSeedListener {
@@ -59,7 +70,10 @@ export class PagesWorldSeedListener {
 
   @OnEvent('world.created')
   async handleWorldCreated(world: World): Promise<void> {
+    const isMatrix = world.system === 'matrix';
     for (const template of PAGE_TEMPLATES) {
+      // Matrix: generické pravidla/škály nahrazuje Pravidlová kniha (níž).
+      if (isMatrix && MATRIX_RULEBOOK_REPLACES.has(template.slug)) continue;
       const exists = await this.pagesRepo.existsBySlugAndWorld(
         template.slug,
         world.id,
@@ -72,6 +86,39 @@ export class PagesWorldSeedListener {
         content,
         plainText: content ? this.tipTapExtractor.extract(content) : '',
         menu: [],
+        sections: [],
+        galleryImages: [],
+        videos: [],
+        accessRequirements: [],
+        isWoodWide: false,
+      };
+      await this.pagesRepo.save(newPage);
+    }
+    if (isMatrix) await this.seedRulebook(world.id);
+  }
+
+  /**
+   * Pravidlová kniha (F1) — idempotentní seed hubu Pravidla + kapitol 1–9 ze
+   * `RULEBOOK_SEED_PAGES` do daného (matrix) světa. Volá listener (nové světy)
+   * i bootstrap (matrix singleton). Obsah/čísla 1:1 se zdrojem.
+   */
+  async seedRulebook(worldId: string): Promise<void> {
+    for (const p of RULEBOOK_SEED_PAGES) {
+      const exists = await this.pagesRepo.existsBySlugAndWorld(p.slug, worldId);
+      if (exists) continue;
+      const content = p.content ? sanitizeRichText(p.content) : '';
+      const newPage: Partial<Page> = {
+        slug: p.slug,
+        title: p.title,
+        type: p.type as PageType,
+        order: p.order,
+        worldId,
+        imageUrl: p.imageUrl,
+        bigImage: !!p.imageUrl,
+        content,
+        quickRef: p.quickRef,
+        plainText: content ? this.tipTapExtractor.extract(content) : '',
+        menu: p.menu ?? [],
         sections: [],
         galleryImages: [],
         videos: [],

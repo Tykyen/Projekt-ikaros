@@ -11,6 +11,8 @@ export class PageSchemaClass {
   @Prop({ required: true, default: 'Ostatní' }) type: string;
   @Prop({ required: true }) title: string;
   @Prop({ default: '' }) content: string;
+  // Pravidlová kniha — taháková rekapitulace pro HUD „Rychlý přehled".
+  @Prop({ default: '' }) quickRef?: string;
   @Prop() imageUrl?: string;
   @Prop({ default: false }) bigImage?: boolean;
   // Parita s GameEvent — výřez hlavního obrázku (focal/zoom/fit), default null.

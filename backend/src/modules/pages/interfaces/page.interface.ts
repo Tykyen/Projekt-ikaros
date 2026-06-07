@@ -130,6 +130,8 @@ export interface Page {
   type: PageType;
   title: string;
   content: string;
+  /** Pravidlová kniha — taháková rekapitulace pro HUD „Rychlý přehled". */
+  quickRef?: string;
   imageUrl?: string;
   bigImage?: boolean;
   // Parita s GameEvent — výřez hlavního obrázku (focal point + zoom + fit).
