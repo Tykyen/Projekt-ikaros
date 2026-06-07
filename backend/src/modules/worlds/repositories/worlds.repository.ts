@@ -218,6 +218,9 @@ export class MongoWorldsRepository
         (doc.activeMapWeather as World['activeMapWeather']) ?? null,
       diceVisibility:
         (doc.diceVisibility as World['diceVisibility']) ?? undefined,
+      techLevelMin: (doc.techLevelMin as number | null | undefined) ?? null,
+      techLevelMax: (doc.techLevelMax as number | null | undefined) ?? null,
+      magicTraditions: (doc.magicTraditions as string[]) ?? [],
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

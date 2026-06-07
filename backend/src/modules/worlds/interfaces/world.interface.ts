@@ -77,6 +77,11 @@ export interface World {
   activeMapWeather?: ActiveMapWeather | null;
   /** 10.2j — viditelnost hodů na mapě. `undefined` = výchozí (jen vlastní + spoluhráči). */
   diceVisibility?: WorldDiceVisibility;
+  /** 2.3d — technologická úroveň světa (rozsah TÚ 0–14); seeduje stránku Technologie. */
+  techLevelMin?: number | null;
+  techLevelMax?: number | null;
+  /** 2.3e — typy (tradice) magie světa; seeduje stránku Magický systém. */
+  magicTraditions?: string[];
   createdAt: Date;
   updatedAt: Date;
   /** Spec 2.4 — populated jen při `findById` / `findBySlug` (controller endpointy). */

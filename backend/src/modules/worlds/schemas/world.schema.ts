@@ -68,6 +68,22 @@ export class WorldSchemaClass {
     showNpcBestieRolls: boolean;
     showTeammateRolls: boolean;
   };
+
+  /**
+   * 2.3d — technologická úroveň světa (rozsah TÚ 0–14). Nastavuje se při tvorbě
+   * světa; seeduje stránku „Technologie". Po založení se needituje v Nastavení.
+   */
+  @Prop({ type: Number, default: null, min: 0, max: 14 })
+  techLevelMin?: number | null;
+  @Prop({ type: Number, default: null, min: 0, max: 14 })
+  techLevelMax?: number | null;
+
+  /**
+   * 2.3e — typy (tradice) magie přítomné ve světě. Nastavuje se při tvorbě
+   * světa; seeduje stránku „Magický systém". Po založení se needituje v Nastavení.
+   */
+  @Prop({ type: [String], default: [] })
+  magicTraditions: string[];
 }
 
 export const WorldSchema = SchemaFactory.createForClass(WorldSchemaClass);

@@ -41,6 +41,16 @@ export class CreateWorldDto {
   /** Krok 5.0 — motiv světa zvolený ve wizardu tvorby. */
   @IsOptional() @IsString() @MaxLength(40) themeId?: string;
 
+  /** 2.3d — technologická úroveň světa (rozsah TÚ 0–14), volí PJ ve formu tvorby. */
+  @IsOptional() @IsInt() @Min(0) @Max(14) techLevelMin?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(14) techLevelMax?: number;
+
+  /** 2.3e — typy (tradice) magie světa, zatrhané ve formu tvorby. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  magicTraditions?: string[];
+
   /**
    * 9.3-F-I — Q1: volitelný seznam kalendářů k seednutí při tvorbě světa.
    *
