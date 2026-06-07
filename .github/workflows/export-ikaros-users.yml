@@ -1,0 +1,38 @@
+name: Export Ikaros users (read-only)
+
+# Jednorazovy nastroj: VYPISE ucty z Ikaros DB (username, email, role) pro kontrolu
+# migrace ze stareho Matrixu. CTE POUZE - nic nemeni, hesla se nevypisuji.
+# Spusteni: Actions -> "Export Ikaros users (read-only)" -> Run workflow.
+# Vystup je ve stepu "Run export on server" (zkopiruj a posli).
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Build mongosh export script
+        run: |
+          {
+            echo 'const list = db.users.find({}, { _id:1, username:1, usernameLower:1, email:1, role:1 }).sort({ usernameLower: 1 }).toArray();'
+            echo 'print("COUNT=" + list.length);'
+            echo 'list.forEach(u => print(JSON.stringify({ id:String(u._id), username:u.username, usernameLower:u.usernameLower, email:u.email, role:u.role })));'
+          } > export.js
+          cat export.js
+
+      - name: Run export on server (read-only)
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < export.js
