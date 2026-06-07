@@ -1,0 +1,86 @@
+name: Import Matrix pages F4a (one-off)
+
+# Importuje samostatne stranky (Lokace/Ostatni/Seznam/Rodokmen) ze stareho
+# Matrixu do Ikaros sveta 'matrix' na newmatrix. Data: migration/f4a-pages.json.gz.
+#
+# BEZPECNOST (stejne jako F3):
+#   - IDEMPOTENTNI: stranka s existujicim slugem se PRESKOCI.
+#   - TAGOVANE: _mig:'f4a' -> cisty rollback.
+#   - DRY-RUN je default: jen spocita, NIC nezapise.
+#
+# Spusteni: Actions -> tento workflow -> Run workflow:
+#   mode = dry-run            -> jen spocita (NIC nezapise)
+#   mode = import   + IMPORT  -> opravdu vlozi
+#   mode = rollback + ROLLBACK-> smaze vse co tento import vlozil (_mig:f4a)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const r=db.pages.deleteMany({worldId:"matrix",_mig:"f4a"});'
+              echo 'print("ROLLBACK: smazano pages="+r.deletedCount);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const docs ="
+              gunzip -c migration/f4a-pages.json.gz
+              echo ";"
+              echo 'let ins=0,skip=0,would=0;'
+              echo 'for(const p of docs){'
+              echo '  const ex=db.pages.findOne({worldId:"matrix",slug:p.slug},{_id:1});'
+              echo '  if(ex){skip++;continue;}'
+              echo '  if(DRY){would++;continue;}'
+              echo '  const now=new Date();'
+              echo '  db.pages.insertOne(Object.assign({},p,{_mig:"f4a",createdAt:now,updatedAt:now}));'
+              echo '  ins++;'
+              echo '}'
+              echo 'print(DRY?("DRY-RUN: vlozilo by se "+would+", preskoceno "+skip+", v souboru "+docs.length):("IMPORT HOTOVO: vlozeno "+ins+", preskoceno "+skip+", v souboru "+docs.length));'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
