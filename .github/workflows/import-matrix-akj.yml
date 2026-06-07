@@ -1,0 +1,101 @@
+name: Import Matrix AKJ tabs F4d (one-off)
+
+# Prenese tajny obsah (Tajne/AKJ/Kontakty) jako AKJ chranene zalozky (akjTabs)
+# + ZACELI LEAK: 193 stranek s number-type pravy (Ikaros je nevynucuje -> verejne)
+# prevede na verejny stub + tajnou zalozku.
+# Data: migration/f4d-akj.json.gz. 3 typy zaznamu:
+#   - napojeny  {targetSlug, tab}              -> pridat akjTab na existujici stranku
+#   - stub      {stub, stubSlug, tab, ...}     -> vytvorit verejny stub Page + akjTab
+#   - convert   {convertStub, targetSlug, tab} -> existujici verejnou stranku na stub + akjTab (ZALOHA puvodni)
+#
+# BEZPECNOST: idempotent (tab pull+push dle id; stub upsert; zaloha jen jednou).
+# tag _mig:'f4d' na tabech, _migNew/_migStub na strankach. Rollback: restore convert z
+# pages_mig_trash_f4d, smazat stub Page, $pull akjTabs _mig:f4d. dry-run default.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'let restored=0;'
+              echo 'const tr=db.pages_mig_trash_f4d.find({}).toArray();'
+              echo 'for(const b of tr){ const o=Object.assign({},b); delete o._trashFrom; db.pages.replaceOne({worldId:"matrix",slug:o.slug},o); restored++; }'
+              echo 'db.pages_mig_trash_f4d.deleteMany({});'
+              echo 'const sp=db.pages.deleteMany({worldId:"matrix",_mig:"f4d",_migNew:true});'
+              echo 'const pl=db.pages.updateMany({worldId:"matrix"},{$pull:{akjTabs:{_mig:"f4d"}}});'
+              echo 'print("ROLLBACK: obnoveno convert="+restored+", smazano stub Page="+sp.deletedCount+", stranek ocisteno od f4d zalozek="+pl.modifiedCount);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const docs ="
+              gunzip -c migration/f4d-akj.json.gz
+              echo ";"
+              echo 'const STUB="<p><em>Obsah dostupny pouze pres AKJ.</em></p>";'
+              echo 'let tabs=0,stubMade=0,converted=0,backed=0,noTarget=0,would=0; const miss=[];'
+              echo 'function putTab(slug,tab){ db.pages.updateOne({worldId:"matrix",slug},{$pull:{akjTabs:{id:tab.id}}}); db.pages.updateOne({worldId:"matrix",slug},{$push:{akjTabs:Object.assign({},tab,{_mig:"f4d"})}}); }'
+              echo 'for(const d of docs){'
+              echo '  const now=new Date();'
+              echo '  if(d.stub){'
+              echo '    if(DRY){would++;continue;}'
+              echo '    db.pages.updateOne({worldId:"matrix",slug:d.stubSlug},{$set:{worldId:"matrix",slug:d.stubSlug,type:"Ostatni",title:d.stubTitle,content:(d.stubContent||STUB),plainText:"",imageUrl:"",accessRequirements:[],_mig:"f4d",_migNew:true,updatedAt:now},$setOnInsert:{createdAt:now}},{upsert:true});'
+              echo '    putTab(d.stubSlug,d.tab); stubMade++; tabs++;'
+              echo '  } else if(d.convertStub){'
+              echo '    const ex=db.pages.findOne({worldId:"matrix",slug:d.targetSlug});'
+              echo '    if(!ex){noTarget++;if(miss.length<20)miss.push(d.targetSlug);continue;}'
+              echo '    if(DRY){would++;continue;}'
+              echo '    if(!db.pages_mig_trash_f4d.findOne({slug:d.targetSlug})){ db.pages_mig_trash_f4d.insertOne(Object.assign({},ex,{_trashFrom:"pages"})); backed++; }'
+              echo '    db.pages.updateOne({worldId:"matrix",slug:d.targetSlug},{$set:{content:STUB,plainText:"",imageUrl:"",table:null,accessRequirements:[],_migStub:"f4d",updatedAt:now}});'
+              echo '    putTab(d.targetSlug,d.tab); converted++; tabs++;'
+              echo '  } else {'
+              echo '    const ex=db.pages.findOne({worldId:"matrix",slug:d.targetSlug},{_id:1});'
+              echo '    if(!ex){noTarget++;if(miss.length<20)miss.push(d.targetSlug);continue;}'
+              echo '    if(DRY){would++;continue;}'
+              echo '    putTab(d.targetSlug,d.tab); tabs++;'
+              echo '  }'
+              echo '}'
+              echo 'if(miss.length)print("POZOR bez cilove stranky ("+noTarget+"): "+miss.join(", "));'
+              echo 'print(DRY?("DRY-RUN: zpracovalo by se "+would+" z "+docs.length+" (bez cile "+noTarget+")"):("IMPORT HOTOVO: zalozek "+tabs+" (stub-novy "+stubMade+", leak-convert "+converted+", zaloh "+backed+"), bez cile "+noTarget));'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
