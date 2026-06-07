@@ -1,0 +1,83 @@
+name: Import Matrix PC pages F4b-2 (one-off)
+
+# Importuje VEREJNE stranky 20 PC hracu do Ikaros sveta 'matrix'.
+# Data: migration/f4b2-pc-pages.json.gz.
+#
+# Kazda stranka: type='Postava hrace', slug=char slug, verejny obsah ze stare
+# Postava-page. characterRef se dohleda ZA BEHU pres characterSlug -> karta _id.
+# ownerUserId z dat (F3). Tajne/AKJ zalozky NEJSOU soucasti (resi F4d).
+#
+# BEZPECNOST: idempotentni (existujici slug stranky preskoci), dry-run default,
+# rollback maze jen _mig:'f4b2'. Pred importem spustit cleanup-matrix-dupes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const rp=db.pages.deleteMany({worldId:"matrix",_mig:"f4b2"});'
+              echo 'print("ROLLBACK: smazano PC stranek="+rp.deletedCount);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const docs ="
+              gunzip -c migration/f4b2-pc-pages.json.gz
+              echo ";"
+              echo 'let ins=0,skip=0,noChar=0,would=0; const miss=[];'
+              echo 'for(const p of docs){'
+              echo '  const ex=db.pages.findOne({worldId:"matrix",slug:p.slug},{_id:1});'
+              echo '  if(ex){skip++;continue;}'
+              echo '  const ch=db.characters.findOne({worldId:"matrix",slug:p.characterSlug},{_id:1});'
+              echo '  if(!ch){noChar++;miss.push(p.characterSlug);continue;}'
+              echo '  if(DRY){would++;continue;}'
+              echo '  const now=new Date();'
+              echo '  const {characterSlug,_srcSlug, ...page}=p;'
+              echo '  db.pages.insertOne(Object.assign(page,{characterRef:{characterId:String(ch._id)},_mig:"f4b2",createdAt:now,updatedAt:now}));'
+              echo '  ins++;'
+              echo '}'
+              echo 'if(miss.length)print("POZOR bez karty: "+miss.join(", "));'
+              echo 'print(DRY?("DRY-RUN: vlozilo by se "+would+" stranek, preskoceno "+skip+", bez karty "+noChar+", v souboru "+docs.length):("IMPORT HOTOVO: vlozeno "+ins+" PC stranek, preskoceno "+skip+", bez karty "+noChar));'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js

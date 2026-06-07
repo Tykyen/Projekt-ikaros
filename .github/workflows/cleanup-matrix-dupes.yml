@@ -1,0 +1,88 @@
+name: Cleanup Matrix duplicates F4-cleanup (one-off)
+
+# Uklid balastu z F3/F4a/F4b PRED importem F4b-2:
+#  - 4 duplicitni PC karty (prezdivky teze postavy): katerina, mingguo, kraven, severan (_mig:f3)
+#  - mis-import Lotri: NPC stranka lotri-spielmann + dovytvorena NPC karta lotri-spielmann (_mig:f4b)
+#  - mis-import Myra: Ostatni stranka myra-rosier (_mig:f4a)
+# (shiro-yamada se nikam nenaimportoval -> neni co mazat; F4b-2 ho vytvori cerstve.)
+#
+# BEZPECNOST: pred smazanim ZALOHA do *_mig_trash, restore vraci zpet.
+# Cilene jen na _mig tagovane dokumenty (nikdy rucni data). dry-run default.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, cleanup, restore]
+        default: dry-run
+      confirm:
+        description: 'pro cleanup napis CLEANUP, pro restore RESTORE'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          {
+            echo 'const DUP_CHAR=["katerina","mingguo","kraven","severan"];'
+            echo 'const targets=['
+            echo '  {coll:"characters",trash:"characters_mig_trash",q:{worldId:"matrix",slug:{$in:DUP_CHAR},_mig:"f3"},label:"dup karty"},'
+            echo '  {coll:"characters",trash:"characters_mig_trash",q:{worldId:"matrix",slug:"lotri-spielmann",_mig:"f4b"},label:"Lotri NPC karta"},'
+            echo '  {coll:"pages",trash:"pages_mig_trash",q:{worldId:"matrix",slug:"lotri-spielmann",_mig:"f4b"},label:"Lotri NPC stranka"},'
+            echo '  {coll:"pages",trash:"pages_mig_trash",q:{worldId:"matrix",slug:"myra-rosier",_mig:"f4a"},label:"Myra Ostatni stranka"},'
+            echo '];'
+          } > script.js
+          if [ "$MODE" = "cleanup" ]; then
+            if [ "$CONFIRM" != "CLEANUP" ]; then echo "CHYBA: cleanup vyzaduje confirm=CLEANUP"; exit 1; fi
+            {
+              echo 'let moved=0;'
+              echo 'for(const t of targets){'
+              echo '  const docs=db[t.coll].find(t.q).toArray();'
+              echo '  if(!docs.length){print("  - "+t.label+": 0 (nic)");continue;}'
+              echo '  docs.forEach(d=>d._trashFrom=t.coll);'
+              echo '  db[t.trash].insertMany(docs);'
+              echo '  const r=db[t.coll].deleteMany(t.q);'
+              echo '  moved+=r.deletedCount; print("  - "+t.label+": zalohovano+smazano "+r.deletedCount+"  ["+docs.map(d=>d.slug).join(", ")+"]");'
+              echo '}'
+              echo 'print("CLEANUP HOTOVO: presunuto do trash "+moved+" dokumentu");'
+            } >> script.js
+          elif [ "$MODE" = "restore" ]; then
+            if [ "$CONFIRM" != "RESTORE" ]; then echo "CHYBA: restore vyzaduje confirm=RESTORE"; exit 1; fi
+            {
+              echo 'let back=0;'
+              echo 'for(const tn of ["characters_mig_trash","pages_mig_trash"]){'
+              echo '  const docs=db[tn].find({}).toArray();'
+              echo '  for(const d of docs){const coll=d._trashFrom; delete d._trashFrom; db[coll].insertOne(d); back++;}'
+              echo '  db[tn].deleteMany({});'
+              echo '}'
+              echo 'print("RESTORE HOTOVO: vraceno "+back+" dokumentu, trash vyprazdnen");'
+            } >> script.js
+          else
+            {
+              echo 'let total=0;'
+              echo 'for(const t of targets){const n=db[t.coll].countDocuments(t.q); total+=n; const s=db[t.coll].find(t.q,{slug:1}).toArray().map(d=>d.slug); print("  - "+t.label+": "+n+"  ["+s.join(", ")+"]");}'
+              echo 'print("DRY-RUN: ke smazani celkem "+total+" dokumentu (zaloha do *_mig_trash)");'
+            } >> script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
