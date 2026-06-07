@@ -1,0 +1,90 @@
+name: Import Matrix characters (one-off)
+
+# Importuje migrovane postavy (characters + character_diaries) ze stareho
+# Matrixu do Ikaros sveta 'matrix' na newmatrix. Data: migration/f3-characters.json.
+#
+# BEZPECNOST:
+#   - IDEMPOTENTNI: postava s existujicim slugem (worldId=matrix) se PRESKOCI.
+#   - TAGOVANE: kazdy vlozeny dokument dostane _mig:'f3' -> cisty rollback.
+#   - DRY-RUN je default: jen spocita, NIC nezapise.
+#
+# Spusteni: Actions -> "Import Matrix characters" -> Run workflow:
+#   mode = dry-run            -> jen spocita (NIC nezapise)
+#   mode = import   + IMPORT  -> opravdu vlozi
+#   mode = rollback + ROLLBACK-> smaze vse co tento import vlozil (_mig:f3)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const rc=db.characters.deleteMany({worldId:"matrix",_mig:"f3"});'
+              echo 'const rd=db.character_diaries.deleteMany({worldId:"matrix",_mig:"f3"});'
+              echo 'print("ROLLBACK: smazano characters="+rc.deletedCount+" diaries="+rd.deletedCount);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const docs ="
+              cat migration/f3-characters.json
+              echo ";"
+              echo 'let ins=0,skip=0,would=0;'
+              echo 'for(const d of docs){'
+              echo '  const ex=db.characters.findOne({worldId:"matrix",slug:d.character.slug},{_id:1});'
+              echo '  if(ex){skip++;continue;}'
+              echo '  if(DRY){would++;continue;}'
+              echo '  const now=new Date();'
+              echo '  const c=Object.assign({},d.character); delete c._id;'
+              echo '  const r=db.characters.insertOne(Object.assign(c,{_mig:"f3",createdAt:now,updatedAt:now}));'
+              echo '  const dia=Object.assign({},d.diary); delete dia._id; dia.characterId=String(r.insertedId);'
+              echo '  db.character_diaries.insertOne(Object.assign(dia,{_mig:"f3",createdAt:now,updatedAt:now}));'
+              echo '  ins++;'
+              echo '}'
+              echo 'print(DRY?("DRY-RUN: vlozilo by se "+would+", preskoceno "+skip+", v souboru "+docs.length):("IMPORT HOTOVO: vlozeno "+ins+", preskoceno "+skip+", v souboru "+docs.length));'
+            } > script.js
+          fi
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
