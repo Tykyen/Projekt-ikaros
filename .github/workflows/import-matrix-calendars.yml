@@ -1,0 +1,112 @@
+name: Import Matrix kalendare F7 (one-off)
+
+# Naveze per-entita kalendarni udalosti na postavy/NPC/lokace (calendar subdoc).
+# Data: migration/f7-calendars.json.gz = [{slug, events:[CalendarEvent + _mig:'f7']}].
+# Cil: character_calendars (keyed characterId). Slug -> characters._id -> upsert.
+#
+# Udalosti se MERGUJI podle event.id (idempotentni, nezahodi rucni eventy).
+# start/end uz jsou FantasyDate {year, monthIndex(0-based), day} (gregorian).
+# Marker _mig:'f7' na kazde udalosti. Rollback: $pull tyto eventy + smaz prazdne migracni docs.
+# Spec: docs/arch/migration-matrix/f7-calendars.md (FE repo).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WORLD="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo '(function(){'
+              echo '  const pull=db.character_calendars.updateMany({},{$pull:{events:{_mig:"f7"}}});'
+              echo '  const del=db.character_calendars.deleteMany({_mig:"f7",events:{$size:0}});'
+              echo '  print("ROLLBACK: dotcenych dokumentu="+pull.modifiedCount+", smazano prazdnych migracnich="+del.deletedCount);'
+              echo '})();'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const WORLD=\"$WORLD\";"
+              echo "const docs ="
+              gunzip -c migration/f7-calendars.json.gz
+              echo ";"
+              echo '(function(){'
+              echo '  let oid=null; try{ oid=ObjectId(WORLD); }catch(e){}'
+              echo '  // Robustni lookup: string worldId -> ObjectId worldId -> bez worldId (slug je matrix-specificky).'
+              echo '  function findChar(slug){'
+              echo '    let c=db.characters.findOne({slug:slug,worldId:WORLD},{_id:1,worldId:1});'
+              echo '    if(!c&&oid) c=db.characters.findOne({slug:slug,worldId:oid},{_id:1,worldId:1});'
+              echo '    if(!c) c=db.characters.findOne({slug:slug},{_id:1,worldId:1});'
+              echo '    return c;'
+              echo '  }'
+              echo '  const now=new Date();'
+              echo '  let found=0,noChar=0,created=0,merged=0,skipExisting=0,addedEv=0,hadManual=0;'
+              echo '  const missing=[]; let wTypeSample=null, calWorldSample=null;'
+              echo '  for(const d of docs){'
+              echo '    const ch=findChar(d.slug);'
+              echo '    if(!ch){noChar++;missing.push(d.slug);continue;}'
+              echo '    found++;'
+              echo '    if(wTypeSample===null) wTypeSample=(typeof ch.worldId)+" / "+String(ch.worldId);'
+              echo '    const cid=String(ch._id);'
+              echo '    const cal=db.character_calendars.findOne({characterId:cid});'
+              echo '    if(cal&&calWorldSample===null) calWorldSample=(typeof cal.worldId)+" / "+String(cal.worldId);'
+              echo '    if(!cal){'
+              echo '      created++; addedEv+=d.events.length;'
+              echo '      if(!DRY) db.character_calendars.insertOne({characterId:cid,worldId:ch.worldId,color:"#3B82F6",displaySettings:{},events:d.events,_mig:"f7",createdAt:now,updatedAt:now});'
+              echo '    } else {'
+              echo '      const have=new Set((cal.events||[]).map(function(e){return e.id;}));'
+              echo '      if((cal.events||[]).length>0 && !cal._mig) hadManual++;'
+              echo '      const toAdd=d.events.filter(function(e){return !have.has(e.id);});'
+              echo '      if(toAdd.length){ merged++; addedEv+=toAdd.length; if(!DRY) db.character_calendars.updateOne({characterId:cid},{$push:{events:{$each:toAdd}},$set:{updatedAt:now}}); }'
+              echo '      else skipExisting++;'
+              echo '    }'
+              echo '  }'
+              echo '  print("=== F7 kalendare "+(DRY?"DRY-RUN":"IMPORT")+" ===");'
+              echo '  print("entit v souboru: "+docs.length+" | nalezeno: "+found+" | bez Characteru: "+noChar);'
+              echo '  print("character.worldId vzorek: "+wTypeSample);'
+              echo '  print("existujici character_calendars.worldId vzorek: "+(calWorldSample||"(zadny existujici calendar)"));'
+              echo '  print("calendar: vytvoreno="+created+" merged="+merged+" beze zmeny="+skipExisting+" | udalosti pridano="+addedEv);'
+              echo '  print("pozor - entit s rucne zalozenym calendarem (merge je nezahodi): "+hadManual);'
+              echo '  if(missing.length) print("CHYBI Character pro slugy: "+missing.join(", "));'
+              echo '})();'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
