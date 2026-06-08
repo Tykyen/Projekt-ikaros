@@ -128,6 +128,13 @@ jobs:
               echo '      print("  "+m.slug+" ~ \""+nm+"\" | pages: "+pgStr+" | characters: "+chStr);'
               echo '    }'
               echo '  }'
+              echo '  if(DRY){'
+              echo '    print("--- LOKACE rozsah (oprava moznosti kalendare) ---");'
+              echo '    print("Page.type distribuce: "+JSON.stringify(db.pages.aggregate([{$group:{_id:"$type",n:{$sum:1}}},{$sort:{n:-1}}]).toArray()));'
+              echo '    const locTotal=db.pages.countDocuments({type:"Lokace"});'
+              echo '    const locNoRef=db.pages.countDocuments({type:"Lokace","characterRef.characterId":{$exists:false}});'
+              echo '    print("type=Lokace celkem: "+locTotal+" | bez characterRef (nema moznost kalendare): "+locNoRef);'
+              echo '  }'
               echo '})();'
             } > script.js
           fi
