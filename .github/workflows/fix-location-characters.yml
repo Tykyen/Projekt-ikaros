@@ -1,0 +1,96 @@
+name: Fix Matrix lokace — moznost kalendare (one-off)
+
+# Vsechny Page type=Lokace v matrix svete bez characterRef dostanou lokacni
+# Character (kind:location) + Page.characterRef + prazdny calendar subdoc.
+# Naprava mezeru z F4 (lokacni Character se nevytvoril). Predchudce F7 importu.
+#
+# Idempotentni (skip lokace co uz ma characterRef), tag _mig:'f7loc' na
+# vytvorenych Characterech a calendarech, _migF7LocRef na dotcenych Pages.
+# Rollback maze _mig:'f7loc' + odpojuje Page.characterRef.
+# Spec: docs/arch/migration-matrix/f7-calendars.md (FE repo).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WORLD="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo '(function(){'
+              echo '  const delCal=db.character_calendars.deleteMany({_mig:"f7loc"});'
+              echo '  const unsetPages=db.pages.updateMany({_migF7LocRef:true},{$unset:{characterRef:"",_migF7LocRef:""}});'
+              echo '  const delChar=db.characters.deleteMany({_mig:"f7loc"});'
+              echo '  print("ROLLBACK f7loc: calendars smazano="+delCal.deletedCount+", pages odpojeno="+unsetPages.modifiedCount+", characters smazano="+delChar.deletedCount);'
+              echo '})();'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const WORLD=\"$WORLD\";"
+              echo '(function(){'
+              echo '  let oid=null; try{ oid=ObjectId(WORLD); }catch(e){}'
+              echo '  const locs=db.pages.find({type:"Lokace","characterRef.characterId":{$exists:false}},{slug:1,title:1}).toArray();'
+              echo '  const now=new Date();'
+              echo '  let proc=0,createdChar=0,reusedChar=0,createdCal=0,skipNoSlug=0;'
+              echo '  for(const p of locs){'
+              echo '    if(!p.slug){skipNoSlug++;continue;}'
+              echo '    let ch=db.characters.findOne({worldId:WORLD,slug:p.slug},{_id:1});'
+              echo '    if(!ch&&oid) ch=db.characters.findOne({worldId:oid,slug:p.slug},{_id:1});'
+              echo '    let cid;'
+              echo '    if(ch){ cid=String(ch._id); reusedChar++; }'
+              echo '    else { createdChar++;'
+              echo '      if(!DRY){ const r=db.characters.insertOne({slug:p.slug,name:p.title||p.slug,worldId:WORLD,isNpc:false,kind:"location",diaryData:{},extraBlocks:[],customData:{},preferredCalendarConfigId:null,_mig:"f7loc",createdAt:now,updatedAt:now}); cid=String(r.insertedId); }'
+              echo '      else cid="(dry)";'
+              echo '    }'
+              echo '    if(!DRY){'
+              echo '      db.pages.updateOne({_id:p._id},{$set:{characterRef:{characterId:cid},_migF7LocRef:true}});'
+              echo '      if(!db.character_calendars.findOne({characterId:cid})){ db.character_calendars.insertOne({characterId:cid,worldId:WORLD,color:"#3B82F6",displaySettings:{},events:[],_mig:"f7loc",createdAt:now,updatedAt:now}); createdCal++; }'
+              echo '    } else createdCal++;'
+              echo '    proc++;'
+              echo '  }'
+              echo '  print("=== fix-location-characters "+(DRY?"DRY-RUN":"OSTRE")+" ===");'
+              echo '  print("Lokaci bez characterRef: "+locs.length+" | zpracovano: "+proc+" | bez slugu skip: "+skipNoSlug);'
+              echo '  print("Character: vytvoreno"+(DRY?" by se":"")+"="+createdChar+" reuse existujici="+reusedChar+" | prazdny calendar="+createdCal);'
+              echo '})();'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js

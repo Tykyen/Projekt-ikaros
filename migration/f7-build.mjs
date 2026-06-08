@@ -37,11 +37,20 @@ function toFantasy(d) {
 
 const cals = readBson(SRC);
 
+// Slug-drift: stare Calenders pouzivaji kratky slug, produkcni Ikaros Page
+// ma jiny (prejmenovane entity). Mapa overena dry-run DIAG kandidaty.
+const ALIAS = {
+  john: 'john-willscar',
+  kraven: 'pumi-stin',
+  mingguo: 'li-mingguo',
+};
+
 let skipEmpty = 0, skipTest = 0, skipPlaceholder = 0, totalIn = 0;
 const out = [];
 
 for (const cal of cals) {
-  const base = String(cal.characterSlug || '').replace(/-kalendar$/, '');
+  const rawBase = String(cal.characterSlug || '').replace(/-kalendar$/, '');
+  const base = ALIAS[rawBase] || rawBase;
   const events = cal.events || [];
   if (events.length === 0) { skipEmpty++; continue; }
   if (base === 'test') { skipTest += events.length; continue; }
