@@ -1,0 +1,88 @@
+name: Fix Matrix broken links F5 (one-off)
+
+# Prepise broken interni odkazy v Page.content na spravny slug (postava-mismatch:
+# stary slug jmeno-prijmeni -> realny slug postavy, vc. prezdivek abi/medak/archie).
+# Mapa: migration/f5-links.json.gz (14 mapovani, ~76 odkazu). Slugy jsou [a-z0-9-],
+# regex se zachytavanim zachova pripadny "/" prefix; kratsi slug se neprepise
+# (uzaviraci uvozovka). Pages-only, filtr _mig (akjTabs/leak neresime).
+#
+# dry-run: spocita kolik stranek/odkazu by se zmenilo + vzorek.
+# fix: prepise content, zaloha puvodniho do _migF5Before, flag _migF5Links.
+# rollback: vrati content z _migF5Before, smaze flagy.
+# Idempotent (po prepisu uz stary slug neni; zaloha jen jednou).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, fix, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro fix napis FIX, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (data)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo '(function(){ let n=0;'
+              echo '  db.pages.find({_migF5Links:true}).forEach(function(p){'
+              echo '    db.pages.updateOne({_id:p._id},{$set:{content:p._migF5Before},$unset:{_migF5Links:"",_migF5Before:""}}); n++;'
+              echo '  });'
+              echo '  print("ROLLBACK: vraceno "+n+" stranek");'
+              echo '})();'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "fix" ]; then
+              if [ "$CONFIRM" != "FIX" ]; then echo "CHYBA: fix vyzaduje confirm=FIX"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const MAP ="
+              gunzip -c migration/f5-links.json.gz
+              echo ";"
+              echo '(function(){ let changed=0,refs=0,skip=0; let sample=null;'
+              echo '  for(const m of MAP){ m._re=new RegExp("(\"href\":\"/?)"+m.old+"\"","g"); }'
+              echo '  db.pages.find({_mig:{$exists:true}}).forEach(function(p){'
+              echo '    if(typeof p.content!=="string"){skip++;return;}'
+              echo '    let c=p.content, n=0;'
+              echo '    for(const m of MAP){ const cnt=(c.match(m._re)||[]).length; if(cnt){ n+=cnt; c=c.replace(m._re,"$1"+m.new+"\""); } }'
+              echo '    if(n>0 && c!==p.content){'
+              echo '      if(!sample)sample=p.slug;'
+              echo '      if(!DRY){ const set={content:c,_migF5Links:true,updatedAt:new Date()}; if(p._migF5Before===undefined)set._migF5Before=p.content; db.pages.updateOne({_id:p._id},{$set:set}); }'
+              echo '      changed++; refs+=n;'
+              echo '    }'
+              echo '  });'
+              echo '  print(DRY?("DRY-RUN: zmenilo by se "+changed+" stranek, "+refs+" odkazu (vzorek "+sample+")"):("FIX HOTOVO: stranek "+changed+", odkazu prepsano "+refs));'
+              echo '})();'
+            } > script.js
+          fi
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
