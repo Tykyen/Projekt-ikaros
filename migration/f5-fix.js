@@ -70,6 +70,12 @@ function runFix() {
     });
     print('DEBUG2: table html-href=' + dH + ' json-href=' + dJ + ' wattson/rosier/lindsay/dodwell=' + dW + ' | akj html-href=' + dAH);
     print('DEBUG2 vzorek table buňky: ' + dS);
+    ['abigail', 'abi', 'ministerstvo-lasky', 'robert-dodwell'].forEach(function (s) {
+      var x = db.pages.findOne({ slug: s });
+      print('PG ' + s + ': ' + (x
+        ? ('_mig=' + x._mig + ' _migF5Links=' + x._migF5Links + ' table=' + (x.table && x.table.values ? JSON.stringify(x.table.values).slice(0, 240) : 'BEZ'))
+        : 'NEEXISTUJE'));
+    });
   }
   print(DRY
     ? ('DRY-RUN: zmenilo by se ' + changed + ' stranek, ' + refs + ' odkazu (content+table+akjTabs, vzorek ' + sample + ')')
