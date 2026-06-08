@@ -38,6 +38,10 @@ const LIMIT = args.includes('--limit')
   ? Number(args[args.indexOf('--limit') + 1])
   : Infinity;
 const GROUPS_ONLY = args.includes('--groups');
+// --input <path>: alternativní zdroj [{slug,gdriveId}] (2. kolo NOMAP); bez frakcí
+const INPUT = args.includes('--input')
+  ? args[args.indexOf('--input') + 1]
+  : null;
 const CONCURRENCY = 6;
 const RETRIES = 3;
 const TIMEOUT_MS = 60000;
@@ -65,6 +69,13 @@ function configureCloudinary() {
 // --- sestavení seznamu úkolů ---
 function buildTasks() {
   const tasks = [];
+  // --input: alternativní zdroj (2. kolo), bez frakcí
+  if (INPUT) {
+    const rows = JSON.parse(readFileSync(INPUT, 'utf8'));
+    for (const p of rows)
+      tasks.push({ slug: p.slug, gdriveId: p.gdriveId, folder: 'matrix/pages' });
+    return tasks;
+  }
   if (!GROUPS_ONLY) {
     const pages = JSON.parse(readFileSync(PAGES_IN, 'utf8'));
     for (const p of pages)
