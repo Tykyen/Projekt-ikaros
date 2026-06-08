@@ -52,6 +52,25 @@ function runFix() {
     }
   });
   print('DEBUG: MAP=' + MAP.length + ' pages=' + seen + ' sTable=' + withTable + ' sAkj=' + withAkj);
+  if (DRY) {
+    var dH = 0, dJ = 0, dW = 0, dS = null, dAH = 0;
+    db.pages.find({ _mig: { $exists: true } }).forEach(function (p) {
+      if (p.table) ['headers', 'values'].forEach(function (k) {
+        if (Array.isArray(p.table[k])) p.table[k].forEach(function (c) {
+          if (typeof c === 'string') {
+            dH += (c.match(/href="/g) || []).length;
+            dJ += (c.match(/"href":/g) || []).length;
+            if (/wattson|rosier|of-lindsay|dodwell/i.test(c)) { dW++; if (!dS) dS = c.slice(0, 170); }
+          }
+        });
+      });
+      if (Array.isArray(p.akjTabs)) p.akjTabs.forEach(function (t) {
+        if (t && t.contentOverride && typeof t.contentOverride.content === 'string') dAH += (t.contentOverride.content.match(/href="/g) || []).length;
+      });
+    });
+    print('DEBUG2: table html-href=' + dH + ' json-href=' + dJ + ' wattson/rosier/lindsay/dodwell=' + dW + ' | akj html-href=' + dAH);
+    print('DEBUG2 vzorek table buňky: ' + dS);
+  }
   print(DRY
     ? ('DRY-RUN: zmenilo by se ' + changed + ' stranek, ' + refs + ' odkazu (content+table+akjTabs, vzorek ' + sample + ')')
     : ('FIX HOTOVO: stranek ' + changed + ', odkazu prepsano ' + refs + ' (content+table+akjTabs)'));
