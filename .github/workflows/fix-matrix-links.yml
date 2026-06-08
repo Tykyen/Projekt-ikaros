@@ -49,9 +49,11 @@ jobs:
           if [ "$MODE" = "rollback" ]; then
             if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
             {
-              echo "const MAP=[];"
+              echo "(function(){"
+              echo "var MAP=[];"
               cat migration/f5-fix.js
               echo "runRollback();"
+              echo "})();"
             } > script.js
           else
             DRY=true
@@ -60,12 +62,14 @@ jobs:
               DRY=false
             fi
             {
-              echo "const DRY=$DRY;"
-              echo "const MAP ="
+              echo "(function(){"
+              echo "var DRY=$DRY;"
+              echo "var MAP ="
               gunzip -c migration/f5-links.json.gz
               echo ";"
               cat migration/f5-fix.js
               echo "runFix();"
+              echo "})();"
             } > script.js
           fi
           echo "skript pripraven ($(wc -l < script.js) radku)"

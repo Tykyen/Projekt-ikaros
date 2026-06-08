@@ -12,8 +12,11 @@ function __f5fix(str) {
   return { c: c, n: n };
 }
 function runFix() {
-  let changed = 0, refs = 0, sample = null;
+  let changed = 0, refs = 0, sample = null, seen = 0, withTable = 0, withAkj = 0;
   db.pages.find({ _mig: { $exists: true } }).forEach(function (p) {
+    seen++;
+    if (p.table && typeof p.table === 'object') withTable++;
+    if (Array.isArray(p.akjTabs) && p.akjTabs.length) withAkj++;
     const set = {}; let n = 0;
     // 1) content
     if (typeof p.content === 'string') {
@@ -48,6 +51,7 @@ function runFix() {
       changed++; refs += n;
     }
   });
+  print('DEBUG: MAP=' + MAP.length + ' pages=' + seen + ' sTable=' + withTable + ' sAkj=' + withAkj);
   print(DRY
     ? ('DRY-RUN: zmenilo by se ' + changed + ' stranek, ' + refs + ' odkazu (content+table+akjTabs, vzorek ' + sample + ')')
     : ('FIX HOTOVO: stranek ' + changed + ', odkazu prepsano ' + refs + ' (content+table+akjTabs)'));
