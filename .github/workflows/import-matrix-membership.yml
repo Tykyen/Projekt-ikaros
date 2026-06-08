@@ -1,0 +1,75 @@
+name: Import Matrix membership (one-off)
+
+# Vytvori clenstvi (worldmemberships) pro svet matrix: 22 clenu.
+# Tyky=PJ(5), JohnAdmin=PomocnyPJ(4), ostatni hraci=Korektor(3) + napojeni na
+# postavu (characterPath). Data: migration/f-membership.json.gz.
+#
+# Idempotent (upsert dle userId+worldId). _mig:'fmember' jen pri vytvoreni
+# (Tyky membership ze fix-world zustane _mig:fixworld). Rollback maze fmember.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (data)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const r=db.worldmemberships.deleteMany({_mig:"fmember"});'
+              echo 'print("ROLLBACK: smazano clenstvi="+r.deletedCount+" (Tyky/fixworld ponechano)");'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const docs ="
+              gunzip -c migration/f-membership.json.gz
+              echo ";"
+              echo '(function(){ let ins=0,upd=0,would=0; const now=new Date();'
+              echo '  for(const m of docs){'
+              echo '    if(DRY){would++;continue;}'
+              echo '    const ex=db.worldmemberships.findOne({userId:m.userId,worldId:m.worldId},{_id:1});'
+              echo '    db.worldmemberships.updateOne({userId:m.userId,worldId:m.worldId},{$set:{userId:m.userId,worldId:m.worldId,role:m.role,akj:m.akj,isFree:m.isFree,characterPath:m.characterPath,updatedAt:now},$setOnInsert:{joinedAt:now,_mig:"fmember"}},{upsert:true});'
+              echo '    if(ex)upd++;else ins++;'
+              echo '  }'
+              echo '  print(DRY?("DRY-RUN: vytvorilo/aktualizovalo by se "+would+" clenstvi"):("IMPORT HOTOVO: vlozeno "+ins+", aktualizovano "+upd+" clenstvi (PJ Tyky, PomocnyPJ JohnAdmin, Korektor zbytek)"));'
+              echo '})();'
+            } > script.js
+          fi
+          echo "skript pripraven"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
