@@ -62,10 +62,11 @@ jobs:
               echo '  for(const m of docs){'
               echo '    if(DRY){would++;continue;}'
               echo '    const ex=db.worldmemberships.findOne({userId:m.userId,worldId:m.worldId},{_id:1});'
-              echo '    db.worldmemberships.updateOne({userId:m.userId,worldId:m.worldId},{$set:{userId:m.userId,worldId:m.worldId,role:m.role,akj:m.akj,isFree:m.isFree,characterPath:m.characterPath,updatedAt:now},$setOnInsert:{joinedAt:now,_mig:"fmember"}},{upsert:true});'
+              echo '    db.worldmemberships.updateOne({userId:m.userId,worldId:m.worldId},{$set:{userId:m.userId,worldId:m.worldId,role:m.role,akj:m.akj,isFree:m.isFree,characterPath:m.characterPath,group:(m.group||null),updatedAt:now},$setOnInsert:{joinedAt:now,_mig:"fmember"}},{upsert:true});'
               echo '    if(ex)upd++;else ins++;'
               echo '  }'
-              echo '  print(DRY?("DRY-RUN: vytvorilo/aktualizovalo by se "+would+" clenstvi"):("IMPORT HOTOVO: vlozeno "+ins+", aktualizovano "+upd+" clenstvi (PJ Tyky, PomocnyPJ JohnAdmin, Korektor zbytek)"));'
+              echo '  if(!DRY)db.worldsettings.updateOne({worldId:"6d6174726978000000000001"},{$set:{customGroups:["Evropani","Lumíci","MI6"],groupColors:{"Evropani":"#3b82f6","Lumíci":"#a855f7","MI6":"#ef4444"},groupImages:{"Evropani":"1jO_-DIWWWhJwZ4W0JjSbojuWQJZj3A-7","Lumíci":"1gB6xYOsXgAQZyJUZblPU19REme4G5a1N","MI6":"1wk5Yr5dbOlRtd_TxqwvkKs_7GKAYxvqT"}}},{upsert:true});'
+              echo '  print(DRY?("DRY-RUN: vytvorilo/aktualizovalo by se "+would+" clenstvi (15 ve frakci Evropani/Lumici/MI6)"):("IMPORT HOTOVO: vlozeno "+ins+", aktualizovano "+upd+" clenstvi + 3 frakce (PJ Tyky, PomocnyPJ JohnAdmin, Korektor zbytek)"));'
               echo '})();'
             } > script.js
           fi
