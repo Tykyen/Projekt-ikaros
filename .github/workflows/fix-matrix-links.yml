@@ -2,15 +2,15 @@ name: Fix Matrix broken links F5 (one-off)
 
 # Prepise broken interni odkazy v Page.content na spravny slug (postava-mismatch:
 # stary slug jmeno-prijmeni -> realny slug postavy, vc. prezdivek abi/medak/archie).
-# Mapa: migration/f5-links.json.gz (14 mapovani, ~76 odkazu). Slugy jsou [a-z0-9-],
-# regex (href="/?<old>") se zachytavanim zachova pripadny "/" prefix; kratsi slug
-# se neprepise (uzaviraci uvozovka). Pozor: content je HTML (po fix-content-html),
-# NE TipTap JSON -> regex cili HTML atribut href="...". Pages-only, filtr _mig.
+# Mapa: migration/f5-links.json.gz (14 mapovani). Logika: migration/f5-fix.js.
+# Prepisuje na 3 mistech: Page.content + Page.table (headers/values) + Page.akjTabs
+# (contentOverride.content). Slugy [a-z0-9-]; regex (href="/?<old>") zachova "/"
+# prefix, kratsi slug netknut. Content je HTML (po fix-content-html), regex cili
+# atribut href="...". Per-pole zaloha (_migF5Before/_migF5TableBefore/_migF5AkjBefore)
+# jen jednou -> idempotentni i napric behy. Filtr _mig.
 #
-# dry-run: spocita kolik stranek/odkazu by se zmenilo + vzorek.
-# fix: prepise content, zaloha puvodniho do _migF5Before, flag _migF5Links.
-# rollback: vrati content z _migF5Before, smaze flagy.
-# Idempotent (po prepisu uz stary slug neni; zaloha jen jednou).
+# dry-run: spocita stranky/odkazy + vzorek.   fix: prepise + zaloha + flag _migF5Links.
+# rollback: vrati vsechna 3 pole ze zaloh, smaze flagy.
 
 on:
   workflow_dispatch:
@@ -49,12 +49,9 @@ jobs:
           if [ "$MODE" = "rollback" ]; then
             if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
             {
-              echo '(function(){ let n=0;'
-              echo '  db.pages.find({_migF5Links:true}).forEach(function(p){'
-              echo '    db.pages.updateOne({_id:p._id},{$set:{content:p._migF5Before},$unset:{_migF5Links:"",_migF5Before:""}}); n++;'
-              echo '  });'
-              echo '  print("ROLLBACK: vraceno "+n+" stranek");'
-              echo '})();'
+              echo "const MAP=[];"
+              cat migration/f5-fix.js
+              echo "runRollback();"
             } > script.js
           else
             DRY=true
@@ -67,20 +64,8 @@ jobs:
               echo "const MAP ="
               gunzip -c migration/f5-links.json.gz
               echo ";"
-              echo '(function(){ let changed=0,refs=0,skip=0; let sample=null;'
-              echo '  for(const m of MAP){ m._re=new RegExp("(href=\"/?)"+m.old+"\"","g"); }'
-              echo '  db.pages.find({_mig:{$exists:true}}).forEach(function(p){'
-              echo '    if(typeof p.content!=="string"){skip++;return;}'
-              echo '    let c=p.content, n=0;'
-              echo '    for(const m of MAP){ const cnt=(c.match(m._re)||[]).length; if(cnt){ n+=cnt; c=c.replace(m._re,"$1"+m.new+"\""); } }'
-              echo '    if(n>0 && c!==p.content){'
-              echo '      if(!sample)sample=p.slug;'
-              echo '      if(!DRY){ const set={content:c,_migF5Links:true,updatedAt:new Date()}; if(p._migF5Before===undefined)set._migF5Before=p.content; db.pages.updateOne({_id:p._id},{$set:set}); }'
-              echo '      changed++; refs+=n;'
-              echo '    }'
-              echo '  });'
-              echo '  print(DRY?("DRY-RUN: zmenilo by se "+changed+" stranek, "+refs+" odkazu (vzorek "+sample+")"):("FIX HOTOVO: stranek "+changed+", odkazu prepsano "+refs));'
-              echo '})();'
+              cat migration/f5-fix.js
+              echo "runFix();"
             } > script.js
           fi
           echo "skript pripraven ($(wc -l < script.js) radku)"
