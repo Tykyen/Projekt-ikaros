@@ -26,7 +26,7 @@ function runFix() {
   var changed = 0, skipDone = 0, skipNoMap = 0, viaTrue = 0, sample = null;
   // diagnostika: cílíme podle TVARU imageUrl (GDrive ID / "true"), ne podle _mig
   // markeru — ten chytal jen základní pages, ne NPC/PC (jiný marker, ~960 stránek).
-  var noMapSamples = [], worldIds = {};
+  var noMapSamples = [], worldIds = {}, noMapFull = [];
   db.pages.find({ imageUrl: { $type: 'string', $ne: '' } }).forEach(function (p) {
     var cur = p.imageUrl;
     if (cur.indexOf(CLOUD) !== -1) { skipDone++; return; } // už rehostnuto (idempotence)
@@ -47,6 +47,7 @@ function runFix() {
     var rec = gid ? L.byId[gid] : null;
     if (!rec || !rec.secure_url) {
       skipNoMap++;
+      noMapFull.push({ slug: p.slug, imageUrl: cur }); // plný seznam pro 2. kolo uploadu
       if (noMapSamples.length < 10)
         noMapSamples.push(p.slug + '[' + (isTrue ? 'true' : cur.slice(0, 8)) + ',w=' + wid + ']');
       return;
@@ -62,6 +63,7 @@ function runFix() {
   var widStr = Object.keys(worldIds).map(function (k) { return k + '=' + worldIds[k]; }).join(', ');
   print('DIAG worldId kandidátů: ' + widStr);
   if (noMapSamples.length) print('DIAG bez-mapy vzorky: ' + noMapSamples.join(' | '));
+  if (noMapFull.length) print('NOMAP=' + JSON.stringify(noMapFull)); // celý seznam (1 řádek) pro 2. kolo
 
   // znaky frakcí (worldsettings.groupImages)
   var grpChanged = 0;
