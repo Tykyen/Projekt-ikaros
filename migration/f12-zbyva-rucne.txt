@@ -1,0 +1,38 @@
+# F12 — zbývá ručně vyčistit (imageUrl="true", bez GDrive ID v datech)
+
+## Stránka (1)
+- mapa-sveta  (Page.imageUrl)
+
+## AKJ záložky (32) — Page.akjTabs[].contentOverride.imageUrl
+- AKJ  abi  →  zalozka "Tajné"
+- AKJ  abi-demon  →  zalozka "Ledový dům"
+- AKJ  benedict-hunter  →  zalozka "AKJ 7"
+- AKJ  daniel-wox  →  zalozka "AKJ 6"
+- AKJ  ixs-excaliber  →  zalozka "Utajený archiv (AKJ 3)"
+- AKJ  vnejsi-nakres-bvc  →  zalozka "Utajený archiv (AKJ 3)"
+- AKJ  princeznin-hrad  →  zalozka "Utajený archiv"
+- AKJ  vzhled-princeznina-jidelna  →  zalozka "Utajený archiv"
+- AKJ  vzhled-princeznin-pokoj  →  zalozka "Utajený archiv"
+- AKJ  vzhled-helsinguv-pokoj  →  zalozka "Utajený archiv"
+- AKJ  ydalir-vzled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  valaskjalfr-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  ydramir-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  portavellum-vzhled  →  zalozka "Utajený archiv (AKJ 8)"
+- AKJ  neferus-shaar-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  kaelmorgun-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  uruk-zerath-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  qazari-prime-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  rakennys-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  hofskringla-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  thurisaz-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  healrun-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  polis-aethera-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  caelum-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  dolorum-vzhled  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  ledovy-ostrov-vzhled  →  zalozka "Utajený archiv"
+- AKJ  vila-billy-wattson  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  rodokmen-madregal  →  zalozka "Utajený archiv (AKJ 10)"
+- AKJ  rodina-dodwell  →  zalozka "Utajený archiv"
+- AKJ  akasha  →  zalozka "Utajený archiv"
+- AKJ  dzinka  →  zalozka "Utajený archiv"
+- AKJ  mysticka-princezna  →  zalozka "Utajený archiv"
