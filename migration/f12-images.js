@@ -12,6 +12,15 @@
 var GID_RE = /^[A-Za-z0-9_-]{33}$/;
 var CLOUD = 'res.cloudinary.com';
 
+// slugifikace názvu AKJ záložky → slug stránky (pro záchranu AKJ "true", které
+// odkazují na stejnojmennou stránku, např. "Zubní víly" → "zubni-vily").
+function slugify(s) {
+  return String(s).toLowerCase().normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function buildLookups() {
   var byId = {}, bySlug = {};
   for (var i = 0; i < MAP.length; i++) {
@@ -27,7 +36,7 @@ function runFix() {
   var changed = 0, skipDone = 0, skipNoMap = 0, viaTrue = 0, sample = null;
   var noMapSamples = [], worldIds = {}, noMapFull = [];
   // AKJ countery
-  var akjTabsFixed = 0, akjPages = 0, akjSkipDone = 0, akjNoMap = 0, akjTrue = 0, akjNoMapFull = [];
+  var akjTabsFixed = 0, akjPages = 0, akjSkipDone = 0, akjNoMap = 0, akjTrue = 0, akjTrueFixed = 0, akjNoMapFull = [];
 
   // filtr: stránky s imageUrl NEBO s aspoň 1 AKJ tabem (AKJ-only stub má imageUrl prázdné)
   db.pages
@@ -73,7 +82,13 @@ function runFix() {
           var iu = co.imageUrl;
           if (typeof iu !== 'string' || iu === '') continue;
           if (iu.indexOf(CLOUD) !== -1) { akjSkipDone++; continue; }
-          if (iu === 'true') { akjTrue++; continue; } // bez ID — neřešitelné
+          if (iu === 'true') {
+            // bez ID — zkus záchranu: název záložky → stejnojmenná stránka v mapě
+            var trec = L.bySlug[slugify(tabs[i].name)];
+            if (trec && trec.secure_url) { co.imageUrl = trec.secure_url; tabHit = true; akjTrueFixed++; }
+            else akjTrue++;
+            continue;
+          }
           if (!GID_RE.test(iu)) continue;
           var arec = L.byId[iu];
           if (!arec || !arec.secure_url) {
@@ -126,7 +141,8 @@ function runFix() {
   print(
     (DRY ? 'DRY-RUN: ' : 'FIX HOTOVO: ') +
     'stranky=' + changed + ' (pres slug/true=' + viaTrue + '), ' +
-    'AKJ-taby=' + akjTabsFixed + ' (na ' + akjPages + ' strankach), frakce-ws=' + grpChanged +
+    'AKJ-taby=' + akjTabsFixed + ' (na ' + akjPages + ' strankach), AKJ-true-zachraneno=' + akjTrueFixed +
+    ', frakce-ws=' + grpChanged +
     ' | preskoceno: stranky-hotovo=' + skipDone + ', AKJ-hotovo=' + akjSkipDone +
     ' | bez-mapy: stranky=' + skipNoMap + ', AKJ=' + akjNoMap + ', AKJ-true=' + akjTrue +
     (sample ? ' | vzorek: ' + sample : '')
