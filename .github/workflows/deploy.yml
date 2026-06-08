@@ -89,16 +89,16 @@ jobs:
 
       - name: Build images
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
             set -e
             cd "$DEPLOY_PATH"
             docker image prune -f
-            docker compose -f "$COMPOSE_FILE" build --no-cache
+            docker compose -f "$COMPOSE_FILE" build
           EOF
 
       - name: Deploy
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
+          ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20 ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} 'DEPLOY_PATH="${{ env.DEPLOY_PATH }}" COMPOSE_FILE="${{ env.COMPOSE_FILE }}" bash -se' << 'EOF'
             set -e
             cd "$DEPLOY_PATH"
             docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
