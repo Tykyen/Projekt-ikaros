@@ -1,0 +1,47 @@
+name: Diagnose world-news leak (read-only)
+
+# READ-ONLY: proc se novinka propisuje do jineho sveta.
+# Vypise novinky "Pokus", worldId distribuci + jmena svetu, pocet null-worldId. NIC nemeni.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        run: |
+          {
+            echo '(function(){'
+            echo '  function wname(id){ if(id===null) return "(GLOBALNI/null)"; var w=db.worlds.findOne({_id:(function(){try{return ObjectId(String(id));}catch(e){return id;}})()})||db.worlds.findOne({_id:id}); return w?w.name+" ["+w.slug+"]":"???"; }'
+            echo '  print("===== Novinky title ~ Pokus =====");'
+            echo '  var hits=db.worldnews.find({title:/Pokus/i}).toArray();'
+            echo '  print("nalezeno: "+hits.length);'
+            echo '  hits.forEach(function(n){ print("  \""+n.title+"\" | worldId="+JSON.stringify(n.worldId)+" -> "+wname(n.worldId)+" | type="+n.type+" | date="+n.date+" | archived="+n.archived); });'
+            echo '  print("");'
+            echo '  print("===== Souhrn worldnews =====");'
+            echo '  print("celkem: "+db.worldnews.countDocuments({}));'
+            echo '  print("worldId=null: "+db.worldnews.countDocuments({worldId:null}));'
+            echo '  print("worldId chybi (no field): "+db.worldnews.countDocuments({worldId:{$exists:false}}));'
+            echo '  print("");'
+            echo '  print("===== worldId distribuce (kazda hodnota -> svet, pocet) =====");'
+            echo '  db.worldnews.aggregate([{$group:{_id:"$worldId",n:{$sum:1}}},{$sort:{n:-1}}]).toArray().forEach(function(s){ print("  "+JSON.stringify(s._id)+" -> "+wname(s._id)+" : "+s.n); });'
+            echo '  print("");'
+            echo '  print("===== typeof worldId vzorek (prvni 5) =====");'
+            echo '  db.worldnews.find({},{title:1,worldId:1}).limit(5).toArray().forEach(function(n){ print("  \""+n.title+"\": typeof="+(typeof n.worldId)+" val="+JSON.stringify(n.worldId)); });'
+            echo '})();'
+          } > script.js
+          echo "skript pripraven"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
