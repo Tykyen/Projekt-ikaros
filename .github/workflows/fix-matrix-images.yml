@@ -1,0 +1,76 @@
+name: Fix Matrix images F12 (one-off)
+
+# Prepise GDrive file ID v Page.imageUrl (a worldsettings.groupImages) na rehostnute
+# Cloudinary webp URL. Mapa: migration/f12-map.json.gz (fáze A, lokalni upload skript
+# migration/f12-upload.mjs). Logika: migration/f12-images.js.
+# Parovani: page.imageUrl = GDrive ID (33 znaku) -> primy lookup; "true" (poskozeno
+# krokem F4) -> pres slug. Idempotence: imageUrl uz na res.cloudinary.com se preskoci.
+# Zaloha _migImgBefore / _migGroupImagesBefore jen jednou -> idempotentni napric behy.
+#
+# dry-run: spocita stranky/frakce + vzorek.  fix: prepise + zaloha + flag _migF12.
+# rollback: vrati imageUrl + groupImages ze zaloh, smaze flagy.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, fix, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro fix napis FIX, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (data)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo "(function(){"
+              echo "var MAP=[];"
+              cat migration/f12-images.js
+              echo "runRollback();"
+              echo "})();"
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "fix" ]; then
+              if [ "$CONFIRM" != "FIX" ]; then echo "CHYBA: fix vyzaduje confirm=FIX"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "(function(){"
+              echo "var DRY=$DRY;"
+              echo "var MAP ="
+              gunzip -c migration/f12-map.json.gz
+              echo ";"
+              cat migration/f12-images.js
+              echo "runFix();"
+              echo "})();"
+            } > script.js
+          fi
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
