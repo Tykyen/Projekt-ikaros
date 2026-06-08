@@ -16,7 +16,7 @@ on:
       mode:
         description: 'rezim'
         type: choice
-        options: [dry-run, fix, rollback]
+        options: [dry-run, fix, rollback, dump]
         default: dry-run
       confirm:
         description: 'pro fix napis FIX, pro rollback ROLLBACK'
@@ -53,6 +53,14 @@ jobs:
               echo "runRollback();"
               echo "})();"
             } > script.js
+          elif [ "$MODE" = "dump" ]; then
+            {
+              echo "(function(){"
+              echo "var MAP=[];"
+              cat migration/f12-images.js
+              echo "runDump();"
+              echo "})();"
+            } > script.js
           else
             DRY=true
             if [ "$MODE" = "fix" ]; then
@@ -73,4 +81,17 @@ jobs:
           echo "skript pripraven ($(wc -l < script.js) radku)"
       - name: Run on newmatrix
         run: |
-          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js | tee run-output.txt
+      - name: Extract CSV (dump)
+        if: ${{ github.event.inputs.mode == 'dump' }}
+        run: |
+          printf '\xEF\xBB\xBF' > matrix-stranky.csv
+          echo "slug,nazev,typ,obrazek_stav,imageUrl,akj_zalozek,akj_obr_ok,akj_obr_chybi" >> matrix-stranky.csv
+          grep '@@' run-output.txt | sed 's/^.*@@//' >> matrix-stranky.csv
+          echo "CSV radku (bez hlavicky): $(( $(wc -l < matrix-stranky.csv) - 1 ))"
+      - name: Upload CSV artifact (dump)
+        if: ${{ github.event.inputs.mode == 'dump' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrix-stranky-csv
+          path: matrix-stranky.csv

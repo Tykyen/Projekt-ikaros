@@ -149,6 +149,38 @@ function runFix() {
   );
 }
 
+// CSV dump VŠECH stránek matrix světa (přesný produkční stav) — pro ruční audit.
+// Vypisuje řádky s prefixem "@@" (workflow je vyfiltruje do .csv artifactu).
+function csvEsc(v) {
+  v = String(v == null ? '' : v);
+  return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function runDump() {
+  var WID = '6d6174726978000000000001';
+  db.pages.find({ worldId: WID }).forEach(function (p) {
+    var iu = p.imageUrl;
+    var stav =
+      typeof iu === 'string' && iu.indexOf(CLOUD) !== -1 ? 'opraveno'
+      : iu === 'true' ? 'ROZBITY-true'
+      : typeof iu === 'string' && GID_RE.test(iu) ? 'NEopraveno-gdrive'
+      : typeof iu === 'string' && iu !== '' ? 'jina-url'
+      : 'bez-obrazku';
+    var at = 0, aok = 0, ach = 0;
+    if (Array.isArray(p.akjTabs)) {
+      for (var i = 0; i < p.akjTabs.length; i++) {
+        at++;
+        var co = p.akjTabs[i] && p.akjTabs[i].contentOverride;
+        var ai = co && co.imageUrl;
+        if (typeof ai === 'string' && ai.indexOf(CLOUD) !== -1) aok++;
+        else if (ai === 'true') ach++;
+      }
+    }
+    var row = [p.slug, p.title || p.name || '', p.type || '', stav, iu || '', at, aok, ach]
+      .map(csvEsc).join(',');
+    print('@@' + row);
+  });
+}
+
 function runRollback() {
   var n = 0, g = 0;
   db.pages.find({ _migF12: true }).forEach(function (p) {
