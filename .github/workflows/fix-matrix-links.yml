@@ -3,8 +3,9 @@ name: Fix Matrix broken links F5 (one-off)
 # Prepise broken interni odkazy v Page.content na spravny slug (postava-mismatch:
 # stary slug jmeno-prijmeni -> realny slug postavy, vc. prezdivek abi/medak/archie).
 # Mapa: migration/f5-links.json.gz (14 mapovani, ~76 odkazu). Slugy jsou [a-z0-9-],
-# regex se zachytavanim zachova pripadny "/" prefix; kratsi slug se neprepise
-# (uzaviraci uvozovka). Pages-only, filtr _mig (akjTabs/leak neresime).
+# regex (href="/?<old>") se zachytavanim zachova pripadny "/" prefix; kratsi slug
+# se neprepise (uzaviraci uvozovka). Pozor: content je HTML (po fix-content-html),
+# NE TipTap JSON -> regex cili HTML atribut href="...". Pages-only, filtr _mig.
 #
 # dry-run: spocita kolik stranek/odkazu by se zmenilo + vzorek.
 # fix: prepise content, zaloha puvodniho do _migF5Before, flag _migF5Links.
@@ -67,7 +68,7 @@ jobs:
               gunzip -c migration/f5-links.json.gz
               echo ";"
               echo '(function(){ let changed=0,refs=0,skip=0; let sample=null;'
-              echo '  for(const m of MAP){ m._re=new RegExp("(\"href\":\"/?)"+m.old+"\"","g"); }'
+              echo '  for(const m of MAP){ m._re=new RegExp("(href=\"/?)"+m.old+"\"","g"); }'
               echo '  db.pages.find({_mig:{$exists:true}}).forEach(function(p){'
               echo '    if(typeof p.content!=="string"){skip++;return;}'
               echo '    let c=p.content, n=0;'
