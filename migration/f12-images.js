@@ -24,22 +24,33 @@ function buildLookups() {
 function runFix() {
   var L = buildLookups();
   var changed = 0, skipDone = 0, skipNoMap = 0, viaTrue = 0, sample = null;
-  db.pages.find({ _mig: { $exists: true } }).forEach(function (p) {
+  // diagnostika: cílíme podle TVARU imageUrl (GDrive ID / "true"), ne podle _mig
+  // markeru — ten chytal jen základní pages, ne NPC/PC (jiný marker, ~960 stránek).
+  var noMapSamples = [], worldIds = {};
+  db.pages.find({ imageUrl: { $type: 'string', $ne: '' } }).forEach(function (p) {
     var cur = p.imageUrl;
-    if (typeof cur !== 'string' || cur === '') return; // bez obrázku
     if (cur.indexOf(CLOUD) !== -1) { skipDone++; return; } // už rehostnuto (idempotence)
 
-    // urči gdriveId
+    // je to vůbec kandidát? (GDrive ID nebo poškozené "true") — jinak ignoruj
+    var isTrue = (cur === 'true');
     var gid = GID_RE.test(cur) ? cur : null;
-    if (!gid) {
-      // poškozené (např. "true") → přes slug
+    if (!gid && !isTrue) return; // normální URL / jiný obsah — necílíme
+
+    // diag: worldId distribuce kandidátů
+    var wid = String(p.worldId);
+    worldIds[wid] = (worldIds[wid] || 0) + 1;
+
+    if (!gid && isTrue) {
       var bySlug = L.bySlug[p.slug];
       if (bySlug) { gid = bySlug.gdriveId; viaTrue++; }
     }
-    if (!gid) { skipNoMap++; return; }
-
-    var rec = L.byId[gid];
-    if (!rec || !rec.secure_url) { skipNoMap++; return; }
+    var rec = gid ? L.byId[gid] : null;
+    if (!rec || !rec.secure_url) {
+      skipNoMap++;
+      if (noMapSamples.length < 10)
+        noMapSamples.push(p.slug + '[' + (isTrue ? 'true' : cur.slice(0, 8)) + ',w=' + wid + ']');
+      return;
+    }
 
     var set = { imageUrl: rec.secure_url, _migF12: true, updatedAt: new Date() };
     if (p._migImgBefore === undefined) set._migImgBefore = cur; // záloha jen poprvé
@@ -47,6 +58,10 @@ function runFix() {
     if (!sample) sample = p.slug + ' → ' + rec.secure_url;
     changed++;
   });
+  // diag výpis
+  var widStr = Object.keys(worldIds).map(function (k) { return k + '=' + worldIds[k]; }).join(', ');
+  print('DIAG worldId kandidátů: ' + widStr);
+  if (noMapSamples.length) print('DIAG bez-mapy vzorky: ' + noMapSamples.join(' | '));
 
   // znaky frakcí (worldsettings.groupImages)
   var grpChanged = 0;
