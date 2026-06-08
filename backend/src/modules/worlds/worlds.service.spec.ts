@@ -3,6 +3,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  GoneException,
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -45,6 +46,8 @@ describe('WorldsService', () => {
     renameSlug: jest.fn(),
     existsBySlug: jest.fn(),
     findByOwnerId: jest.fn(),
+    findDeleted: jest.fn(),
+    findExpiredDeleted: jest.fn(),
     increment: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -2050,6 +2053,116 @@ describe('WorldsService', () => {
       );
       const call = mockSettingsRepo.upsert.mock.calls[0][1];
       expect(call).not.toHaveProperty('timelineCalendarSlug');
+    });
+  });
+
+  describe('soft-delete recovery (softDelete / restore / account vazba)', () => {
+    const admin = { id: 'adm', role: UserRole.Admin, username: 'adm' };
+
+    beforeEach(() => {
+      mockWorldsRepo.findById.mockResolvedValue({ ...mockWorld });
+      mockWorldsRepo.update.mockResolvedValue({ ...mockWorld });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+    });
+
+    it('softDelete: PJ vlastník → isActive:false + deletedAt + deletedBy', async () => {
+      await service.softDelete('world1', mockRequester);
+      expect(mockWorldsRepo.update).toHaveBeenCalledWith(
+        'world1',
+        expect.objectContaining({ isActive: false, deletedBy: 'user1' }),
+      );
+      const patch = mockWorldsRepo.update.mock.calls[0][1];
+      expect(patch.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('softDelete: už smazaný svět → 400', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        ...mockWorld,
+        deletedAt: new Date(),
+      });
+      await expect(service.softDelete('world1', mockRequester)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('restore: ne-admin (Ikarus) → 403', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        ...mockWorld,
+        deletedAt: new Date(),
+      });
+      await expect(service.restore('world1', mockRequester)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('restore: Admin v okně → isActive:true + clear deletedAt', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        ...mockWorld,
+        deletedAt: new Date(),
+      });
+      await service.restore('world1', admin);
+      expect(mockWorldsRepo.update).toHaveBeenCalledWith(
+        'world1',
+        expect.objectContaining({
+          isActive: true,
+          deletedAt: null,
+          deletedBy: null,
+        }),
+      );
+    });
+
+    it('restore: po 30 dnech → 410 Gone', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        ...mockWorld,
+        deletedAt: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+      });
+      await expect(service.restore('world1', admin)).rejects.toThrow(
+        GoneException,
+      );
+    });
+
+    it('restore: svět není smazaný → 400', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        ...mockWorld,
+        deletedAt: null,
+      });
+      await expect(service.restore('world1', admin)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('restore s newOwnerId přiřadí nového vlastníka', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        ...mockWorld,
+        deletedAt: new Date(),
+      });
+      await service.restore('world1', admin, 'newOwner');
+      expect(mockWorldsRepo.update).toHaveBeenCalledWith(
+        'world1',
+        expect.objectContaining({ ownerId: 'newOwner' }),
+      );
+    });
+
+    it('listDeleted: ne-admin → 403', async () => {
+      await expect(service.listDeleted(mockRequester)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('onOwnerAccountHardDeleted soft-smaže vlastněné světy (pojistka)', async () => {
+      mockWorldsRepo.findByOwnerId.mockResolvedValue([
+        { ...mockWorld, deletedAt: null },
+      ]);
+      await service.onOwnerAccountHardDeleted({ userId: 'user1' });
+      expect(mockWorldsRepo.update).toHaveBeenCalledWith(
+        'world1',
+        expect.objectContaining({
+          isActive: false,
+          deletedBy: 'system:account-deleted',
+        }),
+      );
     });
   });
 });

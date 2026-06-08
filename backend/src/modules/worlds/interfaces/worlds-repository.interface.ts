@@ -10,6 +10,8 @@ export interface IWorldsRepository {
   renameSlug(worldId: string, newSlug: string): Promise<World | null>;
   existsBySlug(slug: string): Promise<boolean>;
   findByOwnerId(ownerId: string): Promise<World[]>;
+  findDeleted(): Promise<World[]>;
+  findExpiredDeleted(cutoff: Date): Promise<World[]>;
   findAll(): Promise<World[]>;
   increment(id: string, field: string, by: number): Promise<void>;
   save(world: Partial<World>): Promise<World>;

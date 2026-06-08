@@ -25,6 +25,10 @@ export class WorldSchemaClass {
   @Prop({ default: 'matrix' }) system: string;
   @Prop({ required: true }) ownerId: string;
   @Prop({ default: true }) isActive: boolean;
+  // Soft-delete recovery — `deletedAt` != null => svet je v 30denním okně pro
+  // obnovu (Admin/Superadmin). Po okně cron hard-delete. `deletedBy` = audit.
+  @Prop({ type: Date, default: null }) deletedAt: Date | null;
+  @Prop({ type: String, default: null }) deletedBy: string | null;
   @Prop({ default: 'private' }) accessMode: string;
   @Prop({ type: [{ slug: String, name: String }], default: [] })
   offeredCharacters: { slug: string; name: string }[];

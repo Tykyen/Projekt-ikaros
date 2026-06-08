@@ -1765,6 +1765,20 @@ export class ChatService implements OnApplicationBootstrap {
     }
   }
 
+  /** Obnova světa (do 30 dní) — un-soft-delete kanálů i zpráv. Párový k `world.deleted`. */
+  @OnEvent('world.restored')
+  async handleWorldRestored(payload: { worldId: string }): Promise<void> {
+    try {
+      await this.channelRepo.restoreByWorldId(payload.worldId);
+      await this.messageRepo.restoreByWorldId(payload.worldId);
+    } catch (err) {
+      this.logger.error(
+        `handleWorldRestored failed for world ${payload.worldId}`,
+        err,
+      );
+    }
+  }
+
   // ─── System messages (weather broadcast, etc.) ────────────────────────────
 
   async createSystemMessage(

@@ -66,6 +66,7 @@ describe('GlobalChatService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       softDeleteByWorldId: jest.fn(),
+      restoreByWorldId: jest.fn(),
       bulkUpdateOrders: jest.fn(),
     };
 
@@ -81,6 +82,7 @@ describe('GlobalChatService', () => {
       update: jest.fn(),
       softDeleteByChannelId: jest.fn(),
       softDeleteByWorldId: jest.fn(),
+      restoreByWorldId: jest.fn(),
       addReaction: jest.fn(),
       removeReaction: jest.fn(),
       pruneChannel: jest.fn(),

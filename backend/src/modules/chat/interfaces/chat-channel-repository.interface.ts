@@ -11,6 +11,7 @@ export interface IChatChannelRepository {
   update(id: string, data: Partial<ChatChannel>): Promise<ChatChannel | null>;
   delete(id: string): Promise<boolean>;
   softDeleteByWorldId(worldId: string): Promise<void>;
+  restoreByWorldId(worldId: string): Promise<void>;
   /** Krok 6.5b — bulk update pořadí konverzací (jedna `bulkWrite`). */
   bulkUpdateOrders(items: { id: string; order: number }[]): Promise<void>;
 }

@@ -18,6 +18,8 @@ import {
   WorldOperationSchema,
 } from './schemas/world-operation.schema';
 import { MongoWorldsRepository } from './repositories/worlds.repository';
+import { WorldHardDeleteService } from './services/world-hard-delete.service';
+import { WorldCleanupCron } from './services/world-cleanup.cron';
 import { MongoWorldMembershipRepository } from './repositories/world-membership.repository';
 import { MongoWorldSettingsRepository } from './repositories/world-settings.repository';
 import { MongoWorldAccessRequestRepository } from './repositories/world-access-request.repository';
@@ -96,6 +98,8 @@ import { AuthModule } from '../auth/auth.module';
     },
     WorldsGateway,
     WorldAccessRequestProvider,
+    WorldHardDeleteService,
+    WorldCleanupCron,
   ],
   exports: [
     WorldsService,

@@ -67,6 +67,13 @@ export class MongoChatChannelRepository
       .exec();
   }
 
+  /** Párový restore k `softDeleteByWorldId` (obnova světa). */
+  async restoreByWorldId(worldId: string): Promise<void> {
+    await this.model
+      .updateMany({ worldId }, { $set: { isDeleted: false } })
+      .exec();
+  }
+
   /** Krok 6.5b — bulk update `order` přes jednu `bulkWrite`. */
   async bulkUpdateOrders(
     items: { id: string; order: number }[],

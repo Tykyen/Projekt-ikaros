@@ -26,6 +26,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateWorldDto } from './dto/create-world.dto';
 import { UpdateWorldDto } from './dto/update-world.dto';
 import { TransferWorldOwnershipDto } from './dto/transfer-world-ownership.dto';
+import { RestoreWorldDto } from './dto/restore-world.dto';
 import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
 import { UpdateAkjTypesDto } from './dto/update-akj-types.dto';
 import { PatchCalendarDefaultsDto } from './dto/patch-calendar-defaults.dto';
@@ -90,6 +91,15 @@ export class WorldsController {
       ? await this.worldsService.isSlugAvailable(slug)
       : false;
     return { available };
+  }
+
+  @Get('deleted')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seznam soft-smazaných světů (Admin/Superadmin)' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
+  listDeleted(@CurrentUser() user: RequestUser) {
+    return this.worldsService.listDeleted(user);
   }
 
   @Get('slug/:slug')
@@ -198,6 +208,25 @@ export class WorldsController {
   @ApiResponse({ status: 404, description: 'Svět nenalezen' })
   remove(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.worldsService.softDelete(id, user);
+  }
+
+  @Post(':id/restore')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Obnova soft-smazaného světa (Admin/Superadmin, do 30 dní)',
+  })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Jen Admin/Superadmin' })
+  @ApiResponse({
+    status: 410,
+    description: 'Okno pro obnovu (30 dní) vypršelo',
+  })
+  restore(
+    @Param('id') id: string,
+    @Body() dto: RestoreWorldDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.restore(id, user, dto.newOwnerId);
   }
 
   // Spec 2.4 — public svět: okamžitý join, vznikne membership s rolí Čtenář.

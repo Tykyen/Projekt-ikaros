@@ -129,6 +129,36 @@ export class MongoWorldsRepository
     );
   }
 
+  /**
+   * Soft-deleted svety (Admin recovery panel) — `deletedAt != null`,
+   * nejnovejsi smazane prvni. Bezne findX filtruji `isActive:true` → tyto
+   * jsou jinak neviditelne.
+   */
+  async findDeleted(): Promise<World[]> {
+    const docs = await this.model
+      .find({ deletedAt: { $ne: null } })
+      .sort({ deletedAt: -1 })
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
+  }
+
+  /**
+   * Svety k trvalemu smazani — soft-smazane pred `cutoff` (deletedAt < cutoff).
+   * Pouziva WorldCleanupCron.
+   */
+  async findExpiredDeleted(cutoff: Date): Promise<World[]> {
+    const docs = await this.model
+      .find({ deletedAt: { $ne: null, $lt: cutoff } })
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
+  }
+
   async addFavoriteSlug(worldId: string, slug: string): Promise<void> {
     if (!Types.ObjectId.isValid(worldId)) return;
     await this.model
@@ -204,6 +234,8 @@ export class MongoWorldsRepository
       system: (doc.system as string) ?? 'matrix',
       ownerId: doc.ownerId as string,
       isActive: (doc.isActive as boolean) ?? true,
+      deletedAt: (doc.deletedAt as Date | null) ?? null,
+      deletedBy: (doc.deletedBy as string | null) ?? null,
       accessMode: (doc.accessMode as string) ?? 'private',
       offeredCharacters:
         (doc.offeredCharacters as { slug: string; name: string }[]) ?? [],

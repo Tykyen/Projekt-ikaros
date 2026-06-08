@@ -154,9 +154,20 @@ export class MongoChatMessageRepository
       .exec();
   }
 
+  /**
+   * Soft-delete světa = recovery-safe: NEnuluje `content` (na rozdíl od
+   * `softDeleteByChannelId`), aby obnova světa (do 30 dní) vrátila i obsah zpráv.
+   */
   async softDeleteByWorldId(worldId: string): Promise<void> {
     await this.model
-      .updateMany({ worldId }, { $set: { isDeleted: true, content: null } })
+      .updateMany({ worldId }, { $set: { isDeleted: true } })
+      .exec();
+  }
+
+  /** Párový restore k `softDeleteByWorldId` (obnova světa). */
+  async restoreByWorldId(worldId: string): Promise<void> {
+    await this.model
+      .updateMany({ worldId }, { $set: { isDeleted: false } })
       .exec();
   }
 

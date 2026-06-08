@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
   BadRequestException,
+  GoneException,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
@@ -1496,9 +1497,87 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
-    await this.worldsRepo.update(id, { isActive: false });
+    if (world.deletedAt) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'WORLD_ALREADY_DELETED',
+        message: 'Svět už je smazán',
+      });
+    }
+    // Soft-delete: data zůstávají, svět zmizí z provozu. 30denní okno pro obnovu
+    // (jen Admin/Superadmin), pak cron hard-delete. Emit `world.deleted` =
+    // NEDESTRUKTIVNÍ cascade (chat softDelete atd.).
+    await this.worldsRepo.update(id, {
+      isActive: false,
+      deletedAt: new Date(),
+      deletedBy: requester.id,
+    });
     this.eventEmitter.emit('world.deleted', { worldId: id });
-    return { message: 'Svět byl smazán' };
+    return {
+      message: 'Svět byl smazán. Obnovit do 30 dní může administrátor.',
+    };
+  }
+
+  /** Doba (ms), po kterou lze soft-smazaný svět obnovit. */
+  static readonly RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+  /**
+   * Obnova soft-smazaného světa — JEN Admin/Superadmin (ne PJ vlastník; ten
+   * musí o obnovu požádat). Funguje jen v 30denním okně; po něm je svět už
+   * (nebo brzy bude) hard-smazán cronem. Volitelně přiřadí nového vlastníka
+   * (převzetí světa po odchodu PJ).
+   */
+  async restore(
+    id: string,
+    requester: RequestUser,
+    newOwnerId?: string,
+  ): Promise<{ message: string }> {
+    if (requester.role > UserRole.Admin) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'Obnovit svět může jen administrátor',
+      });
+    }
+    const world = await this.findById(id);
+    if (!world.deletedAt) {
+      throw new BadRequestException({
+        statusCode: 400,
+        code: 'WORLD_NOT_DELETED',
+        message: 'Svět není smazán',
+      });
+    }
+    const elapsed = Date.now() - new Date(world.deletedAt).getTime();
+    if (elapsed > WorldsService.RECOVERY_WINDOW_MS) {
+      throw new GoneException({
+        statusCode: 410,
+        code: 'WORLD_RECOVERY_EXPIRED',
+        message: 'Okno pro obnovu (30 dní) vypršelo',
+      });
+    }
+    const patch: Partial<World> = {
+      isActive: true,
+      deletedAt: null,
+      deletedBy: null,
+    };
+    if (newOwnerId) patch.ownerId = newOwnerId;
+    await this.worldsRepo.update(id, patch);
+    // Párový event k `world.deleted` — moduly un-soft-delete svá data (chat aj.).
+    this.eventEmitter.emit('world.restored', { worldId: id });
+    return { message: 'Svět byl obnoven' };
+  }
+
+  /** Seznam soft-smazaných světů pro Admin recovery panel. Jen Admin/Superadmin. */
+  async listDeleted(requester: RequestUser): Promise<World[]> {
+    if (requester.role > UserRole.Admin) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'FORBIDDEN',
+        message: 'Nedostatečná oprávnění',
+      });
+    }
+    const worlds = await this.worldsRepo.findDeleted();
+    return Promise.all(worlds.map((w) => this.enrichWithOwner(w)));
   }
 
   async leave(
@@ -1893,5 +1972,27 @@ export class WorldsService implements OnApplicationBootstrap {
         .filter((m) => m.characterPath === payload.slug)
         .map((m) => this.membershipRepo.clearCharacter(m.id)),
     );
+  }
+
+  /**
+   * Pojistka proti ztrátě dat: když je trvale smazán (hard-delete) účet PJ,
+   * jeho aktivní světy NEzmizí — přejdou do soft-delete (30denní okno), aby je
+   * Admin mohl obnovit a přiřadit jinému vlastníkovi (převzetí hráči).
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async onOwnerAccountHardDeleted(payload: { userId: string }): Promise<void> {
+    const owned = await this.worldsRepo.findByOwnerId(payload.userId);
+    for (const w of owned) {
+      if (w.deletedAt) continue; // už soft-smazaný
+      await this.worldsRepo.update(w.id, {
+        isActive: false,
+        deletedAt: new Date(),
+        deletedBy: 'system:account-deleted',
+      });
+      this.eventEmitter.emit('world.deleted', { worldId: w.id });
+      this.logger.log(
+        `Svět ${w.id} soft-smazán (vlastník ${payload.userId} hard-deleted) — Admin může obnovit/přiřadit`,
+      );
+    }
   }
 }

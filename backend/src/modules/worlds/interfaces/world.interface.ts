@@ -60,6 +60,8 @@ export interface World {
   system: string;
   ownerId: string;
   isActive: boolean;
+  deletedAt: Date | null;
+  deletedBy: string | null;
   accessMode: string;
   offeredCharacters?: OfferedCharacter[];
   favoritePageSlugs: string[];

@@ -94,6 +94,7 @@ describe('ChatService', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const mockMessageRepo = {
@@ -108,6 +109,7 @@ describe('ChatService', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
@@ -1861,6 +1863,7 @@ describe('sendMessage — new fields', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const mockMessageRepo = {
@@ -1875,6 +1878,7 @@ describe('sendMessage — new fields', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
@@ -2074,6 +2078,7 @@ describe('toggleReaction', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const mockMessageRepo = {
@@ -2088,6 +2093,7 @@ describe('toggleReaction', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
@@ -2223,6 +2229,7 @@ describe('sendMessage — character mentions', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const savedMessages: Array<Record<string, unknown>> = [];
@@ -2242,6 +2249,7 @@ describe('sendMessage — character mentions', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
@@ -2421,6 +2429,7 @@ describe('sendMessage — attachments', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const mockMessageRepo = {
@@ -2435,6 +2444,7 @@ describe('sendMessage — attachments', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
@@ -2543,6 +2553,7 @@ describe('findChannelForUpload', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const mockMessageRepo = {
@@ -2557,6 +2568,7 @@ describe('findChannelForUpload', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
@@ -2671,6 +2683,7 @@ describe('getMessages — whisper filtering', () => {
     update: jest.fn(),
     delete: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
   };
   const mockMessageRepo = {
@@ -2685,6 +2698,7 @@ describe('getMessages — whisper filtering', () => {
     update: jest.fn(),
     softDeleteByChannelId: jest.fn(),
     softDeleteByWorldId: jest.fn(),
+    restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
   };
