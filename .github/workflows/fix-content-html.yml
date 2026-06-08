@@ -1,0 +1,86 @@
+name: Fix Matrix content JSON->HTML (one-off)
+
+# Migrovany Page.content je TipTap JSON string -> Ikaros (RichTextEditor/AutoTOC)
+# ocekava HTML. Tento workflow projde migrovane stranky (_mig) a prevede content
+# JSON->HTML in-place. Konvertor migration/tiptap2html-mongo.js se vlozi do skriptu.
+#
+# dry-run: spocita kolik stranek ma JSON content + vzorek prevodu.
+# fix: prevede content=html, zaloha puvodniho do _migContentJson, flag _migHtml.
+# rollback: vrati content z _migContentJson, smaze flagy.
+# Idempotent (preskoci _migHtml). Pages-only (akjTabs resi F4d s HTML).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, fix, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro fix napis FIX, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (konvertor)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          cp migration/tiptap2html-mongo.js script.js
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo '(function(){ let n=0;'
+              echo '  db.pages.find({_migHtml:true}).forEach(function(p){ db.pages.updateOne({_id:p._id},{$set:{content:p._migContentJson},$unset:{_migHtml:"",_migContentJson:""}}); n++; });'
+              echo '  print("ROLLBACK: vraceno na JSON "+n+" stranek");'
+              echo '})();'
+            } >> script.js
+          elif [ "$MODE" = "fix" ]; then
+            if [ "$CONFIRM" != "FIX" ]; then echo "CHYBA: fix vyzaduje confirm=FIX"; exit 1; fi
+            {
+              echo '(function(){ let n=0,skip=0;'
+              echo '  db.pages.find({_mig:{$exists:true}}).forEach(function(p){'
+              echo '    if(typeof p.content!=="string"||p.content.trim().charAt(0)!=="{"||p._migHtml){skip++;return;}'
+              echo '    const html=tiptapToHtml(p.content);'
+              echo '    db.pages.updateOne({_id:p._id},{$set:{content:html,_migContentJson:p.content,_migHtml:true}});'
+              echo '    n++;'
+              echo '  });'
+              echo '  print("FIX HOTOVO: prevedeno "+n+" stranek na HTML, preskoceno "+skip);'
+              echo '})();'
+            } >> script.js
+          else
+            {
+              echo '(function(){ let json=0,html=0,other=0; let sample=null;'
+              echo '  db.pages.find({_mig:{$exists:true}}).forEach(function(p){'
+              echo '    if(typeof p.content!=="string"){other++;return;}'
+              echo '    const t=p.content.trim();'
+              echo '    if(p._migHtml||t.charAt(0)==="<"){html++;}'
+              echo '    else if(t.charAt(0)==="{"){json++; if(!sample)sample=p.slug;}'
+              echo '    else other++;'
+              echo '  });'
+              echo '  print("migrovane stranky: JSON(k prevodu)="+json+" jiz-HTML="+html+" ostatni/prazdne="+other);'
+              echo '  if(sample){const p=db.pages.findOne({slug:sample});print("VZOREK "+sample+":");print("  PRED: "+p.content.slice(0,120));print("  PO:   "+tiptapToHtml(p.content).slice(0,120));}'
+              echo '})();'
+            } >> script.js
+          fi
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
