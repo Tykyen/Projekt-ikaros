@@ -54,6 +54,19 @@ function mapSlug(slug) {
   return slug;
 }
 
+// Majitele pavucin = hraci navazani na postavy (F1 user-map). Zachovat per-zaznam.
+// bez ownera + neznamy -> Tyky (PJ; uzivatel si nepatricne pak rucne vycisti).
+const TYKY = '6a22639538e14e7238e74ef9';
+const OWNER = {
+  '67fd6557c8454caabb71eba0': TYKY, // Tyky (PJ)
+  'PJ_BASE_67fd6557c8454caabb71eba0': TYKY, // Tyky base-variant
+  '68066ce33733a3a8e148cc7e': '6a22ae54015caeda1af7d046', // FOksiGen (Kuro)
+  '6803c8770438a863c04bdeae': '6a23f4f4f01021af8f8ce5b0', // Willscar (Pumí stín / Kraven)
+  '68e39cdd3c661f34cc0ae028': '6a23f4f4f01021af8f8ce5c0', // Mandloň (Li Mingguo)
+};
+const ownerOf = (oldId) => (oldId && OWNER[oldId]) || TYKY;
+const ownerNames = { [TYKY]: 'Tyky', '6a22ae54015caeda1af7d046': 'FOksiGen', '6a23f4f4f01021af8f8ce5b0': 'Willscar', '6a23f4f4f01021af8f8ce5c0': 'Mandloň' };
+
 const iso = (d) => (d instanceof Date ? d.toISOString() : d ? new Date(d).toISOString() : undefined);
 const str = (v) => (v == null ? undefined : String(v));
 const clean = (o) => {
@@ -69,6 +82,7 @@ const subjects = rawSubjects.map((s) => {
   const isPcNpc = s.type === 'PC' || s.type === 'NPC';
   return clean({
     _id: String(s._id),
+    ownerId: ownerOf(s.ownerId),
     type: s.type,
     name: s.name,
     tags: s.tags || [],
@@ -93,6 +107,7 @@ const relationships = rawRels.map((r) => {
     });
   return clean({
     _id: String(r._id),
+    ownerId: ownerOf(r.ownerId),
     subjectAId: String(r.subjectAId),
     subjectBId: String(r.subjectBId),
     shared: clean({
@@ -115,6 +130,7 @@ const rawStories = readBson('CampaignStorylines');
 const storylines = rawStories.map((s) =>
   clean({
     _id: String(s._id),
+    ownerId: ownerOf(s.ownerId),
     level: s.level || 'mid',
     title: s.title,
     status: s.status || 'active',
@@ -137,6 +153,7 @@ const rawNotes = readBson('CampaignQuickNotes');
 const quickNotes = rawNotes.map((n) =>
   clean({
     _id: String(n._id),
+    ownerId: ownerOf(n.ownerId),
     title: n.title,
     body: n.body || undefined,
     status: n.status || 'open',
@@ -157,6 +174,9 @@ const typeDist = subjects.reduce((m, s) => ((m[s.type] = (m[s.type] || 0) + 1), 
 console.log('=== F6 build hotovo ===');
 console.log('subjects:', subjects.length, '| type:', JSON.stringify(typeDist));
 console.log('relationships:', relationships.length, '| storylines:', storylines.length, '| quickNotes:', quickNotes.length);
+const ownerDist = (arr) => arr.reduce((m, x) => { const n = ownerNames[x.ownerId] || x.ownerId; m[n] = (m[n] || 0) + 1; return m; }, {});
+console.log('owner subjects:', JSON.stringify(ownerDist(subjects)), '(bez-owner+nezn. → Tyky)');
+console.log('owner relationships:', JSON.stringify(ownerDist(relationships)), '| storylines:', JSON.stringify(ownerDist(storylines)));
 console.log('subjects s linkedCharacterSlug (PC/NPC):', subjects.filter((s) => s.linkedCharacterSlug).length);
 console.log('slug premapovano aliasem:', aliased.size ? [...aliased].join(', ') : '(zadne)');
 console.log('\nVystup:', OUT, '(+ .gz)');

@@ -3,12 +3,13 @@
 // Logika v IIFE (mongosh gotcha #3: vyhodnocuje po prikazech).
 // Spec: docs/arch/migration-matrix/f6-pavucina.md (FE repo).
 (function () {
+  // ownerId si nese kazdy zaznam z buildu (F1 map; bez-owner -> Tyky). Tady jen overime existenci.
   const tyky = db.users.findOne({ email: 'tykytanjunior@gmail.com' }, { _id: 1 });
   if (!tyky) {
-    print('CHYBA: Tyky (tykytanjunior@gmail.com) nenalezen v users -> STOP (owner by chybel)');
+    print('CHYBA: Tyky (tykytanjunior@gmail.com) nenalezen v users -> STOP (fallback owner by chybel)');
     return;
   }
-  const ownerId = String(tyky._id);
+  const fallbackOwner = String(tyky._id);
   let oid = null;
   try {
     oid = ObjectId(WORLD);
@@ -65,6 +66,19 @@
         ' notes=' +
         db.campaignQuickNotes.countDocuments({ worldId: WORLD }),
     );
+
+    // overit, ze vsichni vlastnici (z F1 map) realne existuji v prod users
+    const owners = {};
+    [data.subjects, data.relationships, data.storylines, data.quickNotes].forEach(function (arr) {
+      arr.forEach(function (x) { owners[x.ownerId] = (owners[x.ownerId] || 0) + 1; });
+    });
+    const ownerLines = [];
+    for (const oidStr of Object.keys(owners)) {
+      let u = null;
+      try { u = db.users.findOne({ _id: ObjectId(oidStr) }, { username: 1 }); } catch (e) {}
+      ownerLines.push(oidStr + ' = ' + (u ? (u.username || 'OK') : 'CHYBI V USERS!') + ' (' + owners[oidStr] + ' zaznamu)');
+    }
+    print('vlastnici (ownerId -> user): ' + ownerLines.join(' | '));
   }
 
   // --- import (upsert podle zachovaneho _id => idempotence) ---
@@ -77,8 +91,8 @@
       const doc = Object.assign({}, item);
       delete doc._id; // _id nesmi byt v $set pri upsertu (immutable)
       doc.worldId = WORLD;
-      doc.ownerId = ownerId;
-      doc.isShared = true;
+      doc.ownerId = item.ownerId || fallbackOwner; // owner si nese zaznam (F1 map); pojistka -> Tyky
+      doc.isShared = false; // pavucina je per-vlastnik; PJ vidi vse i tak
       doc._mig = 'f6';
       doc.createdAt = item.createdAt ? new Date(item.createdAt) : now;
       doc.updatedAt = item.updatedAt ? new Date(item.updatedAt) : now;
@@ -90,7 +104,7 @@
     print((DRY ? '[DRY] ' : '') + coll + ': novych=' + ins + ' existujicich(update)=' + upd);
   }
 
-  print('=== F6 pavucina ' + (DRY ? 'DRY-RUN' : 'IMPORT') + ' (owner=' + ownerId + ', world=' + WORLD + ') ===');
+  print('=== F6 pavucina ' + (DRY ? 'DRY-RUN' : 'IMPORT') + ' (world=' + WORLD + ', owner per-zaznam, fallback=Tyky ' + fallbackOwner + ') ===');
   imp('campaignSubjects', data.subjects);
   imp('campaignRelationships', data.relationships);
   imp('campaignStorylines', data.storylines);
