@@ -1,0 +1,74 @@
+name: Import Matrix pravidla ch10-13 (one-off)
+
+# Doplni chybejici kapitoly pravidlove knihy (10 Magicka pravidla, 11 Programovani,
+# 12 Jazykova politika, 13 Jazykove rodiny) do matrix sveta jako Page + zaradi do hubu 'pravidla'.
+# Data: migration/rulebook-ch10-13-data.json.gz = {pages[],menuItems[]} (parsovano z rulebook-content.md).
+# Vzor Page = existujici kapitola 'aspekty'. marker _mig:'rulebook-ch10-13'. Logika v rulebook-ch10-13-import.js.
+# Spec: docs/arch/migration-matrix/f-rulebook-ch10-13.md (FE repo).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WORLD="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo "const WORLD=\"$WORLD\";"
+              echo '(function(){'
+              echo '  const slugs=["magicka-pravidla","programovani","jazykova-politika","jazykove-rodiny"];'
+              echo '  const r=db.pages.deleteMany({worldId:WORLD,_mig:"rulebook-ch10-13"});'
+              echo '  const hub=db.pages.findOne({slug:"pravidla",worldId:WORLD});'
+              echo '  if(hub&&hub.menu){ const menu=hub.menu.filter(function(m){return slugs.indexOf(m.href)<0;}); db.pages.updateOne({_id:hub._id},{$set:{menu:menu}}); }'
+              echo '  print("ROLLBACK rulebook ch10-13: smazano stranek "+r.deletedCount+", menu ocisteno");'
+              echo '})();'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const WORLD=\"$WORLD\";"
+              echo "const data ="
+              gunzip -c migration/rulebook-ch10-13-data.json.gz
+              echo ";"
+              cat migration/rulebook-ch10-13-import.js
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
