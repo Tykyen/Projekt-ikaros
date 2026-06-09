@@ -38,6 +38,10 @@ const ALIAS = {
   john: 'john-willscar',
   kraven: 'pumi-stin',
   mingguo: 'li-mingguo',
+  // F6 dry-run DIAG (prod-drift, overeno proti newmatrix):
+  'abigail-wattson': 'abi', // char abi /Abigail Wattson
+  katerina: 'katerina-penkavova', // char katerina-penkavova /Kateřina Pěnkavová
+  // zubni-vily (FACTION "Zubní víly") = bez prod stranky -> ponechano (jen jmeno/uzel)
 };
 const aliased = new Set();
 function mapSlug(slug) {
