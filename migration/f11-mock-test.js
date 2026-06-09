@@ -21,19 +21,26 @@ function matches(d, q) {
   }
   return true;
 }
-function makeColl(name, seed = []) {
+function makeColl(name, seed = [], uniques = []) {
   const docs = seed.slice();
+  // simulace MongoDB unique (sparse) indexů — chytí E11000 lokálně
+  const checkUnique = (cand, ignore) => {
+    for (const keys of uniques) {
+      const dup = docs.find((d) => d !== ignore && keys.every((k) => String(d[k]) === String(cand[k])));
+      if (dup) throw new Error('E11000 duplicate key: ' + name + ' index ' + keys.join('_') + ' dup ' + keys.map((k) => k + '=' + cand[k]).join(','));
+    }
+  };
   return {
     name, docs,
     find(q = {}) { return { toArray: () => docs.filter((d) => matches(d, q)) }; },
     findOne(q) { return docs.find((d) => matches(d, q)) || null; },
     countDocuments(q = {}) { return docs.filter((d) => matches(d, q)).length; },
-    insertOne(doc) { docs.push(doc); return { insertedId: doc._id }; },
+    insertOne(doc) { checkUnique(doc); docs.push(doc); return { insertedId: doc._id }; },
     deleteMany(q) { let n = 0; for (let i = docs.length - 1; i >= 0; i--) if (matches(docs[i], q)) { docs.splice(i, 1); n++; } return { deletedCount: n }; },
     updateOne(filter, update, opts = {}) {
       const ex = docs.find((d) => matches(d, filter));
-      if (ex) { if (update.$set) Object.assign(ex, update.$set); return { modifiedCount: 1 }; }
-      if (opts.upsert) { const nd = {}; for (const [k, v] of Object.entries(filter)) { if (v && typeof v === 'object' && ('$in' in v || '$or' in v || '$exists' in v)) continue; nd[k] = v; } if (!nd._id) nd._id = ObjectId(); Object.assign(nd, update.$set); docs.push(nd); return { upsertedCount: 1 }; }
+      if (ex) { const merged = Object.assign({}, ex, update.$set); checkUnique(merged, ex); if (update.$set) Object.assign(ex, update.$set); return { modifiedCount: 1 }; }
+      if (opts.upsert) { const nd = {}; for (const [k, v] of Object.entries(filter)) { if (v && typeof v === 'object' && ('$in' in v || '$or' in v || '$exists' in v)) continue; nd[k] = v; } if (!nd._id) nd._id = ObjectId(); Object.assign(nd, update.$set); checkUnique(nd); docs.push(nd); return { upsertedCount: 1 }; }
       return {};
     },
   };
@@ -67,9 +74,9 @@ function seedDb() {
   return {
     chatgroups: makeColl('chatgroups', groups),
     chatchannels: makeColl('chatchannels', channels),
-    chatmessages: makeColl('chatmessages'),
-    channelreadstatus: makeColl('channelreadstatus'),
-    custom_emotes: makeColl('custom_emotes'),
+    chatmessages: makeColl('chatmessages', [], [['channelId', 'clientNonce']]), // sparse-unique
+    channelreadstatus: makeColl('channelreadstatus', [], [['userId', 'channelId']]),
+    custom_emotes: makeColl('custom_emotes', [], [['worldId', 'shortcode']]),
     worldmemberships: makeColl('worldmemberships', members),
   };
 }

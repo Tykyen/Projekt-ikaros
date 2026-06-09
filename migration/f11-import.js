@@ -139,6 +139,9 @@
       reactions: m.reactions || {}, attachments: m.attachments || [],
       customFont: m.customFont || null, customFontSize: null, color: null,
       isDiceRoll: false, dicePayload: null, diceSkin: null, mentions: [],
+      // unikátní per zpráva — sparse-unique index {channelId,clientNonce}
+      // jinak >1 migrovaná zpráva v kanálu koliduje na {channelId,null} (E11000)
+      clientNonce: 'mig-' + String(m._id),
       createdAt: m.createdAt ? new Date(m.createdAt) : now,
       updatedAt: m.updatedAt ? new Date(m.updatedAt) : now,
       _mig: 'f11',
