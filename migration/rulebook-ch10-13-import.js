@@ -23,6 +23,7 @@
     };
     if ('quickRef' in p) setFields.quickRef = p.quickRef || '';
     if ('menu' in p) setFields.menu = p.menu;
+    if ('customData' in p) setFields.customData = p.customData; // magicLevels pro LevelSpine
 
     const exists = db.pages.findOne({ slug: p.slug, worldId: WORLD }, { _id: 1 });
     if (exists) {
