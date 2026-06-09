@@ -1,0 +1,84 @@
+name: Import Matrix chat F11 (one-off)
+
+# Naveze chat starého Matrixu (5 kolekci) -> Ikaros chat modul ve svete matrix.
+#   groups(7) -> chatgroups (find-or-create: Globalni/Postavy default, frakce linkedWorldGroup, GMOI+Komunikace Hraci standalone)
+#   channels(42) -> chatchannels (pj_dm -> Postavy character merge dle linkedMemberUserId; ostatni upsert dle _migOldId)
+#   messages(1506) -> chatmessages (zachovane _id, channelId remap runtime, senderId/reactions F1, attachments Cloudinary)
+#   readStatuses(281) -> channelreadstatus | emote(1) -> custom_emotes
+# Idempotentni. worldId="6d61..01". marker _mig:'f11'. Logika: migration/f11-import.js.
+# Spec: docs/arch/migration-matrix/f11-chat.md (FE repo).
+#
+# Rezimy: diag (jen vypis ziveho stavu) | dry-run (simulace, nezapisuje) |
+#         import (IMPORT) | rollback (ROLLBACK).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [diag, dry-run, import, rollback]
+        default: diag
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WORLD="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo "const WORLD=\"$WORLD\";"
+              echo '(function(){'
+              echo '  const m=db.chatmessages.deleteMany({worldId:WORLD,_mig:"f11"});'
+              echo '  const r=db.channelreadstatus.deleteMany({_mig:"f11"});'
+              echo '  const e=db.custom_emotes.deleteMany({worldId:ObjectId(WORLD),_mig:"f11"});'
+              echo '  const c=db.chatchannels.deleteMany({worldId:WORLD,_mig:"f11"});'
+              echo '  const g=db.chatgroups.deleteMany({worldId:WORLD,_mig:"f11"});'
+              echo '  // merge character kanaly (maji _migOldId, NE _mig) vrat do auto stavu'
+              echo '  const cc=db.chatchannels.updateMany({worldId:WORLD,_migOldId:{$exists:true},_mig:{$exists:false}},{$unset:{_migOldId:"",lastMessageAt:"",lastMessagePreview:""}});'
+              echo '  print("ROLLBACK F11: messages="+m.deletedCount+" readStatus="+r.deletedCount+" emote="+e.deletedCount+" channels="+c.deletedCount+" groups="+g.deletedCount+" character-reset="+cc.modifiedCount);'
+              echo '})();'
+            } > script.js
+          else
+            DIAG=false; DRY=true
+            if [ "$MODE" = "diag" ]; then DIAG=true; fi
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DIAG=$DIAG;"
+              echo "const DRY=$DRY;"
+              echo "const WORLD=\"$WORLD\";"
+              echo "const data ="
+              gunzip -c migration/f11-data.json.gz
+              echo ";"
+              cat migration/f11-import.js
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
