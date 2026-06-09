@@ -32,11 +32,28 @@
     for (const s of data.subjects) {
       if (s.linkedPageSlug) {
         withSlug++;
-        if (!pageExists(s.linkedPageSlug)) miss.push(s.linkedPageSlug + ' (' + s.name + ')');
+        if (!pageExists(s.linkedPageSlug)) miss.push({ slug: s.linkedPageSlug, name: s.name, type: s.type });
       }
     }
     print('subjekty s linkedPageSlug=' + withSlug + ' | NEsedi na prod Page=' + miss.length);
-    if (miss.length) print('NESEDI (slug -> doplnit do ALIAS v f6-build.mjs): ' + miss.join(', '));
+    if (miss.length) print('NESEDI (slug): ' + miss.map(function (m) { return m.slug + ' (' + m.name + ')'; }).join(', '));
+
+    // DIAG: slug-drift se stal v PROD (v dumpu slugy existuji) -> dohledej prod kandidaty podle jmena.
+    if (miss.length) {
+      print('--- DIAG kandidati (NESEDI slug -> prod pages/characters podle jmena) ---');
+      function cand(coll, field, rx) {
+        let arr = db.getCollection(coll).find({ [field]: rx, worldId: WORLD }, { slug: 1, [field]: 1 }).limit(6).toArray();
+        if (!arr.length && oid) arr = db.getCollection(coll).find({ [field]: rx, worldId: oid }, { slug: 1, [field]: 1 }).limit(6).toArray();
+        return arr.map(function (x) { return x.slug + ' /' + x[field]; }).join(' | ') || '-';
+      }
+      for (const m of miss) {
+        const first = String(m.name).split(' ')[0];
+        const rx = new RegExp(first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        print('  ' + m.slug + ' ("' + m.name + '", ' + m.type + ')');
+        print('     pages: ' + cand('pages', 'title', rx));
+        print('     chars: ' + cand('characters', 'name', rx));
+      }
+    }
 
     print(
       'existujici v matrix svete: subjects=' +
