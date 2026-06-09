@@ -1,0 +1,69 @@
+name: Import Matrix herni akce F9 (one-off)
+
+# Naveze GameEvents (15 kalendarnich akci) -> game_events. date uz ISO (1:1).
+# Obrazky base64 uz na Cloudinary z f9-upload.mjs. confirmedBy userId zmapovany pres F1.
+# targetGroup ""->null, groupOnly=false. worldId="6d61..01", marker _mig:'f9'. Upsert podle _id.
+# Logika v migration/f9-import.js. Spec: docs/arch/migration-matrix/f9-game-events.md (FE repo).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WORLD="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo '(function(){'
+              echo '  const r=db.game_events.deleteMany({_mig:"f9"});'
+              echo '  print("ROLLBACK F9: game_events smazano "+r.deletedCount);'
+              echo '})();'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const WORLD=\"$WORLD\";"
+              echo "const data ="
+              gunzip -c migration/f9-data.json.gz
+              echo ";"
+              cat migration/f9-import.js
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
