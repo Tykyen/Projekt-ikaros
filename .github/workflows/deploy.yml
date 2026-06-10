@@ -66,6 +66,11 @@ jobs:
           VAPID_PUBLIC_KEY=${{ vars.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
           MEILI_MASTER_KEY=${{ secrets.MEILI_MASTER_KEY }}
+          SMTP_HOST=${{ vars.SMTP_HOST }}
+          SMTP_PORT=${{ vars.SMTP_PORT }}
+          SMTP_USER=${{ vars.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          MAIL_FROM=${{ vars.MAIL_FROM }}
           DELETION_HOLD_DAYS=${{ vars.DELETION_HOLD_DAYS }}
           EMBEDDING_GRANITE107_ENABLED=${{ vars.EMBEDDING_GRANITE107_ENABLED }}
           EMBEDDING_GRANITE278_ENABLED=${{ vars.EMBEDDING_GRANITE278_ENABLED }}
