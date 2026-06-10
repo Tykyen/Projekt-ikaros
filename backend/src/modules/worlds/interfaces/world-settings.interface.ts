@@ -62,6 +62,16 @@ export interface CharacterTabVisibility {
   NPC: CharacterTabId[];
 }
 
+/**
+ * 6.8 — PJ persona v chatu. Vedení (role ≥ PomocnyPJ) vystupuje pod jednotnou
+ * identitou. `name=null` → label „PJ"; `avatarUrl=null` → fallback iniciála.
+ */
+export interface PjChatPersona {
+  enabled: boolean;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
 export interface WorldSettings {
   id: string;
   worldId: string;
@@ -86,6 +96,8 @@ export interface WorldSettings {
   timelineCalendarSlug: string | null;
   /** 12.2 — „Last info" box (oznámení PJ). `null` = nenastaveno. */
   lastInfo?: LastInfo | null;
+  /** 6.8 — PJ persona v chatu. `null` = nenastaveno (FE default). */
+  pjChatPersona?: PjChatPersona | null;
   /**
    * 9.4 dluh #1 — in-game date pro advance-day mechanism.
    * `null` = nezahájen herní čas (advance-day se inicializuje z `new Date()`).

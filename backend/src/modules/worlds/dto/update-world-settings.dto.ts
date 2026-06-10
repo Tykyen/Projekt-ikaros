@@ -76,6 +76,26 @@ export class SchemaBlockDto {
   @IsNumber() order: number;
 }
 
+export class PjChatPersonaDto {
+  @IsBoolean() enabled: boolean;
+  // null = bez vlastního jména → FE zobrazí label „PJ".
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null, {
+    message: 'name musí být string nebo null',
+  })
+  @IsString()
+  @MaxLength(40)
+  name?: string | null;
+  // null = bez avatara → FE fallback na iniciálu.
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null, {
+    message: 'avatarUrl musí být string nebo null',
+  })
+  @IsString()
+  @MaxLength(512)
+  avatarUrl?: string | null;
+}
+
 export class CharacterTabVisibilityDto {
   @IsOptional()
   @IsArray()
@@ -136,6 +156,15 @@ export class UpdateWorldSettingsDto {
   @ValidateNested()
   @Type(() => CharacterTabVisibilityDto)
   characterTabVisibility?: CharacterTabVisibilityDto;
+
+  // 6.8 — PJ persona v chatu. `null` = reset na výchozí (žádná persona).
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null, {
+    message: 'pjChatPersona musí být objekt nebo null',
+  })
+  @ValidateNested()
+  @Type(() => PjChatPersonaDto)
+  pjChatPersona?: PjChatPersonaDto | null;
 
   // 9.3 — slug calendar configu pro timeline. `null` = fallback na první config.
   @IsOptional()

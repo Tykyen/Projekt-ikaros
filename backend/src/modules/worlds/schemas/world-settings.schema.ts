@@ -57,6 +57,16 @@ export class WorldSettingsSchemaClass {
   // textu (klientský dismiss se váže právě na něj).
   @Prop({ type: Object, default: null, _id: false, required: false })
   lastInfo?: { text: string; visible: boolean; updatedAt: Date } | null;
+  // 6.8 — PJ persona v chatu. Vedení (role ≥ PomocnyPJ) vystupuje pod jednotnou
+  // identitou místo přihlašovacího jména. Render-time (neukládá se do zpráv),
+  // takže se projeví zpětně i na historických zprávách. `null` = nenastaveno
+  // (FE default: enabled true, name „PJ", avatar fallback na iniciálu).
+  @Prop({ type: Object, default: null, _id: false, required: false })
+  pjChatPersona?: {
+    enabled: boolean;
+    name: string | null;
+    avatarUrl: string | null;
+  } | null;
   @Prop({ default: Date.now }) updatedAt: Date;
 }
 

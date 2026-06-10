@@ -12,12 +12,18 @@ import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { PushService } from '../push/push.service';
 import { WorldsService } from '../worlds/worlds.service';
+import { CharactersService } from '../characters/characters.service';
 
 /** Mock WorldsService — `onApplicationBootstrap` se v `.compile()` testech nespouští. */
 const mockWorldsService = {
   findAll: jest.fn().mockResolvedValue([]),
   getSettings: jest.fn().mockResolvedValue(null),
   findById: jest.fn(),
+};
+
+/** 6.8b — getGroupsWithChannels enrichuje portrét; default = prázdný adresář. */
+const mockCharactersService = {
+  getDirectory: jest.fn().mockResolvedValue([]),
 };
 
 /** D-040 — tombstone batch enrich; default = všichni autoři aktivní. */
@@ -137,6 +143,7 @@ describe('ChatService', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
         { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
@@ -1905,6 +1912,7 @@ describe('sendMessage — new fields', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
         { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
@@ -2120,6 +2128,7 @@ describe('toggleReaction', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
         { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
@@ -2303,6 +2312,7 @@ describe('sendMessage — character mentions', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         {
           provide: WorldsService,
           useValue: { findById: jest.fn().mockResolvedValue({ id: 'world1' }) },
@@ -2471,6 +2481,7 @@ describe('sendMessage — attachments', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
         { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
@@ -2595,6 +2606,7 @@ describe('findChannelForUpload', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
         { provide: 'IChatChannelRepository', useValue: mockChannelRepo },
@@ -2725,6 +2737,7 @@ describe('getMessages — whisper filtering', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
         { provide: 'IChatChannelRepository', useValue: mockChannelRepo },

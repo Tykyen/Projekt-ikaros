@@ -40,6 +40,7 @@ import { UsersService } from '../users/users.service';
 import type { World } from '../worlds/interfaces/world.interface';
 import type { WorldSettings } from '../worlds/interfaces/world-settings.interface';
 import { WorldsService } from '../worlds/worlds.service';
+import { CharactersService } from '../characters/characters.service';
 import { PushService } from '../push/push.service';
 import {
   ChatPresenceService,
@@ -70,6 +71,9 @@ export class ChatService implements OnApplicationBootstrap {
     private readonly presence: ChatPresenceService,
     @Inject(forwardRef(() => WorldsService))
     private readonly worldsService: WorldsService,
+    // 6.8b — ikona character kanálu = portrét postavy napojeného hráče (read-time).
+    @Inject(forwardRef(() => CharactersService))
+    private readonly charactersService: CharactersService,
   ) {}
 
   // ─── Permission helpers ───────────────────────────────────────────────────
@@ -224,13 +228,44 @@ export class ChatService implements OnApplicationBootstrap {
     // event, znak vždy vyhraje nad ručně nastavenou chat ikonou).
     const settings = await this.worldsService.getSettings(worldId);
     const groupImages = settings?.groupImages ?? {};
+    // 6.8b — ikona character kanálu „Postavy" = portrét napojeného hráče.
+    // Single source = imageUrl postavy (adresář), read-time override (stejně
+    // jako znak skupiny). Jen když nějaký character kanál portrét potřebuje.
+    const portraitByUser = new Map<string, string>();
+    const needsPortrait = channels.some(
+      (c) => c.type === 'character' && c.linkedMemberUserId && !c.imageUrl,
+    );
+    if (needsPortrait) {
+      // userId → imageUrl: linkedMemberUserId → membership.characterPath (slug)
+      // → imageUrl postavy z adresáře (adresář nenese userId, membership ano).
+      const [dir, memberships] = await Promise.all([
+        this.charactersService.getDirectory(worldId),
+        this.membershipRepo.findByWorldId(worldId),
+      ]);
+      const imageBySlug = new Map<string, string>();
+      for (const d of dir) {
+        if (!d.isNpc && d.imageUrl) imageBySlug.set(d.slug, d.imageUrl);
+      }
+      for (const m of memberships) {
+        if (!m.characterPath) continue;
+        const url = imageBySlug.get(m.characterPath);
+        if (url) portraitByUser.set(m.userId, url);
+      }
+    }
+    const enrichChannel = (c: ChatChannel): ChatChannel => {
+      if (c.type === 'character' && c.linkedMemberUserId && !c.imageUrl) {
+        const url = portraitByUser.get(c.linkedMemberUserId);
+        if (url) return { ...c, imageUrl: url };
+      }
+      return c;
+    };
     return groups.map((group) => {
       const emblem = group.linkedWorldGroup
         ? groupImages[group.linkedWorldGroup]
         : undefined;
       return {
         group: emblem ? { ...group, imageUrl: emblem } : group,
-        channels: channelsByGroup.get(group.id) ?? [],
+        channels: (channelsByGroup.get(group.id) ?? []).map(enrichChannel),
       };
     });
   }

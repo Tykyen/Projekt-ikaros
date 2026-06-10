@@ -33,6 +33,7 @@ import { ScheduledMessagesController } from './scheduled-messages.controller';
 import { ScheduledMessagesJob } from './scheduled-messages.job';
 import { ChatGateway } from './chat.gateway';
 import { WorldsModule } from '../worlds/worlds.module';
+import { CharactersModule } from '../characters/characters.module';
 import { PushModule } from '../push/push.module';
 import { UploadModule } from '../upload/upload.module';
 import { AuthModule } from '../auth/auth.module';
@@ -53,6 +54,10 @@ import { AuthModule } from '../auth/auth.module';
       },
     ]),
     forwardRef(() => WorldsModule), // circular: WorldsModule → WorldWeatherModule → ChatModule → WorldsModule
+    // 6.8b — getGroupsWithChannels enrichuje ikonu character kanálu portrétem
+    // postavy (charactersService.getDirectory). forwardRef kvůli cyklu
+    // ChatModule → CharactersModule → WorldsModule → … → ChatModule.
+    forwardRef(() => CharactersModule),
     // ChatService konzumuje PushService — PushModule je @Global, ale
     // importujeme ho explicitně (soběstačnost v částečných e2e grafech).
     PushModule,

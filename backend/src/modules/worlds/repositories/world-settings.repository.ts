@@ -56,6 +56,8 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
         undefined,
       timelineCalendarSlug: (doc.timelineCalendarSlug as string | null) ?? null,
       lastInfo: (doc.lastInfo as WorldSettings['lastInfo']) ?? null,
+      pjChatPersona:
+        (doc.pjChatPersona as WorldSettings['pjChatPersona']) ?? null,
       currentInGameDate: (doc.currentInGameDate as Date | null) ?? null,
       updatedAt: doc.updatedAt as Date,
     };
