@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 import type { IFriendshipsRepository } from './interfaces/friendships-repository.interface';
 import type { IFriendBlocksRepository } from './interfaces/friend-blocks-repository.interface';
 import type {
@@ -219,8 +220,55 @@ export class FriendshipsService {
     userId: string,
     page: number,
     limit: number,
-  ): Promise<{ items: Friendship[]; total: number }> {
-    return this.friendsRepo.listAcceptedForUser(userId, page, limit);
+  ): Promise<{
+    items: Array<{
+      friendshipId: string;
+      acceptedAt?: Date;
+      friend: {
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+        defaultAvatarType: string;
+        role: UserRole;
+        city: string | null;
+        deleted: boolean;
+        pendingDeletion: boolean;
+      };
+    }>;
+    total: number;
+  }> {
+    const { items: raw, total } = await this.friendsRepo.listAcceptedForUser(
+      userId,
+      page,
+      limit,
+    );
+    // Enrich: friendship drží jen requesterId/recipientId — FE čeká objekt
+    // `friend`. Protějšek = ten z dvojice, který není aktuální uživatel.
+    // Smazaný / nedohledaný účet → bezpečný placeholder (žádný crash na FE).
+    const items = await Promise.all(
+      raw.map(async (f) => {
+        const friendId =
+          f.requesterId === userId ? f.recipientId : f.requesterId;
+        const u = await this.usersRepo.findById(friendId);
+        return {
+          friendshipId: f.id,
+          acceptedAt: f.acceptedAt,
+          friend: {
+            id: friendId,
+            username: u?.username ?? 'neznámý',
+            displayName: u?.displayName ?? null,
+            avatarUrl: u?.avatarUrl ?? null,
+            defaultAvatarType: u?.defaultAvatarType ?? 'male',
+            role: u?.role ?? UserRole.Hrac,
+            city: u?.city ?? null,
+            deleted: u?.isDeleted ?? false,
+            pendingDeletion: !!u?.deletionRequestedAt,
+          },
+        };
+      }),
+    );
+    return { items, total };
   }
 
   async getStatus(
