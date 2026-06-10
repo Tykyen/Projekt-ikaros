@@ -1,0 +1,72 @@
+name: Import Matrix obchod-programy F10 (one-off)
+
+# Rozsiruje F10 obchod o 57 programu (51 stranek + 6 cenovych variant) + 5 skupin.
+# data: migration/f10-programy-data.json.gz = {groups[],items[]}. Polozky deterministicke _id
+# (slug+nazev => varianty koexistuji), skupiny deterministicke _id (idempotence).
+# ownerId=Tyky, isShared=true (hraci vidi), referenceLink=slug stranky. marker _mig:'f10p'.
+# Logika v migration/f10-programy-import.js.
+# Pozadavek: stranky typu "programy" uz musi existovat (F4). Spec: f10-obchod.md (FE repo).
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (kvuli datovemu souboru)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WORLD="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo '(function(){'
+              echo '  const r1=db.campaignShopItems.deleteMany({_mig:"f10p"});'
+              echo '  const r2=db.campaignShopGroups.deleteMany({_mig:"f10p"});'
+              echo '  print("ROLLBACK F10 programy: smazano "+r1.deletedCount+" polozek, "+r2.deletedCount+" skupin");'
+              echo '})();'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo "const WORLD=\"$WORLD\";"
+              echo "const data ="
+              gunzip -c migration/f10-programy-data.json.gz
+              echo ";"
+              cat migration/f10-programy-import.js
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
