@@ -71,16 +71,20 @@
     db.pages.updateOne({ _id: p._id }, { $set: set });
   }
 
-  // ── 1) STRÁNKY (stranka + rulebook) ──
+  // ── 1) STRÁNKY (jen decision 'stranka') — rulebook se NIKDY nevyplňuje ──
   for (const r of data) {
-    if (r.decision !== 'stranka' && r.decision !== 'rulebook') continue;
-    const p = findPage(r.slug);
-    if (!p) {
-      if (r.decision === 'rulebook') { R.skipRulebook++; skips.push(r.slug); continue; }
-      R.create++; if (!DRY) db.pages.insertOne(buildPageDoc(r));
+    if (r.decision === 'rulebook') {
+      // magie / programovani-akj / svobodny-matrix = rulebook stránky (kurátorský
+      // obsah, často v customData/LevelSpine). NESAHAT — link se rozsvítí, až je
+      // rulebook naseeduje. (Heuristika placeholderu by je dle krátkého `content`
+      // omylem brala jako prázdné a přepsala starým dumpem.)
+      R.skipRulebook++; if (!findPage(r.slug)) skips.push(r.slug);
       continue;
     }
-    if (p._mig === 'fpravidlab' || p._migPravBBefore) { R.already++; continue; } // už naimportováno mnou (idempotence)
+    if (r.decision !== 'stranka') continue;
+    const p = findPage(r.slug);
+    if (!p) { R.create++; if (!DRY) db.pages.insertOne(buildPageDoc(r)); continue; }
+    if (p._mig === 'fpravidlab' || p._migPravBBefore) { R.already++; continue; } // idempotence
     if (isPlaceholder(p)) { R.fill++; fillExisting(p, r); }
     else { R.conflict++; conflicts.push(r.slug); }
   }
