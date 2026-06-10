@@ -76,9 +76,13 @@ jobs:
             {
               echo "const WID=\"$WID\"; const DRY=$DRY;"
               echo 'let moved=0, tabsMoved=0, deleted=0; const unmatched=[]; const matched=[];'
+              # ALIAS: rucni mapovani stubu, jejichz cilovy slug se neda odvodit ze
+              # stubSlug (PC s jinym slugem, cislovani agenti -> jmeno postavy).
+              # Zdroj: rucni urceni uzivatelem + dohledani slugu v migracnich datech.
+              echo 'const ALIAS={"akj-5-3672":"logan-miller","akj-7-0104":"charles-pierse","akj-7-0112":"james-kid","akj-7-0152":"robert-stanton","akj-7-0176":"victoria-stanton","akj-7-0352":"edward-oconnell","akj-7-0423":"monika-oniell","akj-7-0432":"zara","akj-7-0489":"alexandr-fraser","akj-7-0553":"takumi-saito","akj-7-0567":"karl-forst","akj-8-archibald-of-lindsey":"archie","akj-9-0011":"mia-willow","akj-9-0016":"archibald-drake","akj-9-0018":"elizabeth-green","akj-9-0033":"konrad-jefferson","akj-9-0041":"antonie-grey","akj-9-0045":"jan-osullivan","akj-9-0048":"malcolm-macrae","akj-9-0055":"malcolm-fraser","akj-9-0058":"aileen-murphyova","akj-10-antorias-xasa":"antorias-xandrius-xasa","akj-10-john":"john-willscar"};'
               echo 'const stubs=db.pages.find({worldId:WID,_mig:"f4d",_migNew:true,slug:/^akj-[0-9]+-/}).toArray();'
               echo 'for(const st of stubs){'
-              echo '  const charSlug=st.slug.replace(/^akj-[0-9]+-/,"");'
+              echo '  const charSlug=ALIAS[st.slug]||st.slug.replace(/^akj-[0-9]+-/,"");'
               echo '  const target=db.pages.findOne({worldId:WID,slug:charSlug},{_id:1,slug:1,title:1});'
               echo '  const tabs=(st.akjTabs||[]).filter(function(t){return t&&t.id;});'
               echo '  if(!target){ unmatched.push(st.slug+"  (chybi cilova stranka \""+charSlug+"\")"); continue; }'
