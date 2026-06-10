@@ -1,0 +1,105 @@
+name: Fix Matrix AKJ orphan stubs (one-off)
+
+# NAPRAVA NASLEDKU F4d: nektere AKJ tajne obsahy se misto pripojeni na stranku
+# postavy odstepily jako samostatne "stub" stranky (slug akj-<uroven>-<postava>,
+# _mig:"f4d" + _migNew:true). Tento workflow je presune zpet jako akjTab na stranku
+# postavy (slug == <postava>) a sirotci stub smaze.
+#
+# PAROVANI: charSlug = stubSlug bez prefixu "akj-<n>-". Napoji JEN kdyz existuje
+# stranka se slug == charSlug (jednoznacna shoda). Ostatni (PC s jinym slugem,
+# cislovani agenti bez stranky) jen VYPISE jako unmatched k rucnimu reseni —
+# nic u nich nemeni.
+#
+# OBSAH: cely tajny obsah je v akjTab.contentOverride (content/image/table);
+# stub.content je jen placeholder -> smazani stubu nic neztrati.
+#
+# BEZPECNOST: idempotent (pull dle tab.id + push; stub smazan jen po presunu),
+# dry-run default, zaloha smazanych stubu vc. _movedTo/_tabIds do
+# pages_mig_trash_akjfix pro rollback.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          WID="6d6174726978000000000001"
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo "const WID=\"$WID\";"
+              echo 'let restored=0, pulled=0;'
+              echo 'const tr=db.pages_mig_trash_akjfix.find({}).toArray();'
+              echo 'for(const b of tr){'
+              echo '  const o=Object.assign({},b); const movedTo=o._movedTo; const tabIds=o._tabIds||[];'
+              echo '  delete o._trashFrom; delete o._movedTo; delete o._tabIds;'
+              echo '  db.pages.replaceOne({worldId:WID,slug:o.slug},o,{upsert:true}); restored++;'
+              echo '  if(movedTo&&tabIds.length){ const r=db.pages.updateOne({worldId:WID,slug:movedTo},{$pull:{akjTabs:{id:{$in:tabIds}}}}); pulled+=r.modifiedCount; }'
+              echo '}'
+              echo 'db.pages_mig_trash_akjfix.deleteMany({});'
+              echo 'print("ROLLBACK: obnoveno stub stranek="+restored+", stranek ocisteno od presunutych tabu="+pulled);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "import" ]; then
+              if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const WID=\"$WID\"; const DRY=$DRY;"
+              echo 'let moved=0, tabsMoved=0, deleted=0; const unmatched=[]; const matched=[];'
+              echo 'const stubs=db.pages.find({worldId:WID,_mig:"f4d",_migNew:true,slug:/^akj-[0-9]+-/}).toArray();'
+              echo 'for(const st of stubs){'
+              echo '  const charSlug=st.slug.replace(/^akj-[0-9]+-/,"");'
+              echo '  const target=db.pages.findOne({worldId:WID,slug:charSlug},{_id:1,slug:1,title:1});'
+              echo '  const tabs=(st.akjTabs||[]).filter(function(t){return t&&t.id;});'
+              echo '  if(!target){ unmatched.push(st.slug+"  (chybi cilova stranka \""+charSlug+"\")"); continue; }'
+              echo '  matched.push(st.slug+"  ->  "+charSlug+"  ["+tabs.map(function(t){return t.name;}).join(", ")+"]");'
+              echo '  if(DRY) continue;'
+              echo '  const tabIds=tabs.map(function(t){return t.id;});'
+              echo '  if(!db.pages_mig_trash_akjfix.findOne({slug:st.slug})){ db.pages_mig_trash_akjfix.insertOne(Object.assign({},st,{_trashFrom:"pages",_movedTo:charSlug,_tabIds:tabIds})); }'
+              echo '  for(const t of tabs){'
+              echo '    db.pages.updateOne({worldId:WID,slug:charSlug},{$pull:{akjTabs:{id:t.id}}});'
+              echo '    db.pages.updateOne({worldId:WID,slug:charSlug},{$push:{akjTabs:Object.assign({},t,{_mig:"akjfix"})}});'
+              echo '    tabsMoved++;'
+              echo '  }'
+              echo '  db.pages.deleteOne({_id:st._id}); deleted++; moved++;'
+              echo '}'
+              echo 'print("NAPOJI SE ("+matched.length+"):"); matched.forEach(function(m){print("  "+m);});'
+              echo 'if(unmatched.length){ print(""); print("NENAPOJENO ("+unmatched.length+") — k rucnimu reseni:"); unmatched.forEach(function(m){print("  "+m);}); }'
+              echo 'print("");'
+              echo 'print(DRY?("DRY-RUN: napojilo by se "+matched.length+" stubu, sirotku bez cile "+unmatched.length+". Nic nezmeneno."):("IMPORT HOTOVO: stubu napojeno "+moved+", tabu presunuto "+tabsMoved+", stubu smazano "+deleted+", nenapojeno "+unmatched.length));'
+            } > script.js
+          fi
+          echo "skript pripraven ($(du -h script.js | cut -f1))"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
