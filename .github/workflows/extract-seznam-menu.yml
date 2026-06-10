@@ -1,0 +1,80 @@
+name: Extract Seznam menu F-Seznam (one-off)
+
+# Presune odkazove paragrafy z Page.content do Page.menu pro type:'Seznam' (svet
+# matrix). Stary Matrix nemel strukturovane menu -> SeznamLayout hlasil "Seznam je
+# zatim prazdny" a odkazy visely v textu. Logika: migration/seznam-menu-extract.js
+# (+ tiptap2html-mongo.js pro sjednoceni JSON/HTML vstupu). Remap prezdivek:
+# migration/f5-links.json.gz. href -> holy world-relativni slug (strip stareho webu
+# projekt-ikaros.com + lomitka + remap). Per-stranka zaloha _migSeznamBefore jen
+# jednou -> idempotentni. Rulebook huby (pravidla/magicka-pravidla) a neprazdne
+# menu se preskoci. Spec: docs/arch/migration-matrix/f-seznam-menu.md
+#
+# dry-run: spocita stranky/polozky + vzorek.  extract: presune + zaloha + flag.
+# rollback: vrati content+menu ze zaloh, smaze flagy.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, extract, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro extract napis EXTRACT, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (data)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo "(function(){"
+              echo "var MAP=[];"
+              cat migration/tiptap2html-mongo.js
+              cat migration/seznam-menu-extract.js
+              echo "runRollback();"
+              echo "})();"
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "extract" ]; then
+              if [ "$CONFIRM" != "EXTRACT" ]; then echo "CHYBA: extract vyzaduje confirm=EXTRACT"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "(function(){"
+              echo "var DRY=$DRY;"
+              echo "var MAP ="
+              gunzip -c migration/f5-links.json.gz
+              echo ";"
+              cat migration/tiptap2html-mongo.js
+              cat migration/seznam-menu-extract.js
+              echo "runExtract();"
+              echo "})();"
+            } > script.js
+          fi
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on newmatrix
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
