@@ -685,6 +685,22 @@ describe('UsersService', () => {
       expect(result).not.toHaveProperty('bannedAt');
     });
 
+    it('§15 — platformový Admin dostane lastLoginAt (poslední přihlášení)', async () => {
+      const loginDate = new Date('2026-06-09T10:00:00.000Z');
+      mockRepo.findById.mockResolvedValue({
+        ...baseUser,
+        lastLoginAt: loginDate,
+      });
+      mockMembershipRepo.countByUserId.mockResolvedValue(0);
+
+      const result = await service.publicProfileV14(
+        'u1',
+        'viewer',
+        UserRole.Admin,
+      );
+      expect(result.lastLoginAt).toBe(loginDate.toISOString());
+    });
+
     it('vrátí veřejná profilová pole + postavu v Rozcestí', async () => {
       mockRepo.findById.mockResolvedValue({
         ...baseUser,

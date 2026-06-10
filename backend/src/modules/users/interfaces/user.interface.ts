@@ -171,6 +171,9 @@ export interface PublicUserListItem {
 
 export interface PublicUserProfile extends PublicUserListItem {
   lastSeenAt: string | null;
+  // 1.4 §15 — poslední přihlášení; posílá se JEN platformovému Adminovi
+  // (admin-gated v publicProfileV14), ne-admin pole vůbec nedostane.
+  lastLoginAt?: string | null;
   // 1.3a — veřejně viditelná profilová pole + postava v Rozcestí.
   bio?: string;
   city?: string;

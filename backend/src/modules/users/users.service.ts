@@ -497,6 +497,10 @@ export class UsersService implements OnModuleInit {
     if (isAdmin) {
       if (isTombstone) profile.deleted = true;
       if (isPending) profile.pendingDeletion = true;
+      // 1.4 §15 — poslední přihlášení jen pro platformového admina.
+      profile.lastLoginAt = user.lastLoginAt
+        ? user.lastLoginAt.toISOString()
+        : null;
     }
 
     return profile;
