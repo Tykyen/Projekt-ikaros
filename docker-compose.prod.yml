@@ -82,6 +82,13 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      # SMTP (transakční maily — reset hesla, ověření emailu). Když nejsou
+      # nastaveny SMTP_HOST + SMTP_USER, mailer jen loguje (neodesílá).
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      MAIL_FROM: ${MAIL_FROM}
       CLOUDINARY_URL: ${CLOUDINARY_URL}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET}
