@@ -483,30 +483,40 @@ describe('PagesService', () => {
   });
 
   // spec-akj-protected-tabs — per-tab gate ve findBySlug
-  describe('findBySlug — AKJ chráněné záložky', () => {
+  // spec-akj-locked-tabs-visible (2026-06-11) — clearance (AKJ) záložky se
+  // hráči bez přístupu ukážou ZAMČENÉ (jméno + úroveň, bez obsahu); UserId-only
+  // a Role záložky zůstávají skryté.
+  describe('findBySlug — AKJ chráněné záložky (locked)', () => {
     const kralTabs = [
       {
         id: 't1',
         name: 'Dvůr',
         order: 0,
         access: [{ type: 'AKJ', value: '3' }],
+        contentOverride: { content: '<p>tajný dvůr</p>' },
       },
       {
         id: 't2',
         name: 'Královna',
         order: 1,
-        access: [{ type: 'AKJ', value: '5' }],
+        // clearance + jmenovitý klíč na téže záložce
+        access: [
+          { type: 'AKJ', value: '5' },
+          { type: 'UserId', value: 'kralovnin-klic' },
+        ],
+        contentOverride: { content: '<p>tajná královna</p>' },
       },
       {
         id: 't3',
         name: 'Milenka',
         order: 2,
+        // jen jmenovitý klíč, žádná clearance → NEbroadcastuje se (skrytá)
         access: [{ type: 'UserId', value: 'sluha' }],
       },
     ];
     const kral = { ...mockPage, accessRequirements: [], akjTabs: kralTabs };
 
-    it('hráč clearance 5 vidí Dvůr (3) + Královna (5), ne Milenka (UserId)', async () => {
+    it('clearance 5 → Dvůr + Královna odemčené, Milenka (UserId) skrytá', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
@@ -514,10 +524,19 @@ describe('PagesService', () => {
         akj: 5,
       });
       const result = await service.findBySlug('kral', 'world1', 'user1');
-      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2']);
+      expect(
+        result.akjTabs?.map((t) => ({ id: t.id, locked: t.locked })),
+      ).toEqual([
+        { id: 't1', locked: false },
+        { id: 't2', locked: false },
+      ]);
+      // odemčená záložka nese obsah
+      expect(result.akjTabs?.[1].contentOverride?.content).toContain(
+        'královna',
+      );
     });
 
-    it('hráč clearance 3 vidí jen Dvůr', async () => {
+    it('clearance 3 → Dvůr odemčený, Královna ZAMČENÁ (bez obsahu/klíče), Milenka skrytá', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
@@ -525,10 +544,20 @@ describe('PagesService', () => {
         akj: 3,
       });
       const result = await service.findBySlug('kral', 'world1', 'user1');
-      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1']);
+      expect(
+        result.akjTabs?.map((t) => ({ id: t.id, locked: t.locked })),
+      ).toEqual([
+        { id: 't1', locked: false },
+        { id: 't2', locked: true },
+      ]);
+      const locked = result.akjTabs?.find((t) => t.id === 't2');
+      // obsah se NEposílá
+      expect(locked?.contentOverride).toBeUndefined();
+      // jmenovitý klíč (UserId) se NEposílá, zůstane jen clearance pro „úroveň N"
+      expect(locked?.access).toEqual([{ type: 'AKJ', value: '5' }]);
     });
 
-    it('hráč s UserId grantem vidí Milenku i bez clearance', async () => {
+    it('UserId grant → Milenka odemčená, clearance záložky zamčené', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
@@ -536,10 +565,16 @@ describe('PagesService', () => {
         akj: 0,
       });
       const result = await service.findBySlug('kral', 'world1', 'sluha');
-      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t3']);
+      expect(
+        result.akjTabs?.map((t) => ({ id: t.id, locked: t.locked })),
+      ).toEqual([
+        { id: 't1', locked: true },
+        { id: 't2', locked: true },
+        { id: 't3', locked: false },
+      ]);
     });
 
-    it('hráč bez ničeho → prázdné akjTabs (žádný leak)', async () => {
+    it('hráč bez přístupu → clearance záložky zamčené, UserId-only skrytá', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
@@ -547,10 +582,15 @@ describe('PagesService', () => {
         akj: 0,
       });
       const result = await service.findBySlug('kral', 'world1', 'cizinec');
-      expect(result.akjTabs).toEqual([]);
+      expect(
+        result.akjTabs?.map((t) => ({ id: t.id, locked: t.locked })),
+      ).toEqual([
+        { id: 't1', locked: true },
+        { id: 't2', locked: true },
+      ]);
     });
 
-    it('PJ vidí všechny záložky', async () => {
+    it('PJ vidí všechny záložky odemčené', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
@@ -558,10 +598,16 @@ describe('PagesService', () => {
         akj: 0,
       });
       const result = await service.findBySlug('kral', 'world1', 'pj');
-      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
+      expect(
+        result.akjTabs?.map((t) => ({ id: t.id, locked: t.locked })),
+      ).toEqual([
+        { id: 't1', locked: false },
+        { id: 't2', locked: false },
+        { id: 't3', locked: false },
+      ]);
     });
 
-    it('PomocnyPJ NEMÁ auto-bypass — vidí jen splněné záložky', async () => {
+    it('PomocnyPJ NEMÁ auto-bypass — Dvůr odemčený, Královna zamčená', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
@@ -569,10 +615,15 @@ describe('PagesService', () => {
         akj: 3,
       });
       const result = await service.findBySlug('kral', 'world1', 'pomocny');
-      expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1']);
+      expect(
+        result.akjTabs?.map((t) => ({ id: t.id, locked: t.locked })),
+      ).toEqual([
+        { id: 't1', locked: false },
+        { id: 't2', locked: true },
+      ]);
     });
 
-    it('platform Superadmin vidí vše i bez membershipu', async () => {
+    it('platform Superadmin vidí vše odemčené i bez membershipu', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       const result = await service.findBySlug(
@@ -582,6 +633,7 @@ describe('PagesService', () => {
         UserRole.Superadmin,
       );
       expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
+      expect(result.akjTabs?.every((t) => t.locked === false)).toBe(true);
     });
   });
 

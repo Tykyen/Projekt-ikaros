@@ -121,6 +121,10 @@ export interface AkjTab {
    *  (page bez ownerUserId) bez efektu. Viz spec-akj-owner-visibility. */
   ownerHidden?: boolean;
   contentOverride?: AkjTabContentOverride;
+  /** Runtime-only (NEukládá se): vyhodnotí `filterAkjTabsForViewer` per viewer.
+   *  false = viewer má přístup → plný obsah. true = vidí jen zamčenou záložku
+   *  (jméno + úroveň, bez obsahu). Nedefinováno na write path. */
+  locked?: boolean;
 }
 
 export interface Page {

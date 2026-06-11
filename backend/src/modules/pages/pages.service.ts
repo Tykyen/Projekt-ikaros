@@ -16,6 +16,7 @@ import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.i
 import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
 import type {
   Page,
+  AkjTab,
   ShieldedRequirement,
   AccessRequirement,
 } from './interfaces/page.interface';
@@ -74,6 +75,35 @@ function sanitizeAkjTabs(
       },
     };
   });
+}
+
+/**
+ * „In-fiction" AKJ záložka, kterou hráč bez přístupu vidí ZAMČENOU (ne skrytou):
+ * má aspoň jednu clearance podmínku (AKJ/AKJType) a žádnou Role. Role záložky
+ * („PJ informace") a prázdné / jen-jmenovité („Soukromé") zůstávají skryté.
+ * Viz spec-akj-locked-tabs-visible.md.
+ */
+function isBroadcastableAkjTab(tab: AkjTab): boolean {
+  const hasClearance = tab.access.some(
+    (r) => r.type === 'AKJ' || r.type === 'AKJType',
+  );
+  const hasRole = tab.access.some((r) => r.type === 'Role');
+  return hasClearance && !hasRole;
+}
+
+/**
+ * Zamčená varianta záložky pro viewera bez přístupu — pošle se jen jméno +
+ * úroveň (AKJ/AKJType reqs), BEZ obsahu a bez jmenovitých klíčů (UserId), aby
+ * neuniklo, co je uvnitř ani komu patří.
+ */
+function lockedAkjTab(tab: AkjTab): AkjTab {
+  return {
+    id: tab.id,
+    name: tab.name,
+    order: tab.order,
+    access: tab.access.filter((r) => r.type === 'AKJ' || r.type === 'AKJType'),
+    locked: true,
+  };
 }
 
 @Injectable()
@@ -723,10 +753,14 @@ export class PagesService {
   }
 
   /**
-   * AKJ chráněné záložky — vrať Page jen s těmi `akjTabs`, na které má viewer
-   * přístup. PJ a platform Admin+ vidí všechny; PomocnyPJ NEMÁ auto-bypass
-   * (jen co mu PJ grantoval přes `tab.access`) — viz spec-akj-protected-tabs.
-   * Nedostupné záložky se z response odstraní úplně (žádný leak existence).
+   * AKJ chráněné záložky — uprav `akjTabs` pro daného viewera. PJ a platform
+   * Admin+ vidí všechny odemčené; PomocnyPJ NEMÁ auto-bypass (jen co mu PJ
+   * grantoval přes `tab.access`) — viz spec-akj-protected-tabs.
+   *
+   * Per spec-akj-locked-tabs-visible (2026-06-11): nedostupná záložka se už
+   * NEmaže paušálně. „In-fiction" clearance záložka (viz isBroadcastableAkjTab)
+   * se pošle ZAMČENÁ (jméno + úroveň, bez obsahu) → hráč vidí zámek a může na
+   * přístup pracovat. Role záložky („PJ informace") a soukromé zůstávají skryté.
    */
   private async filterAkjTabsForViewer(
     page: Page,
@@ -742,21 +776,34 @@ export class PagesService {
     const seesAll =
       (platformRole !== undefined && platformRole <= UserRole.Admin) ||
       (!!membership && membership.role >= WorldRole.PJ);
-    if (seesAll) return page;
+    if (seesAll) {
+      // PJ/Admin: vše odemčené. Explicitní flag, ať FE nemusí stav dohadovat.
+      return {
+        ...page,
+        akjTabs: page.akjTabs.map((tab) => ({ ...tab, locked: false })),
+      };
+    }
     const needsAkjTypes = page.akjTabs.some((t) =>
       t.access.some((r) => r.type === 'AKJType'),
     );
     const akjTypes = needsAkjTypes
       ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
       : [];
-    const visible = page.akjTabs.filter(
-      (tab) =>
+    const result: AkjTab[] = [];
+    for (const tab of page.akjTabs) {
+      const canSee =
         this.passesAccess(tab.access, userId, membership, akjTypes) ||
         // Vlastník postavy vidí AKJ záložky na své PC, dokud mu PJ právo
         // neodebere (ownerHidden). Mimo PC je ownerUserId undefined → bez efektu.
-        (!!page.ownerUserId && page.ownerUserId === userId && !tab.ownerHidden),
-    );
-    return { ...page, akjTabs: visible };
+        (!!page.ownerUserId && page.ownerUserId === userId && !tab.ownerHidden);
+      if (canSee) {
+        result.push({ ...tab, locked: false });
+      } else if (isBroadcastableAkjTab(tab)) {
+        result.push(lockedAkjTab(tab));
+      }
+      // jinak: skryté úplně (PJ informace = Role / Soukromé = prázdné/jen klíč).
+    }
+    return { ...page, akjTabs: result };
   }
 
   /**
