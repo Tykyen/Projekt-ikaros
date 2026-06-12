@@ -12,6 +12,11 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.setGlobalPrefix('api');
+  // Body limit zvednut z expressího defaultu (100 kB) — bohaté / migrované
+  // stránky a postavy (roky obsahu + subdokumenty v jednom PATCH) jinak
+  // při uložení vrací 413 Content Too Large.
+  app.useBodyParser('json', { limit: '5mb' });
+  app.useBodyParser('urlencoded', { limit: '5mb', extended: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useWebSocketAdapter(new CustomIoAdapter(app));

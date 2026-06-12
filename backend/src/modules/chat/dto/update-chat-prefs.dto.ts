@@ -27,4 +27,9 @@ export class UpdateChatPrefsDto {
   @IsArray()
   @IsMongoId({ each: true })
   pinnedOrder?: string[];
+
+  /** Poslední otevřená konverzace — cross-device seed (spec-chat-push-deeplink). */
+  @IsOptional()
+  @IsMongoId()
+  lastActiveChannelId?: string;
 }

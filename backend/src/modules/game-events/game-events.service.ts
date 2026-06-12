@@ -26,6 +26,15 @@ import {
 import { PushService } from '../push/push.service';
 import { ACTIVE_WINDOW_MS } from '../../common/constants/time.constants';
 
+/**
+ * Tolerance pro detekci „žádosti o archiv" ve `findList`. FE posílá `fromDate`
+ * = cutoff zaokrouhlený DOLŮ na minutu (+ síťová latence), takže je vždy
+ * nepatrně < BE cutoff. Bez tolerance by legitimní „upcoming" hráče spadlo do
+ * archivu → 403 a hráč by neviděl žádné akce. 5 min bezpečně pokryje rounding
+ * + latenci; reálná žádost o archiv (fromDate hodiny/dny zpět) se pořád zachytí.
+ */
+const ARCHIVE_SKEW_MS = 5 * 60 * 1000;
+
 @Injectable()
 export class GameEventsService {
   private readonly logger = new Logger(GameEventsService.name);
@@ -133,9 +142,15 @@ export class GameEventsService {
       if (!membership || membership.role === WorldRole.Zadatel) return [];
 
       const cutoff = new Date(Date.now() - ACTIVE_WINDOW_MS).toISOString();
+      // `fromDate` se posuzuje s tolerancí (ARCHIVE_SKEW_MS) — viz konstanta:
+      // FE cutoff je zaokrouhlený dolů na minutu, jinak by upcoming hráče
+      // spadlo do archivu a vrátilo 403.
+      const archiveThresholdMs =
+        Date.now() - ACTIVE_WINDOW_MS - ARCHIVE_SKEW_MS;
       const requestsArchive =
         filters.toDate !== undefined ||
-        (filters.fromDate !== undefined && filters.fromDate < cutoff);
+        (filters.fromDate !== undefined &&
+          new Date(filters.fromDate).getTime() < archiveThresholdMs);
 
       if (requestsArchive && membership.role < WorldRole.PomocnyPJ) {
         throw new ForbiddenException({

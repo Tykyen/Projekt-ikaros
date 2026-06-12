@@ -67,6 +67,10 @@ export class WorldMembershipSchemaClass {
    * pořadí je per-svět (zobrazují se jen pinned konverzace daného světa).
    */
   @Prop({ type: [String], default: undefined }) chatPinnedOrder?: string[];
+
+  /** Poslední otevřená konverzace (cross-device seed). `channelId`. */
+  @Prop({ type: String, default: undefined })
+  chatLastActiveChannelId?: string;
 }
 
 export const WorldMembershipSchema = SchemaFactory.createForClass(

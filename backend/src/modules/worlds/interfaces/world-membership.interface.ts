@@ -71,6 +71,8 @@ export interface WorldMembership {
   chatExpandedGroups?: string[];
   /** D-032 — osobní pořadí připnutých konverzací (`channelId[]`), per svět. */
   chatPinnedOrder?: string[];
+  /** Poslední otevřená konverzace (cross-device seed). `channelId`. */
+  chatLastActiveChannelId?: string;
   /**
    * Krok 5.3 — public summary uživatele (username, avatar účtu). Populuje
    * `getMembers` přes `enrichMembers`. Smazaný účet → undefined.

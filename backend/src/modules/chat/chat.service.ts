@@ -284,6 +284,7 @@ export class ChatService implements OnApplicationBootstrap {
     chatChannelOrder?: Record<string, string[]>;
     chatExpandedGroups?: string[];
     chatPinnedOrder?: string[];
+    chatLastActiveChannelId?: string;
   }> {
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
@@ -305,12 +306,16 @@ export class ChatService implements OnApplicationBootstrap {
     if (dto.pinnedOrder !== undefined) {
       patch.chatPinnedOrder = dto.pinnedOrder;
     }
+    if (dto.lastActiveChannelId !== undefined) {
+      patch.chatLastActiveChannelId = dto.lastActiveChannelId;
+    }
     const updated = await this.membershipRepo.update(membership.id, patch);
     return {
       chatGroupOrder: updated?.chatGroupOrder,
       chatChannelOrder: updated?.chatChannelOrder,
       chatExpandedGroups: updated?.chatExpandedGroups,
       chatPinnedOrder: updated?.chatPinnedOrder,
+      chatLastActiveChannelId: updated?.chatLastActiveChannelId,
     };
   }
 
@@ -1065,9 +1070,15 @@ export class ChatService implements OnApplicationBootstrap {
           pushIds = accessRecipients;
         }
         if (pushIds.length > 0) {
+          // Deep-link: klik na notifikaci otevře přímo tuto konverzaci.
+          const world = await this.worldsService.findById(channel.worldId);
+          const url = world
+            ? `/svet/${world.slug}/chat?konverzace=${channelId}`
+            : undefined;
           await this.pushService.notifyUsers(pushIds, {
             title: message.overrideName ?? message.senderName,
             body: (message.content ?? '').slice(0, 100),
+            url,
           });
         }
 

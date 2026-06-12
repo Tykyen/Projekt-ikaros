@@ -202,6 +202,9 @@ export class MongoWorldMembershipRepository
         | undefined,
       chatExpandedGroups: doc.chatExpandedGroups as string[] | undefined,
       chatPinnedOrder: doc.chatPinnedOrder as string[] | undefined,
+      chatLastActiveChannelId: doc.chatLastActiveChannelId as
+        | string
+        | undefined,
     };
   }
 
