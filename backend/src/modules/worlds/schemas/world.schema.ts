@@ -32,7 +32,6 @@ export class WorldSchemaClass {
   @Prop({ default: 'private' }) accessMode: string;
   @Prop({ type: [{ slug: String, name: String }], default: [] })
   offeredCharacters: { slug: string; name: string }[];
-  @Prop({ type: [String], default: [] }) favoritePageSlugs: string[];
 
   // ── 9.2b — Multi-config kalendáře ──
   /** Slug výchozího kalendáře (z `world_calendar_configs`). Auto-seed → 'gregorian'. */

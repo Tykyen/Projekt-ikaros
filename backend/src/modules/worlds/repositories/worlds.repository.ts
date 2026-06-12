@@ -159,20 +159,6 @@ export class MongoWorldsRepository
     );
   }
 
-  async addFavoriteSlug(worldId: string, slug: string): Promise<void> {
-    if (!Types.ObjectId.isValid(worldId)) return;
-    await this.model
-      .findByIdAndUpdate(worldId, { $addToSet: { favoritePageSlugs: slug } })
-      .exec();
-  }
-
-  async removeFavoriteSlug(worldId: string, slug: string): Promise<void> {
-    if (!Types.ObjectId.isValid(worldId)) return;
-    await this.model
-      .findByIdAndUpdate(worldId, { $pull: { favoritePageSlugs: slug } })
-      .exec();
-  }
-
   async setActiveMapWeather(
     worldId: string,
     weather: ActiveMapWeather,
@@ -239,7 +225,6 @@ export class MongoWorldsRepository
       accessMode: (doc.accessMode as string) ?? 'private',
       offeredCharacters:
         (doc.offeredCharacters as { slug: string; name: string }[]) ?? [],
-      favoritePageSlugs: (doc.favoritePageSlugs as string[]) ?? [],
       defaultCalendarConfigSlug:
         (doc.defaultCalendarConfigSlug as string) ?? 'gregorian',
       timelineEpoch: (doc.timelineEpoch as number) ?? 0,

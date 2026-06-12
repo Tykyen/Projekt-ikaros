@@ -67,8 +67,6 @@ describe('AdminService', () => {
     update: jest.fn(),
     updateCalendarConfig: jest.fn(),
     delete: jest.fn(),
-    addFavoriteSlug: jest.fn(),
-    removeFavoriteSlug: jest.fn(),
   };
 
   // Helper: Superadmin actor (může vše, kromě sebe)

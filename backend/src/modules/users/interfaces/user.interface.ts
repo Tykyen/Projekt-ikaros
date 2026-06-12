@@ -121,6 +121,8 @@ export interface User {
   // 8.3 / D-074 (2026-05-23) — oblíbené postavy v adresáři per svět.
   // Mapa `worldId → slug[]`. Default `{}` (žádné oblíbené ve světě).
   favoriteCharacters: Record<string, string[]>;
+  // 5.2-followup — osobní oblíbené stránky per svět. `worldId → slug[]`, pořadí významné.
+  favoritePageSlugs: Record<string, string[]>;
 }
 
 /**

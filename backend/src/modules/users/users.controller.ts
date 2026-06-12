@@ -35,6 +35,7 @@ import { RequestEmailChangeDto } from './dto/request-email-change.dto';
 import { RequestUsernameChangeDto } from './dto/request-username-change.dto';
 import { RequestSelfDeletionDto } from './dto/request-self-deletion.dto';
 import { UpdateFavoriteCharactersDto } from './dto/update-favorite-characters.dto';
+import { UpdateFavoritePagesDto } from './dto/update-favorite-pages.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AllowPendingDeletion } from '../../common/decorators/allow-pending-deletion.decorator';
@@ -166,6 +167,31 @@ export class UsersController {
       dto.slugs,
     );
     return { favoriteCharacters };
+  }
+
+  // ── 5.2-followup — Osobní oblíbené STRÁNKY per svět ─────────────────
+
+  @Put('me/favorite-pages/:worldId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Replace per-svět seznam oblíbených stránek přihlášeného uživatele',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '{ favoritePageSlugs: Record<worldId, slug[]> }',
+  })
+  async setFavoritePages(
+    @Param('worldId') worldId: string,
+    @Body() dto: UpdateFavoritePagesDto,
+    @CurrentUser() user: Requester,
+  ) {
+    const favoritePageSlugs = await this.usersService.setFavoritePages(
+      user.id,
+      worldId,
+      dto.slugs,
+    );
+    return { favoritePageSlugs };
   }
 
   // ── 8.3 / D-075 — Cross-world přehled „mých postav" ─────────────────

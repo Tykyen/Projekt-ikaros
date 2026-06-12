@@ -39,16 +39,12 @@ import {
   UpdateMemberFreeDto,
   UpdateMemberThemeDto,
 } from './dto/update-member.dto';
-import { PagesService } from '../pages/pages.service';
 
 @ApiTags('Worlds')
 @ApiBearerAuth()
 @Controller('worlds')
 export class WorldsController {
-  constructor(
-    private readonly worldsService: WorldsService,
-    private readonly pagesService: PagesService,
-  ) {}
+  constructor(private readonly worldsService: WorldsService) {}
 
   // D-016 — Read endpointy s OptionalJwtAuthGuard: anon vidí jen public/open
   // světy; auth uživatel vidí navíc světy kde je členem (filter v service).
@@ -487,14 +483,6 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.updateMyTheme(worldId, dto, user);
-  }
-
-  @Get(':worldId/favorites')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Oblíbené stránky uživatele ve světě' })
-  @ApiResponse({ status: 200, description: 'OK' })
-  getFavorites(@Param('worldId') worldId: string) {
-    return this.pagesService.findFavorites(worldId);
   }
 
   @Get(':id/diary-schema-versions')

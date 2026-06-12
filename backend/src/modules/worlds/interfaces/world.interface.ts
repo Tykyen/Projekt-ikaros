@@ -64,7 +64,6 @@ export interface World {
   deletedBy: string | null;
   accessMode: string;
   offeredCharacters?: OfferedCharacter[];
-  favoritePageSlugs: string[];
   /** 9.2b — slug výchozího kalendáře z `world_calendar_configs`. Auto-seed = 'gregorian'. */
   defaultCalendarConfigSlug: string;
   /** 9.2b — společný absDay epoch napříč kalendáři světa. */

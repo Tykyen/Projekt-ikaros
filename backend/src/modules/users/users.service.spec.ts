@@ -124,8 +124,6 @@ describe('UsersService', () => {
     update: jest.fn(),
     updateCalendarConfig: jest.fn(),
     delete: jest.fn(),
-    addFavoriteSlug: jest.fn(),
-    removeFavoriteSlug: jest.fn(),
   };
   // 8.3 / D-075 — cross-world character agregátor
   const mockCharactersRepo = {
@@ -1114,6 +1112,73 @@ describe('UsersService', () => {
       expect(result).toEqual({
         world2: ['existing'],
         [VALID_WORLD]: ['frodo'],
+      });
+    });
+  });
+
+  // ── 5.2-followup — setFavoritePages ─────────────────────────────────
+  describe('setFavoritePages (5.2-followup)', () => {
+    const VALID_WORLD = '507f1f77bcf86cd799439011';
+
+    it('404 NotFound když user neexistuje', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.setFavoritePages('u1', VALID_WORLD, ['domov']),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('400 BadRequest na nevalidní worldId', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        favoritePageSlugs: {},
+      });
+      await expect(
+        service.setFavoritePages('u1', 'not-an-objectid', ['domov']),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('dedup zachová POŘADÍ vložení (reorder)', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        favoritePageSlugs: {},
+      });
+      mockRepo.update.mockResolvedValue({ ...mockUser });
+      const result = await service.setFavoritePages('u1', VALID_WORLD, [
+        'mapa',
+        'domov',
+        'mapa', // dup
+        'lokace',
+      ]);
+      // pořadí dle prvního výskytu, ne abecedně
+      expect(result[VALID_WORLD]).toEqual(['mapa', 'domov', 'lokace']);
+      expect(mockRepo.update).toHaveBeenCalledWith('u1', {
+        favoritePageSlugs: { [VALID_WORLD]: ['mapa', 'domov', 'lokace'] },
+      });
+    });
+
+    it('prázdný array smaže záznam pro daný svět', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        favoritePageSlugs: { [VALID_WORLD]: ['domov'], world2: ['mesto'] },
+      });
+      mockRepo.update.mockResolvedValue({ ...mockUser });
+      const result = await service.setFavoritePages('u1', VALID_WORLD, []);
+      expect(result[VALID_WORLD]).toBeUndefined();
+      expect(result['world2']).toEqual(['mesto']);
+    });
+
+    it('izolace — nezasáhne favoritePageSlugs jiných světů', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        favoritePageSlugs: { world2: ['existing'] },
+      });
+      mockRepo.update.mockResolvedValue({ ...mockUser });
+      const result = await service.setFavoritePages('u1', VALID_WORLD, [
+        'domov',
+      ]);
+      expect(result).toEqual({
+        world2: ['existing'],
+        [VALID_WORLD]: ['domov'],
       });
     });
   });

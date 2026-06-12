@@ -605,32 +605,6 @@ export class PagesService {
     return labels[role] ?? `Role ${role}`;
   }
 
-  async addFavorite(
-    worldId: string,
-    slug: string,
-    requester: PagesRequester,
-  ): Promise<void> {
-    // N-36 — oblíbené světa je sdílený dashboard seznam (kurátorství) → PJ+.
-    // Dřív bez checku mohl kdokoli přihlášený měnit favority cizího světa.
-    await this.assertCanWrite(worldId, requester);
-    const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
-    if (!exists)
-      throw new NotFoundException({
-        code: 'PAGE_NOT_FOUND',
-        message: 'Stránka nenalezena',
-      });
-    await this.worldsRepo.addFavoriteSlug(worldId, slug);
-  }
-
-  async removeFavorite(
-    worldId: string,
-    slug: string,
-    requester: PagesRequester,
-  ): Promise<void> {
-    await this.assertCanWrite(worldId, requester); // N-36
-    await this.worldsRepo.removeFavoriteSlug(worldId, slug);
-  }
-
   /**
    * 7.1l — Backlinks pro „Odkazuje sem" panel ve vieweru. Filtruje stránky,
    * ke kterým má requester přístup (zbytek vyloučí silent — neukazujeme
@@ -673,16 +647,6 @@ export class PagesService {
       }
     }
     return accessible;
-  }
-
-  async findFavorites(worldId: string): Promise<Page[]> {
-    const world = await this.worldsRepo.findById(worldId);
-    if (!world)
-      throw new NotFoundException({
-        code: 'WORLD_NOT_FOUND',
-        message: 'Svět nenalezen',
-      });
-    return this.pagesRepo.findBySlugs(world.favoritePageSlugs, worldId);
   }
 
   /**

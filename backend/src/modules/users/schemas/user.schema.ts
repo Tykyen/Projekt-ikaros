@@ -132,6 +132,12 @@ export class UserSchemaClass {
   // Mongo Map; pre-existing dokumenty backfilluje toEntity na `{}`.
   @Prop({ type: Map, of: [String], default: {} })
   favoriteCharacters: Map<string, string[]>;
+
+  // 5.2-followup (2026-06-12) — osobní oblíbené STRÁNKY per svět. Mapa
+  // worldId → slug[], POŘADÍ významné (reorder). Nahrazuje zrušený sdílený
+  // world.favoritePageSlugs. Mongo Map; toEntity → Record.
+  @Prop({ type: Map, of: [String], default: {} })
+  favoritePageSlugs: Map<string, string[]>;
 }
 
 export const UserSchema = SchemaFactory.createForClass(UserSchemaClass);

@@ -21,8 +21,6 @@ export interface IWorldsRepository {
   /** D-NEW-theme-bg-empty migrace — vyčistí pre-existing `themeBackgroundUrl: ''`. */
   migrateEmptyThemeBackgroundUrls(): Promise<{ updated: number }>;
   delete(id: string): Promise<boolean>;
-  addFavoriteSlug(worldId: string, slug: string): Promise<void>;
-  removeFavoriteSlug(worldId: string, slug: string): Promise<void>;
   /** 10.2i — nastaví počasí vyslané na taktickou mapu světa. */
   setActiveMapWeather(
     worldId: string,

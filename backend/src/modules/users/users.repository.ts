@@ -363,13 +363,14 @@ export class MongoUsersRepository
 
       // 8.3 / D-074 — oblíbené postavy per svět. Mongo Map → plain object,
       // ať FE dostane standardní JSON `Record<worldId, slug[]>`.
-      favoriteCharacters: this.toFavoriteCharactersRecord(
-        doc.favoriteCharacters,
-      ),
+      favoriteCharacters: this.toSlugMapRecord(doc.favoriteCharacters),
+      // 5.2-followup — osobní oblíbené stránky per svět (stejný Map→Record mapper).
+      favoritePageSlugs: this.toSlugMapRecord(doc.favoritePageSlugs),
     };
   }
 
-  private toFavoriteCharactersRecord(raw: unknown): Record<string, string[]> {
+  /** Mongo Map | plain object → `Record<worldId, slug[]>` (oblíbené postavy i stránky). */
+  private toSlugMapRecord(raw: unknown): Record<string, string[]> {
     if (!raw) return {};
     if (raw instanceof Map) {
       return Object.fromEntries(raw.entries()) as Record<string, string[]>;

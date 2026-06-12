@@ -58,8 +58,6 @@ describe('PagesService', () => {
   };
   const mockWorldsRepo = {
     findById: jest.fn(),
-    addFavoriteSlug: jest.fn(),
-    removeFavoriteSlug: jest.fn(),
   };
   const mockSettingsRepo = { findByWorldId: jest.fn() };
   // 9.1 / Spec 9.2 — CharactersService mock pro auto-create Character při

@@ -873,6 +873,41 @@ export class UsersService implements OnModuleInit {
     return next;
   }
 
+  // ── 5.2-followup — Osobní oblíbené STRÁNKY per svět ─────────────────
+
+  /**
+   * Replace-all per (user × world). FE pošle aktuální slugy po toggle/reorder,
+   * BE deduplikuje (Set zachovává **pořadí** vložení → reorder funguje) a uloží.
+   * Vrací **celou** mapu oblíbených stránek uživatele (FE invaliduje `/users/me`).
+   */
+  async setFavoritePages(
+    userId: string,
+    worldId: string,
+    slugs: string[],
+  ): Promise<Record<string, string[]>> {
+    const user = await this.repo.findById(userId);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    if (!/^[0-9a-fA-F]{24}$/.test(worldId)) {
+      throw new BadRequestException({
+        code: 'INVALID_WORLD_ID',
+        message: 'Neplatné worldId',
+      });
+    }
+    const dedup = Array.from(new Set(slugs));
+    const next = { ...(user.favoritePageSlugs ?? {}) };
+    if (dedup.length === 0) {
+      delete next[worldId];
+    } else {
+      next[worldId] = dedup;
+    }
+    await this.repo.update(userId, { favoritePageSlugs: next });
+    return next;
+  }
+
   // ── 8.3 / D-075 — Cross-world přehled „mých postav" ─────────────────
 
   /**

@@ -174,28 +174,4 @@ export class PagesController {
   ) {
     return this.pagesService.findBacklinks(slug, worldId, user.id, user.role);
   }
-
-  @Post(':slug/favorite')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Přidat stránku do oblíbených' })
-  @ApiResponse({ status: 200, description: 'OK' })
-  addFavorite(
-    @Param('worldId') worldId: string,
-    @Param('slug') slug: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.pagesService.addFavorite(worldId, slug, user);
-  }
-
-  @Delete(':slug/favorite')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Odebrat stránku z oblíbených' })
-  @ApiResponse({ status: 200, description: 'OK' })
-  removeFavorite(
-    @Param('worldId') worldId: string,
-    @Param('slug') slug: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.pagesService.removeFavorite(worldId, slug, user);
-  }
 }

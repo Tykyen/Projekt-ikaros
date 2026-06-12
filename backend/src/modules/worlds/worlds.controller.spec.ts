@@ -1,7 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { WorldsController } from './worlds.controller';
 import { WorldsService } from './worlds.service';
-import { PagesService } from '../pages/pages.service';
 
 describe('WorldsController', () => {
   let controller: WorldsController;
@@ -20,17 +19,11 @@ describe('WorldsController', () => {
     updateMemberAkj: jest.fn(),
     softDelete: jest.fn(),
   };
-  const mockPagesService = {
-    findFavorites: jest.fn(),
-  };
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
       controllers: [WorldsController],
-      providers: [
-        { provide: WorldsService, useValue: mockService },
-        { provide: PagesService, useValue: mockPagesService },
-      ],
+      providers: [{ provide: WorldsService, useValue: mockService }],
     }).compile();
     controller = module.get(WorldsController);
     jest.clearAllMocks();
