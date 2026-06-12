@@ -86,6 +86,8 @@ export class MongoChatMessageRepository
     if (or.length === 0) return [];
     const filter: Record<string, unknown> = {
       isDeleted: { $ne: true },
+      // Feed = „co napsali ostatní" → vlastní zprávy se nezobrazují.
+      senderId: { $ne: opts.userId },
       $or: or,
     };
     if (opts.before && Types.ObjectId.isValid(opts.before)) {
