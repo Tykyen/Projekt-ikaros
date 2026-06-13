@@ -19,6 +19,8 @@ import { WorldMapsService } from './world-maps.service';
 import { CreateMapDto } from './dto/create-map.dto';
 import { UpdateMapDto } from './dto/update-map.dto';
 import { ReorderMapsDto } from './dto/reorder-maps.dto';
+import { CreateFolderDto } from './dto/create-folder.dto';
+import { UpdateFolderDto } from './dto/update-folder.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -102,5 +104,76 @@ export class WorldMapsController {
   ) {
     await this.service.assertCanManage(user.id, user.role, worldId);
     return this.service.reorder(worldId, dto.orderedIds);
+  }
+
+  // ── Složky (13.4b F2) ──────────────────────────────────────────────────────
+
+  @Get('folders')
+  @ApiOperation({ summary: 'Strom složek atlasu (s visibility filtrem)' })
+  @ApiResponse({ status: 200 })
+  async listFolders(
+    @Query('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    const isPjOrAdmin = await this.service.canManage(
+      user.id,
+      user.role,
+      worldId,
+    );
+    return this.service.listFolders(worldId, user.id, isPjOrAdmin);
+  }
+
+  @Post(':worldId/folders')
+  @ApiOperation({ summary: 'Vytvořit složku (PJ+)' })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 403 })
+  async createFolder(
+    @Param('worldId') worldId: string,
+    @Body() dto: CreateFolderDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user.id, user.role, worldId);
+    return this.service.createFolder(worldId, dto);
+  }
+
+  @Patch(':worldId/folders-reorder')
+  @ApiOperation({ summary: 'Změnit pořadí složek (PJ+)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  async reorderFolders(
+    @Param('worldId') worldId: string,
+    @Body() dto: ReorderMapsDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user.id, user.role, worldId);
+    return this.service.reorderFolders(worldId, dto.orderedIds);
+  }
+
+  @Patch(':worldId/folders/:folderId')
+  @ApiOperation({ summary: 'Upravit složku (PJ+)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  async updateFolder(
+    @Param('worldId') worldId: string,
+    @Param('folderId') folderId: string,
+    @Body() dto: UpdateFolderDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user.id, user.role, worldId);
+    return this.service.updateFolder(worldId, folderId, dto);
+  }
+
+  @Delete(':worldId/folders/:folderId')
+  @ApiOperation({ summary: 'Smazat složku — obsah do rodiče (PJ+)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  async removeFolder(
+    @Param('worldId') worldId: string,
+    @Param('folderId') folderId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.removeFolder(worldId, folderId);
+    return { ok: true };
   }
 }

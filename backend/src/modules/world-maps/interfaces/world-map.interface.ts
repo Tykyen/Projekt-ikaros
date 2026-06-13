@@ -5,6 +5,8 @@
 
 export interface WorldMapEntry {
   id: string;
+  /** Vnořená složka (13.4b, F2). `null` = kořen atlasu. */
+  folderId: string | null;
   title: string;
   description: string;
   imageUrl: string;

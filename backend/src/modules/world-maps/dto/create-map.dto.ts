@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateMapDto {
@@ -15,4 +16,10 @@ export class CreateMapDto {
   @IsArray()
   @IsString({ each: true })
   visibleToPlayerIds?: string[];
+
+  /** Složka, do které mapa patří; `null`/vynecháno = kořen. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  folderId?: string | null;
 }

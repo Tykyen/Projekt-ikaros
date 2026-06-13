@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateMapDto {
@@ -15,4 +16,10 @@ export class UpdateMapDto {
   @IsArray()
   @IsString({ each: true })
   visibleToPlayerIds?: string[];
+
+  /** Přesun mapy do složky; `null` = kořen atlasu. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  folderId?: string | null;
 }

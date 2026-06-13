@@ -1,6 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { WorldMapsService } from './world-maps.service';
 import type { IWorldMapsRepository } from './interfaces/world-maps-repository.interface';
+import type { IWorldMapFoldersRepository } from './interfaces/world-map-folders-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { WorldMapEntry } from './interfaces/world-map.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
@@ -9,6 +10,7 @@ import { UserRole } from '../users/interfaces/user.interface';
 function entry(over: Partial<WorldMapEntry> = {}): WorldMapEntry {
   return {
     id: 'm1',
+    folderId: null,
     title: 'Mapa',
     description: '',
     imageUrl: 'https://cdn/m.png',
@@ -23,6 +25,7 @@ function entry(over: Partial<WorldMapEntry> = {}): WorldMapEntry {
 
 describe('WorldMapsService', () => {
   let repo: jest.Mocked<IWorldMapsRepository>;
+  let foldersRepo: jest.Mocked<IWorldMapFoldersRepository>;
   let membershipRepo: { findByUserAndWorld: jest.Mock };
   let service: WorldMapsService;
 
@@ -33,10 +36,20 @@ describe('WorldMapsService', () => {
       updateMap: jest.fn(),
       removeMap: jest.fn(),
       reorder: jest.fn(),
+      reparentMaps: jest.fn(),
+    };
+    foldersRepo = {
+      findByWorld: jest.fn().mockResolvedValue([]),
+      create: jest.fn(),
+      update: jest.fn(),
+      remove: jest.fn(),
+      reorder: jest.fn(),
+      reparentChildren: jest.fn(),
     };
     membershipRepo = { findByUserAndWorld: jest.fn() };
     service = new WorldMapsService(
       repo,
+      foldersRepo,
       membershipRepo as unknown as IWorldMembershipRepository,
     );
   });

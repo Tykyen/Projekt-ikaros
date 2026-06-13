@@ -1,32 +1,33 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { WorldMapsSchemaClass } from '../schemas/world-maps.schema';
+import { WorldMapEntrySchemaClass } from '../schemas/world-map-entry.schema';
 import type { WorldMapEntry } from '../interfaces/world-map.interface';
 import type { IWorldMapsRepository } from '../interfaces/world-maps-repository.interface';
 
+/**
+ * 13.4b — Mapy 2.0: jedna mapa = jeden dokument v kolekci `worldMapEntries`
+ * (refaktor z embedded `worldMaps[]` kvůli škále 500+). Rozhraní
+ * `IWorldMapsRepository` zachováno → service/controller netknuté.
+ */
 @Injectable()
 export class MongoWorldMapsRepository implements IWorldMapsRepository {
   constructor(
-    @InjectModel(WorldMapsSchemaClass.name)
-    private readonly model: Model<WorldMapsSchemaClass>,
+    @InjectModel(WorldMapEntrySchemaClass.name)
+    private readonly model: Model<WorldMapEntrySchemaClass>,
   ) {}
 
   async findByWorld(worldId: string): Promise<WorldMapEntry[]> {
-    const doc = await this.model.findOne({ worldId }).lean().exec();
-    if (!doc) return [];
-    return (doc.maps ?? []).map((m) => this.toEntry(m));
+    const docs = await this.model
+      .find({ worldId })
+      .sort({ order: 1 })
+      .lean()
+      .exec();
+    return docs.map((d) => this.toEntry(d));
   }
 
   async addMap(worldId: string, entry: WorldMapEntry): Promise<WorldMapEntry> {
-    await this.model
-      .findOneAndUpdate(
-        { worldId },
-        { $push: { maps: entry } },
-        { new: true, upsert: true },
-      )
-      .lean()
-      .exec();
+    await this.model.create({ ...entry, worldId });
     return entry;
   }
 
@@ -35,62 +36,69 @@ export class MongoWorldMapsRepository implements IWorldMapsRepository {
     mapId: string,
     patch: Partial<WorldMapEntry>,
   ): Promise<WorldMapEntry | null> {
-    // Pozičním operátorem `$` updatujeme jen poskytnutá pole vybrané mapy.
     const set: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(patch)) {
       if (key === 'id') continue;
-      set[`maps.$.${key}`] = value;
+      set[key] = value;
     }
     if (Object.keys(set).length === 0) {
-      const current = await this.findByWorld(worldId);
-      return current.find((m) => m.id === mapId) ?? null;
+      const doc = await this.model
+        .findOne({ worldId, id: mapId })
+        .lean()
+        .exec();
+      return doc ? this.toEntry(doc) : null;
     }
     const doc = await this.model
-      .findOneAndUpdate(
-        { worldId, 'maps.id': mapId },
-        { $set: set },
-        { new: true },
-      )
+      .findOneAndUpdate({ worldId, id: mapId }, { $set: set }, { new: true })
       .lean()
       .exec();
-    if (!doc) return null;
-    const updated = (doc.maps ?? []).find((m) => m['id'] === mapId);
-    return updated ? this.toEntry(updated) : null;
+    return doc ? this.toEntry(doc) : null;
   }
 
   async removeMap(worldId: string, mapId: string): Promise<boolean> {
-    const res = await this.model
-      .updateOne({ worldId }, { $pull: { maps: { id: mapId } } })
-      .exec();
-    return res.modifiedCount > 0;
+    const res = await this.model.deleteOne({ worldId, id: mapId }).exec();
+    return res.deletedCount > 0;
   }
 
   async reorder(
     worldId: string,
     orderedIds: string[],
   ): Promise<WorldMapEntry[]> {
-    const maps = await this.findByWorld(worldId);
-    const rank = new Map(orderedIds.map((id, i) => [id, i]));
-    const reordered = maps
-      .map((m) => ({ ...m, order: rank.get(m.id) ?? m.order }))
-      .sort((a, b) => a.order - b.order);
-    await this.model
-      .findOneAndUpdate({ worldId }, { $set: { maps: reordered } })
-      .exec();
-    return reordered;
+    const ops = orderedIds.map((id, i) => ({
+      updateOne: {
+        filter: { worldId, id },
+        update: { $set: { order: i } },
+      },
+    }));
+    if (ops.length > 0) await this.model.bulkWrite(ops);
+    return this.findByWorld(worldId);
   }
 
-  private toEntry(m: Record<string, unknown>): WorldMapEntry {
+  async reparentMaps(
+    worldId: string,
+    fromFolderId: string,
+    toFolderId: string | null,
+  ): Promise<void> {
+    await this.model
+      .updateMany(
+        { worldId, folderId: fromFolderId },
+        { $set: { folderId: toFolderId } },
+      )
+      .exec();
+  }
+
+  private toEntry(d: WorldMapEntrySchemaClass): WorldMapEntry {
     return {
-      id: m['id'] as string,
-      title: (m['title'] as string) ?? '',
-      description: (m['description'] as string) ?? '',
-      imageUrl: (m['imageUrl'] as string) ?? '',
-      order: (m['order'] as number) ?? 0,
-      isPublic: (m['isPublic'] as boolean) ?? false,
-      visibleToPlayerIds: (m['visibleToPlayerIds'] as string[]) ?? [],
-      createdAt: (m['createdAt'] as string) ?? '',
-      updatedAt: (m['updatedAt'] as string) ?? '',
+      id: d.id,
+      folderId: d.folderId ?? null,
+      title: d.title ?? '',
+      description: d.description ?? '',
+      imageUrl: d.imageUrl ?? '',
+      order: d.order ?? 0,
+      isPublic: d.isPublic ?? false,
+      visibleToPlayerIds: d.visibleToPlayerIds ?? [],
+      createdAt: d.createdAt ?? '',
+      updatedAt: d.updatedAt ?? '',
     };
   }
 }

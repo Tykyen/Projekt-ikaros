@@ -24,6 +24,7 @@
     "migrate:news": "ts-node scripts/migrate-world-news/index.ts",
     "migrate:message-threads": "ts-node scripts/migrate-message-threads/index.ts",
     "migrate:npc-bestiae": "ts-node scripts/migrate-npc-templates-to-bestiae/index.ts",
+    "migrate:world-maps": "ts-node scripts/migrate-world-maps/index.ts",
     "seed:superadmin": "ts-node scripts/seed-superadmin/index.ts",
     "smoke:be": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" ../scripts/backend-smoke-test.ts",
     "smoke:be:full": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" ../scripts/backend-smoke-with-mongo.ts",

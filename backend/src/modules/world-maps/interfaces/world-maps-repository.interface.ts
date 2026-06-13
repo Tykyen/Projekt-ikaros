@@ -13,4 +13,10 @@ export interface IWorldMapsRepository {
   removeMap(worldId: string, mapId: string): Promise<boolean>;
   /** Přepíše `order` map podle pořadí `orderedIds`; vrací aktuální seznam. */
   reorder(worldId: string, orderedIds: string[]): Promise<WorldMapEntry[]>;
+  /** Přepojí mapy `fromFolderId` → `toFolderId` (při mazání složky). */
+  reparentMaps(
+    worldId: string,
+    fromFolderId: string,
+    toFolderId: string | null,
+  ): Promise<void>;
 }
