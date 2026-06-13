@@ -10,7 +10,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IUsersRepository } from './interfaces/users-repository.interface';
 import {
   User,
@@ -906,6 +906,18 @@ export class UsersService implements OnModuleInit {
     }
     await this.repo.update(userId, { favoritePageSlugs: next });
     return next;
+  }
+
+  /**
+   * CD-08 (cascade-delete audit) — smazaná stránka: odeber její slug
+   * z oblíbených (`favoritePageSlugs`) všech uživatelů (jinak mrtvý slug).
+   */
+  @OnEvent('page.deleted')
+  async onPageDeleted(payload: {
+    worldId: string;
+    slug: string;
+  }): Promise<void> {
+    await this.repo.pullFavoritePageSlug(payload.worldId, payload.slug);
   }
 
   // ── 8.3 / D-075 — Cross-world přehled „mých postav" ─────────────────

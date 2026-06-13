@@ -85,6 +85,17 @@ export class MongoUsersRepository
     return super.update(id, payload);
   }
 
+  /**
+   * CD-08 (cascade-delete audit) — odeber smazaný page slug ze všech
+   * `favoritePageSlugs[worldId]` (jinak mrtvý slug v oblíbených uživatelů).
+   */
+  async pullFavoritePageSlug(worldId: string, slug: string): Promise<void> {
+    await this.model.updateMany(
+      {},
+      { $pull: { [`favoritePageSlugs.${worldId}`]: slug } },
+    );
+  }
+
   // Migration support — viz UsersService.onModuleInit.
   async findUsernameCaseConflicts(): Promise<
     Array<{ lower: string; usernames: string[] }>

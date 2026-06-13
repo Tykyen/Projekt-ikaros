@@ -82,7 +82,6 @@ describe('MapOperationsService', () => {
     // 10.2c-edit-1 — scene.deactivate cascade emits world:operation + reassigned
     emitWorldOperation: jest.fn(),
     emitReassigned: jest.fn(),
-    emitMemberJoined: jest.fn(),
   };
   const mockAuthorizer = {
     assertCanDo: jest.fn().mockResolvedValue(undefined),

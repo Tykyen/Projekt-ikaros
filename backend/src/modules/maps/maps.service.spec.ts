@@ -62,7 +62,11 @@ describe('MapsService', () => {
     findActiveScenesByWorld: jest.fn(),
   };
   const mockTemplateRepo = { findById: jest.fn() };
-  const mockMembershipRepo = { findByUserAndWorld: jest.fn() };
+  const mockMembershipRepo = {
+    findByUserAndWorld: jest.fn(),
+    // CD-04 — deleteScene čistí dangling currentSceneId.
+    clearSceneForAll: jest.fn().mockResolvedValue(0),
+  };
   const mockCharacterRepo = { findBySlugAndWorld: jest.fn() };
   // 9.1 (cleanup) — enrichTokens čte Page.imageUrl (Character.imageUrl byl smazán).
   const mockPagesRepo = {
@@ -119,6 +123,25 @@ describe('MapsService', () => {
         UserRole.Admin,
       );
       expect(result).toHaveLength(1);
+    });
+  });
+
+  describe('deleteScene (CD-04 — dangling currentSceneId cleanup)', () => {
+    it('po smazání scény vyčistí currentSceneId u členů, co na ní byli', async () => {
+      mockRepo.delete.mockResolvedValue(true);
+      await service.deleteScene('scene1');
+      expect(mockRepo.delete).toHaveBeenCalledWith('scene1');
+      expect(mockMembershipRepo.clearSceneForAll).toHaveBeenCalledWith(
+        'scene1',
+      );
+    });
+
+    it('neexistující scéna → NotFound a žádný cleanup', async () => {
+      mockRepo.delete.mockResolvedValue(false);
+      await expect(service.deleteScene('nope')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockMembershipRepo.clearSceneForAll).not.toHaveBeenCalled();
     });
   });
 

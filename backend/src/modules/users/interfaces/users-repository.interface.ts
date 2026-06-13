@@ -37,6 +37,11 @@ export interface IUsersRepository {
    * `update()` přes `$set:undefined` by PII nesmazal.
    */
   anonymizeForHardDelete(id: string, anonymizedEmail: string): Promise<void>;
+  /**
+   * CD-08 (cascade-delete audit) — odeber smazaný page slug ze všech
+   * `favoritePageSlugs[worldId]` (úklid po delete stránky).
+   */
+  pullFavoritePageSlug(worldId: string, slug: string): Promise<void>;
   findAllPaginated(opts: {
     username?: string;
     role?: UserRole;

@@ -328,6 +328,9 @@ export class MapsService {
         code: 'MAP_SCENE_NOT_FOUND',
         message: 'Scéna nenalezena',
       });
+    // CD-04 (cascade-delete audit) — vyčistit dangling `currentSceneId` u členů,
+    // kteří na smazané scéně byli (jinak uvíznou na neexistující scéně).
+    await this.membershipRepo.clearSceneForAll(id);
   }
 
   private async enrichTokens(scene: MapScene): Promise<MapScene> {

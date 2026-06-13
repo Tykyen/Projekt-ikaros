@@ -247,4 +247,18 @@ export class MongoWorldMembershipRepository
       .exec();
     return result.modifiedCount;
   }
+
+  /**
+   * CD-04 — vyčistí `currentSceneId` u všech členů, kteří byli na smazané scéně
+   * (jinak visící ref → hráč „uvízne" na neexistující scéně).
+   */
+  async clearSceneForAll(sceneId: string): Promise<number> {
+    const result = await this.model
+      .updateMany(
+        { currentSceneId: sceneId },
+        { $set: { currentSceneId: null } },
+      )
+      .exec();
+    return result.modifiedCount;
+  }
 }

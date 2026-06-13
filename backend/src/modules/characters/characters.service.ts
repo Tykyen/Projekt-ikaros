@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ConflictException,
   ForbiddenException,
@@ -23,6 +24,8 @@ import { UserRole } from '../users/interfaces/user.interface';
 
 @Injectable()
 export class CharactersService {
+  private readonly logger = new Logger(CharactersService.name);
+
   constructor(
     @Inject('ICharactersRepository')
     private readonly charRepo: ICharactersRepository,
@@ -372,12 +375,22 @@ export class CharactersService {
         message: 'Postava nenalezena',
       });
     await this.charRepo.delete(character.id);
-    // emitAsync — počká na kaskádní úklid subdokumentů a vyčištění characterPath členů.
-    await this.eventEmitter.emitAsync('character.deleted', {
-      characterId: character.id,
-      worldId,
-      slug: character.slug,
-    });
+    // CD-09 (cascade-delete audit) — cascade je best-effort: postava už je
+    // smazána, selhání jednoho listeneru (účty/subdocy/membership) nesmí shodit
+    // delete (HTTP 500) ani zablokovat ostatní (emitAsync je spouští nezávisle).
+    // Chyba se loguje; případný orphan dočistí M-SCAN (tools/orphan-scan).
+    try {
+      await this.eventEmitter.emitAsync('character.deleted', {
+        characterId: character.id,
+        worldId,
+        slug: character.slug,
+      });
+    } catch (err) {
+      this.logger.error(
+        `character.deleted cascade částečně selhala (${character.slug})`,
+        err as Error,
+      );
+    }
   }
 
   private toPublicView(c: Character, imageUrl?: string): CharacterPublicView {

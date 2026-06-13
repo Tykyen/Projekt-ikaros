@@ -216,6 +216,36 @@ describe('UploadService', () => {
     ).resolves.not.toThrow();
   });
 
+  describe('extractCloudinaryPublicId (CD-01/02/03 — blob cleanup guard)', () => {
+    it('Cloudinary URL → public_id (bez verze a přípony)', () => {
+      expect(
+        service.extractCloudinaryPublicId(
+          'https://res.cloudinary.com/demo/image/upload/v1700000000/ikaros/pages/abc.webp',
+        ),
+      ).toBe('ikaros/pages/abc');
+    });
+    it('Cloudinary URL bez verze → public_id', () => {
+      expect(
+        service.extractCloudinaryPublicId(
+          'https://res.cloudinary.com/demo/image/upload/ikaros/users/u1/avatar/main.webp',
+        ),
+      ).toBe('ikaros/users/u1/avatar/main');
+    });
+    it('GDrive / ne-Cloudinary URL → null (NESMÍ se mazat)', () => {
+      expect(
+        service.extractCloudinaryPublicId('https://drive.google.com/uc?id=XYZ'),
+      ).toBeNull();
+      expect(
+        service.extractCloudinaryPublicId('https://example.com/x.png'),
+      ).toBeNull();
+    });
+    it('null / undefined / prázdné → null', () => {
+      expect(service.extractCloudinaryPublicId(null)).toBeNull();
+      expect(service.extractCloudinaryPublicId(undefined)).toBeNull();
+      expect(service.extractCloudinaryPublicId('')).toBeNull();
+    });
+  });
+
   describe('uploadGlobalChatFile (4.3b)', () => {
     it('uploads image to folder "global-chat/<room>"', async () => {
       const mockWritable = { end: jest.fn() };

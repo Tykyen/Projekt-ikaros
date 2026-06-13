@@ -1967,11 +1967,18 @@ export class WorldsService implements OnApplicationBootstrap {
   }): Promise<void> {
     // Postava zanikla → vyčistit characterPath u všech členů, kteří ji měli přiřazenou.
     const members = await this.membershipRepo.findByWorldId(payload.worldId);
+    const affected = members.filter((m) => m.characterPath === payload.slug);
+    // CD-02 (cascade-delete audit) — posbírat avatar bloby PŘED clearCharacter
+    // (ten avatarUrl unsetuje) → úklid Cloudinary přes upload listener.
+    const avatarUrls = affected
+      .map((m) => m.avatarUrl)
+      .filter((u): u is string => !!u);
     await Promise.all(
-      members
-        .filter((m) => m.characterPath === payload.slug)
-        .map((m) => this.membershipRepo.clearCharacter(m.id)),
+      affected.map((m) => this.membershipRepo.clearCharacter(m.id)),
     );
+    if (avatarUrls.length > 0) {
+      this.eventEmitter.emit('character.avatars.removed', { urls: avatarUrls });
+    }
   }
 
   /**

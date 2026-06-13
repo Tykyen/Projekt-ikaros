@@ -139,9 +139,7 @@ export class WorldOperationsService {
 
   /**
    * Emit per-member side eventy po úspěšné apply:
-   * - `map:member-left` na staré scéně (pokud byla a hráč ji opouští)
-   * - `map:member-joined` na nové scéně (pokud assign na non-null)
-   * - private `map:reassigned` na user socket
+   * - private `map:reassigned` na user socket (přesun na scénu / unassign)
    *
    * Pro bulkAssign rozhoduje per-user (loop). Pro assign/unassign single.
    */
@@ -170,28 +168,12 @@ export class WorldOperationsService {
     userId: string,
     newSceneId: string | null,
   ): void {
-    // Re-load membership (post-update) pro získání characterName fallbacku
-    // a verify oldSceneId — ale prakticky v této fázi už `currentSceneId` =
-    // newSceneId, takže old neznáme. Workaround: cascade ID v `cascadeMapOpIds`
-    // už identifikoval, na které scéně byl `token.remove` cascade emitted —
-    // ten emit (přes MapOperationsService.gateway) už ostatní klienty na staré
-    // scéně informoval o token zmizení. Stačí `map:member-left` na **všech
-    // možných** starých scénách? Ne — pošli jen na novou (member-joined) a
-    // private (reassigned).
-    //
-    // Pro MVP: zjednodušeno — `member-left` se NEemituje (cascade
-    // `map:operation` na staré scéně je dostatečný signál, klienti
-    // odvodí). Pokud bude potřeba dedikovaný event, FE 10.2 ho doplní.
-
-    if (newSceneId !== null) {
-      // characterName: budeme načítat per-user; v MVP necháváme prázdné a FE
-      // si jméno dohledá z lokálního cache postav.
-      this.gateway.emitMemberJoined(newSceneId, userId, '');
-    }
+    // S-01 (state-consistency audit) — `map:member-joined`/`-left` zrušeny:
+    // byly to mrtvé emity bez FE listeneru. PJ orchestrátor čte member stav
+    // z `world:operation` logu, ne z těchto eventů. Zůstává jen private
+    // `map:reassigned` (přesun current usera na novou scénu / 404 → empty).
     this.gateway.emitReassigned(userId, newSceneId);
-    // Marker — worldId v MVP jen v world:operation broadcast (PJ orchestrator
-    // má všechen kontext). Per-user `reassigned` má jen newSceneId, klient si
-    // worldId odvodí ze své aktuální session.
+    // worldId nese jen world:operation broadcast (PJ orchestrátor má kontext).
     void worldId;
   }
 

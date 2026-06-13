@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Connection, Types } from 'mongoose';
 
 /**
@@ -79,9 +80,27 @@ const CHARACTER_KEYED_COLLECTIONS = [
 export class WorldHardDeleteService {
   private readonly logger = new Logger(WorldHardDeleteService.name);
 
-  constructor(@InjectConnection() private readonly connection: Connection) {}
+  constructor(
+    @InjectConnection() private readonly connection: Connection,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async hardDelete(worldId: string): Promise<void> {
+    // CD-03 (cascade-delete audit) — posbírat world image blob PŘED smazáním
+    // dokumentu → úklid Cloudinary přes upload listener (ne-Cloudinary se ignoruje).
+    if (Types.ObjectId.isValid(worldId)) {
+      const world = await this.connection
+        .collection('worlds')
+        .findOne(
+          { _id: new Types.ObjectId(worldId) },
+          { projection: { imageUrl: 1 } },
+        );
+      const imageUrl = world?.imageUrl as string | undefined;
+      if (imageUrl) {
+        this.eventEmitter.emit('world.image.removed', { url: imageUrl });
+      }
+    }
+
     // 1) subdocy bez worldId — najdi charaktery světa, smaž jejich finance/výbavu/poznámky.
     const charDocs = await this.connection
       .collection('characters')

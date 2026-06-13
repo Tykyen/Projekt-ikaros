@@ -64,6 +64,12 @@ export interface IWorldMembershipRepository {
    * dedikovaná metoda.)
    */
   clearCharacter(id: string): Promise<WorldMembership | null>;
+  /**
+   * CD-04 (cascade-delete audit) — po smazání scény vyčistit `currentSceneId`
+   * u VŠECH členů, kteří na ní byli (jinak dangling ref → hráč na mrtvé scéně).
+   * Vrací počet vyčištěných membershipů.
+   */
+  clearSceneForAll(sceneId: string): Promise<number>;
   delete(id: string): Promise<boolean>;
 
   /**

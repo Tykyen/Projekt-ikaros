@@ -442,6 +442,31 @@ export class UploadService {
   }
 
   /**
+   * CD-01/02/03 (cascade-delete audit) — z Cloudinary `secure_url` vytáhne
+   * `public_id` pro `deleteImage`. Vrací `null` pro ne-Cloudinary URL (GDrive
+   * fallback z migrace, externí odkazy) → ty se NEmají mazat. Odolné vůči
+   * verznímu segmentu (`/v123/`) i příponě.
+   */
+  extractCloudinaryPublicId(url: string | null | undefined): string | null {
+    if (!url || !url.includes('res.cloudinary.com')) return null;
+    const afterUpload = url.split('/upload/')[1];
+    if (!afterUpload) return null;
+    const id = afterUpload
+      .replace(/^v\d+\//, '') // odstraň verzní segment
+      .replace(/\.[a-zA-Z0-9]+$/, ''); // odstraň příponu
+    return id || null;
+  }
+
+  /**
+   * CD-01/02/03 — best-effort smazání Cloudinary blobu podle URL (entity
+   * ukládají jen `imageUrl`, ne `publicId`). Ne-Cloudinary URL (GDrive) ignoruje.
+   */
+  async deleteImageByUrl(url: string | null | undefined): Promise<void> {
+    const publicId = this.extractCloudinaryPublicId(url);
+    if (publicId) await this.deleteImage(publicId);
+  }
+
+  /**
    * 3.3a — smazání Cloudinary image assetu (best-effort). Volá galerie
    * při delete obrázku. Chyba se jen loguje, nevyhazuje se výjimka.
    */
@@ -502,5 +527,41 @@ export class UploadService {
     const base = `ikaros/users/${payload.userId}`;
     await this.deleteUserImage(`${base}/avatar`);
     await this.deleteUserImage(`${base}/character`);
+  }
+
+  /**
+   * CD-01 (cascade-delete audit) — smazaná stránka: úklid Cloudinary blobu
+   * obrázku + všech obrázků galerie. Ne-Cloudinary URL (GDrive) se ignorují
+   * (`deleteImageByUrl` vrátí brzy). Best-effort.
+   */
+  @OnEvent('page.deleted')
+  async handlePageDeleted(payload: {
+    imageUrl?: string | null;
+    galleryUrls?: string[];
+  }): Promise<void> {
+    await this.deleteImageByUrl(payload.imageUrl);
+    for (const url of payload.galleryUrls ?? []) {
+      await this.deleteImageByUrl(url);
+    }
+  }
+
+  /**
+   * CD-02 — smazaná postava: úklid avatar blobů (member.avatarUrl) na Cloudinary.
+   */
+  @OnEvent('character.avatars.removed')
+  async handleCharacterAvatarsRemoved(payload: {
+    urls?: string[];
+  }): Promise<void> {
+    for (const url of payload.urls ?? []) {
+      await this.deleteImageByUrl(url);
+    }
+  }
+
+  /**
+   * CD-03 — smazaný svět (hard-delete): úklid world image blobu na Cloudinary.
+   */
+  @OnEvent('world.image.removed')
+  async handleWorldImageRemoved(payload: { url?: string }): Promise<void> {
+    await this.deleteImageByUrl(payload.url);
   }
 }

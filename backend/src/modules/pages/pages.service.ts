@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
 import { SearchCoordinator } from '../search/search.coordinator';
 import { CharactersService } from '../characters/characters.service';
@@ -122,6 +123,9 @@ export class PagesService {
     // Character drží 5 subdokumentů (diary/calendar/finance/inventory/notes);
     // Page má characterRef.characterId pro propojení.
     private readonly charactersService: CharactersService,
+    // CD-01/CD-08 (cascade-delete audit) — emit `page.deleted` pro úklid
+    // Cloudinary blobů a oblíbených (favoritePageSlugs) po smazání stránky.
+    private readonly eventEmitter: EventEmitter2,
     @Optional()
     @Inject(SearchCoordinator)
     private readonly searchCoordinator?: SearchCoordinator,
@@ -375,6 +379,13 @@ export class PagesService {
         message: 'Stránka nepatří do tohoto světa',
       });
     await this.pagesRepo.delete(id);
+    // CD-01/CD-08 — úklid Cloudinary blobů (imageUrl + galerie) a oblíbených.
+    this.eventEmitter.emit('page.deleted', {
+      worldId,
+      slug: page.slug,
+      imageUrl: page.imageUrl ?? null,
+      galleryUrls: (page.galleryImages ?? []).map((g) => g.url),
+    });
     void this.searchCoordinator
       ?.deletePageFromIndex(page.slug)
       .catch((err: unknown) =>

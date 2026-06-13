@@ -32,8 +32,8 @@ type AuthedSocket = Socket & { data: AuthedSocketData };
  *    `IWorldMembershipRepository`); jinak `error` event.
  * 3. **`map:join-world`** nový handler pro PJ orchestrator panel (PJ-only).
  *    Klient join room `world:{worldId}` → dostává `world:operation` eventy.
- * 4. **Emit helpery** pro `map:operation`, `world:operation`, `map:member-*`,
- *    `map:reassigned`. Volány z `MapOperationsService.apply` a
+ * 4. **Emit helpery** pro `map:operation`, `world:operation`, `map:reassigned`.
+ *    Volány z `MapOperationsService.apply` a
  *    `WorldOperationsService.apply` po úspěšné DB commit.
  * 5. **Legacy `map:token-moved` etc. handlery** zachovány (paralelní emit pro
  *    přechodové období FE klientů). FE 10.2 je nebude používat.
@@ -279,22 +279,6 @@ export class MapsGateway implements OnGatewayConnection {
     },
   ): void {
     this.server.to(`world-ops:${worldId}`).emit('world:operation', payload);
-  }
-
-  /** Broadcast `map:member-joined` na novou scénu (PJ orchestrator vizualizace). */
-  emitMemberJoined(
-    sceneId: string,
-    userId: string,
-    characterName: string,
-  ): void {
-    this.server
-      .to(sceneId)
-      .emit('map:member-joined', { sceneId, userId, characterName });
-  }
-
-  /** Broadcast `map:member-left` na starou scénu. */
-  emitMemberLeft(sceneId: string, userId: string): void {
-    this.server.to(sceneId).emit('map:member-left', { sceneId, userId });
   }
 
   /**

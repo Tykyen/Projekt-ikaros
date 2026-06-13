@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PagesService } from './pages.service';
 import { TipTapExtractor } from './tiptap-extractor.service';
 import { CharactersService } from '../characters/characters.service';
@@ -88,6 +89,10 @@ describe('PagesService', () => {
           useValue: { extract: jest.fn().mockReturnValue('plain text') },
         },
         { provide: CharactersService, useValue: mockCharactersService },
+        {
+          provide: EventEmitter2,
+          useValue: { emit: jest.fn(), emitAsync: jest.fn() },
+        },
       ],
     }).compile();
     service = module.get(PagesService);
