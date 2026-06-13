@@ -1,0 +1,82 @@
+name: Migrate world maps embedded->collection (one-off)
+
+# 13.4b F1 — presune mapy z embedded `worldMaps[].maps[]` do kolekce
+# `worldMapEntries` (1 dok/mapa). NUTNE po deployi BE (novy kod cte z kolekce,
+# embedded ignoruje -> bez migrace prazdny atlas u svetu s mapami).
+# Idempotentni (upsert dle worldId+id). Mongosh (produkce nema ts-node).
+#
+# Spusteni: Actions -> tento workflow:
+#   mode = dry-run            -> jen spocita, NIC nezapise
+#   mode = migrate + MIGRATE  -> opravdu presune
+#   mode = rollback + ROLLBACK-> smaze worldMapEntries (vrati se k embedded)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, migrate, rollback]
+        default: dry-run
+      confirm:
+        description: 'pro migrate napis MIGRATE, pro rollback ROLLBACK'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          if [ "$MODE" = "rollback" ]; then
+            if [ "$CONFIRM" != "ROLLBACK" ]; then echo "CHYBA: rollback vyzaduje confirm=ROLLBACK"; exit 1; fi
+            {
+              echo 'const r=db.worldMapEntries.deleteMany({});'
+              echo 'print("ROLLBACK: smazano worldMapEntries="+r.deletedCount);'
+            } > script.js
+          else
+            DRY=true
+            if [ "$MODE" = "migrate" ]; then
+              if [ "$CONFIRM" != "MIGRATE" ]; then echo "CHYBA: migrate vyzaduje confirm=MIGRATE"; exit 1; fi
+              DRY=false
+            fi
+            {
+              echo "const DRY=$DRY;"
+              echo 'let worlds=0,maps=0;'
+              echo 'db.worldMaps.find({}).forEach(function(d){'
+              echo '  worlds++;'
+              echo '  (d.maps||[]).forEach(function(m,i){'
+              echo '    if(!m.id) return;'
+              echo '    maps++;'
+              echo '    if(DRY) return;'
+              echo '    const now=new Date().toISOString();'
+              echo '    const entry={id:m.id,worldId:d.worldId,folderId:null,'
+              echo '      title:m.title||"",description:m.description||"",'
+              echo '      imageUrl:m.imageUrl||"",order:(m.order!=null?m.order:i),'
+              echo '      isPublic:m.isPublic===true,'
+              echo '      visibleToPlayerIds:m.visibleToPlayerIds||[],'
+              echo '      createdAt:m.createdAt||now,updatedAt:m.updatedAt||now};'
+              echo '    db.worldMapEntries.updateOne({worldId:d.worldId,id:m.id},{$set:entry},{upsert:true});'
+              echo '  });'
+              echo '});'
+              echo 'print((DRY?"DRY-RUN: ":"MIGRACE HOTOVA: ")+"svetu="+worlds+", map="+maps);'
+            } > script.js
+          fi
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on server
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
