@@ -1,0 +1,63 @@
+name: Fix Matrix universe images (one-off)
+
+# Prepise relativni nazvy v universeMaps.nodes[].img ('svar.jpg') na rehostnute
+# Cloudinary URL. Mapa: migration/universe-images-map.json (faze A, lokalni
+# upload migration/universe-images-upload.mjs z planet obrazku). Logika:
+# migration/universe-images.js. Meni JEN img (zachova pozice/viditelnost uzlu).
+# Idempotence: uzel uz na res.cloudinary.com se preskoci.
+#
+# dry-run: spocita uzly k prepsani + NOMAP.  fix: prepise.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, fix]
+        default: dry-run
+      confirm:
+        description: 'pro fix napis FIX'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout (data)
+        uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          DRY=true
+          if [ "$MODE" = "fix" ]; then
+            if [ "$CONFIRM" != "FIX" ]; then echo "CHYBA: fix vyzaduje confirm=FIX"; exit 1; fi
+            DRY=false
+          fi
+          {
+            echo "(function(){"
+            echo "var DRY=$DRY;"
+            echo "var MAP ="
+            cat migration/universe-images-map.json
+            echo ";"
+            cat migration/universe-images.js
+            echo "runFix();"
+            echo "})();"
+          } > script.js
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on server
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js | tee run-output.txt
