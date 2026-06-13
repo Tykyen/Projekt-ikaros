@@ -130,10 +130,11 @@ describe('CampaignService', () => {
       expect(role).toBe(WorldRole.PomocnyPJ);
     });
 
-    it('vrátí Hrac pokud membership neexistuje', async () => {
+    it('nečlen → ForbiddenException (N-06: nečlen nemá přístup ke kampaňovým datům)', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
-      const role = await service.getWorldRole('user1', UserRole.Hrac, 'w1');
-      expect(role).toBe(WorldRole.Hrac);
+      await expect(
+        service.getWorldRole('user1', UserRole.Hrac, 'w1'),
+      ).rejects.toThrow(/Nejsi členem/);
     });
   });
 

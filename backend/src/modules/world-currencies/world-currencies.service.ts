@@ -56,6 +56,20 @@ export class WorldCurrenciesService {
     } else {
       await this.assertCanAdmin(worldId, requester);
     }
+    // DI-03 (db-integrity audit) — kód měny je lookup klíč (převody:
+    // items.find(c => c.code === ...)). Embedded pole nejde indexovat na
+    // uniqueness → dvě měny stejného kódu = nejednoznačný/tichý lookup. Guard zde.
+    const seenCodes = new Set<string>();
+    for (const item of items) {
+      const code = (item.code ?? '').trim();
+      if (!code) continue;
+      if (seenCodes.has(code))
+        throw new BadRequestException({
+          code: 'CURRENCY_CODE_DUPLICATE',
+          message: `Měna s kódem „${code}" je v sadě dvakrát`,
+        });
+      seenCodes.add(code);
+    }
     const normalized = items.map((item) => ({
       ...item,
       id: item.id ?? crypto.randomUUID(),

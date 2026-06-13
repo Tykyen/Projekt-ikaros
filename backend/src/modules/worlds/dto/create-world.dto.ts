@@ -4,7 +4,6 @@ import {
   IsArray,
   IsIn,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   Matches,
@@ -36,7 +35,8 @@ export class CreateWorldDto {
   @IsIn(['public', 'open', 'private', 'closed'])
   accessMode?: string;
   @IsOptional() @IsString() system?: string;
-  @IsOptional() @IsNumber() playerCount?: number;
+  // DI-05 (db-integrity audit) — playerCount je AUTOMATICKÝ počet Hráčů
+  // (udržován při změně role / leave), ne ručně nastavitelné pole.
   @IsOptional() @IsInt() @Min(1) @Max(999) maxPlayers?: number;
   /** Krok 5.0 — motiv světa zvolený ve wizardu tvorby. */
   @IsOptional() @IsString() @MaxLength(40) themeId?: string;

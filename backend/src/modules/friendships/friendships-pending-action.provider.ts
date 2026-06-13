@@ -3,6 +3,7 @@ import type { IPendingActionProvider } from '../pending-actions/pending-action-p
 import { PendingActionType } from '../pending-actions/pending-action-type.enum';
 import type { IFriendshipsRepository } from './interfaces/friendships-repository.interface';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 
 export interface FriendRequestPendingItem {
   type: 'friend_request';
@@ -11,7 +12,10 @@ export interface FriendRequestPendingItem {
   counterpart: {
     id: string;
     username: string;
-    avatarUrl?: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    defaultAvatarType: string;
+    role: UserRole;
   };
   requestedAt: Date;
 }
@@ -59,10 +63,15 @@ export class FriendshipsPendingActionProvider implements IPendingActionProvider<
           type: 'friend_request' as const,
           direction: 'incoming' as const,
           friendshipId: f.id,
+          // D-NEW-friends-counterpart-drift — plný tvar (displayName/
+          // defaultAvatarType/role) pro FE kartu žádosti (avatar + role badge).
           counterpart: {
             id: f.requesterId,
             username: requester?.username ?? 'neznámý',
-            avatarUrl: requester?.avatarUrl,
+            displayName: requester?.displayName ?? null,
+            avatarUrl: requester?.avatarUrl ?? null,
+            defaultAvatarType: requester?.defaultAvatarType ?? 'male',
+            role: requester?.role ?? UserRole.Hrac,
           },
           requestedAt: f.requestedAt,
         };

@@ -159,6 +159,26 @@ describe('WorldCurrenciesService', () => {
       expect(result.items[0].id).toBeDefined();
       expect(result.items[0].id).toMatch(/^[0-9a-f-]{36}$/);
     });
+
+    it('DI-03 — should reject duplicate currency codes in the set', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      mockRepo.findByWorldId.mockResolvedValue(null);
+      const dupItems = [
+        { id: 'a', code: 'ZL', name: 'Zlaťák', symbol: 'Zl', rate: 1.0 },
+        { id: 'b', code: 'ZL', name: 'Zlaťák 2', symbol: 'Zl2', rate: 2.0 },
+      ];
+      await expect(
+        service.updateCurrencies('world1', dupItems, {
+          id: 'pj1',
+          role: 3,
+          username: 'pj',
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepo.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('updateCurrencies — PomocnyPJ role gate (spec 11.4 §4.8b)', () => {

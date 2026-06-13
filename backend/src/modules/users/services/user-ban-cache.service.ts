@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import type Redis from 'ioredis';
 
 export interface BanState {
@@ -25,17 +31,36 @@ const REDIS_INVALIDATE_CHANNEL = 'user-ban-invalidate';
  *   - `get(userId)` z AuthService.login (SP4) pro rychlý reject
  */
 @Injectable()
-export class UserBanCacheService implements OnModuleInit {
+export class UserBanCacheService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(UserBanCacheService.name);
   private readonly cache = new Map<string, BanState>();
   private redisSubscriber: Redis | null = null;
 
   constructor(@Inject('REDIS') private readonly redis: Redis) {}
 
+  /**
+   * Uvolní dedicated subscriber spojení při shutdownu (app.close / hot-reload /
+   * e2e teardown) — jinak ioredis socket zůstane otevřený (висící handle, jest
+   * nedoběhne; v prod leak při restartu modulu).
+   */
+  async onModuleDestroy(): Promise<void> {
+    try {
+      await this.redisSubscriber?.quit();
+    } catch {
+      /* už odpojeno / nikdy nepřipojeno */
+    }
+  }
+
   async onModuleInit(): Promise<void> {
     // Duplicate connection pro subscribe (ioredis vyžaduje dedicated subscriber).
     try {
       this.redisSubscriber = this.redis.duplicate();
+      // Dedicated subscriber NEdědí 'error' listener z původního klienta (duplicate
+      // kopíruje jen options). Bez něj unhandled 'error' event při selhání spojení
+      // SHODÍ celý proces (Node abort, SIGABRT) — typicky v dev/e2e bez živého Redisu.
+      this.redisSubscriber.on('error', (err) => {
+        this.logger.warn(`Redis subscriber error: ${err.message}`);
+      });
       await this.redisSubscriber.subscribe(REDIS_INVALIDATE_CHANNEL);
       this.redisSubscriber.on('message', (channel, message) => {
         if (channel === REDIS_INVALIDATE_CHANNEL) {

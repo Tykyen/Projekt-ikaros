@@ -302,7 +302,14 @@ export class FriendshipsService {
     items: Array<{
       direction: 'outgoing';
       friendshipId: string;
-      counterpart: { id: string; username: string; avatarUrl?: string };
+      counterpart: {
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+        defaultAvatarType: string;
+        role: UserRole;
+      };
       requestedAt: Date;
     }>;
     total: number;
@@ -314,10 +321,15 @@ export class FriendshipsService {
         return {
           direction: 'outgoing' as const,
           friendshipId: f.id,
+          // D-NEW-friends-counterpart-drift — plný tvar (displayName/
+          // defaultAvatarType/role), aby FE karty neměly default avatar/badge.
           counterpart: {
             id: f.recipientId,
             username: recipient?.username ?? 'neznámý',
-            avatarUrl: recipient?.avatarUrl,
+            displayName: recipient?.displayName ?? null,
+            avatarUrl: recipient?.avatarUrl ?? null,
+            defaultAvatarType: recipient?.defaultAvatarType ?? 'male',
+            role: recipient?.role ?? UserRole.Hrac,
           },
           requestedAt: f.requestedAt,
         };
@@ -369,7 +381,14 @@ export class FriendshipsService {
   async listBlocks(blockerId: string): Promise<{
     items: Array<{
       id: string;
-      user: { id: string; username: string; avatarUrl?: string };
+      user: {
+        id: string;
+        username: string;
+        displayName: string | null;
+        avatarUrl: string | null;
+        defaultAvatarType: string;
+        role: UserRole;
+      };
       blockedAt: Date;
     }>;
     total: number;
@@ -380,10 +399,14 @@ export class FriendshipsService {
         const user = await this.usersRepo.findById(b.blockedId);
         return {
           id: b.id,
+          // D-NEW-friends-counterpart-drift — plný tvar (viz listOutgoing).
           user: {
             id: b.blockedId,
             username: user?.username ?? 'neznámý',
-            avatarUrl: user?.avatarUrl,
+            displayName: user?.displayName ?? null,
+            avatarUrl: user?.avatarUrl ?? null,
+            defaultAvatarType: user?.defaultAvatarType ?? 'male',
+            role: user?.role ?? UserRole.Hrac,
           },
           blockedAt: b.blockedAt,
         };

@@ -331,7 +331,7 @@ export class WorldsService implements OnApplicationBootstrap {
       slug: dto.slug.toLowerCase(),
       ownerId,
       isActive: true,
-      playerCount: dto.playerCount ?? 0,
+      playerCount: 0, // DI-05 — auto počet Hráčů (start 0, řídí updateMemberRole/leave)
       system: resolvedSystem,
       accessMode: dto.accessMode ?? 'private',
       dice: resolvedDice,
@@ -716,7 +716,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<{ ok: true; membership: WorldMembership }> {
     const world = await this.findById(worldId);
-    this.assertCanModerateAccessRequests(world, requester);
+    await this.assertCanModerateAccessRequests(world, requester);
 
     const ar = await this.accessRequestRepo.findById(accessRequestId);
     if (!ar || ar.worldId !== worldId)
@@ -842,7 +842,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<{ ok: true }> {
     const world = await this.findById(worldId);
-    this.assertCanModerateAccessRequests(world, requester);
+    await this.assertCanModerateAccessRequests(world, requester);
 
     const ar = await this.accessRequestRepo.findById(accessRequestId);
     if (!ar || ar.worldId !== worldId)
@@ -896,21 +896,23 @@ export class WorldsService implements OnApplicationBootstrap {
       .filter((x): x is MyWorldAccessRequest => x !== null);
   }
 
-  private assertCanModerateAccessRequests(
+  private async assertCanModerateAccessRequests(
     world: World,
     requester: RequestUser,
-  ): void {
-    const isOwner = world.ownerId === requester.id;
-    const isAdmin =
-      requester.role === UserRole.Superadmin ||
-      requester.role === UserRole.Admin;
-    if (!isOwner && !isAdmin) {
-      throw new ForbiddenException({
-        statusCode: 403,
-        code: 'FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
+  ): Promise<void> {
+    // R-NEW (role-audit) — přijmout/odmítnout žádost do světa smí vlastník NEBO
+    // člen s rolí PJ (co-PJ), ne PomocnyPJ a ne platformový Admin/Superadmin.
+    if (world.ownerId === requester.id) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      world.id,
+    );
+    if (membership && membership.role >= WorldRole.PJ) return;
+    throw new ForbiddenException({
+      statusCode: 403,
+      code: 'FORBIDDEN',
+      message: 'Nedostatečná oprávnění',
+    });
   }
 
   async getMembers(
@@ -1078,9 +1080,9 @@ export class WorldsService implements OnApplicationBootstrap {
       requester.id,
       worldId,
     );
+    // R-NEW (role-audit) — admin nemá zásah do světa; jen PomocnyPJ+.
     const allowed =
-      requester.role <= UserRole.Admin ||
-      (membership != null && membership.role >= WorldRole.PomocnyPJ);
+      membership != null && membership.role >= WorldRole.PomocnyPJ;
     if (!allowed)
       throw new ForbiddenException({
         statusCode: 403,
@@ -1253,6 +1255,15 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
+
+    // DI-05 (db-integrity audit) — playerCount = automatický počet Hráčů.
+    // Udrž ho při změně role (párově k −1 v leave/remove členství).
+    const wasPlayer = membership.role === WorldRole.Hrac;
+    const isPlayer = role === WorldRole.Hrac;
+    if (!wasPlayer && isPlayer)
+      await this.worldsRepo.increment(membership.worldId, 'playerCount', 1);
+    else if (wasPlayer && !isPlayer)
+      await this.worldsRepo.increment(membership.worldId, 'playerCount', -1);
 
     this.eventEmitter.emit('world.membership.changed', {
       worldId: membership.worldId,
@@ -1764,13 +1775,13 @@ export class WorldsService implements OnApplicationBootstrap {
   ): Promise<World> {
     const world = await this.findById(worldId);
 
+    // R-NEW (role-audit) — svět smí předat JEN jeho vlastník, ne platformový Admin.
     const isOwner = world.ownerId === requester.id;
-    const isAdmin = requester.role <= UserRole.Admin;
-    if (!isOwner && !isAdmin) {
+    if (!isOwner) {
       throw new ForbiddenException({
         statusCode: 403,
         code: 'FORBIDDEN',
-        message: 'Svět smí předat jen jeho vlastník nebo administrátor',
+        message: 'Svět smí předat jen jeho vlastník',
       });
     }
 
@@ -1862,11 +1873,13 @@ export class WorldsService implements OnApplicationBootstrap {
   }
 
   private canAdminWorld(
-    requester: RequestUser,
+    _requester: RequestUser,
     _world: World,
     membership?: WorldMembership,
   ): boolean {
-    if (requester.role <= UserRole.Admin) return true;
+    // R-NEW (role-audit) — platformový Admin/Superadmin NEMÁ moc uvnitř světa
+    // (governance je doména PJ). Admin pojistka existuje jen pro obnovu
+    // opuštěného světa (restore + newOwnerId), ne pro běžné zásahy.
     if (membership && membership.role >= WorldRole.PJ) return true;
     return false;
   }

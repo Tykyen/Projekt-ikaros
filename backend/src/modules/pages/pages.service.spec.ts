@@ -68,6 +68,7 @@ describe('PagesService', () => {
     create: jest
       .fn()
       .mockResolvedValue({ id: 'mock-char-1', slug: 'mock', kind: 'persona' }),
+    delete: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -298,6 +299,46 @@ describe('PagesService', () => {
           hracRequester,
         ),
       ).resolves.toBeDefined();
+    });
+
+    it('DI-04 — rollback Character když page save selže (persona, child-first)', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockCharactersService.create.mockResolvedValue({
+        id: 'char-x',
+        slug: 'rollback-test',
+        kind: 'persona',
+      });
+      mockPagesRepo.save.mockRejectedValue(new Error('db write failed'));
+      await expect(
+        service.create(
+          { slug: 'rollback-test', type: 'NPC', title: 'X' },
+          'world1',
+          adminRequester,
+        ),
+      ).rejects.toThrow('db write failed');
+      // postava vytvořená TEĎ se musí vrátit zpět (charactersService.delete)
+      expect(mockCharactersService.delete).toHaveBeenCalledWith(
+        'rollback-test',
+        'world1',
+      );
+    });
+
+    it('DI-04 — když je characterRef předán (migrace), nic se nemaže při pádu', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockPagesRepo.save.mockRejectedValue(new Error('db write failed'));
+      await expect(
+        service.create(
+          {
+            slug: 'with-ref',
+            type: 'NPC',
+            title: 'X',
+            characterRef: { characterId: 'existing-1' },
+          },
+          'world1',
+          adminRequester,
+        ),
+      ).rejects.toThrow('db write failed');
+      expect(mockCharactersService.delete).not.toHaveBeenCalled();
     });
 
     it('neexistující svět vrací 404 (Hrac requester)', async () => {

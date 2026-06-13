@@ -206,6 +206,9 @@ export class PagesService {
     const isLocation = dto.type === 'Lokace';
     const needsCharacter = isPersona || isLocation;
     let characterRef = needsCharacter ? dto.characterRef : undefined;
+    // DI-04 (db-integrity audit) — sleduj, zda jsme Character vytvořili TEĎ
+    // (kvůli rollbacku při selhání page save; child se tvoří dřív než rodič).
+    let createdCharacterSlug: string | null = null;
     if (needsCharacter && !characterRef) {
       const character = await this.charactersService.create(
         {
@@ -219,26 +222,45 @@ export class PagesService {
         worldId,
       );
       characterRef = { characterId: character.id };
+      createdCharacterSlug = slug;
     }
 
-    const savedPage = await this.pagesRepo.save({
-      ...dto,
-      slug,
-      worldId,
-      content: safeContent,
-      plainText,
-      sections: safeSections,
-      table: sanitizeTable(dto.table),
-      galleryImages: dto.galleryImages ?? [],
-      videos: dto.videos ?? [],
-      menu: (dto.menu ?? []).map((m) => ({ ...m, order: m.order ?? 0 })),
-      isWoodWide: dto.isWoodWide ?? false,
-      accessRequirements: dto.accessRequirements ?? [],
-      order: dto.order ?? 0,
-      ownerUserId: dto.type === 'Postava hráče' ? dto.ownerUserId : undefined,
-      characterRef,
-      akjTabs: sanitizeAkjTabs(dto.akjTabs) ?? [],
-    });
+    let savedPage: Page;
+    try {
+      savedPage = await this.pagesRepo.save({
+        ...dto,
+        slug,
+        worldId,
+        content: safeContent,
+        plainText,
+        sections: safeSections,
+        table: sanitizeTable(dto.table),
+        galleryImages: dto.galleryImages ?? [],
+        videos: dto.videos ?? [],
+        menu: (dto.menu ?? []).map((m) => ({ ...m, order: m.order ?? 0 })),
+        isWoodWide: dto.isWoodWide ?? false,
+        accessRequirements: dto.accessRequirements ?? [],
+        order: dto.order ?? 0,
+        ownerUserId: dto.type === 'Postava hráče' ? dto.ownerUserId : undefined,
+        characterRef,
+        akjTabs: sanitizeAkjTabs(dto.akjTabs) ?? [],
+      });
+    } catch (err) {
+      // DI-04 — page save selhal PO vytvoření Character → postava + subdocs by
+      // zůstaly osiřelé a retry by narazil na {worldId,slug} unique. Rollback
+      // nově vytvořené postavy (character.deleted cascade uklidí subdocs).
+      if (createdCharacterSlug) {
+        try {
+          await this.charactersService.delete(createdCharacterSlug, worldId);
+        } catch (rollbackErr) {
+          this.logger.error(
+            `DI-04 rollback postavy selhal (${createdCharacterSlug})`,
+            rollbackErr as Error,
+          );
+        }
+      }
+      throw err;
+    }
     void this.searchCoordinator
       ?.addPageToIndex(savedPage)
       .catch((err: unknown) =>

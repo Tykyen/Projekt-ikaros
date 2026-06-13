@@ -362,27 +362,20 @@ describe('WorldsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('should allow Admin to update any world', async () => {
+    it('R-NEW — Admin NEMŮŽE měnit cizí svět (governance je PJ-only)', async () => {
       mockWorldsRepo.findById.mockResolvedValue({
         ...mockWorld,
         ownerId: 'other',
       });
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
-      mockWorldsRepo.update.mockResolvedValue({
-        ...mockWorld,
-        name: 'Updated',
-      });
       const adminUser = {
         id: 'admin1',
         role: UserRole.Admin,
         username: 'admin1',
       };
-      const result = await service.update(
-        'world1',
-        { name: 'Updated' },
-        adminUser,
-      );
-      expect(result.name).toBe('Updated');
+      await expect(
+        service.update('world1', { name: 'Updated' }, adminUser),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('should throw ForbiddenException for non-owner without sufficient role', async () => {
@@ -423,6 +416,129 @@ describe('WorldsService', () => {
         expect.objectContaining({ diceVisibility: dto.diceVisibility }),
       );
       expect(result.diceVisibility).toEqual(dto.diceVisibility);
+    });
+  });
+
+  describe('updateMemberRole — DI-05 playerCount auto-count', () => {
+    const owner = { id: 'user1', role: UserRole.Ikarus, username: 'pj' };
+    const ownerMembership = {
+      id: 'mem-pj',
+      worldId: 'world1',
+      userId: 'user1',
+      role: WorldRole.PJ,
+      joinedAt: new Date(),
+      akj: 0,
+    };
+    const target = (role: WorldRole) => ({
+      id: 'mem1',
+      worldId: 'world1',
+      userId: 'u1',
+      role,
+      joinedAt: new Date(),
+      akj: 0,
+    });
+
+    beforeEach(() => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(ownerMembership);
+      mockMembershipRepo.update.mockImplementation((id, patch) =>
+        Promise.resolve({ ...target(WorldRole.Ctenar), id, ...patch }),
+      );
+    });
+
+    it('povýšení na Hrac → playerCount +1', async () => {
+      mockMembershipRepo.findById.mockResolvedValue(target(WorldRole.Ctenar));
+      await service.updateMemberRole('mem1', WorldRole.Hrac, owner);
+      expect(mockWorldsRepo.increment).toHaveBeenCalledWith(
+        'world1',
+        'playerCount',
+        1,
+      );
+    });
+
+    it('degradace z Hrac → playerCount −1', async () => {
+      mockMembershipRepo.findById.mockResolvedValue(target(WorldRole.Hrac));
+      await service.updateMemberRole('mem1', WorldRole.Ctenar, owner);
+      expect(mockWorldsRepo.increment).toHaveBeenCalledWith(
+        'world1',
+        'playerCount',
+        -1,
+      );
+    });
+
+    it('změna role bez Hrac (Ctenar→PomocnyPJ) → žádná změna playerCount', async () => {
+      mockMembershipRepo.findById.mockResolvedValue(target(WorldRole.Ctenar));
+      await service.updateMemberRole('mem1', WorldRole.PomocnyPJ, owner);
+      expect(mockWorldsRepo.increment).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('R-NEW — platformový Admin nemá moc uvnitř světa', () => {
+    const admin = { id: 'admX', role: UserRole.Admin, username: 'A' };
+
+    beforeEach(() => {
+      // admin/requester defaultně NENÍ člen → governance brány padnou na Forbidden
+      // (reset leftover mockResolvedValue — clearAllMocks neresetuje implementace).
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+    });
+
+    it('approveAccessRequest cizího světa → Forbidden', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // ownerId 'user1' ≠ admX
+      mockAccessRequestRepo.findById.mockResolvedValue({
+        id: 'ar1',
+        worldId: 'world1',
+        userId: 'u9',
+        status: 'pending',
+      });
+      await expect(
+        service.approveAccessRequest('world1', 'ar1', admin),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('updateMemberRole cizího světa → Forbidden', async () => {
+      mockMembershipRepo.findById.mockResolvedValue({
+        id: 'mem1',
+        worldId: 'world1',
+        userId: 'u9',
+        role: WorldRole.Ctenar,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null); // admin není člen
+      await expect(
+        service.updateMemberRole('mem1', WorldRole.Hrac, admin),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('transferOwnership cizího světa → Forbidden', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      await expect(
+        service.transferOwnership('world1', 'u2', admin),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('co-PJ (role PJ, ne vlastník) SMÍ odmítnout žádost', async () => {
+      const coPj = { id: 'copj', role: UserRole.Ikarus, username: 'copj' };
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // ownerId 'user1' ≠ copj
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'm-copj',
+        worldId: 'world1',
+        userId: 'copj',
+        role: WorldRole.PJ,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      mockAccessRequestRepo.findById.mockResolvedValue({
+        id: 'ar1',
+        worldId: 'world1',
+        userId: 'u9',
+        status: 'pending',
+      });
+      mockAccessRequestRepo.delete.mockResolvedValue(true);
+      await expect(
+        service.rejectAccessRequest('world1', 'ar1', coPj),
+      ).resolves.toEqual({ ok: true });
     });
   });
 
@@ -1666,15 +1782,14 @@ describe('WorldsService', () => {
       expect(result.ok).toBe(true);
     });
 
-    it('Admin can reject in foreign world', async () => {
+    it('R-NEW — Admin NEMŮŽE odmítnout žádost v cizím světě', async () => {
       mockWorldsRepo.findById.mockResolvedValue(mockWorld);
       mockAccessRequestRepo.findById.mockResolvedValue(pendingAr);
-      mockAccessRequestRepo.delete.mockResolvedValue(true);
 
       const admin = { id: 'admX', role: UserRole.Admin, username: 'A' };
       await expect(
         service.rejectAccessRequest('world1', 'ar1', admin),
-      ).resolves.toEqual({ ok: true });
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

@@ -3,7 +3,6 @@ import {
   IsOptional,
   IsBoolean,
   IsArray,
-  IsNumber,
   IsIn,
   IsUrl,
   IsInt,
@@ -37,7 +36,7 @@ export class UpdateWorldDto {
   @IsOptional() @IsString() genre?: string;
   @IsOptional() @IsArray() tones?: string[];
   @IsOptional() @IsString() @MaxLength(500) playersWanted?: string;
-  @IsOptional() @IsNumber() playerCount?: number;
+  // DI-05 (db-integrity audit) — playerCount je AUTOMATICKÝ počet Hráčů, ne ručně nastavitelné pole.
   @IsOptional() @IsInt() @Min(1) @Max(999) maxPlayers?: number | null;
   @IsOptional() @IsArray() dice?: string[];
   @IsOptional() @IsString() system?: string;

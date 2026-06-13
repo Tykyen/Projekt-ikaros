@@ -65,6 +65,20 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
+    // Pod jestem přeskoč načítání ONNX modelu: `ort.InferenceSession.create`
+    // volá nativní `initOrt`, které v kombinovaném e2e běhu **nativně abortuje
+    // proces** (SIGABRT) — JS try/catch to nezachytí. Testy sémantické hledání
+    // nepotřebují (ani MeiliSearch v testu neběží). Viz dluh D-NEW-e2e-onnxruntime.
+    if (
+      process.env.JEST_WORKER_ID !== undefined ||
+      process.env.NODE_ENV === 'test'
+    ) {
+      this.logger.warn(
+        'Test env — embedding model init přeskočen (onnxruntime nativní abort).',
+      );
+      return;
+    }
+
     const modelConfigs = this.getModelConfigs();
     if (modelConfigs.length === 0) {
       this.logger.warn('Žádné embedding modely nejsou povoleny.');

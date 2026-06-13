@@ -39,6 +39,8 @@ describe('Auth register conflict + check (e2e)', () => {
           email: 'taken@test.io',
           username: 'second',
           password: 'Password123!',
+          acceptedTerms: true,
+          captchaToken: 'dev-bypass',
         });
 
       expect(res.status).toBe(409);
@@ -63,6 +65,8 @@ describe('Auth register conflict + check (e2e)', () => {
           email: 'second@test.io',
           username: 'duplicateUser',
           password: 'Password123!',
+          acceptedTerms: true,
+          captchaToken: 'dev-bypass',
         });
 
       expect(res.status).toBe(409);

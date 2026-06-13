@@ -24,6 +24,9 @@ describe('Worlds JOIN + access flow (e2e)', () => {
 
   beforeAll(async () => {
     testApp = await createTestApp({
+      // approve používá session.withTransaction() (worlds.service) → vyžaduje
+      // replica set, jinak „Transaction numbers are only allowed on a replica set".
+      replSet: true,
       modules: [
         AuthModule,
         UsersModule,

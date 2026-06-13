@@ -70,7 +70,18 @@ export class CampaignService {
       userId,
       worldId,
     );
-    return membership?.role ?? WorldRole.Hrac;
+    // N-06 (nav-audit) — nečlen NESMÍ číst/psát kampaňová data světa. Dřív
+    // fallback na `WorldRole.Hrac` → kdokoli přihlášený (i mimo svět) prošel
+    // přes `role()` a mohl přes přímé API zakládat scénáře/subjekty/storyline
+    // do cizího světa (create endpointy nemají role floor; gate je jen scope).
+    if (!membership) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'NOT_A_MEMBER',
+        message: 'Nejsi členem tohoto světa',
+      });
+    }
+    return membership.role;
   }
 
   resolveScope(
