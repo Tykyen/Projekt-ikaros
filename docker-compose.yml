@@ -15,11 +15,19 @@
 #   2. cd backend && npm run start:dev
 #   3. cd .. && npm run dev (FE)
 
+# LH-05 (log hygiene) — rotace logů (i dev disk se jinak zaplní unbounded json-file).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   mongo:
     image: mongo:7
     container_name: ikaros-mongo
     restart: unless-stopped
+    logging: *default-logging
     command:
       - mongod
       - --replSet
@@ -59,6 +67,7 @@ services:
     image: redis:7-alpine
     container_name: ikaros-redis
     restart: unless-stopped
+    logging: *default-logging
     command: ['redis-server', '--appendonly', 'yes']
     ports:
       - '6379:6379'
@@ -78,6 +87,7 @@ services:
     image: getmeili/meilisearch:v1.6
     container_name: ikaros-meili
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MEILI_ENV: development
       MEILI_NO_ANALYTICS: 'true'

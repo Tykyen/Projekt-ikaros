@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { InjectConnection } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
@@ -581,9 +582,10 @@ export class CharacterAccountsService {
       this.eventEmitter.emit('account.transfer.received', notifyPayload);
       return { from: fromUpdated, to: toUpdated };
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `Transfer revert: krok 2 selhal pro ${input.fromAccountId} → ${input.toAccountId}, amount ${input.amount}.`,
-        err as Error,
+        err,
       );
       try {
         await this.accountsRepo.appendTransaction(from.id, {

@@ -4,6 +4,7 @@ import {
   Logger,
   Inject,
 } from '@nestjs/common';
+import { logError } from '../../../common/logging/log-error.util';
 import { PagesWorldSeedListener } from '../pages-world-seed.listener';
 import { MATRIX_WORLD_ID } from '../../../database/seed/matrix-world.seed';
 import type { IWorldsRepository } from '../../worlds/interfaces/worlds-repository.interface';
@@ -44,7 +45,7 @@ export class RulebookMatrixSeed implements OnApplicationBootstrap {
       await this.seedListener.seedRulebook(MATRIX_WORLD_ID);
       this.logger.log('Pravidlová kniha — seed do matrix singletonu OK.');
     } catch (err) {
-      this.logger.error('Rulebook matrix seed selhal', err);
+      logError(this.logger, 'Rulebook matrix seed selhal', err);
     }
   }
 }

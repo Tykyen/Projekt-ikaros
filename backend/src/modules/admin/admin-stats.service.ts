@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { logWarn } from '../../common/logging/log-error.util';
 import { ConfigService } from '@nestjs/config';
 import { DAY_MS, HOUR_MS } from '../../common/constants/time.constants';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
@@ -109,7 +110,7 @@ export class AdminStatsService {
     try {
       return await fn();
     } catch (err) {
-      this.logger.warn(`Stat metric "${metric}" selhala, vracím 0`, err);
+      logWarn(this.logger, `Stat metric "${metric}" selhala, vracím 0`, err);
       return 0;
     }
   }

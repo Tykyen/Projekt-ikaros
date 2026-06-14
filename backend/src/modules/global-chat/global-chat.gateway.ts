@@ -6,6 +6,7 @@ import {
   ConnectedSocket,
   type OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { logWarn } from '../../common/logging/log-error.util';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
@@ -113,7 +114,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
           void this.globalChatService
             .saveSystemMessage(room, presenceLine(room, 'leave', info.username))
             .catch((err: unknown) =>
-              this.logger.warn('saveSystemMessage (cleanup) selhal', err),
+              logWarn(this.logger, 'saveSystemMessage (cleanup) selhal', err),
             );
         }
         removed++;
@@ -267,7 +268,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
         record.characterName = profile.characterName;
         record.characterAvatarUrl = profile.characterAvatarUrl;
       } catch (err: unknown) {
-        this.logger.warn(`Profil (userId=${userId}) nenačten`, err);
+        logWarn(this.logger, `Profil (userId=${userId}) nenačten`, err);
       }
     }
 
@@ -287,7 +288,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     void this.globalChatService
       .saveSystemMessage(room, presenceLine(room, 'join', username))
       .catch((err: unknown) =>
-        this.logger.warn('saveSystemMessage (join) selhal', err),
+        logWarn(this.logger, 'saveSystemMessage (join) selhal', err),
       );
   }
 
@@ -317,7 +318,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
         presenceLine(room, 'leave', record.username),
       );
     } catch (err: unknown) {
-      this.logger.warn('saveSystemMessage (leave) selhal', err);
+      logWarn(this.logger, 'saveSystemMessage (leave) selhal', err);
     }
     // Až teď socket odebereme z WS kanálu (leave z navigace neposílá
     // `room:leave`, takže channel uklidíme tady).
@@ -359,7 +360,8 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
         payload.attachments,
       )
       .catch((err: unknown) =>
-        this.logger.warn(
+        logWarn(
+          this.logger,
           `sendWhisper selhal (from=${sender.userId} to=${payload.toUserId})`,
           err,
         ),
@@ -385,7 +387,8 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     void this.globalChatService
       .toggleReaction(room, payload.messageId, sender.userId, payload.emoji)
       .catch((err: unknown) =>
-        this.logger.warn(
+        logWarn(
+          this.logger,
           `toggleReaction selhal (user=${sender.userId} msg=${payload.messageId})`,
           err,
         ),

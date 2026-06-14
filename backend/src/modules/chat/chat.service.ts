@@ -8,6 +8,7 @@ import {
   forwardRef,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IChatGroupRepository } from './interfaces/chat-group-repository.interface';
 import type { IChatChannelRepository } from './interfaces/chat-channel-repository.interface';
@@ -1523,7 +1524,7 @@ export class ChatService implements OnApplicationBootstrap {
       }
       this.logger.log(`Chat backfill dokončen (${worlds.length} světů)`);
     } catch (err) {
-      this.logger.error('Chat backfill při startu selhal', err);
+      logError(this.logger, 'Chat backfill při startu selhal', err);
     }
   }
 
@@ -1550,7 +1551,11 @@ export class ChatService implements OnApplicationBootstrap {
     try {
       await this.seedDefaultGroups(world.id);
     } catch (err) {
-      this.logger.error(`handleWorldCreated failed for world ${world.id}`, err);
+      logError(
+        this.logger,
+        `handleWorldCreated failed for world ${world.id}`,
+        err,
+      );
     }
   }
 
@@ -1566,7 +1571,8 @@ export class ChatService implements OnApplicationBootstrap {
         payload.settings.customGroups ?? [],
       );
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `handleWorldSettingsUpdated failed for world ${payload.worldId}`,
         err,
       );
@@ -1591,7 +1597,8 @@ export class ChatService implements OnApplicationBootstrap {
         payload.membership.group ?? null,
       );
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `handleMembershipChangedSync failed for user ${payload.membership.userId}`,
         err,
       );
@@ -1613,7 +1620,8 @@ export class ChatService implements OnApplicationBootstrap {
         null,
       );
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `handleMembershipRemovedSync failed for user ${payload.userId}`,
         err,
       );
@@ -1693,7 +1701,8 @@ export class ChatService implements OnApplicationBootstrap {
     try {
       await this.ensureCharacterChannel(worldId, userId, name);
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `ensureCharacterChannel failed (world ${worldId}, user ${userId})`,
         err,
       );
@@ -1821,7 +1830,8 @@ export class ChatService implements OnApplicationBootstrap {
       await this.channelRepo.softDeleteByWorldId(payload.worldId);
       await this.messageRepo.softDeleteByWorldId(payload.worldId);
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `handleWorldDeleted failed for world ${payload.worldId}`,
         err,
       );
@@ -1835,7 +1845,8 @@ export class ChatService implements OnApplicationBootstrap {
       await this.channelRepo.restoreByWorldId(payload.worldId);
       await this.messageRepo.restoreByWorldId(payload.worldId);
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `handleWorldRestored failed for world ${payload.worldId}`,
         err,
       );

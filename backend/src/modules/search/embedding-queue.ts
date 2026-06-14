@@ -1,4 +1,5 @@
 import type { Page } from '../pages/interfaces/page.interface';
+import { logError } from '../../common/logging/log-error.util';
 import { Logger } from '@nestjs/common';
 
 export type QueueOperation =
@@ -64,7 +65,7 @@ export class EmbeddingQueue {
         try {
           await this.handler(op);
         } catch (err) {
-          this.logger.error('Rebuild selhal', err);
+          logError(this.logger, 'Rebuild selhal', err);
         } finally {
           this.isRebuilding = false;
           this.abortController = null;
@@ -75,7 +76,7 @@ export class EmbeddingQueue {
         try {
           await this.handler(op);
         } catch (err) {
-          this.logger.error(`Operace ${op.type} selhala`, err);
+          logError(this.logger, `Operace ${op.type} selhala`, err);
         }
       }
     }

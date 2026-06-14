@@ -1,8 +1,18 @@
+# LH-05 (log hygiene) — rotace logů. Bez `logging:` bloku používá Docker default
+# json-file BEZ stropu → log roste donekonečna a leaknutá data leží napořád.
+# max 3× 10 MB na službu. Aplikováno přes anchor na všechny služby.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   mongo:
     image: docker.io/library/mongo:7
     container_name: projekt-ikaros-mongo
     restart: unless-stopped
+    logging: *default-logging
     command:
       - mongod
       - --replSet
@@ -38,6 +48,7 @@ services:
     image: docker.io/library/redis:7-alpine
     container_name: projekt-ikaros-redis
     restart: unless-stopped
+    logging: *default-logging
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
@@ -53,6 +64,7 @@ services:
     image: docker.io/getmeili/meilisearch:v1.6
     container_name: projekt-ikaros-meili
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MEILI_ENV: production
       MEILI_NO_ANALYTICS: "true"
@@ -68,6 +80,7 @@ services:
       dockerfile: Dockerfile
     container_name: projekt-ikaros-be
     restart: unless-stopped
+    logging: *default-logging
     environment:
       NODE_ENV: production
       PORT: 3000

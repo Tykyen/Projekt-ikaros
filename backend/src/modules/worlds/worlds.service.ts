@@ -9,6 +9,7 @@ import {
   GoneException,
   type OnApplicationBootstrap,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { forwardRef } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
@@ -401,7 +402,7 @@ export class WorldsService implements OnApplicationBootstrap {
         );
       }
     } catch (err) {
-      this.logger.error('Dice backfill při startu selhal', err);
+      logError(this.logger, 'Dice backfill při startu selhal', err);
     }
 
     // D-NEW-theme-bg-empty (2026-05-23) — vyčistí legacy `themeBackgroundUrl: ''`
@@ -416,7 +417,7 @@ export class WorldsService implements OnApplicationBootstrap {
         );
       }
     } catch (err) {
-      this.logger.error('theme-bg-empty migrace selhala', err);
+      logError(this.logger, 'theme-bg-empty migrace selhala', err);
     }
   }
 

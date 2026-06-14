@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 
 interface TurnstileVerifyResponse {
   success: boolean;
@@ -65,7 +66,7 @@ export class CaptchaService {
       }
       return data.success === true;
     } catch (err) {
-      this.logger.error('Captcha verify network error', err as Error);
+      logError(this.logger, 'Captcha verify network error', err);
       return false;
     }
   }

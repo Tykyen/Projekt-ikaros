@@ -7,6 +7,7 @@ import {
   HttpCode,
   Logger,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { UseGuards } from '@nestjs/common';
 import {
   ApiTags,
@@ -54,7 +55,9 @@ export class StatsController {
   triggerRebuild() {
     void this.coordinator
       .rebuildIndex()
-      .catch((err: unknown) => this.logger.error('rebuildIndex selhal', err));
+      .catch((err: unknown) =>
+        logError(this.logger, 'rebuildIndex selhal', err),
+      );
     return { message: 'Rebuild zahájen.' };
   }
 

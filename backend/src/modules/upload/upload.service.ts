@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v2 as cloudinary } from 'cloudinary';
@@ -573,7 +574,7 @@ export class UploadService {
       await unlink(filepath);
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
-        this.logger.error(`Failed to delete local image: ${rel}`, err);
+        logError(this.logger, `Failed to delete local image: ${rel}`, err);
       }
     }
   }
@@ -587,7 +588,11 @@ export class UploadService {
     try {
       await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
     } catch (err) {
-      this.logger.error(`Failed to delete Cloudinary image: ${publicId}`, err);
+      logError(
+        this.logger,
+        `Failed to delete Cloudinary image: ${publicId}`,
+        err,
+      );
     }
   }
 
@@ -602,7 +607,8 @@ export class UploadService {
           resource_type: getResourceType(att.type),
         });
       } catch (err) {
-        this.logger.error(
+        logError(
+          this.logger,
           `Failed to delete Cloudinary asset: ${att.publicId}`,
           err,
         );

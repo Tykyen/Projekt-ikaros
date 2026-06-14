@@ -50,6 +50,14 @@ export class SmtpMailerProvider implements IMailerProvider {
     });
   }
 
+  /** LH-03 (log hygiene): e-mail je PII → do logu jen maskovaně (`t***@g***`). */
+  private static mask(email: string): string {
+    const at = email.indexOf('@');
+    if (at < 1) return '***';
+    const domain = email.slice(at + 1);
+    return `${email[0]}***@${domain[0] ?? ''}***`;
+  }
+
   async send(template: MailerTemplate, payload: MailerPayload): Promise<void> {
     const { subject, text, html } = renderEmail(template, payload, this.appUrl);
     await this.transporter.sendMail({
@@ -59,6 +67,8 @@ export class SmtpMailerProvider implements IMailerProvider {
       text,
       html,
     });
-    this.logger.log(`Sent ${template} → ${payload.to}`);
+    this.logger.log(
+      `Sent ${template} → ${SmtpMailerProvider.mask(payload.to)}`,
+    );
   }
 }

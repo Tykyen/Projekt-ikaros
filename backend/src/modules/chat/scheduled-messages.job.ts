@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ChatService } from './chat.service';
 import type { CreateMessageDto } from './dto/create-message.dto';
@@ -35,9 +36,10 @@ export class ScheduledMessagesJob {
         );
         await this.repo.setStatus(m.id, 'sent');
       } catch (err) {
-        this.logger.error(
+        logError(
+          this.logger,
           `Naplánovaná zpráva ${m.id} se nepodařila odeslat`,
-          err as Error,
+          err,
         );
         await this.repo.setStatus(m.id, 'failed');
       }

@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { logError, logWarn } from '../../common/logging/log-error.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { IGameEventRepository } from './interfaces/game-event-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -31,7 +32,11 @@ export class GameEventReminderJob {
     try {
       events = await this.gameEventRepo.findUpcoming(from, to);
     } catch (err) {
-      this.logger.error('GameEventReminderJob: chyba při načítání eventů', err);
+      logError(
+        this.logger,
+        'GameEventReminderJob: chyba při načítání eventů',
+        err,
+      );
       return;
     }
 
@@ -59,7 +64,8 @@ export class GameEventReminderJob {
 
         await this.gameEventRepo.markReminderSent(event.id);
       } catch (err) {
-        this.logger.warn(
+        logWarn(
+          this.logger,
           `GameEventReminderJob: chyba pro event ${event.id}`,
           err,
         );

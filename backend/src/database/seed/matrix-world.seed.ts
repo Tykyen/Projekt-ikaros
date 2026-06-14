@@ -4,6 +4,7 @@ import {
   Logger,
   Inject,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { Types } from 'mongoose';
 import type { IWorldsRepository } from '../../modules/worlds/interfaces/worlds-repository.interface';
 import type { IUsersRepository } from '../../modules/users/interfaces/users-repository.interface';
@@ -77,7 +78,7 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
       });
       this.logger.log('Matrix World AKJ types seeded.');
     } catch (err) {
-      this.logger.error('Matrix World seed failed', err);
+      logError(this.logger, 'Matrix World seed failed', err);
     }
   }
 }

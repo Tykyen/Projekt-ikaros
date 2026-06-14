@@ -1,4 +1,5 @@
 import { Injectable, Inject, Logger } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import { GlobalChatService } from './global-chat.service';
@@ -38,7 +39,7 @@ export class CleanMessagesJob {
         );
       }
     } catch (err) {
-      this.logger.error('CleanMessages: chyba při čistění', err);
+      logError(this.logger, 'CleanMessages: chyba při čistění', err);
     }
   }
 }

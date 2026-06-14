@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { GlobalChatGateway } from './global-chat.gateway';
 import { HOUR_MS } from '../../common/constants/time.constants';
@@ -24,7 +25,7 @@ export class CleanupInactiveUsersJob {
         );
       }
     } catch (err) {
-      this.logger.error('CleanupInactiveUsers: chyba', err);
+      logError(this.logger, 'CleanupInactiveUsers: chyba', err);
     }
   }
 }

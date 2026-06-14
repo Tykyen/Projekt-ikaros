@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { logWarn } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
 import { SearchCoordinator } from '../search/search.coordinator';
@@ -269,7 +270,11 @@ export class PagesService {
     void this.searchCoordinator
       ?.addPageToIndex(savedPage)
       .catch((err: unknown) =>
-        this.logger.warn(`addPageToIndex selhal pro ${savedPage.slug}`, err),
+        logWarn(
+          this.logger,
+          `addPageToIndex selhal pro ${savedPage.slug}`,
+          err,
+        ),
       );
     return savedPage;
   }
@@ -404,7 +409,7 @@ export class PagesService {
     void this.searchCoordinator
       ?.updatePageInIndex(updated!)
       .catch((err: unknown) =>
-        this.logger.warn(`updatePageInIndex selhal pro id=${id}`, err),
+        logWarn(this.logger, `updatePageInIndex selhal pro id=${id}`, err),
       );
     return updated!;
   }
@@ -437,7 +442,11 @@ export class PagesService {
     void this.searchCoordinator
       ?.deletePageFromIndex(page.slug)
       .catch((err: unknown) =>
-        this.logger.warn(`deletePageFromIndex selhal pro ${page.slug}`, err),
+        logWarn(
+          this.logger,
+          `deletePageFromIndex selhal pro ${page.slug}`,
+          err,
+        ),
       );
   }
 

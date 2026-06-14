@@ -7,6 +7,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { logWarn } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
@@ -246,7 +247,7 @@ export class GlobalChatService implements OnModuleInit {
           (attachments.length > 0 ? '📎 Příloha' : ''),
       })
       .catch((err: unknown) =>
-        this.logger.warn('notifyAll selhal pro global message', err),
+        logWarn(this.logger, 'notifyAll selhal pro global message', err),
       );
 
     return message;

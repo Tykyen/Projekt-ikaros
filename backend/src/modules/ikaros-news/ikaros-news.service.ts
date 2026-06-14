@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { logWarn } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type {
   FindOptions,
@@ -130,7 +131,7 @@ export class IkarosNewsService {
         body: item.title.slice(0, 100),
       })
       .catch((err: unknown) =>
-        this.logger.warn('notifyAll selhal pro Ikaros novinku', err),
+        logWarn(this.logger, 'notifyAll selhal pro Ikaros novinku', err),
       );
 
     this.eventEmitter.emit('ikaros-news.changed', {});

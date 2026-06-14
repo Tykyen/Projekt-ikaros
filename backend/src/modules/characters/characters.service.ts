@@ -6,6 +6,7 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { ICharactersRepository } from './interfaces/characters-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -386,9 +387,10 @@ export class CharactersService {
         slug: character.slug,
       });
     } catch (err) {
-      this.logger.error(
+      logError(
+        this.logger,
         `character.deleted cascade částečně selhala (${character.slug})`,
-        err as Error,
+        err,
       );
     }
   }

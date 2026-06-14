@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'path';
@@ -11,7 +11,34 @@ import { CustomIoAdapter } from './socket-io.adapter';
 import { getAllowedOrigins, getPrimaryOrigin } from './common/config/origins';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const isProd = process.env.NODE_ENV === 'production';
+
+  // LH-06 (log hygiene) — top-level záchyt: bez handleru Node při neodchycené
+  // chybě syrově vysype celý objekt na stderr. Logujeme přes Logger jen
+  // name+stack (žádný raw dump); uncaughtException nechá proces řízeně spadnout
+  // (po ní je stav procesu nejistý).
+  const bootLogger = new Logger('Process');
+  process.on('unhandledRejection', (reason) => {
+    bootLogger.error(
+      'Unhandled promise rejection',
+      reason instanceof Error ? reason.stack : String(reason),
+    );
+  });
+  process.on('uncaughtException', (err) => {
+    bootLogger.error(
+      'Uncaught exception',
+      err instanceof Error ? err.stack : String(err),
+    );
+    process.exit(1);
+  });
+
+  // LH-02 (log hygiene) — v produkci netiskni debug/verbose, aby debug zbytky
+  // netekly do prod logu (stdout → Docker → disk). Dev má plnou úroveň.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: isProd
+      ? ['log', 'warn', 'error']
+      : ['log', 'warn', 'error', 'debug', 'verbose'],
+  });
 
   app.setGlobalPrefix('api');
   // Body limit zvednut z expressího defaultu (100 kB) — bohaté / migrované
@@ -52,7 +79,7 @@ async function bootstrap() {
   });
 
   // PC-22: Swagger jen mimo produkci — neexponovat celé API schema veřejně v prod.
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProd) {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Projekt Ikaros API')
       .setDescription(

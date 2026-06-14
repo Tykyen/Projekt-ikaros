@@ -1,4 +1,5 @@
 import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import VPTree from 'vptree';
@@ -105,7 +106,7 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
         this.runtimes.push(runtime);
         this.indices.set(cfg.key, { embeddings: [], tree: null });
       } catch (err) {
-        this.logger.error(`Nelze inicializovat model ${cfg.key}`, err);
+        logError(this.logger, `Nelze inicializovat model ${cfg.key}`, err);
       }
     }
 
@@ -139,7 +140,11 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
           });
         }
       } catch (err) {
-        this.logger.error(`Chyba při vyhledávání modelem ${runtime.key}`, err);
+        logError(
+          this.logger,
+          `Chyba při vyhledávání modelem ${runtime.key}`,
+          err,
+        );
       }
     }
 

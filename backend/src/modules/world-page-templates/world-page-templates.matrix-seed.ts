@@ -4,6 +4,7 @@ import {
   Logger,
   OnApplicationBootstrap,
 } from '@nestjs/common';
+import { logError } from '../../common/logging/log-error.util';
 import type { IWorldPageTemplatesRepository } from './interfaces/world-page-templates-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 
@@ -124,7 +125,7 @@ export class WorldPageTemplatesMatrixSeed implements OnApplicationBootstrap {
         );
       }
     } catch (err) {
-      this.logger.error('Matrix seed šablon selhal', err as Error);
+      logError(this.logger, 'Matrix seed šablon selhal', err);
     }
   }
 }

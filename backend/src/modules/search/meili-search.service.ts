@@ -1,4 +1,5 @@
 import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
+import { logWarn } from '../../common/logging/log-error.util';
 import { ConfigService } from '@nestjs/config';
 import { Meilisearch as MeiliSearch, Index } from 'meilisearch';
 import type {
@@ -58,7 +59,8 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
       });
       this.logger.log('MeiliSearch index nakonfigurován.');
     } catch (err) {
-      this.logger.warn(
+      logWarn(
+        this.logger,
         'Nelze nakonfigurovat MeiliSearch index (MeiliSearch běží?)',
         err,
       );
@@ -67,7 +69,7 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
     try {
       await this.rebuildIndex();
     } catch (err) {
-      this.logger.warn('Počáteční rebuild MeiliSearch selhal', err);
+      logWarn(this.logger, 'Počáteční rebuild MeiliSearch selhal', err);
     }
   }
 
