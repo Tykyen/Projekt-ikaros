@@ -148,6 +148,10 @@ export class EmotesService {
       });
     await this.repo.deleteById(id);
     this.eventEmitter.emit('emote.deleted', { worldId, emoteId: id });
+    // UM-04 — úklid blobu obrázku smazaného emotu.
+    if (emote.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [emote.imageUrl] });
+    }
   }
 
   async deleteGlobal(id: string): Promise<void> {
@@ -159,6 +163,10 @@ export class EmotesService {
       });
     await this.repo.deleteById(id);
     this.eventEmitter.emit('emote.deleted', { worldId: null, emoteId: id });
+    // UM-04 — úklid blobu obrázku smazaného globálního emotu.
+    if (emote.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [emote.imageUrl] });
+    }
   }
 
   /** D-NEW-emote-update — common updater (sdílen pro world i global). */
@@ -219,6 +227,15 @@ export class EmotesService {
         code: 'EMOTE_NOT_FOUND',
         message: 'Emote nenalezen',
       });
+
+    // UM-04 — úklid starého blobu při výměně obrázku emotu.
+    if (
+      updates.imageUrl !== undefined &&
+      emote.imageUrl &&
+      emote.imageUrl !== updates.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [emote.imageUrl] });
+    }
 
     this.eventEmitter.emit('emote.updated', {
       worldId: expectedWorldId,

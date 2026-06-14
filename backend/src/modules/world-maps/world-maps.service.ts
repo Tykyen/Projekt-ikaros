@@ -17,6 +17,7 @@ import type { CreateMapDto } from './dto/create-map.dto';
 import type { UpdateMapDto } from './dto/update-map.dto';
 import type { CreateFolderDto } from './dto/create-folder.dto';
 import type { UpdateFolderDto } from './dto/update-folder.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class WorldMapsService {
@@ -27,6 +28,7 @@ export class WorldMapsService {
     private readonly foldersRepo: IWorldMapFoldersRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
@@ -137,6 +139,10 @@ export class WorldMapsService {
     mapId: string,
     dto: UpdateMapDto,
   ): Promise<WorldMapEntry> {
+    // UM-03 — staré imageUrl pro orphan cleanup (před přepsáním).
+    const prev = (await this.repo.findByWorld(worldId)).find(
+      (m) => m.id === mapId,
+    );
     const patch: Partial<WorldMapEntry> = {
       updatedAt: new Date().toISOString(),
     };
@@ -155,16 +161,30 @@ export class WorldMapsService {
         code: 'WORLD_MAP_NOT_FOUND',
         message: 'Mapa nenalezena',
       });
+    if (
+      dto.imageUrl !== undefined &&
+      prev?.imageUrl &&
+      prev.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [prev.imageUrl] });
+    }
     return updated;
   }
 
   async remove(worldId: string, mapId: string): Promise<void> {
+    // UM-05 — staré imageUrl pro orphan cleanup (před smazáním).
+    const prev = (await this.repo.findByWorld(worldId)).find(
+      (m) => m.id === mapId,
+    );
     const ok = await this.repo.removeMap(worldId, mapId);
     if (!ok)
       throw new NotFoundException({
         code: 'WORLD_MAP_NOT_FOUND',
         message: 'Mapa nenalezena',
       });
+    if (prev?.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [prev.imageUrl] });
+    }
   }
 
   async reorder(

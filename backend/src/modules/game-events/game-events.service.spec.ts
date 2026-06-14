@@ -8,6 +8,7 @@ import { GameEventsService } from './game-events.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { PushService } from '../push/push.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const mockPJUser = { id: 'pj1', role: UserRole.Ikarus, username: 'pj' };
 const mockHracUser = { id: 'h1', role: UserRole.Ikarus, username: 'hrac' };
@@ -97,6 +98,7 @@ describe('GameEventsService', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
         { provide: PushService, useValue: mockPushService },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = moduleRef.get(GameEventsService);

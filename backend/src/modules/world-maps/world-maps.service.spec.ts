@@ -1,4 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldMapsService } from './world-maps.service';
 import type { IWorldMapsRepository } from './interfaces/world-maps-repository.interface';
 import type { IWorldMapFoldersRepository } from './interfaces/world-map-folders-repository.interface';
@@ -31,7 +32,7 @@ describe('WorldMapsService', () => {
 
   beforeEach(() => {
     repo = {
-      findByWorld: jest.fn(),
+      findByWorld: jest.fn().mockResolvedValue([]),
       addMap: jest.fn(),
       updateMap: jest.fn(),
       removeMap: jest.fn(),
@@ -51,6 +52,7 @@ describe('WorldMapsService', () => {
       repo,
       foldersRepo,
       membershipRepo as unknown as IWorldMembershipRepository,
+      { emit: jest.fn() } as unknown as EventEmitter2,
     );
   });
 

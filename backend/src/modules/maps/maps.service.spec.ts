@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { MapsService } from './maps.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 
@@ -88,6 +89,7 @@ describe('MapsService', () => {
         { provide: 'ICharactersRepository', useValue: mockCharacterRepo },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: 'ICharacterDiaryRepository', useValue: mockDiaryRepo },
+        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
     service = module.get(MapsService);

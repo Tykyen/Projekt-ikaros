@@ -13,6 +13,7 @@ import type { CharacterDiaryRepository } from '../character-subdocs/repositories
 import type { MapScene, MapToken } from './interfaces/map-scene.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 export interface MoveTokenInput {
   id: string;
@@ -36,6 +37,7 @@ export class MapsService {
     // 10.2g — read-only diary subdoc pro enrichTokens (HP postavy → HP bar).
     @Inject('ICharacterDiaryRepository')
     private readonly diaryRepo: CharacterDiaryRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async assertCanManage(
@@ -322,6 +324,7 @@ export class MapsService {
   }
 
   async deleteScene(id: string): Promise<void> {
+    const scene = await this.repo.findById(id);
     const deleted = await this.repo.delete(id);
     if (!deleted)
       throw new NotFoundException({
@@ -331,6 +334,11 @@ export class MapsService {
     // CD-04 (cascade-delete audit) — vyčistit dangling `currentSceneId` u členů,
     // kteří na smazané scéně byli (jinak uvíznou na neexistující scéně).
     await this.membershipRepo.clearSceneForAll(id);
+    // UM-05 — úklid blobu pozadí smazané scény (tokeny berou obrázek z Page,
+    // vlastní blob nemají).
+    if (scene?.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [scene.imageUrl] });
+    }
   }
 
   private async enrichTokens(scene: MapScene): Promise<MapScene> {

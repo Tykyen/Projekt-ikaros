@@ -499,6 +499,26 @@ export class WorldsService implements OnApplicationBootstrap {
         message: 'Svět nenalezen',
       });
 
+    // UM-03 — úklid starých blobů při výměně/clearu hero + pozadí motivu.
+    const orphaned: (string | null | undefined)[] = [];
+    if (
+      dto.imageUrl !== undefined &&
+      world.imageUrl &&
+      world.imageUrl !== dto.imageUrl
+    ) {
+      orphaned.push(world.imageUrl);
+    }
+    if (
+      dto.themeBackgroundUrl !== undefined &&
+      world.themeBackgroundUrl &&
+      world.themeBackgroundUrl !== dto.themeBackgroundUrl
+    ) {
+      orphaned.push(world.themeBackgroundUrl);
+    }
+    if (orphaned.length > 0) {
+      this.eventEmitter.emit('media.orphaned', { urls: orphaned });
+    }
+
     this.eventEmitter.emit('world.updated', updated);
     return updated;
   }

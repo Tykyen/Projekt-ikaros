@@ -12,6 +12,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { memoryStorage } from 'multer';
 import {
   ApiTags,
@@ -42,6 +43,8 @@ export class UploadController {
   ) {}
 
   @Post()
+  // UM-10 — upload rate-limit (storage/DoS), přísnější než globální 100/min/IP.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Nahrání souboru na Cloudinary (image/video/document, max 50 MB)',
   })
@@ -91,6 +94,7 @@ export class UploadController {
    * Dostavba chybějícího endpointu ze spec 2.1b §4.2.
    */
   @Post('image')
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Nahrání obrázku platformového obsahu (Admin/Superadmin)',
   })
@@ -132,6 +136,8 @@ export class UploadController {
    * v článcích/novinkách). Bez admin gate — autor článku je běžný hráč.
    */
   @Post('content-image')
+  // UM-10 — hlavní open-to-any vektor: rate-limit proti storage spamu.
+  @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @ApiOperation({
     summary: 'Nahrání obrázku do rich-text obsahu (každý přihlášený)',
   })

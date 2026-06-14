@@ -375,6 +375,27 @@ export class PagesService {
       // Character entity (tj. ani persona, ani Lokace).
       ...(!needsCharacterUpd && { characterRef: undefined }),
     });
+    // UM-03 — úklid starých blobů při výměně hero / odebrání položek galerie
+    // (replace orphan; delete-cesta řeší jen smazání celé stránky).
+    const orphaned: (string | null | undefined)[] = [];
+    if (
+      persistDto.imageUrl !== undefined &&
+      page.imageUrl &&
+      page.imageUrl !== persistDto.imageUrl
+    ) {
+      orphaned.push(page.imageUrl);
+    }
+    if (persistDto.galleryImages !== undefined) {
+      const keptUrls = new Set(
+        (persistDto.galleryImages ?? []).map((g) => g.url),
+      );
+      for (const g of page.galleryImages ?? []) {
+        if (!keptUrls.has(g.url)) orphaned.push(g.url);
+      }
+    }
+    if (orphaned.length > 0) {
+      this.eventEmitter.emit('media.orphaned', { urls: orphaned });
+    }
     void this.searchCoordinator
       ?.updatePageInIndex(updated!)
       .catch((err: unknown) =>

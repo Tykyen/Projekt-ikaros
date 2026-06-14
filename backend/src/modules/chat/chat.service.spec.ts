@@ -13,6 +13,7 @@ import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { PushService } from '../push/push.service';
 import { WorldsService } from '../worlds/worlds.service';
 import { CharactersService } from '../characters/characters.service';
+import { UploadService } from '../upload/upload.service';
 
 /** Mock WorldsService — `onApplicationBootstrap` se v `.compile()` testech nespouští. */
 const mockWorldsService = {
@@ -143,6 +144,10 @@ describe('ChatService', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
@@ -1912,6 +1917,10 @@ describe('sendMessage — new fields', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
@@ -2128,6 +2137,10 @@ describe('toggleReaction', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
@@ -2312,6 +2325,10 @@ describe('sendMessage — character mentions', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         {
           provide: WorldsService,
@@ -2481,6 +2498,10 @@ describe('sendMessage — attachments', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
@@ -2606,6 +2627,10 @@ describe('findChannelForUpload', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },
@@ -2737,6 +2762,10 @@ describe('getMessages — whisper filtering', () => {
       providers: [
         ChatService,
         ChatPresenceService,
+        {
+          provide: UploadService,
+          useValue: { assertAttachmentsOrigin: jest.fn() },
+        },
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: 'IChatGroupRepository', useValue: mockGroupRepo },

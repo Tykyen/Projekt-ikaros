@@ -46,6 +46,7 @@ import {
   ChatPresenceService,
   type PresenceUser,
 } from './chat-presence.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class ChatService implements OnApplicationBootstrap {
@@ -74,6 +75,9 @@ export class ChatService implements OnApplicationBootstrap {
     // 6.8b — ikona character kanálu = portrét postavy napojeného hráče (read-time).
     @Inject(forwardRef(() => CharactersService))
     private readonly charactersService: CharactersService,
+    // UM-08 — origin validace příloh world-chatu (forwardRef: UploadController používá ChatService).
+    @Inject(forwardRef(() => UploadService))
+    private readonly uploadService: UploadService,
   ) {}
 
   // ─── Permission helpers ───────────────────────────────────────────────────
@@ -364,6 +368,14 @@ export class ChatService implements OnApplicationBootstrap {
         code: 'CHAT_GROUP_NOT_FOUND',
         message: 'Skupina nenalezena',
       });
+    // UM-03 — úklid starého blobu obrázku skupiny při výměně / odebrání.
+    if (
+      dto.imageUrl !== undefined &&
+      group.imageUrl &&
+      group.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [group.imageUrl] });
+    }
     this.eventEmitter.emit('chat.group.updated', {
       worldId: group.worldId,
       group: updated,
@@ -995,6 +1007,11 @@ export class ChatService implements OnApplicationBootstrap {
       !!dto.dicePayload ||
       (dto.content ? DICE_REGEX.test(dto.content.trim()) : false);
 
+    // UM-08 — ověř, že přílohy pocházejí z našeho uploadu (ne podstrčená cizí URL).
+    this.uploadService.assertAttachmentsOrigin(dto.attachments, [
+      'world-chat/',
+      'chat/',
+    ]);
     const message = await this.messageRepo.save({
       channelId,
       worldId: channel.worldId,

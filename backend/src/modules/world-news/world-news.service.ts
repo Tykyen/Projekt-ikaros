@@ -169,6 +169,14 @@ export class WorldNewsService {
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    // UM-03 — úklid starého blobu při výměně obrázku novinky.
+    if (
+      dto.imageUrl !== undefined &&
+      existing.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.eventEmitter.emit('world-news.changed', {
       worldId: updated.worldId,
     });
@@ -191,6 +199,10 @@ export class WorldNewsService {
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    // UM-03 — úklid blobu obrázku smazané novinky.
+    if (existing.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.eventEmitter.emit('world-news.changed', {
       worldId: existing.worldId,
     });

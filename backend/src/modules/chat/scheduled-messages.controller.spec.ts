@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ScheduledMessagesController } from './scheduled-messages.controller';
+import { UploadService } from '../upload/upload.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { ScheduledMessage } from './interfaces/scheduled-message.interface';
 
@@ -34,7 +35,11 @@ describe('ScheduledMessagesController', () => {
     setStatus: jest.fn(),
     delete: jest.fn(),
   };
-  const controller = new ScheduledMessagesController(repo);
+  const uploadService = { assertAttachmentsOrigin: jest.fn() };
+  const controller = new ScheduledMessagesController(
+    repo,
+    uploadService as unknown as UploadService,
+  );
   beforeEach(() => jest.clearAllMocks());
 
   it('vytvoří naplánovanou zprávu s ownerem z auth', async () => {

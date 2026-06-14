@@ -24,11 +24,50 @@ jest.mock('cloudinary', () => ({
   },
 }));
 
+// UM-07 — buffer s validní magic-byte hlavičkou dle MIME (jinak `assertMagicBytes`
+// upload odmítne). Typy bez signatury (x-executable/zip) padají dřív na MIME whitelistu.
+const magicHeader = (mimetype: string): Buffer => {
+  const pad = (head: number[]): Buffer =>
+    Buffer.concat([Buffer.from(head), Buffer.alloc(16)]);
+  switch (mimetype) {
+    case 'image/jpeg':
+      return pad([0xff, 0xd8, 0xff]);
+    case 'image/png':
+      return pad([0x89, 0x50, 0x4e, 0x47]);
+    case 'image/gif':
+      return pad([0x47, 0x49, 0x46]);
+    case 'image/webp':
+      return Buffer.concat([
+        Buffer.from('RIFF'),
+        Buffer.alloc(4),
+        Buffer.from('WEBP'),
+        Buffer.alloc(8),
+      ]);
+    case 'application/pdf':
+      return pad([0x25, 0x50, 0x44, 0x46]);
+    case 'video/mp4':
+    case 'video/quicktime':
+      return Buffer.concat([
+        Buffer.alloc(4),
+        Buffer.from('ftyp'),
+        Buffer.alloc(8),
+      ]);
+    case 'video/webm':
+      return pad([0x1a, 0x45, 0xdf, 0xa3]);
+    case 'application/msword':
+      return pad([0xd0, 0xcf, 0x11, 0xe0]);
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      return pad([0x50, 0x4b, 0x03, 0x04]);
+    default:
+      return Buffer.from('test-content-padding-0123456789');
+  }
+};
+
 const makeFile = (mimetype: string, size = 1024): Express.Multer.File => ({
   mimetype,
   originalname: 'test-file.jpg',
   size,
-  buffer: Buffer.from('test-content'),
+  buffer: magicHeader(mimetype),
   fieldname: 'file',
   encoding: '7bit',
   stream: null as any,

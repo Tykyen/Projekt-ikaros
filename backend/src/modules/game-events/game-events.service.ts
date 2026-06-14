@@ -24,6 +24,7 @@ import {
   type WorldMembership,
 } from '../worlds/interfaces/world-membership.interface';
 import { PushService } from '../push/push.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ACTIVE_WINDOW_MS } from '../../common/constants/time.constants';
 
 /**
@@ -45,6 +46,7 @@ export class GameEventsService {
     private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
     private readonly pushService: PushService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ─── Permission helpers ───────────────────────────────────────────────────
@@ -327,6 +329,14 @@ export class GameEventsService {
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
+    // UM-03 — úklid starého blobu při výměně obrázku akce.
+    if (
+      dto.imageUrl !== undefined &&
+      existing.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     return updated;
   }
 
@@ -340,6 +350,10 @@ export class GameEventsService {
       });
     await this.assertManage(user, existing.worldId);
     await this.repo.delete(id);
+    // UM-03 — úklid blobu obrázku smazané akce.
+    if (existing.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
   }
 
   async confirm(eventId: string, user: RequestUser): Promise<GameEvent> {

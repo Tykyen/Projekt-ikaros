@@ -2,12 +2,13 @@ import {
   Injectable,
   UnsupportedMediaTypeException,
   BadGatewayException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v2 as cloudinary } from 'cloudinary';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { ChatAttachment } from '../chat/interfaces/chat-attachment.interface';
@@ -17,7 +18,8 @@ const ALLOWED_MIME_TYPES: Record<string, 'image' | 'video' | 'document'> = {
   'image/png': 'image',
   'image/gif': 'image',
   'image/webp': 'image',
-  'image/svg+xml': 'image',
+  // UM-01 — `image/svg+xml` ZÁMĚRNĚ vynecháno: SVG nese spustitelný skript;
+  // servírovaný přímou Cloudinary URL = hostování XSS/phishing obsahu pod účtem.
   'video/mp4': 'video',
   'video/webm': 'video',
   'video/quicktime': 'video',
@@ -38,7 +40,7 @@ const GLOBAL_CHAT_ALLOWED_MIME: Record<string, 'image' | 'document'> = {
   'image/png': 'image',
   'image/gif': 'image',
   'image/webp': 'image',
-  'image/svg+xml': 'image',
+  // UM-01 — bez `image/svg+xml` (XSS vektor, viz ALLOWED_MIME_TYPES).
   'application/pdf': 'document',
   'text/plain': 'document',
   'text/markdown': 'document',
@@ -46,6 +48,48 @@ const GLOBAL_CHAT_ALLOWED_MIME: Record<string, 'image' | 'document'> = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
     'document',
 };
+
+/**
+ * UM-07 — magic-byte (file signature) ověření. `file.mimetype` přichází z
+ * multipartu (klient-controlled), takže samotný MIME whitelist lze obejít
+ * přejmenováním (`evil.html` jako `image/png`). Ověříme reálnou signaturu
+ * bufferu. Typy bez deterministické signatury (`text/plain`, `text/markdown`)
+ * se nekontrolují — legitimně nesou libovolný text.
+ */
+const MAGIC_SIGNATURES: Record<string, (b: Buffer) => boolean> = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) =>
+    b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  'image/gif': (b) => b.toString('ascii', 0, 3) === 'GIF',
+  'image/webp': (b) =>
+    b.toString('ascii', 0, 4) === 'RIFF' &&
+    b.toString('ascii', 8, 12) === 'WEBP',
+  'application/pdf': (b) => b.toString('ascii', 0, 4) === '%PDF',
+  'video/mp4': (b) => b.toString('ascii', 4, 8) === 'ftyp',
+  'video/quicktime': (b) => b.toString('ascii', 4, 8) === 'ftyp',
+  'video/webm': (b) =>
+    b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3,
+  // msword (.doc) = OLE2 header; docx = ZIP (PK).
+  'application/msword': (b) =>
+    b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0,
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': (
+    b,
+  ) => b[0] === 0x50 && b[1] === 0x4b, // PK
+};
+
+/**
+ * Vyhodí `UnsupportedMediaTypeException`, pokud buffer neodpovídá deklarovanému
+ * MIME (známe-li jeho signaturu). Volá se po MIME whitelist checku.
+ */
+function assertMagicBytes(file: Express.Multer.File): void {
+  const check = MAGIC_SIGNATURES[file.mimetype];
+  if (!check) return; // typ bez deterministické signatury (text/*)
+  if (!file.buffer || file.buffer.length < 12 || !check(file.buffer)) {
+    throw new UnsupportedMediaTypeException(
+      `Obsah souboru neodpovídá deklarovanému typu ${file.mimetype}`,
+    );
+  }
+}
 
 /** 3.3a — výsledek image uploadu vč. rozměrů (masonry). */
 export interface UploadedImage {
@@ -103,6 +147,34 @@ export class UploadService {
     return `https://res.cloudinary.com/${this.cloudName}/`;
   }
 
+  /**
+   * UM-08 — ověří, že přílohy v DTO pocházejí z našeho uploadu (doména účtu +
+   * povolený folder prefix, nebo disk fallback `local:`). Brání podstrčení cizí
+   * `url` do zprávy. World chat (`sendMessage`) i naplánované zprávy ji volaly
+   * bez kontroly; global chat má vlastní `validateAttachments` (i s počtem).
+   */
+  assertAttachmentsOrigin(
+    attachments: { url: string; publicId: string; type: string }[] | undefined,
+    allowedFolderPrefixes: string[],
+  ): void {
+    if (!attachments || attachments.length === 0) return;
+    const base = this.getCloudinaryBaseUrl();
+    for (const att of attachments) {
+      const validType = att.type === 'image' || att.type === 'document';
+      const fromCloud =
+        att.url.startsWith(base) &&
+        allowedFolderPrefixes.some((p) => att.publicId.startsWith(p));
+      const fromDisk = att.publicId.startsWith('local:'); // disk fallback
+      if (!validType || (!fromCloud && !fromDisk)) {
+        throw new BadRequestException({
+          code: 'CHAT_INVALID_ATTACHMENT',
+          message:
+            'Neplatná příloha — soubor musí být nahrán přes upload chatu',
+        });
+      }
+    }
+  }
+
   async uploadFile(
     file: Express.Multer.File,
     worldId: string,
@@ -114,6 +186,7 @@ export class UploadService {
         `Nepodporovaný typ souboru: ${file.mimetype}`,
       );
     }
+    assertMagicBytes(file); // UM-07
 
     const resourceType = getResourceType(type);
     let result: { secure_url: string; public_id: string };
@@ -172,6 +245,7 @@ export class UploadService {
       );
     }
 
+    assertMagicBytes(file); // UM-07
     const resourceType: 'image' | 'raw' = type === 'image' ? 'image' : 'raw';
     let result: { secure_url: string; public_id: string };
     try {
@@ -223,6 +297,7 @@ export class UploadService {
       );
     }
 
+    assertMagicBytes(file); // UM-07
     const resourceType: 'image' | 'raw' = type === 'image' ? 'image' : 'raw';
     let result: { secure_url: string; public_id: string };
     try {
@@ -272,18 +347,19 @@ export class UploadService {
     file: Express.Multer.File,
     folder: string,
   ): Promise<UploadedImage> {
+    // UM-01 — bez `image/svg+xml` (XSS vektor).
     const allowedImageTypes = [
       'image/jpeg',
       'image/png',
       'image/gif',
       'image/webp',
-      'image/svg+xml',
     ];
     if (!allowedImageTypes.includes(file.mimetype)) {
       throw new UnsupportedMediaTypeException(
         `Nepodporovaný typ souboru: ${file.mimetype}`,
       );
     }
+    assertMagicBytes(file); // UM-07
 
     let result: {
       secure_url: string;
@@ -294,15 +370,24 @@ export class UploadService {
     try {
       result = await new Promise((resolve, reject) => {
         cloudinary.uploader
-          .upload_stream({ folder, resource_type: 'image' }, (err, res) => {
-            if (err || !res)
-              reject(
-                err instanceof Error
-                  ? err
-                  : new Error(err?.message ?? 'Cloudinary: no response'),
-              );
-            else resolve(res);
-          })
+          // UM-09 — `strip_profile` odstraní EXIF/GPS/ICC z uloženého assetu
+          // (avatar je řešen webp+crop transformací; tahle cesta byla holá).
+          .upload_stream(
+            {
+              folder,
+              resource_type: 'image',
+              transformation: [{ flags: 'strip_profile' }],
+            },
+            (err, res) => {
+              if (err || !res)
+                reject(
+                  err instanceof Error
+                    ? err
+                    : new Error(err?.message ?? 'Cloudinary: no response'),
+                );
+              else resolve(res);
+            },
+          )
           .end(file.buffer);
       });
     } catch (e) {
@@ -396,6 +481,7 @@ export class UploadService {
         `Nepodporovaný typ souboru: ${file.mimetype}`,
       );
     }
+    assertMagicBytes(file); // UM-07
 
     let result: { secure_url: string; public_id: string };
     try {
@@ -463,7 +549,33 @@ export class UploadService {
    */
   async deleteImageByUrl(url: string | null | undefined): Promise<void> {
     const publicId = this.extractCloudinaryPublicId(url);
-    if (publicId) await this.deleteImage(publicId);
+    if (publicId) {
+      await this.deleteImage(publicId);
+      return;
+    }
+    // UM-06 — disk fallback bloby (`/static/<folder>/<file>`) Cloudinary extractor
+    // míjí (vrací null) → bez tohohle by ležely v `uploads/` navždy.
+    await this.deleteLocalImageByUrl(url);
+  }
+
+  /** UM-06 — best-effort smazání disk-fallback souboru podle `/static/` URL. */
+  private async deleteLocalImageByUrl(
+    url: string | null | undefined,
+  ): Promise<void> {
+    if (!url || !url.includes('/static/')) return;
+    const rel = url.split('/static/')[1];
+    if (!rel) return;
+    const root = path.resolve(process.cwd(), 'uploads');
+    const filepath = path.resolve(root, path.normalize(rel));
+    // traversal guard — cesta musí zůstat uvnitř uploads/
+    if (filepath !== root && !filepath.startsWith(root + path.sep)) return;
+    try {
+      await unlink(filepath);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code !== 'ENOENT') {
+        this.logger.error(`Failed to delete local image: ${rel}`, err);
+      }
+    }
   }
 
   /**
@@ -563,5 +675,20 @@ export class UploadService {
   @OnEvent('world.image.removed')
   async handleWorldImageRemoved(payload: { url?: string }): Promise<void> {
     await this.deleteImageByUrl(payload.url);
+  }
+
+  /**
+   * UM-03/04/05 — generický úklid osiřelých blobů po REPLACE/edit (starý obrázek
+   * entity, který už nikdo nereferencuje). Doplňuje delete-cesty (`*.deleted`),
+   * jež řešily jen smazání celé entity, ne výměnu obrázku. Best-effort; ne-Cloudinary
+   * (GDrive) URL `deleteImageByUrl` ignoruje, disk-fallback řeší lokálně.
+   */
+  @OnEvent('media.orphaned')
+  async handleMediaOrphaned(payload: {
+    urls?: (string | null | undefined)[];
+  }): Promise<void> {
+    for (const url of payload.urls ?? []) {
+      await this.deleteImageByUrl(url);
+    }
   }
 }

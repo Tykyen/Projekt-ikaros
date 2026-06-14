@@ -11,7 +11,9 @@ import {
   NotFoundException,
   ForbiddenException,
   Inject,
+  forwardRef,
 } from '@nestjs/common';
+import { UploadService } from '../upload/upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -30,6 +32,9 @@ export class ScheduledMessagesController {
   constructor(
     @Inject('IScheduledMessageRepository')
     private readonly repo: IScheduledMessageRepository,
+    // UM-08 — origin validace příloh naplánované zprávy.
+    @Inject(forwardRef(() => UploadService))
+    private readonly uploadService: UploadService,
   ) {}
 
   @Get()
@@ -59,6 +64,11 @@ export class ScheduledMessagesController {
         message: 'Zpráva musí mít text nebo přílohu',
       });
     }
+    // UM-08 — ověř, že přílohy pocházejí z našeho uploadu (ne podstrčená cizí URL).
+    this.uploadService.assertAttachmentsOrigin(dto.attachments, [
+      'world-chat/',
+      'chat/',
+    ]);
     return this.repo.create({
       worldId,
       channelId: dto.channelId,
