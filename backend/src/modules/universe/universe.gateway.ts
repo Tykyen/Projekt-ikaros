@@ -3,9 +3,8 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { Server } from 'socket.io';
 import type { UniverseMap } from './interfaces/universe-map.interface';
 
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class UniverseGateway {
   @WebSocketServer() server: Server;
 

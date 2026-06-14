@@ -2,11 +2,7 @@ import { IoAdapter } from '@nestjs/platform-socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import type { Server, ServerOptions } from 'socket.io';
-
-const ALLOWED_ORIGINS = [
-  process.env.FRONTEND_URL ?? 'http://localhost:5173',
-  'http://localhost:5174',
-];
+import { getAllowedOrigins } from './common/config/origins';
 
 /**
  * D-NEW-chat-presence-scale + multi-instance Socket.IO podpora.
@@ -25,7 +21,7 @@ export class CustomIoAdapter extends IoAdapter {
       ...options,
       maxHttpBufferSize: 5 * 1024 * 1024,
       cors: {
-        origin: ALLOWED_ORIGINS,
+        origin: getAllowedOrigins(),
         credentials: true,
       },
     }) as Server;

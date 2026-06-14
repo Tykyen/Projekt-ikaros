@@ -1,5 +1,6 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 
 export class RefreshDto {
-  @IsString() @IsNotEmpty() refreshToken: string;
+  // PC-18: refresh token primárně z httpOnly cookie; body je fallback (přechod).
+  @IsOptional() @IsString() refreshToken?: string;
 }

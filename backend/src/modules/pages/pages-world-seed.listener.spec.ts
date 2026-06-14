@@ -56,10 +56,19 @@ describe('PagesWorldSeedListener — seed Pravidel dle systému (2.3c)', () => {
     expect(p?.plainText).toContain('k20');
   });
 
-  it('matrix (zatím bez dodaných dat) → prázdná Pravidla', async () => {
+  it('matrix → Pravidla z Pravidlové knihy (nahrazuje generický seed)', async () => {
+    // F1 (project_ikaros_rulebook_feature): matrix svět má vlastní Pravidlovou
+    // knihu — generický prázdný seed pravidla/magie/technologie se přeskočí
+    // (MATRIX_RULEBOOK_REPLACES) a místo něj se seeduje hub Pravidla + kapitoly.
     await listener.handleWorldCreated(world('matrix'));
-    expect(pravidla()?.content).toBe('');
-    expect(pravidla()?.plainText).toBe('');
+    const p = pravidla();
+    expect(p?.content).toContain('Projekt Ikaros'); // FATE úvod z rulebooku
+    expect(p?.plainText).not.toBe('');
+    // generické magie/technologie se neseedují (nahradí je Pravidlová kniha)
+    expect(magie()).toBeUndefined();
+    expect(technologie()).toBeUndefined();
+    // Pravidlová kniha přidá víc stránek než 5 generických šablon (hub + kapitoly).
+    expect(saved.length).toBeGreaterThan(5);
   });
 
   it('vlastni / neznámý systém → prázdná Pravidla', async () => {

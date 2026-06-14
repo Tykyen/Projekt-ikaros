@@ -38,9 +38,8 @@ type AuthedSocket = Socket & { data: AuthedSocketData };
  * 5. **Legacy `map:token-moved` etc. handlery** zachovány (paralelní emit pro
  *    přechodové období FE klientů). FE 10.2 je nebude používat.
  */
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class MapsGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
 

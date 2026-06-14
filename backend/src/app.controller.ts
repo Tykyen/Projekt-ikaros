@@ -23,11 +23,6 @@ interface HealthReport {
 }
 
 const REQUIRED_ENV = ['MONGODB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
-const CLOUDINARY_KEYS = [
-  'CLOUDINARY_CLOUD_NAME',
-  'CLOUDINARY_API_KEY',
-  'CLOUDINARY_API_SECRET',
-];
 const VAPID_KEYS = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'];
 
 @ApiTags('Health')
@@ -61,15 +56,14 @@ export class AppController {
         : 'všechny povinné env proměnné OK',
     };
 
-    const missingCloudinary = CLOUDINARY_KEYS.filter(
-      (k) => !this.config.get<string>(k),
-    );
+    // PC-11: upload čte JEN CLOUDINARY_URL — healthcheck musí ověřovat totéž
+    // (dřív kontroloval CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET → vždy „degraded").
+    const cloudinaryConfigured = !!this.config.get<string>('CLOUDINARY_URL');
     const cloudinary: CheckResult & { missing?: string[] } = {
-      ok: missingCloudinary.length === 0,
-      missing: missingCloudinary.length ? missingCloudinary : undefined,
-      detail: missingCloudinary.length
-        ? `chybí: ${missingCloudinary.join(', ')}`
-        : 'Cloudinary config OK',
+      ok: cloudinaryConfigured,
+      detail: cloudinaryConfigured
+        ? 'Cloudinary config OK'
+        : 'CLOUDINARY_URL chybí (disk fallback aktivní)',
     };
 
     // PushModule je registrovaný v AppModule vždy. Pokud nejsou VAPID klíče,
@@ -86,11 +80,23 @@ export class AppController {
 
     const allOk = backend.ok && mongo.ok && env.ok && cloudinary.ok && vapid.ok;
 
+    // PC-08: detaily (které env chybí) jsou neautentizovaný info-leak → jen mimo
+    // produkci. V produkci vrací jen ok/degraded bez výčtu chybějících proměnných.
+    const expose = process.env.NODE_ENV !== 'production';
+
     return {
       status: allOk ? 'ok' : 'degraded',
       uptimeSec: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
-      checks: { backend, mongo, env, cloudinary, vapid },
+      checks: expose
+        ? { backend, mongo, env, cloudinary, vapid }
+        : {
+            backend: { ok: backend.ok },
+            mongo: { ok: mongo.ok },
+            env: { ok: env.ok },
+            cloudinary: { ok: cloudinary.ok },
+            vapid: { ok: vapid.ok, pushModule: vapid.pushModule },
+          },
     };
   }
 }

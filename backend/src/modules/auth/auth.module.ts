@@ -27,8 +27,10 @@ import { MongoRefreshTokenRepository } from './repositories/refresh-token.reposi
             throw new Error('JWT_SECRET is not set');
           })(),
         signOptions: {
+          // PC-12: kratší access TTL (dřív 7d) — okno zneužití ukradeného tokenu
+          // 7× menší; refresh rotace (cookie/30d) drží uživatele přihlášeného.
           expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
-            '7d') as `${number}${'s' | 'm' | 'h' | 'd' | 'w' | 'y'}`,
+            '1d') as `${number}${'s' | 'm' | 'h' | 'd' | 'w' | 'y'}`,
         },
       }),
       inject: [ConfigService],

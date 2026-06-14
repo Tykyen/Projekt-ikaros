@@ -18,8 +18,8 @@ import { renderEmail } from '../mailer.templates';
  *  - `SMTP_PORT` (587 STARTTLS / 465 implicit TLS; default 587)
  *  - `SMTP_USER`, `SMTP_PASS` (u Gmailu = App Password, ne běžné heslo)
  *  - `MAIL_FROM` (odesílatel; default „Projekt Ikaros <SMTP_USER>")
- *  - `FRONTEND_URL` (base pro odkazy v mailech — existující env, např.
- *    https://newmatrix.patrikzplzne.cz)
+ *  - `FRONTEND_URL` (base pro odkazy v mailech — produkční FE URL; v produkci
+ *    povinné přes `env.validation`, takže odkazy nikdy nemíří na localhost/cizí web)
  *
  * `send()` chyby propaguje — `MailerService.dispatch()` je swallowne do logu,
  * takže SMTP timeout nikdy nerozbije volající flow (anti-enumeration).
@@ -38,8 +38,9 @@ export class SmtpMailerProvider implements IMailerProvider {
     const pass = config.get<string>('SMTP_PASS');
 
     this.from = config.get<string>('MAIL_FROM') ?? `Projekt Ikaros <${user}>`;
-    this.appUrl =
-      config.get<string>('FRONTEND_URL') ?? 'https://newmatrix.patrikzplzne.cz';
+    // PC-02: žádný hardcoded fallback na starý web. V produkci je FRONTEND_URL
+    // povinné (env.validation); dev fallback = localhost (konzistentní se zbytkem).
+    this.appUrl = config.get<string>('FRONTEND_URL') ?? 'http://localhost:5173';
 
     this.transporter = createTransport({
       host,

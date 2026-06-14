@@ -57,9 +57,8 @@ const DEFAULT_ENVIRONMENT: RoomEnvironment = {
   placeId: '1',
 };
 
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class GlobalChatGateway implements OnGatewayDisconnect {
   @WebSocketServer() server: Server;
   private readonly logger = new Logger(GlobalChatGateway.name);

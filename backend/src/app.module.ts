@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { validateEnv } from './common/config/env.validation';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -58,7 +59,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     // Default: 100 requestů/min/IP. Citlivé endpointy mají vlastní @Throttle (login, register, refresh, exists).

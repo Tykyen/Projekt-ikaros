@@ -16,8 +16,10 @@ interface TurnstileVerifyResponse {
  *   - TURNSTILE_SITE_KEY=1x00000000000000000000AA
  *   - TURNSTILE_SECRET=1x0000000000000000000000000000000AA
  *
- * Bez `TURNSTILE_SECRET` v env service vrátí `false` → service vyhodí 400
- * CAPTCHA_FAILED. Tj. registrace nelze bez správné konfigurace.
+ * V produkci (`NODE_ENV=production`) bez `TURNSTILE_SECRET` service vrátí `false`
+ * (fail-closed) → registrace selže 400 CAPTCHA_FAILED. Tj. captcha nelze v produkci
+ * tiše vypnout. Mimo produkci (dev/test) bez secretu vrací `true` (bypass + warning).
+ * Navíc `env.validation` vyžaduje `TURNSTILE_SECRET` jako povinný v produkci.
  */
 @Injectable()
 export class CaptchaService {
@@ -27,7 +29,8 @@ export class CaptchaService {
 
   /**
    * Vrátí true pokud Turnstile token je validní.
-   * - Pokud `TURNSTILE_SECRET` není v env → vrátí true (DEV bypass, ale loguje warning).
+   * - Pokud `TURNSTILE_SECRET` není v env: v produkci → false (fail-closed),
+   *   mimo produkci → true (DEV bypass + warning).
    * - Pokud `token` je prázdný → vrátí false.
    * - Při síťové chybě Cloudflare → vrátí false (fail-closed) + log.
    */
@@ -35,8 +38,14 @@ export class CaptchaService {
     if (!token) return false;
     const secret = process.env.TURNSTILE_SECRET;
     if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        this.logger.error(
+          'TURNSTILE_SECRET není v produkci nastaven — captcha odmítnuta (fail-closed).',
+        );
+        return false;
+      }
       this.logger.warn(
-        'TURNSTILE_SECRET not configured — captcha disabled (DEV mode).',
+        'TURNSTILE_SECRET not configured — captcha disabled (DEV only).',
       );
       return true;
     }

@@ -9,9 +9,8 @@ import { Server, Socket } from 'socket.io';
 import type { World } from './interfaces/world.interface';
 import type { WorldMembership } from './interfaces/world-membership.interface';
 
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class WorldsGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
 

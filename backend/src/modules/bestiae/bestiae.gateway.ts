@@ -16,9 +16,8 @@ import { Server, Socket } from 'socket.io';
  * Leak-safe: payload nese jen `systemId`, klient si refetchne filtrovaný
  * `GET /bestiae` (server-side scope filter zabrání úniku cizích bestií).
  */
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class BestiaeGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
 

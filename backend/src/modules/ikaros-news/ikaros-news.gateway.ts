@@ -7,9 +7,8 @@ import { Server } from 'socket.io';
  * leak-safe broadcast signál všem připojeným klientům; klient si refetchne
  * filtrovaný `GET /ikaros-news`.
  */
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class IkarosNewsGateway {
   @WebSocketServer() server: Server;
 

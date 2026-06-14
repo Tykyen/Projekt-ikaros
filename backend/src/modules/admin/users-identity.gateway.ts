@@ -13,9 +13,8 @@ import { Server, Socket } from 'socket.io';
  * `/auth/me` a aktualizuje UI bez reloadu. Leak-safe — payload nese jen
  * `kind`, ne nová data.
  */
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class UsersIdentityGateway implements OnGatewayConnection {
   @WebSocketServer() server: Server;
 

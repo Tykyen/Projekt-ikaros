@@ -3,9 +3,8 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { Server } from 'socket.io';
 import { CustomEmote } from './interfaces/custom-emote.interface';
 
-@WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
-})
+// PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
+@WebSocketGateway({})
 export class EmotesGateway {
   @WebSocketServer() server: Server;
 

@@ -7,8 +7,9 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 
+// PC-13: žádný cors zde — CustomIoAdapter (main.ts) nastavuje WS CORS na
+// server-level a per-gateway cors v dekorátoru přebíjí (byl mrtvý). Origin: origins.ts.
 @WebSocketGateway({
-  cors: { origin: process.env.FRONTEND_URL ?? 'http://localhost:5173' },
   namespace: '/',
 })
 export abstract class BaseGateway

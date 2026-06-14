@@ -4,10 +4,19 @@ import {
   Get,
   Body,
   Query,
+  Req,
+  Res,
   HttpCode,
   HttpStatus,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import {
+  setRefreshCookie,
+  clearRefreshCookie,
+  readRefreshCookie,
+} from '../../common/utils/auth-cookie';
 import {
   ApiTags,
   ApiOperation,
@@ -45,8 +54,13 @@ export class AuthController {
     status: 400,
     description: 'Validační chyba nebo username již existuje',
   })
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.register(dto);
+    setRefreshCookie(res, result.refreshToken); // PC-18
+    return result;
   }
 
   @Post('login')
@@ -55,8 +69,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Přihlášení — vrátí accessToken + refreshToken' })
   @ApiResponse({ status: 200, description: 'Tokeny + user' })
   @ApiResponse({ status: 401, description: 'Nesprávné přihlašovací údaje' })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto);
+    // PC-18: union — refresh token jen v "ok" případě (ne deletion_pending).
+    if ('refreshToken' in result && result.refreshToken) {
+      setRefreshCookie(res, result.refreshToken);
+    }
+    return result;
   }
 
   @Post('reactivate-deletion')
@@ -69,8 +91,15 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Tokeny + user (reaktivováno)' })
   @ApiResponse({ status: 400, description: 'NOT_PENDING_DELETION' })
   @ApiResponse({ status: 401, description: 'INVALID_CREDENTIALS / DELETED' })
-  reactivateDeletion(@Body() dto: LoginDto) {
-    return this.authService.reactivateDeletion(dto);
+  async reactivateDeletion(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.reactivateDeletion(dto);
+    if ('refreshToken' in result && result.refreshToken) {
+      setRefreshCookie(res, result.refreshToken); // PC-18
+    }
+    return result;
   }
 
   @Get('check-username')
@@ -102,8 +131,22 @@ export class AuthController {
     status: 401,
     description: 'Token invalid, expired, nebo zneužit (rodina zrušena)',
   })
-  refresh(@Body() dto: RefreshDto) {
-    return this.authService.refresh(dto.refreshToken);
+  async refresh(
+    @Body() dto: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    // PC-18: cookie má přednost; body je fallback (staří klienti / přechod).
+    const token = readRefreshCookie(req) ?? dto.refreshToken;
+    if (!token) {
+      throw new UnauthorizedException({
+        code: 'INVALID_REFRESH_TOKEN',
+        message: 'Chybí refresh token',
+      });
+    }
+    const result = await this.authService.refresh(token);
+    setRefreshCookie(res, result.refreshToken);
+    return result;
   }
 
   @Post('logout')
@@ -112,8 +155,14 @@ export class AuthController {
     summary: 'Odhlášení dané relace (rodina tokenů). Idempotentní.',
   })
   @ApiResponse({ status: 204, description: 'OK (i pro neplatný token)' })
-  async logout(@Body() dto: LogoutDto): Promise<void> {
-    await this.authService.logout(dto.refreshToken);
+  async logout(
+    @Body() dto: LogoutDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token = readRefreshCookie(req) ?? dto.refreshToken;
+    if (token) await this.authService.logout(token);
+    clearRefreshCookie(res); // PC-18
   }
 
   @Post('logout-all')
@@ -123,8 +172,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Odhlášení všech relací uživatele (forced logout)' })
   @ApiResponse({ status: 204, description: 'OK' })
   @ApiResponse({ status: 401, description: 'Bez JWT' })
-  async logoutAll(@CurrentUser() user: RequestUser): Promise<void> {
+  async logoutAll(
+    @CurrentUser() user: RequestUser,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
     await this.authService.logoutAll(user.id);
+    clearRefreshCookie(res); // PC-18
   }
 
   // ── SP2 — Email flows ──────────────────────────────────────────────

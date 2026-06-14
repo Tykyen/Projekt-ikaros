@@ -76,10 +76,10 @@ services:
       SOCKET_IO_REDIS: "1"
       MEILI_HOST: http://meilisearch:7700
       MEILI_API_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set and at least 16 bytes}
-      FRONTEND_URL: ${FRONTEND_URL}
-      BACKEND_BASE_URL: ${BACKEND_BASE_URL}
+      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set (produkční FE URL — CORS, odkazy v mailech)}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL:?BACKEND_BASE_URL must be set (veřejná BE URL — disk fallback)}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       # SMTP (transakční maily — reset hesla, ověření emailu). Když nejsou
@@ -91,13 +91,19 @@ services:
       MAIL_FROM: ${MAIL_FROM}
       CLOUDINARY_URL: ${CLOUDINARY_URL}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
-      TURNSTILE_SECRET: ${TURNSTILE_SECRET}
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET:?TURNSTILE_SECRET must be set (jinak captcha fail-closed odmítne registrace)}
       VAPID_SUBJECT: ${VAPID_SUBJECT}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
-      DELETION_HOLD_DAYS: ${DELETION_HOLD_DAYS:-14}
+      DELETION_HOLD_DAYS: ${DELETION_HOLD_DAYS:-30}
       EMBEDDING_GRANITE107_ENABLED: ${EMBEDDING_GRANITE107_ENABLED:-true}
       EMBEDDING_GRANITE278_ENABLED: ${EMBEDDING_GRANITE278_ENABLED:-true}
+      # PC-21: model URL explicitně (default = externí osobní web). Pro ostrý provoz
+      # přesměruj na vlastní hosting přes tyto vars (jinak search závisí na cizí doméně).
+      EMBEDDING_GRANITE107_ONNX_URL: ${EMBEDDING_GRANITE107_ONNX_URL:-https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_107/model.onnx}
+      EMBEDDING_GRANITE107_TOKENIZER_URL: ${EMBEDDING_GRANITE107_TOKENIZER_URL:-https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_107/sentencepiece.bpe.model}
+      EMBEDDING_GRANITE278_ONNX_URL: ${EMBEDDING_GRANITE278_ONNX_URL:-https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_278/model.onnx}
+      EMBEDDING_GRANITE278_TOKENIZER_URL: ${EMBEDDING_GRANITE278_TOKENIZER_URL:-https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_278/sentencepiece.bpe.model}
     volumes:
       - uploads-data:/app/uploads
     ports:
