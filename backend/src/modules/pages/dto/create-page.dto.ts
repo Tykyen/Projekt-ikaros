@@ -183,6 +183,14 @@ export class AkjTabDto {
   @ValidateNested()
   @Type(() => AkjTabContentOverrideDto)
   contentOverride?: AkjTabContentOverrideDto;
+
+  // `locked` je READ-TIME enrich (server-počítaný zámek pro hráče bez přístupu,
+  // viz pages.service findBySlug). Klient ho dostane v GET a editor ho posílá zpět.
+  // Přijmeme ho (jinak forbidNonWhitelisted shodí celý PATCH — error-contract EC),
+  // ale do DB se NEUKLÁDÁ — `sanitizeAkjTabs` ho zahodí (GET ho vždy přepočítá).
+  @IsOptional()
+  @IsBoolean()
+  locked?: boolean;
 }
 
 export class CreatePageDto {

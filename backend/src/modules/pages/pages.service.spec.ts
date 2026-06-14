@@ -769,6 +769,32 @@ describe('PagesService', () => {
       expect(tabs[0].contentOverride.content).not.toContain('<script>');
       expect(tabs[0].contentOverride.content).toContain('ok');
     });
+
+    // error-contract — `locked` je read-time enrich (server zámek); klient ho
+    // posílá zpět, ale do DB nepatří. sanitizeAkjTabs ho musí zahodit.
+    it('zahodí read-only pole `locked` z akjTabs (neukládá se)', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      let savedArg: Record<string, unknown> | undefined;
+      mockPagesRepo.save.mockImplementation((p: Record<string, unknown>) => {
+        savedArg = p;
+        return Promise.resolve({ ...mockPage, ...p });
+      });
+      await service.create(
+        {
+          slug: 'kral',
+          type: 'Ostatní',
+          title: 'Král',
+          akjTabs: [
+            { id: 't1', name: 'Dvůr', order: 0, access: [], locked: true },
+          ],
+        } as never,
+        'world1',
+        adminRequester,
+      );
+      const tabs = savedArg?.akjTabs as Array<Record<string, unknown>>;
+      expect(tabs[0]).not.toHaveProperty('locked');
+      expect(tabs[0].id).toBe('t1');
+    });
   });
 
   // D-062a — shieldedBy meta endpoint

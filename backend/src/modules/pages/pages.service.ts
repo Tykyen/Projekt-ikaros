@@ -62,7 +62,12 @@ function sanitizeAkjTabs(
   tabs: CreatePageDto['akjTabs'],
 ): CreatePageDto['akjTabs'] {
   if (!tabs) return tabs;
-  return tabs.map((tab) => {
+  return tabs.map((rawTab) => {
+    // `locked` je read-time enrich (server zámek), klient ho posílá zpět —
+    // do DB nepatří (GET ho vždy přepočítá). Zahodit před uložením.
+    const { locked: _locked, ...tab } = rawTab as typeof rawTab & {
+      locked?: boolean;
+    };
     if (!tab.contentOverride) return tab;
     const co = tab.contentOverride;
     return {
