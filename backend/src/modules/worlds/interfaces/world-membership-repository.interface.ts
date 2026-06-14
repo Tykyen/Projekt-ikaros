@@ -65,6 +65,14 @@ export interface IWorldMembershipRepository {
    */
   clearCharacter(id: string): Promise<WorldMembership | null>;
   /**
+   * 6.8-followup — self-service avatar vedení. `$set` při URL, `$unset` při null
+   * (plain `update` s undefined Mongoose ignoruje, jako u `clearCharacter`).
+   */
+  setPjPersonaAvatar(
+    id: string,
+    url: string | null,
+  ): Promise<WorldMembership | null>;
+  /**
    * CD-04 (cascade-delete audit) — po smazání scény vyčistit `currentSceneId`
    * u VŠECH členů, kteří na ní byli (jinak dangling ref → hráč na mrtvé scéně).
    * Vrací počet vyčištěných membershipů.

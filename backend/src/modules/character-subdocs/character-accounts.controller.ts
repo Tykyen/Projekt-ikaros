@@ -67,6 +67,12 @@ interface CoOwnerBody {
   characterId: string;
 }
 
+interface ChangeCurrencyBody {
+  currency: string;
+  /** true = přepočítat kurzem; false = jen přeznačit (změnit kód měny). */
+  convert: boolean;
+}
+
 /**
  * 8.6 — REST API pro per-postava finanční účty (multi-account, shared, transfer).
  * Permission rozhoduje service per akce (read / write-content / write-settings / delete).
@@ -184,6 +190,28 @@ export class CharacterAccountsController {
       });
     }
     return this.accountsService.getAccount(accountId);
+  }
+
+  @Patch('accounts/:accountId/currency')
+  @ApiOperation({
+    summary: 'Změna měny účtu — přepočet kurzem nebo jen přeznačení',
+  })
+  @ApiResponse({ status: 400, description: 'CURRENCY_RATE_MISSING' })
+  async changeCurrency(
+    @Param('accountId') accountId: string,
+    @Body() body: ChangeCurrencyBody,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.accountsService.assertWriteSettingsAccess(
+      accountId,
+      user.id,
+      user.role,
+    );
+    return this.accountsService.changeCurrency(
+      accountId,
+      body.currency,
+      body.convert === true,
+    );
   }
 
   @Delete('accounts/:accountId')

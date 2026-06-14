@@ -5,6 +5,7 @@ import { getConnectionToken } from '@nestjs/mongoose';
 import { CharacterAccountsService } from './character-accounts.service';
 import { CharacterAccountRepository } from './repositories/character-account.repository';
 import { CharactersService } from '../characters/characters.service';
+import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 import type { CharacterAccount } from './interfaces/character-account.interface';
 
 /**
@@ -23,6 +24,7 @@ describe('CharacterAccountsService', () => {
     create: jest.fn(),
     update: jest.fn(),
     appendTransaction: jest.fn(),
+    replaceMoneyFields: jest.fn(),
     deleteById: jest.fn(),
     countByOwnerCharacterId: jest.fn(),
   };
@@ -35,6 +37,10 @@ describe('CharacterAccountsService', () => {
 
   const mockEventEmitter = {
     emit: jest.fn(),
+  };
+
+  const mockCurrenciesService = {
+    getItems: jest.fn(),
   };
 
   // 2026-05-24 — Mongo session pro `withTransaction` v transferu.
@@ -81,9 +87,125 @@ describe('CharacterAccountsService', () => {
         { provide: CharactersService, useValue: mockCharactersService },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: getConnectionToken(), useValue: mockConnection },
+        { provide: WorldCurrenciesService, useValue: mockCurrenciesService },
       ],
     }).compile();
     service = module.get(CharacterAccountsService);
+  });
+
+  describe('changeCurrency', () => {
+    type MoneyFields = {
+      currency: string;
+      balance: number;
+      transactions: { delta: number }[];
+      incomeEntries: { amount: number }[];
+      expenseEntries: { amount: number }[];
+    };
+    const RATES = [
+      { id: '1', code: 'ZL', name: 'Zlaťák', symbol: 'Zl', rate: 1.0 },
+      { id: '2', code: 'ST', name: 'Stříbrňák', symbol: 'St', rate: 0.1 },
+    ];
+
+    it('convert:false → jen přeznačí kód měny (bez kurzu)', async () => {
+      mockAccountsRepo.findById.mockResolvedValue(
+        mockAccount({ currency: 'ZL' }),
+      );
+      mockAccountsRepo.update.mockResolvedValue(
+        mockAccount({ currency: 'ST' }),
+      );
+
+      const res = await service.changeCurrency('acc1', 'ST', false);
+
+      expect(mockAccountsRepo.update).toHaveBeenCalledWith('acc1', {
+        currency: 'ST',
+      });
+      expect(mockCurrenciesService.getItems).not.toHaveBeenCalled();
+      expect(res.currency).toBe('ST');
+    });
+
+    it('convert:true → přepočítá balance + historii + šablony kurzem', async () => {
+      const account = mockAccount({
+        currency: 'ZL',
+        balance: 100,
+        transactions: [
+          {
+            id: 't1',
+            date: new Date(),
+            delta: 60,
+            description: 'a',
+            performedByUserId: 'u1',
+          },
+          {
+            id: 't2',
+            date: new Date(),
+            delta: 40,
+            description: 'b',
+            performedByUserId: 'u1',
+          },
+        ],
+        incomeEntries: [{ id: 'i1', label: 'plat', amount: 10 }],
+        expenseEntries: [{ id: 'e1', label: 'daň', amount: 5 }],
+      });
+      mockAccountsRepo.findById.mockResolvedValue(account);
+      mockCurrenciesService.getItems.mockResolvedValue(RATES);
+      mockAccountsRepo.replaceMoneyFields.mockImplementation(
+        (_id: string, fields: MoneyFields) =>
+          Promise.resolve({ ...account, ...fields }),
+      );
+
+      const res = await service.changeCurrency('acc1', 'ST', true);
+
+      // r = 1.0 / 0.1 = 10 → vše ×10; balance = Σ delta
+      const arg = mockAccountsRepo.replaceMoneyFields.mock
+        .calls[0][1] as MoneyFields;
+      expect(arg.currency).toBe('ST');
+      expect(arg.transactions.map((t) => t.delta)).toEqual([600, 400]);
+      expect(arg.balance).toBe(1000);
+      expect(arg.incomeEntries[0].amount).toBe(100);
+      expect(arg.expenseEntries[0].amount).toBe(50);
+      expect(res.currency).toBe('ST');
+    });
+
+    it('convert:true bez kurzu cílové měny → CURRENCY_RATE_MISSING', async () => {
+      mockAccountsRepo.findById.mockResolvedValue(
+        mockAccount({ currency: 'ZL' }),
+      );
+      mockCurrenciesService.getItems.mockResolvedValue([RATES[0]]); // jen ZL
+
+      await expect(
+        service.changeCurrency('acc1', 'ST', true),
+      ).rejects.toMatchObject({ response: { code: 'CURRENCY_RATE_MISSING' } });
+      expect(mockAccountsRepo.replaceMoneyFields).not.toHaveBeenCalled();
+    });
+
+    it('convert:true bez transakcí → balance = balance × r', async () => {
+      mockAccountsRepo.findById.mockResolvedValue(
+        mockAccount({ currency: 'ZL', balance: 100, transactions: [] }),
+      );
+      mockCurrenciesService.getItems.mockResolvedValue(RATES);
+      mockAccountsRepo.replaceMoneyFields.mockImplementation(
+        (_id: string, fields: MoneyFields) =>
+          Promise.resolve({ ...mockAccount(), ...fields }),
+      );
+
+      await service.changeCurrency('acc1', 'ST', true);
+
+      const arg = mockAccountsRepo.replaceMoneyFields.mock
+        .calls[0][1] as MoneyFields;
+      expect(arg.balance).toBe(1000);
+    });
+
+    it('stejná měna → no-op (žádný zápis)', async () => {
+      mockAccountsRepo.findById.mockResolvedValue(
+        mockAccount({ currency: 'ZL' }),
+      );
+
+      const res = await service.changeCurrency('acc1', 'ZL', true);
+
+      expect(mockAccountsRepo.update).not.toHaveBeenCalled();
+      expect(mockAccountsRepo.replaceMoneyFields).not.toHaveBeenCalled();
+      expect(res.currency).toBe('ZL');
+    });
   });
 
   describe('createAccount', () => {

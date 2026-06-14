@@ -31,6 +31,11 @@ export interface WorldMembership {
   avatarUrl?: string;
   characterPath?: string;
   group?: string;
+  /**
+   * 6.8-followup — per-člen avatar vedení (PJ/Pomocný PJ vystupuje s tímto
+   * obrázkem v režimu `individual`). Chybí → fallback na avatar účtu.
+   */
+  pjPersonaAvatarUrl?: string;
   isFree?: boolean;
   akj: number;
   /** Krok 5.9 — per-uživatel per-svět doladění vzhledu (přístupnost). */

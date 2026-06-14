@@ -56,8 +56,26 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
         undefined,
       timelineCalendarSlug: (doc.timelineCalendarSlug as string | null) ?? null,
       lastInfo: (doc.lastInfo as WorldSettings['lastInfo']) ?? null,
-      pjChatPersona:
-        (doc.pjChatPersona as WorldSettings['pjChatPersona']) ?? null,
+      pjChatPersona: ((): WorldSettings['pjChatPersona'] => {
+        const p = doc.pjChatPersona as
+          | {
+              enabled?: boolean;
+              name?: string | null;
+              avatarUrl?: string | null;
+              mode?: 'unified' | 'individual';
+            }
+          | null
+          | undefined;
+        if (!p) return null;
+        // 6.8-followup migrace: starý dokument bez `mode` → odvoď z `enabled`
+        // (enabled:false historicky = neanonymní → 'individual'), jinak 'unified'.
+        return {
+          enabled: p.enabled ?? true,
+          name: p.name ?? null,
+          avatarUrl: p.avatarUrl ?? null,
+          mode: p.mode ?? (p.enabled === false ? 'individual' : 'unified'),
+        };
+      })(),
       currentInGameDate: (doc.currentInGameDate as Date | null) ?? null,
       updatedAt: doc.updatedAt as Date,
     };

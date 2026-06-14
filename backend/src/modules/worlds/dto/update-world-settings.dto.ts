@@ -94,6 +94,10 @@ export class PjChatPersonaDto {
   @IsString()
   @MaxLength(512)
   avatarUrl?: string | null;
+  // 6.8-followup — režim vystupování vedení. Chybí → migrace na 'unified' v toEntity.
+  @IsOptional()
+  @IsIn(['unified', 'individual'])
+  mode?: 'unified' | 'individual';
 }
 
 export class CharacterTabVisibilityDto {

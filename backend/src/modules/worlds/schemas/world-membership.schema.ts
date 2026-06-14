@@ -15,6 +15,12 @@ export class WorldMembershipSchemaClass {
   @Prop() avatarUrl?: string;
   @Prop() characterPath?: string;
   @Prop() group?: string;
+  /**
+   * 6.8-followup — per-člen avatar vedení. V režimu `individual`
+   * (`WorldSettings.pjChatPersona.mode`) vystupuje PJ/Pomocný PJ v chatu i headeru
+   * s tímto obrázkem; chybí → fallback na avatar účtu. Self-service (vlastník).
+   */
+  @Prop({ type: String, default: undefined }) pjPersonaAvatarUrl?: string;
   @Prop({ default: false }) isFree: boolean;
   @Prop({ default: 0 }) akj: number;
   /** Krok 5.9 — uživatelské doladění vzhledu světa (přístupnost). */

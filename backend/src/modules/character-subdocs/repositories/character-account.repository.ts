@@ -97,6 +97,31 @@ export class CharacterAccountRepository {
       : null;
   }
 
+  /**
+   * 8.x currency-conversion — atomický přepočet měny účtu: jedním `$set`
+   * nahradí `currency` + všechna peněžní pole (balance, transactions,
+   * income/expenseEntries). Single-doc update = atomický (žádná tx potřeba).
+   */
+  async replaceMoneyFields(
+    accountId: string,
+    fields: Pick<
+      CharacterAccount,
+      | 'currency'
+      | 'balance'
+      | 'transactions'
+      | 'incomeEntries'
+      | 'expenseEntries'
+    >,
+  ): Promise<CharacterAccount | null> {
+    const doc = await this.model
+      .findByIdAndUpdate(accountId, { $set: fields }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   async deleteById(id: string): Promise<void> {
     await this.model.deleteOne({ _id: id }).exec();
   }

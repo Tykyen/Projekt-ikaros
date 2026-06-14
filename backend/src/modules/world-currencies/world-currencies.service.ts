@@ -125,6 +125,16 @@ export class WorldCurrenciesService {
     return { from: dto.from, to: dto.to, amount: dto.amount, result };
   }
 
+  /**
+   * Interní — raw seznam měn světa (kurzy) pro převody z jiných modulů
+   * (např. přepočet měny účtu). Bez member-assertu; přístup gatuje volající
+   * (account settings permission). Chybí dokument → prázdné pole.
+   */
+  async getItems(worldId: string): Promise<WorldCurrencyItem[]> {
+    const doc = await this.repo.findByWorldId(worldId);
+    return doc?.items ?? [];
+  }
+
   async seedForWorld(worldId: string, genre?: string): Promise<void> {
     const items = this.getItemsForGenre(genre);
     await this.repo.upsert(worldId, items);

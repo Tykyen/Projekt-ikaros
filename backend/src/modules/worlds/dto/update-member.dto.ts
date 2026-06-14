@@ -40,3 +40,9 @@ export class UpdateMemberThemeDto {
   @IsOptional() @IsObject() themeAdjust?: Record<string, number>;
   @IsOptional() @IsObject() themeUserOverrides?: Record<string, string>;
 }
+
+/** 6.8-followup — self-service avatar vedení (PJ/Pomocný PJ). `null` = odebrat. */
+export class UpdateMemberPjAvatarDto {
+  // @IsOptional() pustí i null (clear) i undefined; string se validuje.
+  @IsOptional() @IsString() avatarUrl?: string | null;
+}

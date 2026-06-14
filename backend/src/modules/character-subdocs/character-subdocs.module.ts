@@ -38,6 +38,7 @@ import { CharacterAccountsController } from './character-accounts.controller';
 import { DiaryOverridesController } from './diary-overrides.controller';
 import { CharactersModule } from '../characters/characters.module';
 import { WorldsModule } from '../worlds/worlds.module';
+import { WorldCurrenciesModule } from '../world-currencies/world-currencies.module';
 
 @Module({
   imports: [
@@ -65,6 +66,8 @@ import { WorldsModule } from '../worlds/worlds.module';
     // 8.5 — fallback při čtení deníku postavy: pokud nemá `personalDiarySchema`,
     // service načte aktivní verzi schématu světa z `diary_schema_versions`.
     WorldsModule,
+    // 8.x currency-conversion — kurzy měn pro přepočet měny účtu.
+    WorldCurrenciesModule,
   ],
   controllers: [
     CharacterSubdocsController,

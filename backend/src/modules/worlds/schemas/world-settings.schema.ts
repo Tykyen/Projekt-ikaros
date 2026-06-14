@@ -66,6 +66,8 @@ export class WorldSettingsSchemaClass {
     enabled: boolean;
     name: string | null;
     avatarUrl: string | null;
+    // 6.8-followup — `unified` (default) | `individual`. Chybí → migrace v toEntity.
+    mode?: 'unified' | 'individual';
   } | null;
   @Prop({ default: Date.now }) updatedAt: Date;
 }

@@ -70,6 +70,12 @@ export interface PjChatPersona {
   enabled: boolean;
   name: string | null;
   avatarUrl: string | null;
+  /**
+   * 6.8-followup — režim vystupování vedení v chatu/headeru.
+   * `unified` = jednotná anonymní identita „PJ" (default, dnešní chování);
+   * `individual` = každý PJ/Pomocný PJ vystupuje pod svou rolí + vlastním avatarem.
+   */
+  mode: 'unified' | 'individual';
 }
 
 export interface WorldSettings {

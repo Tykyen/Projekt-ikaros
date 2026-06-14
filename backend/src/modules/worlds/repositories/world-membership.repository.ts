@@ -172,6 +172,23 @@ export class MongoWorldMembershipRepository
       : null;
   }
 
+  async setPjPersonaAvatar(
+    id: string,
+    url: string | null,
+  ): Promise<WorldMembership | null> {
+    // $set při URL, $unset při null (plain update s undefined Mongoose ignoruje).
+    const update = url
+      ? { $set: { pjPersonaAvatarUrl: url } }
+      : { $unset: { pjPersonaAvatarUrl: '' } };
+    const doc = await this.model
+      .findByIdAndUpdate(id, update, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   protected toEntity(doc: Record<string, unknown>): WorldMembership {
     return {
       id: String(doc._id),
@@ -182,6 +199,7 @@ export class MongoWorldMembershipRepository
       avatarUrl: doc.avatarUrl as string | undefined,
       characterPath: doc.characterPath as string | undefined,
       group: doc.group as string | undefined,
+      pjPersonaAvatarUrl: doc.pjPersonaAvatarUrl as string | undefined,
       isFree: (doc.isFree as boolean) ?? false,
       akj: (doc.akj as number) ?? 0,
       themeAdjust: doc.themeAdjust as WorldThemeAdjust | undefined,

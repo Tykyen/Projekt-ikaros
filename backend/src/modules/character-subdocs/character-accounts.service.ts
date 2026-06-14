@@ -18,6 +18,7 @@ import type {
   FinanceEntry,
   FinanceTransaction,
 } from './interfaces/character-account.interface';
+import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 
 /**
  * D-8.6-transfer-notification — Event payload pro WebSocket broadcast
@@ -100,6 +101,7 @@ export class CharacterAccountsService {
     private readonly charactersService: CharactersService,
     private readonly eventEmitter: EventEmitter2,
     @InjectConnection() private readonly connection: Connection,
+    private readonly currenciesService: WorldCurrenciesService,
   ) {}
 
   // ── Listing ────────────────────────────────────────────────────────
@@ -203,6 +205,80 @@ export class CharacterAccountsService {
     if (patch.allowPlayerSelfAdjust !== undefined)
       dbPatch.allowPlayerSelfAdjust = patch.allowPlayerSelfAdjust;
     const updated = await this.accountsRepo.update(accountId, dbPatch);
+    if (!updated)
+      throw new NotFoundException({
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'Účet nenalezen',
+      });
+    return updated;
+  }
+
+  // ── Změna měny (přepočet kurzem nebo přeznačení) ──────────────────
+
+  /**
+   * 8.x currency-conversion — změní měnu účtu. `convert:false` jen přepíše kód
+   * (dnešní chování). `convert:true` přepočítá kurzem ze světových měn celé
+   * peněžní pole (balance + historie transakcí + šablony příjmů/výdajů), aby se
+   * nerozbila invarianta `balance = Σ delta`. Permission gatuje controller
+   * (`assertWriteSettingsAccess`).
+   */
+  async changeCurrency(
+    accountId: string,
+    newCurrency: string,
+    convert: boolean,
+  ): Promise<CharacterAccount> {
+    const account = await this.getAccount(accountId);
+    if (newCurrency === account.currency) return account;
+
+    if (!convert) {
+      const relabeled = await this.accountsRepo.update(accountId, {
+        currency: newCurrency,
+      });
+      if (!relabeled)
+        throw new NotFoundException({
+          code: 'ACCOUNT_NOT_FOUND',
+          message: 'Účet nenalezen',
+        });
+      return relabeled;
+    }
+
+    const items = await this.currenciesService.getItems(account.worldId);
+    const from = items.find((c) => c.code === account.currency);
+    const to = items.find((c) => c.code === newCurrency);
+    if (!from || !to || from.rate <= 0 || to.rate <= 0)
+      throw new BadRequestException({
+        code: 'CURRENCY_RATE_MISSING',
+        message:
+          'Pro přepočet musí mít obě měny nastavený kurz ve světových měnách.',
+      });
+
+    const r = from.rate / to.rate;
+    const round4 = (n: number): number => Math.round(n * 10000) / 10000;
+
+    const transactions = account.transactions.map((t) => ({
+      ...t,
+      delta: round4(t.delta * r),
+    }));
+    const incomeEntries = account.incomeEntries.map((e) => ({
+      ...e,
+      amount: round4(e.amount * r),
+    }));
+    const expenseEntries = account.expenseEntries.map((e) => ({
+      ...e,
+      amount: round4(e.amount * r),
+    }));
+    // Drží invariantu balance = Σ delta; bez transakcí přepočti balance přímo.
+    const balance = transactions.length
+      ? round4(transactions.reduce((s, t) => s + t.delta, 0))
+      : round4(account.balance * r);
+
+    const updated = await this.accountsRepo.replaceMoneyFields(accountId, {
+      currency: newCurrency,
+      balance,
+      transactions,
+      incomeEntries,
+      expenseEntries,
+    });
     if (!updated)
       throw new NotFoundException({
         code: 'ACCOUNT_NOT_FOUND',

@@ -38,6 +38,7 @@ import {
   UpdateMemberCharacterDto,
   UpdateMemberFreeDto,
   UpdateMemberThemeDto,
+  UpdateMemberPjAvatarDto,
 } from './dto/update-member.dto';
 
 @ApiTags('Worlds')
@@ -487,6 +488,21 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.updateMyTheme(worldId, dto, user);
+  }
+
+  // 6.8-followup — self-service avatar vedení. PJ/Pomocný PJ vystupuje s vlastním
+  // obrázkem v režimu `individual`. Člen zapisuje jen své membership (`me` z JWT).
+  @Put(':worldId/members/me/pj-avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Uloží vlastní avatar vedení (6.8-followup)' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Nejsi vedení světa' })
+  updateMyPjAvatar(
+    @Param('worldId') worldId: string,
+    @Body() dto: UpdateMemberPjAvatarDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.updateMyPjAvatar(worldId, dto.avatarUrl, user);
   }
 
   @Get(':id/diary-schema-versions')

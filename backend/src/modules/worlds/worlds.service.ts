@@ -1467,6 +1467,42 @@ export class WorldsService implements OnApplicationBootstrap {
     return updated;
   }
 
+  /**
+   * 6.8-followup — člen vedení (PomocnyPJ+) si nastaví vlastní avatar, pod kterým
+   * vystupuje v režimu `individual`. Self-scoped (`me` z JWT): bez membershipu 403,
+   * role pod vedením 403. `null`/undefined = odebrat avatar.
+   */
+  async updateMyPjAvatar(
+    worldId: string,
+    avatarUrl: string | null | undefined,
+    requester: RequestUser,
+  ): Promise<WorldMembership> {
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership)
+      throw new ForbiddenException({
+        code: 'NOT_A_MEMBER',
+        message: 'Nejsi členem světa',
+      });
+    if (membership.role < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Vlastní avatar vedení mají jen PJ a Pomocný PJ',
+      });
+    const updated = await this.membershipRepo.setPjPersonaAvatar(
+      membership.id,
+      avatarUrl ?? null,
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Membership nenalezeno',
+      });
+    return updated;
+  }
+
   async updateMemberFree(
     membershipId: string,
     isFree: boolean,
