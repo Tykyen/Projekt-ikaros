@@ -10,7 +10,6 @@ import {
   BadRequestException,
   UseGuards,
   UseInterceptors,
-  UseFilters,
   UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -39,7 +38,6 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../worlds/worlds.service';
 import { UploadService } from '../upload/upload.service';
-import { MulterExceptionFilter } from '../upload/filters/multer-exception.filter';
 
 /** Max velikost přílohy chatu — 10 MB (spec 4.3b). */
 const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
@@ -127,7 +125,6 @@ export class GlobalChatController {
   }
 
   @Post('upload')
-  @UseFilters(MulterExceptionFilter)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

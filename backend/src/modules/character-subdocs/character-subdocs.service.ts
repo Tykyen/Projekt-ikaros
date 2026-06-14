@@ -362,20 +362,24 @@ export class CharacterSubdocsService {
   }
 
   /**
-   * 8.1-FIR (2026-05-24) — lazy-create pro všechny typy postav.
-   * Matrix nedělil PC/NPC/Lokaci — Finance + Výbava byly samostatné typy
-   * stránek, kterými mohla mít kdokoli. V Ikaros mají všechny postavy
-   * Finance + Inventory subdoc; pokud chybí (legacy, emit failure),
-   * zinicializuje se transparentně bez backfill skriptu.
-   *
-   * Args `isNpc + kind` zůstávají pro budoucí per-typ defaulty
-   * (např. NPC obchodník vs. Lokace = sklad).
+   * EC-03 (2026-06-14) — Finance má jen hratelná postava (PC). NPC a Lokace
+   * Finance NEMAJÍ → GET vrací 404 `FINANCE_NOT_APPLICABLE`, z čehož FE
+   * (SubdocErrorState) udělá klidnou hlášku „tato postava finance nemá".
+   * Pro PC lazy-create: pokud subdoc chybí (legacy / emit failure), zinicializuje se
+   * transparentně bez backfill skriptu (Matrix nedělil typy postav).
+   * (Budoucí změna — NPC obchodník / Lokace sklad — = odebrat gate.)
    */
   async getFinance(
     characterId: string,
-    _isNpc: boolean,
-    _kind: 'persona' | 'location',
+    isNpc: boolean,
+    kind: 'persona' | 'location',
   ): Promise<CharacterFinance> {
+    if (isNpc || kind === 'location') {
+      throw new NotFoundException({
+        code: 'FINANCE_NOT_APPLICABLE',
+        message: 'Tato postava finance nemá',
+      });
+    }
     const finance = await this.financeRepo.findByCharacterId(characterId);
     if (finance) return finance;
     return this.financeRepo.create(characterId);
@@ -436,14 +440,20 @@ export class CharacterSubdocsService {
   }
 
   /**
-   * 8.1-FIR (2026-05-24) — lazy-create pro všechny typy postav.
-   * Viz `getFinance` — stejné chování.
+   * EC-03 (2026-06-14) — Výbava má jen hratelná postava (PC). NPC a Lokace
+   * Výbavu NEMAJÍ → GET vrací 404 `INVENTORY_NOT_APPLICABLE`. Viz `getFinance`.
    */
   async getInventory(
     characterId: string,
-    _isNpc: boolean,
-    _kind: 'persona' | 'location',
+    isNpc: boolean,
+    kind: 'persona' | 'location',
   ): Promise<CharacterInventory> {
+    if (isNpc || kind === 'location') {
+      throw new NotFoundException({
+        code: 'INVENTORY_NOT_APPLICABLE',
+        message: 'Tato postava výbavu nemá',
+      });
+    }
     const inventory = await this.inventoryRepo.findByCharacterId(characterId);
     if (inventory) return inventory;
     return this.inventoryRepo.create(characterId);

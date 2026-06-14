@@ -39,7 +39,6 @@ export class FriendshipsService {
   ): Promise<{ friendship: Friendship }> {
     if (requesterId === recipientUserId) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'SELF_FRIEND',
         message: 'Nemůžeš poslat žádost sám sobě',
       });
@@ -52,7 +51,6 @@ export class FriendshipsService {
     );
     if (peerBlocked) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -61,7 +59,6 @@ export class FriendshipsService {
     const recipient = await this.usersRepo.findById(recipientUserId);
     if (!recipient || recipient.isDeleted) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -74,7 +71,6 @@ export class FriendshipsService {
     );
     if (myBlock) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_BLOCKED',
         message: 'Uživatele máš zablokovaného',
       });
@@ -85,8 +81,15 @@ export class FriendshipsService {
       recipientUserId,
     );
     if (existing) {
+      // F3: rozliš accepted (už přátelé) vs pending (žádost čeká) — FE má pro každý
+      // stav vlastní hlášku; dřív oba = REQUEST_EXISTS (mrtvá FE větev ALREADY_FRIENDS).
+      if (existing.status === 'accepted') {
+        throw new ConflictException({
+          code: 'ALREADY_FRIENDS',
+          message: 'S tímto uživatelem už jste přátelé',
+        });
+      }
       throw new ConflictException({
-        statusCode: 409,
         code: 'REQUEST_EXISTS',
         message: 'Žádost už existuje',
       });
@@ -106,7 +109,6 @@ export class FriendshipsService {
     ) {
       throw new HttpException(
         {
-          statusCode: 429,
           code: 'REJECTED_RECENTLY',
           message: 'Žádost byla nedávno odmítnuta',
         },
@@ -133,21 +135,18 @@ export class FriendshipsService {
     const friendship = await this.friendsRepo.findById(friendshipId);
     if (!friendship) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'NOT_FOUND',
         message: 'Žádost neexistuje',
       });
     }
     if (friendship.recipientId !== actorId) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'NOT_RECIPIENT',
         message: 'Jen příjemce může akceptovat',
       });
     }
     if (friendship.status !== 'pending') {
       throw new ConflictException({
-        statusCode: 409,
         code: 'NOT_PENDING',
         message: 'Žádost už není pending',
       });
@@ -155,7 +154,6 @@ export class FriendshipsService {
     const updated = await this.friendsRepo.accept(friendshipId, new Date());
     if (!updated) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'NOT_FOUND',
         message: 'Žádost neexistuje',
       });
@@ -179,7 +177,6 @@ export class FriendshipsService {
       friendship.recipientId !== actorId
     ) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'NOT_PARTICIPANT',
         message: 'Nemůžeš odebrat cizí žádost',
       });
@@ -344,7 +341,6 @@ export class FriendshipsService {
   ): Promise<{ friendship: { id: string; status: 'blocked' } }> {
     if (blockerId === blockedId) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'SELF_BLOCK',
         message: 'Nelze zablokovat sám sebe',
       });
@@ -354,7 +350,6 @@ export class FriendshipsService {
     const peerBlock = await this.blocksRepo.findActive(blockedId, blockerId);
     if (peerBlock) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'BLOCKED_BY_PEER',
         message: 'Druhá strana tě zablokovala',
       });
@@ -362,7 +357,6 @@ export class FriendshipsService {
     const existing = await this.blocksRepo.findActive(blockerId, blockedId);
     if (existing) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_BLOCKED',
         message: 'Uživatel je už zablokovaný',
       });

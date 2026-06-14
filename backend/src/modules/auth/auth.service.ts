@@ -88,7 +88,6 @@ export class AuthService {
     const captchaOk = await this.captcha.verify(dto.captchaToken);
     if (!captchaOk) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Ověření captchy selhalo, zkus to znovu.',
         code: 'CAPTCHA_FAILED',
       });
@@ -97,7 +96,6 @@ export class AuthService {
     // F-03 (GDPR) — souhlas s podmínkami vynucený i server-side (ne jen FE refine).
     if (dto.acceptedTerms !== true) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Pro vytvoření účtu musíš souhlasit s podmínkami.',
         code: 'TERMS_NOT_ACCEPTED',
       });
@@ -106,7 +104,6 @@ export class AuthService {
     const existing = await this.usersRepo.findByEmail(dto.email);
     if (existing) {
       throw new ConflictException({
-        statusCode: 409,
         message: 'Email již existuje',
         code: 'EMAIL_TAKEN',
       });
@@ -115,7 +112,6 @@ export class AuthService {
     const existingUsername = await this.usersRepo.findByUsername(dto.username);
     if (existingUsername) {
       throw new ConflictException({
-        statusCode: 409,
         message: 'Username již existuje',
         code: 'USERNAME_TAKEN',
       });
@@ -423,7 +419,6 @@ export class AuthService {
     const user = await this.usersRepo.findById(userId);
     if (!user || user.isDeleted) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Token je neplatný',
         code: 'INVALID_TOKEN',
       });
@@ -488,7 +483,6 @@ export class AuthService {
     }
     if (user.emailVerified) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Email je již ověřený',
         code: 'ALREADY_VERIFIED',
       });
@@ -525,7 +519,6 @@ export class AuthService {
     const newEmailRaw = meta?.newEmail;
     if (!newEmailRaw || typeof newEmailRaw !== 'string') {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Token neobsahuje validní cílový email',
         code: 'INVALID_TOKEN',
       });
@@ -535,7 +528,6 @@ export class AuthService {
     const existing = await this.usersRepo.findByEmail(normalized);
     if (existing && existing.id !== userId) {
       throw new ConflictException({
-        statusCode: 409,
         message: 'Email už používá jiný uživatel',
         code: 'EMAIL_TAKEN',
       });

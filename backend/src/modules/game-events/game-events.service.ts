@@ -89,7 +89,6 @@ export class GameEventsService {
   ): Promise<void> {
     if (!(await this.canManage(user, worldId))) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -102,7 +101,6 @@ export class GameEventsService {
   ): Promise<void> {
     if (!(await this.canView(user, event))) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -115,7 +113,6 @@ export class GameEventsService {
     const event = await this.repo.findById(id);
     if (!event)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -156,7 +153,6 @@ export class GameEventsService {
 
       if (requestsArchive && membership.role < WorldRole.PomocnyPJ) {
         throw new ForbiddenException({
-          statusCode: 403,
           code: 'ARCHIVE_PJ_ONLY',
           message: 'Archiv akcí vidí pouze PJ a Pomocný PJ.',
         });
@@ -247,7 +243,6 @@ export class GameEventsService {
       (dto.targetGroup === null || dto.targetGroup === undefined)
     ) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'BAD_REQUEST',
         message: 'groupOnly vyžaduje targetGroup',
       });
@@ -288,7 +283,6 @@ export class GameEventsService {
     const existing = await this.repo.findById(id);
     if (!existing)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -302,7 +296,6 @@ export class GameEventsService {
       (finalTargetGroup === null || finalTargetGroup === undefined)
     ) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'BAD_REQUEST',
         message: 'groupOnly vyžaduje targetGroup',
       });
@@ -325,7 +318,6 @@ export class GameEventsService {
     const updated = await this.repo.update(id, patch);
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -344,7 +336,6 @@ export class GameEventsService {
     const existing = await this.repo.findById(id);
     if (!existing)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -360,14 +351,12 @@ export class GameEventsService {
     const event = await this.repo.findById(eventId);
     if (!event)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
     await this.assertViewOrThrow(user, event);
     if (!event.confirmable) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'BAD_REQUEST',
         message: 'Tato akce nepodporuje potvrzení účasti',
       });
@@ -382,7 +371,6 @@ export class GameEventsService {
     const updated = await this.repo.update(eventId, { confirmedBy: next });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -397,7 +385,6 @@ export class GameEventsService {
     const event = await this.repo.findById(eventId);
     if (!event)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -407,7 +394,6 @@ export class GameEventsService {
       const parent = event.comments.find((c) => c.id === dto.parentId);
       if (!parent)
         throw new BadRequestException({
-          statusCode: 400,
           code: 'BAD_REQUEST',
           message: 'parentId neexistuje v tomto eventu',
         });
@@ -434,7 +420,6 @@ export class GameEventsService {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -450,7 +435,6 @@ export class GameEventsService {
     const event = await this.repo.findById(eventId);
     if (!event)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -459,20 +443,17 @@ export class GameEventsService {
     const idx = event.comments.findIndex((c) => c.id === commentId);
     if (idx < 0)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Komentář nenalezen',
       });
     const target = event.comments[idx];
     if (target.isDeleted)
       throw new BadRequestException({
-        statusCode: 400,
         code: 'BAD_REQUEST',
         message: 'Smazaný komentář nelze editovat',
       });
     if (target.authorId !== user.id)
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nelze editovat cizí komentář',
       });
@@ -487,7 +468,6 @@ export class GameEventsService {
     const updated = await this.repo.update(eventId, { comments: newComments });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -502,7 +482,6 @@ export class GameEventsService {
     const event = await this.repo.findById(eventId);
     if (!event)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -511,7 +490,6 @@ export class GameEventsService {
     const idx = event.comments.findIndex((c) => c.id === commentId);
     if (idx < 0)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Komentář nenalezen',
       });
@@ -521,7 +499,6 @@ export class GameEventsService {
     const canMod = await this.canManage(user, event.worldId);
     if (!isOwner && !canMod)
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nelze smazat cizí komentář',
       });
@@ -532,7 +509,6 @@ export class GameEventsService {
     const updated = await this.repo.update(eventId, { comments: newComments });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -548,7 +524,6 @@ export class GameEventsService {
     const event = await this.repo.findById(eventId);
     if (!event)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
@@ -557,7 +532,6 @@ export class GameEventsService {
     const idx = event.comments.findIndex((c) => c.id === commentId);
     if (idx < 0)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Komentář nenalezen',
       });
@@ -583,7 +557,6 @@ export class GameEventsService {
     const updated = await this.repo.update(eventId, { comments: newComments });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });

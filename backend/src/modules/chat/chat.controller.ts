@@ -11,7 +11,6 @@ import {
   BadRequestException,
   UseGuards,
   UseInterceptors,
-  UseFilters,
   UploadedFile,
   Inject,
   forwardRef,
@@ -40,7 +39,6 @@ import { UpdateMessageDto } from './dto/update-message.dto';
 import { UpdateAppearanceDto } from './dto/update-appearance.dto';
 import { UpdateChatPrefsDto } from './dto/update-chat-prefs.dto';
 import { UploadService } from '../upload/upload.service';
-import { MulterExceptionFilter } from '../upload/filters/multer-exception.filter';
 
 /** Max velikost přílohy chatu — 10 MB (sjednoceno s globálním chatem). */
 const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
@@ -348,7 +346,6 @@ export class ChatController {
   // ─── Upload příloh (krok 6.2b) ────────────────────────────────────────────
 
   @Post('upload')
-  @UseFilters(MulterExceptionFilter)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

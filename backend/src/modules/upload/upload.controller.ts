@@ -7,7 +7,6 @@ import {
   UploadedFile,
   BadRequestException,
   ForbiddenException,
-  UseFilters,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -28,13 +27,11 @@ import type { RequestUser } from '../worlds/worlds.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import { UploadService } from './upload.service';
 import { ChatService } from '../chat/chat.service';
-import { MulterExceptionFilter } from './filters/multer-exception.filter';
 
 @ApiTags('Upload')
 @ApiBearerAuth()
 @Controller('upload')
 @UseGuards(JwtAuthGuard)
-@UseFilters(MulterExceptionFilter)
 export class UploadController {
   constructor(
     private readonly uploadService: UploadService,

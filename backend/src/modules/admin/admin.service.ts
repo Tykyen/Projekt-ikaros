@@ -134,7 +134,6 @@ export class AdminService {
     const target = await this.usersRepo.findById(userId);
     if (!target)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -171,7 +170,6 @@ export class AdminService {
     const usernameTaken = await this.usersRepo.findByUsername(dto.username);
     if (usernameTaken)
       throw new ConflictException({
-        statusCode: 409,
         message: 'Username již existuje',
         code: 'USERNAME_TAKEN',
       });
@@ -179,7 +177,6 @@ export class AdminService {
     const emailTaken = await this.usersRepo.findByEmail(dto.email);
     if (emailTaken)
       throw new ConflictException({
-        statusCode: 409,
         message: 'Email již existuje',
         code: 'EMAIL_TAKEN',
       });
@@ -239,13 +236,11 @@ export class AdminService {
     const request = await this.usernameRequestsRepo.findById(requestId);
     if (!request)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'NOT_FOUND',
         message: 'Žádost neexistuje',
       });
     if (request.status !== 'pending')
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_DECIDED',
         message: 'Žádost už byla rozhodnuta',
       });
@@ -262,7 +257,6 @@ export class AdminService {
         decisionReason: 'Username byl mezitím obsazen',
       });
       throw new ConflictException({
-        statusCode: 409,
         code: 'USERNAME_TAKEN_RECHECK',
         message:
           'Username byl mezitím obsazen, žádost byla automaticky zamítnuta',
@@ -276,7 +270,6 @@ export class AdminService {
     });
     if (!updatedUser)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Cílový uživatel již neexistuje',
       });
@@ -316,13 +309,11 @@ export class AdminService {
     const request = await this.usernameRequestsRepo.findById(requestId);
     if (!request)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'NOT_FOUND',
         message: 'Žádost neexistuje',
       });
     if (request.status !== 'pending')
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_DECIDED',
         message: 'Žádost už byla rozhodnuta',
       });
@@ -362,14 +353,12 @@ export class AdminService {
     const target = await this.usersRepo.findById(userId);
     if (!target)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
     assertCanModerate(actor, target, 'BAN');
     if (target.bannedAt) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_BANNED',
         message: 'Uživatel už je zabanovaný',
       });
@@ -388,7 +377,6 @@ export class AdminService {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -418,14 +406,12 @@ export class AdminService {
     const target = await this.usersRepo.findById(userId);
     if (!target)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
     assertCanModerate(actor, target, 'UNBAN');
     if (!target.bannedAt) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'NOT_BANNED',
         message: 'Uživatel není zabanovaný',
       });
@@ -438,7 +424,6 @@ export class AdminService {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -479,7 +464,6 @@ export class AdminService {
     const target = await this.usersRepo.findById(userId);
     if (!target) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -487,14 +471,12 @@ export class AdminService {
     assertCanModerate(actor, target, 'DELETE');
     if (target.isDeleted) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_DELETED',
         message: 'Účet už byl odstraněn',
       });
     }
     if (target.deletionRequestedAt) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_PENDING_DELETION',
         message: 'Účet už čeká na smazání',
       });
@@ -509,7 +491,6 @@ export class AdminService {
     });
     if (plan.blocking.length > 0) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'SOLE_PJ_BLOCK',
         message:
           'Nelze smazat účet — uživatel je jediný PJ ve světech bez Pomocného PJ',
@@ -534,7 +515,6 @@ export class AdminService {
     });
     if (!updated) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -574,7 +554,6 @@ export class AdminService {
     const target = await this.usersRepo.findById(userId);
     if (!target) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -582,14 +561,12 @@ export class AdminService {
     assertCanModerate(actor, target, 'UNDELETE');
     if (target.isDeleted) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'ALREADY_DELETED',
         message: 'Účet už byl odstraněn — nelze revertnout',
       });
     }
     if (!target.deletionRequestedAt) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'NO_PENDING_DELETION',
         message: 'Účet nečeká na smazání',
       });
@@ -601,7 +578,6 @@ export class AdminService {
     });
     if (!updated) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
@@ -639,7 +615,6 @@ export class AdminService {
     }
     if (!canManage) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'INSUFFICIENT_ROLE',
         message:
           'Spravovat oprávnění Adminů smí Superadmin nebo Admin s canManageAdmins.',
@@ -650,14 +625,12 @@ export class AdminService {
     // brání řetězovému šíření manage-práva mezi Adminy.
     if (!isSuperadmin && dto.canManageAdmins !== undefined) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'SUPERADMIN_ONLY_FLAG',
         message: 'Flag canManageAdmins smí měnit jen Superadmin.',
       });
     }
     if (actor.id === userId) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'SELF_FORBIDDEN',
         message: 'Sebe nelze upravit',
       });
@@ -665,13 +638,11 @@ export class AdminService {
     const target = await this.usersRepo.findById(userId);
     if (!target)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });
     if (target.role !== UserRole.Admin) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'NOT_ADMIN',
         message: 'Admin permissions mají smysl jen pro role Admin',
       });
@@ -691,7 +662,6 @@ export class AdminService {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });

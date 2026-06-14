@@ -6,6 +6,7 @@ import { resolve } from 'path';
 import type { ServerResponse } from 'http';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import { CustomIoAdapter } from './socket-io.adapter';
 import { getAllowedOrigins, getPrimaryOrigin } from './common/config/origins';
 
@@ -25,6 +26,8 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      // F2 (error-contract): CS hlášky + code:'VALIDATION' + fields{} pro field-mapping
+      exceptionFactory: validationExceptionFactory,
     }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());

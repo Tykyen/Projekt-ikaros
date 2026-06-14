@@ -334,7 +334,7 @@ describe('CharacterSubdocsService', () => {
   });
 
   // ── 8.1-FIR — Finance/Inventory lazy-create pro všechny typy ──────
-  describe('8.1-FIR — getFinance lazy-create', () => {
+  describe('getFinance — PC lazy-create + NPC/Lokace gate (EC-03)', () => {
     it('vrátí existující finance beze změny (PC)', async () => {
       mockFinanceRepo.findByCharacterId.mockResolvedValue(mockFinance);
       const result = await service.getFinance('char1', false, 'persona');
@@ -350,24 +350,23 @@ describe('CharacterSubdocsService', () => {
       expect(result).toEqual(mockFinance);
     });
 
-    it('lazy-create pro NPC bez subdoku (Matrix nedělil)', async () => {
+    it('EC-03: NPC finance NEMÁ → FINANCE_NOT_APPLICABLE, žádný lazy-create', async () => {
       mockFinanceRepo.findByCharacterId.mockResolvedValue(null);
-      mockFinanceRepo.create.mockResolvedValue(mockFinance);
-      const result = await service.getFinance('char1', true, 'persona');
-      expect(mockFinanceRepo.create).toHaveBeenCalledWith('char1');
-      expect(result).toEqual(mockFinance);
+      await expect(
+        service.getFinance('char1', true, 'persona'),
+      ).rejects.toThrow('finance nemá');
+      expect(mockFinanceRepo.create).not.toHaveBeenCalled();
     });
 
-    it('lazy-create pro Lokaci bez subdoku (Matrix nedělil)', async () => {
-      mockFinanceRepo.findByCharacterId.mockResolvedValue(null);
-      mockFinanceRepo.create.mockResolvedValue(mockFinance);
-      const result = await service.getFinance('char1', false, 'location');
-      expect(mockFinanceRepo.create).toHaveBeenCalledWith('char1');
-      expect(result).toEqual(mockFinance);
+    it('EC-03: Lokace finance NEMÁ → FINANCE_NOT_APPLICABLE', async () => {
+      await expect(
+        service.getFinance('char1', false, 'location'),
+      ).rejects.toThrow('finance nemá');
+      expect(mockFinanceRepo.create).not.toHaveBeenCalled();
     });
   });
 
-  describe('8.1-FIR — getInventory lazy-create', () => {
+  describe('getInventory — PC lazy-create + NPC/Lokace gate (EC-03)', () => {
     it('vrátí existující inventory beze změny (PC)', async () => {
       mockInventoryRepo.findByCharacterId.mockResolvedValue(mockInventory);
       const result = await service.getInventory('char1', false, 'persona');
@@ -383,20 +382,19 @@ describe('CharacterSubdocsService', () => {
       expect(result).toEqual(mockInventory);
     });
 
-    it('lazy-create pro NPC bez subdoku', async () => {
+    it('EC-03: NPC výbavu NEMÁ → INVENTORY_NOT_APPLICABLE, žádný lazy-create', async () => {
       mockInventoryRepo.findByCharacterId.mockResolvedValue(null);
-      mockInventoryRepo.create.mockResolvedValue(mockInventory);
-      const result = await service.getInventory('char1', true, 'persona');
-      expect(mockInventoryRepo.create).toHaveBeenCalledWith('char1');
-      expect(result).toEqual(mockInventory);
+      await expect(
+        service.getInventory('char1', true, 'persona'),
+      ).rejects.toThrow('výbavu nemá');
+      expect(mockInventoryRepo.create).not.toHaveBeenCalled();
     });
 
-    it('lazy-create pro Lokaci bez subdoku', async () => {
-      mockInventoryRepo.findByCharacterId.mockResolvedValue(null);
-      mockInventoryRepo.create.mockResolvedValue(mockInventory);
-      const result = await service.getInventory('char1', false, 'location');
-      expect(mockInventoryRepo.create).toHaveBeenCalledWith('char1');
-      expect(result).toEqual(mockInventory);
+    it('EC-03: Lokace výbavu NEMÁ → INVENTORY_NOT_APPLICABLE', async () => {
+      await expect(
+        service.getInventory('char1', false, 'location'),
+      ).rejects.toThrow('výbavu nemá');
+      expect(mockInventoryRepo.create).not.toHaveBeenCalled();
     });
   });
 

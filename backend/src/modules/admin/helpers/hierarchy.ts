@@ -26,7 +26,6 @@ function isAdmin(role: UserRole): boolean {
 
 function deny(message: string, code: string): never {
   throw new ForbiddenException({
-    statusCode: 403,
     message,
     code,
   });

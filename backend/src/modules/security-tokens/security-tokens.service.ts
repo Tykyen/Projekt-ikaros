@@ -66,14 +66,12 @@ export class SecurityTokensService {
     }
     if (record.usedAt) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Token byl už použit',
         code: 'ALREADY_USED',
       });
     }
     if (record.expiresAt.getTime() < Date.now()) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Token expiroval',
         code: 'EXPIRED_TOKEN',
       });

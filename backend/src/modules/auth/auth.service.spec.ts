@@ -146,7 +146,6 @@ describe('AuthService', () => {
         expect(err).toBeInstanceOf(ConflictException);
         const response = (err as ConflictException).getResponse();
         expect(response).toMatchObject({
-          statusCode: 409,
           message: 'Email již existuje',
           code: 'EMAIL_TAKEN',
         });
@@ -168,7 +167,6 @@ describe('AuthService', () => {
         expect(err).toBeInstanceOf(ConflictException);
         const response = (err as ConflictException).getResponse();
         expect(response).toMatchObject({
-          statusCode: 409,
           message: 'Username již existuje',
           code: 'USERNAME_TAKEN',
         });

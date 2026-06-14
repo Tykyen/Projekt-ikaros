@@ -76,7 +76,6 @@ export class CampaignService {
     // do cizího světa (create endpointy nemají role floor; gate je jen scope).
     if (!membership) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'NOT_A_MEMBER',
         message: 'Nejsi členem tohoto světa',
       });

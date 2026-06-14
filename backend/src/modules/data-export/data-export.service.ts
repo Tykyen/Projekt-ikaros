@@ -31,7 +31,6 @@ export class DataExportService {
     const user = await this.usersRepo.findById(userId);
     if (!user) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
       });

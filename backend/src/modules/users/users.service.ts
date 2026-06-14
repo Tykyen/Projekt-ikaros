@@ -515,7 +515,6 @@ export class UsersService implements OnModuleInit {
     const user = await this.repo.findById(userId);
     if (!user) {
       throw new NotFoundException({
-        statusCode: 404,
         message: 'User nenalezen',
         code: 'USER_NOT_FOUND',
       });
@@ -527,7 +526,6 @@ export class UsersService implements OnModuleInit {
     );
     if (!passwordValid) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Špatné aktuální heslo',
         code: 'INVALID_PASSWORD',
       });
@@ -536,7 +534,6 @@ export class UsersService implements OnModuleInit {
     const newEmailNormalized = dto.newEmail.toLowerCase().trim();
     if (newEmailNormalized === user.email.toLowerCase()) {
       throw new BadRequestException({
-        statusCode: 400,
         message: 'Nový email je stejný jako aktuální',
         code: 'SAME_EMAIL',
       });
@@ -545,7 +542,6 @@ export class UsersService implements OnModuleInit {
     const existing = await this.repo.findByEmail(newEmailNormalized);
     if (existing && existing.id !== userId) {
       throw new ConflictException({
-        statusCode: 409,
         message: 'Email už používá jiný uživatel',
         code: 'EMAIL_TAKEN',
       });

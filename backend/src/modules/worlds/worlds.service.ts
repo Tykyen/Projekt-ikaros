@@ -153,7 +153,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const world = await this.worldsRepo.findById(id);
     if (!world)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -164,7 +163,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const world = await this.worldsRepo.findBySlug(slug);
     if (!world)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -205,7 +203,6 @@ export class WorldsService implements OnApplicationBootstrap {
     // Private: 404 pokud anon, jinak vyžaduj member nebo pending AR nebo admin.
     if (!requester) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -225,7 +222,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (ar) return world;
     throw new NotFoundException({
-      statusCode: 404,
       code: 'WORLD_NOT_FOUND',
       message: 'Svět nenalezen',
     });
@@ -291,7 +287,6 @@ export class WorldsService implements OnApplicationBootstrap {
       const owned = await this.worldsRepo.findByOwnerId(ownerId);
       if (owned.length >= MAX_ACTIVE_WORLDS_PER_OWNER) {
         throw new ForbiddenException({
-          statusCode: 403,
           code: 'WORLD_QUOTA_REACHED',
           message: `Dosáhl jsi limitu ${MAX_ACTIVE_WORLDS_PER_OWNER} aktivních světů.`,
         });
@@ -301,7 +296,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const slugTaken = await this.worldsRepo.existsBySlug(dto.slug);
     if (slugTaken)
       throw new ConflictException({
-        statusCode: 409,
         message: 'Slug již existuje',
         code: 'WORLD_SLUG_TAKEN',
       });
@@ -438,7 +432,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canEditWorldData(requester, world, membership ?? undefined)) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -494,7 +487,6 @@ export class WorldsService implements OnApplicationBootstrap {
     }
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -542,7 +534,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canEditWorldData(requester, world, membership ?? undefined)) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -550,7 +541,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const lower = newSlug.toLowerCase().trim();
     if (!/^[a-z0-9][a-z0-9-]{1,47}$/.test(lower)) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'INVALID_SLUG',
         message:
           'Slug musí začínat písmenem nebo číslicí; povolené znaky a-z, 0-9, -; délka 2–48.',
@@ -560,7 +550,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const updated = await this.worldsRepo.renameSlug(worldId, lower);
     if (!updated) {
       throw new ConflictException({
-        statusCode: 409,
         code: 'SLUG_TAKEN',
         message: 'Tento slug už používá jiný svět.',
       });
@@ -584,19 +573,16 @@ export class WorldsService implements OnApplicationBootstrap {
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
     if (world.accessMode === 'closed')
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'WORLD_CLOSED',
         message: 'Svět je uzavřen',
       });
     if (world.accessMode !== 'public')
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_NOT_PUBLIC',
         message:
           'Tento svět vyžaduje souhlas PJ. Použij endpoint /access-request.',
@@ -608,7 +594,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (existing)
       throw new ConflictException({
-        statusCode: 409,
         message: 'Již jsi členem tohoto světa',
         code: 'WORLD_ALREADY_MEMBER',
       });
@@ -619,7 +604,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (pendingAr)
       throw new ConflictException({
-        statusCode: 409,
         message: 'Máš pending žádost o vstup do tohoto světa',
         code: 'PENDING_ACCESS_REQUEST',
       });
@@ -648,19 +632,16 @@ export class WorldsService implements OnApplicationBootstrap {
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
     if (world.accessMode === 'closed')
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'WORLD_CLOSED',
         message: 'Svět je uzavřen',
       });
     if (world.accessMode === 'public')
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_IS_PUBLIC',
         message: 'Public svět nevyžaduje žádost. Použij endpoint /join.',
       });
@@ -671,7 +652,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (member)
       throw new ConflictException({
-        statusCode: 409,
         message: 'Již jsi členem tohoto světa',
         code: 'WORLD_ALREADY_MEMBER',
       });
@@ -701,7 +681,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const ar = await this.accessRequestRepo.findByUserAndWorld(userId, worldId);
     if (!ar)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'ACCESS_REQUEST_NOT_FOUND',
         message: 'Žádost o vstup nenalezena',
       });
@@ -741,7 +720,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const ar = await this.accessRequestRepo.findById(accessRequestId);
     if (!ar || ar.worldId !== worldId)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'ACCESS_REQUEST_NOT_FOUND',
         message: 'Žádost o vstup nenalezena',
       });
@@ -802,7 +780,6 @@ export class WorldsService implements OnApplicationBootstrap {
 
     if (!membership)
       throw new NotFoundException({
-        statusCode: 500,
         code: 'APPROVE_FAILED',
         message: 'Schválení žádosti se nezdařilo',
       });
@@ -867,7 +844,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const ar = await this.accessRequestRepo.findById(accessRequestId);
     if (!ar || ar.worldId !== worldId)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'ACCESS_REQUEST_NOT_FOUND',
         message: 'Žádost o vstup nenalezena',
       });
@@ -875,7 +851,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const ok = await this.accessRequestRepo.delete(ar.id);
     if (!ok)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'ACCESS_REQUEST_NOT_FOUND',
         message: 'Žádost o vstup nenalezena',
       });
@@ -929,7 +904,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (membership && membership.role >= WorldRole.PJ) return;
     throw new ForbiddenException({
-      statusCode: 403,
       code: 'FORBIDDEN',
       message: 'Nedostatečná oprávnění',
     });
@@ -1034,7 +1008,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canAdminWorld(requester, world, membership ?? undefined)) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1112,7 +1085,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canManageMembers(requester, world, membership ?? undefined)) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1147,7 +1119,6 @@ export class WorldsService implements OnApplicationBootstrap {
       membership != null && membership.role >= WorldRole.PomocnyPJ;
     if (!allowed)
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1159,7 +1130,6 @@ export class WorldsService implements OnApplicationBootstrap {
       );
       if (!config)
         throw new NotFoundException({
-          statusCode: 404,
           code: 'CALENDAR_CONFIG_NOT_FOUND',
           message: `Kalendář '${dto.defaultCalendarConfigSlug}' ve světě neexistuje`,
         });
@@ -1176,7 +1146,6 @@ export class WorldsService implements OnApplicationBootstrap {
     if (!updated) {
       // Race condition — world byl smazán mezi findById a update.
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -1207,14 +1176,12 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!membership) {
       throw new NotFoundException({
-        statusCode: 404,
         code: 'MEMBERSHIP_NOT_FOUND',
         message: 'Nejsi členem tohoto světa.',
       });
     }
     if (membership.role >= WorldRole.Hrac) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'ALREADY_HAS_CHARACTER_ROLE',
         message: 'Tvoje role už znamená přístup k postavě.',
       });
@@ -1227,7 +1194,6 @@ export class WorldsService implements OnApplicationBootstrap {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'MEMBERSHIP_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1252,7 +1218,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership || membership.worldId !== worldId)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'MEMBERSHIP_NOT_FOUND',
         message: 'Členství nenalezeno',
       });
@@ -1266,7 +1231,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1280,7 +1244,6 @@ export class WorldsService implements OnApplicationBootstrap {
       !this.canManageMembers(requester, world, requesterMembership ?? undefined)
     )
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1293,7 +1256,6 @@ export class WorldsService implements OnApplicationBootstrap {
     //      ani měnit roli člena, jehož role >= jeho vlastní (rovný/výše postavený).
     if (world.ownerId === membership.userId)
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'WORLD_OWNER_ROLE_IMMUTABLE',
         message: 'Roli vlastníka světa nelze měnit — použij předání světa.',
       });
@@ -1303,7 +1265,6 @@ export class WorldsService implements OnApplicationBootstrap {
       const requesterRole = requesterMembership?.role ?? WorldRole.Zadatel;
       if (role >= requesterRole || membership.role >= requesterRole)
         throw new ForbiddenException({
-          statusCode: 403,
           code: 'WORLD_ROLE_CEILING',
           message:
             'Nelze udělit ani měnit roli na úrovni své vlastní role nebo vyšší.',
@@ -1313,7 +1274,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const updated = await this.membershipRepo.update(membershipId, { role });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1342,7 +1302,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1356,7 +1315,6 @@ export class WorldsService implements OnApplicationBootstrap {
       !this.canManageMembers(requester, world, requesterMembership ?? undefined)
     )
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1364,7 +1322,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const updated = await this.membershipRepo.update(membershipId, { group });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1387,7 +1344,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1406,7 +1362,6 @@ export class WorldsService implements OnApplicationBootstrap {
         )
       ) {
         throw new ForbiddenException({
-          statusCode: 403,
           code: 'FORBIDDEN',
           message: 'Nedostatečná oprávnění',
         });
@@ -1423,7 +1378,6 @@ export class WorldsService implements OnApplicationBootstrap {
       : await this.membershipRepo.clearCharacter(membershipId);
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1453,7 +1407,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1467,7 +1420,6 @@ export class WorldsService implements OnApplicationBootstrap {
       !this.canManageMembers(requester, world, requesterMembership ?? undefined)
     )
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1475,7 +1427,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const updated = await this.membershipRepo.update(membershipId, { akj });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1500,7 +1451,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!membership)
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'NOT_A_MEMBER',
         message: 'Nejsi členem světa',
       });
@@ -1511,7 +1461,6 @@ export class WorldsService implements OnApplicationBootstrap {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1526,7 +1475,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1540,7 +1488,6 @@ export class WorldsService implements OnApplicationBootstrap {
       !this.canManageMembers(requester, world, requesterMembership ?? undefined)
     )
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1548,7 +1495,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const updated = await this.membershipRepo.update(membershipId, { isFree });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1566,13 +1512,11 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canAdminWorld(requester, world, requesterMembership ?? undefined))
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
     if (world.deletedAt) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_ALREADY_DELETED',
         message: 'Svět už je smazán',
       });
@@ -1607,7 +1551,6 @@ export class WorldsService implements OnApplicationBootstrap {
   ): Promise<{ message: string }> {
     if (requester.role > UserRole.Admin) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Obnovit svět může jen administrátor',
       });
@@ -1615,7 +1558,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const world = await this.findById(id);
     if (!world.deletedAt) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_NOT_DELETED',
         message: 'Svět není smazán',
       });
@@ -1623,7 +1565,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const elapsed = Date.now() - new Date(world.deletedAt).getTime();
     if (elapsed > WorldsService.RECOVERY_WINDOW_MS) {
       throw new GoneException({
-        statusCode: 410,
         code: 'WORLD_RECOVERY_EXPIRED',
         message: 'Okno pro obnovu (30 dní) vypršelo',
       });
@@ -1644,7 +1585,6 @@ export class WorldsService implements OnApplicationBootstrap {
   async listDeleted(requester: RequestUser): Promise<World[]> {
     if (requester.role > UserRole.Admin) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nedostatečná oprávnění',
       });
@@ -1660,7 +1600,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const membership = await this.membershipRepo.findById(membershipId);
     if (!membership)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Membership nenalezeno',
       });
@@ -1680,7 +1619,6 @@ export class WorldsService implements OnApplicationBootstrap {
         )
       )
         throw new ForbiddenException({
-          statusCode: 403,
           code: 'FORBIDDEN',
           message: 'Nedostatečná oprávnění',
         });
@@ -1688,7 +1626,6 @@ export class WorldsService implements OnApplicationBootstrap {
 
     if (membership.userId === requester.id && world.ownerId === requester.id) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_OWNER_CANNOT_LEAVE', // R-19 — dřív generický BAD_REQUEST
         message: 'Vlastník nemůže opustit svůj svět',
       });
@@ -1728,7 +1665,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!v)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Verze nenalezena',
       });
@@ -1763,7 +1699,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canAdminWorld(requester, world, membership ?? undefined)) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Pouze PJ+ smí měnit šablonu deníku světa',
       });
@@ -1816,7 +1751,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!this.canAdminWorld(requester, world, membership ?? undefined)) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Pouze PJ+ smí provést tuto akci',
       });
@@ -1841,7 +1775,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const isOwner = world.ownerId === requester.id;
     if (!isOwner) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Svět smí předat jen jeho vlastník',
       });
@@ -1849,7 +1782,6 @@ export class WorldsService implements OnApplicationBootstrap {
 
     if (newOwnerId === world.ownerId) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_TRANSFER_SAME_OWNER',
         message: 'Nový vlastník je shodný se současným',
       });
@@ -1861,7 +1793,6 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!newOwnerMembership) {
       throw new BadRequestException({
-        statusCode: 400,
         code: 'WORLD_TRANSFER_NOT_MEMBER',
         message: 'Nový vlastník musí být členem světa',
       });
@@ -1890,7 +1821,6 @@ export class WorldsService implements OnApplicationBootstrap {
     });
     if (!updated)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -1911,7 +1841,6 @@ export class WorldsService implements OnApplicationBootstrap {
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
-        statusCode: 404,
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
@@ -1921,13 +1850,11 @@ export class WorldsService implements OnApplicationBootstrap {
     );
     if (!membership)
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Nejsi členem tohoto světa',
       });
     if (membership.role < WorldRole.Hrac) {
       throw new ForbiddenException({
-        statusCode: 403,
         code: 'FORBIDDEN',
         message: 'Pending členství nemá přístup',
       });
