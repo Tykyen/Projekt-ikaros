@@ -956,8 +956,50 @@ export class WorldsService implements OnApplicationBootstrap {
     );
   }
 
+  /** Interní — plný settings objekt (chat persona, znaky skupin atd.). */
   async getSettings(worldId: string): Promise<WorldSettings | null> {
     return this.settingsRepo.findByWorldId(worldId);
+  }
+
+  /**
+   * N-09 (nav-audit) — HTTP hranice pro `GET :worldId/settings`. Dřív vracela
+   * plný objekt komukoli přihlášenému → cross-tenant leak interní konfigurace
+   * (AKJ úrovně, oznámení PJ, persona, schéma deníku). Nyní: člen/Admin = plný;
+   * nečlen viditelného (public/open) světa = jen veřejně bezpečný subset (display
+   * + kalendář, co potřebuje pre-join dashboard); nečlen `private` světa = 404.
+   */
+  async getSettingsForRequester(
+    worldId: string,
+    requester: RequestUser | null,
+  ): Promise<WorldSettings | null> {
+    const settings = await this.settingsRepo.findByWorldId(worldId);
+    if (!settings) return null;
+    if (
+      requester &&
+      (requester.role === UserRole.Superadmin ||
+        requester.role === UserRole.Admin)
+    ) {
+      return settings;
+    }
+    const membership = requester
+      ? await this.membershipRepo.findByUserAndWorld(requester.id, worldId)
+      : null;
+    if (membership) return settings;
+    // nečlen — ověř viditelnost (private + nečlen → 404), pak jen public subset
+    await this.findByIdForRequester(worldId, requester);
+    return this.toPublicSettings(settings);
+  }
+
+  /** N-09 — settings bez interních/citlivých polí (pro nečleny). */
+  private toPublicSettings(s: WorldSettings): WorldSettings {
+    return {
+      ...s,
+      akjTypes: [],
+      diarySchema: [],
+      menuTemplates: [],
+      lastInfo: null,
+      pjChatPersona: null,
+    };
   }
 
   async updateSettings(

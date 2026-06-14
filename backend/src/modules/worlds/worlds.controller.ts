@@ -342,8 +342,12 @@ export class WorldsController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Načte nastavení světa' })
   @ApiResponse({ status: 200, description: 'OK' })
-  getSettings(@Param('worldId') worldId: string) {
-    return this.worldsService.getSettings(worldId);
+  getSettings(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // N-09 — member/Admin plný, nečlen jen veřejný subset, private nečlen → 404.
+    return this.worldsService.getSettingsForRequester(worldId, user);
   }
 
   @Put(':worldId/settings')
