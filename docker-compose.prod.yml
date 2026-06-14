@@ -76,8 +76,11 @@ services:
       SOCKET_IO_REDIS: "1"
       MEILI_HOST: http://meilisearch:7700
       MEILI_API_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set and at least 16 bytes}
-      FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL must be set (produkční FE URL — CORS, odkazy v mailech)}
-      BACKEND_BASE_URL: ${BACKEND_BASE_URL:?BACKEND_BASE_URL must be set (veřejná BE URL — disk fallback)}
+      # FRONTEND_URL / BACKEND_BASE_URL: silně doporučené (CORS, odkazy, disk fallback),
+      # ale neblokují start — env.validation jen varuje (fallback localhost). Nastav je
+      # v GitHub vars pro funkční FE↔BE komunikaci v produkci.
+      FRONTEND_URL: ${FRONTEND_URL}
+      BACKEND_BASE_URL: ${BACKEND_BASE_URL}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
@@ -91,7 +94,9 @@ services:
       MAIL_FROM: ${MAIL_FROM}
       CLOUDINARY_URL: ${CLOUDINARY_URL}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
-      TURNSTILE_SECRET: ${TURNSTILE_SECRET:?TURNSTILE_SECRET must be set (jinak captcha fail-closed odmítne registrace)}
+      # TURNSTILE_SECRET: neblokuje start — captcha je fail-closed v kódu (bez secretu
+      # registrace v produkci stejně selže), takže není důvod kvůli ní shodit celý BE.
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET}
       VAPID_SUBJECT: ${VAPID_SUBJECT}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}

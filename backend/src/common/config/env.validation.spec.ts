@@ -22,27 +22,33 @@ describe('validateEnv (PC-03/24 fail-fast)', () => {
     expect(validateEnv({ ...PROD_OK })).toEqual(PROD_OK);
   });
 
+  it.each(['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET'])(
+    'prod: hodí, když chybí fatální %s (DB/auth — app nemůže běžet)',
+    (key) => {
+      const cfg = { ...PROD_OK };
+      delete (cfg as Record<string, unknown>)[key];
+      expect(() => validateEnv(cfg)).toThrow(new RegExp(key));
+    },
+  );
+
   it.each([
-    'MONGODB_URI',
-    'JWT_SECRET',
-    'JWT_REFRESH_SECRET',
     'FRONTEND_URL',
     'BACKEND_BASE_URL',
     'TURNSTILE_SECRET',
     'MEILI_API_KEY',
-  ])('prod: hodí, když chybí kritická %s', (key) => {
+  ])('prod: chybějící doporučená %s jen varuje, neblokuje start', (key) => {
     const cfg = { ...PROD_OK };
     delete (cfg as Record<string, unknown>)[key];
-    expect(() => validateEnv(cfg)).toThrow(new RegExp(key));
+    expect(() => validateEnv(cfg)).not.toThrow();
   });
 
-  it('prod: hodí, když prod URL míří na localhost', () => {
+  it('prod: localhost v URL jen varuje (neblokuje start)', () => {
     expect(() =>
       validateEnv({ ...PROD_OK, FRONTEND_URL: 'http://localhost:5173' }),
-    ).toThrow(/localhost/);
+    ).not.toThrow();
     expect(() =>
       validateEnv({ ...PROD_OK, BACKEND_BASE_URL: 'http://127.0.0.1:3000' }),
-    ).toThrow(/localhost|127\.0\.0\.1|nepřípustné/);
+    ).not.toThrow();
   });
 
   it('prod: prázdný řetězec se počítá jako chybějící', () => {
