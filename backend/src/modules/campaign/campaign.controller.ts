@@ -74,7 +74,11 @@ export class CampaignController {
     @Query('worldId') worldId: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    if (worldRole < WorldRole.PJ) throw new ForbiddenException();
+    if (worldRole < WorldRole.PJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Tohle spravuje jen PJ světa.',
+      });
     return this.service.getPlayers(user.id, worldId);
   }
 
@@ -104,7 +108,11 @@ export class CampaignController {
     @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
   ) {
     const worldRole = await this.role(user, worldId);
-    if (worldRole < WorldRole.PomocnyPJ) throw new ForbiddenException();
+    if (worldRole < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
     return this.service.getChangelog(worldId, worldRole, limit, user.id);
   }
 
@@ -626,7 +634,11 @@ export class CampaignController {
     @Body() dto: CreateCampaignShopGroupDto,
   ) {
     const worldRole = await this.role(user, worldId);
-    if (worldRole < WorldRole.PomocnyPJ) throw new ForbiddenException();
+    if (worldRole < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
     return this.service.createShopGroup(
       user.id,
       user.username,

@@ -148,6 +148,9 @@ export class PagesService {
     // filtr (dřív CHYBĚL → listing vracel plný obsah page-level chráněných
     // stránek každému členu) + odřízni AKJ chráněné záložky bez přístupu.
     if (!userId) return pages;
+    // R-09b — world-level brána PŘED per-stránka filtrem: nečlen privátního světa
+    // sem dřív propadl a viděl všechny nechráněné stránky (cross-tenant leak).
+    await this.assertCanViewWorld(worldId, userId, platformRole);
     const filtered: Page[] = [];
     for (const page of pages) {
       try {
@@ -168,6 +171,8 @@ export class PagesService {
     userId: string,
     platformRole?: UserRole,
   ): Promise<Page> {
+    // R-09b — world-level brána před čtením stránky (nečlen privátního světa).
+    await this.assertCanViewWorld(worldId, userId, platformRole);
     const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page)
       throw new NotFoundException({
@@ -818,7 +823,42 @@ export class PagesService {
       return;
     throw new ForbiddenException({
       code: 'PAGE_ACCESS_DENIED',
-      message: 'Přístup odepřen',
+      message: 'Na tuto stránku nemáš přístup — je vyhrazená.',
+    });
+  }
+
+  /**
+   * R-09b — world-level read brána. `assertAccess` gatuje JEN per-stránka
+   * `accessRequirements`; nechráněnou stránku tak viděl KAŽDÝ přihlášený, i
+   * nečlen privátního světa (cross-tenant read leak — odhalil IS gauntlet,
+   * seed-scenario-isolation). Chybělo patro nad stránkou: privátní svět smí
+   * číst jen jeho člen (nebo platform Admin+ — read viditelnost ponechána, R-20).
+   * Veřejný / open / closed svět zůstává čitelný — konzistentní s
+   * `worlds.service.applyDetailScope` (gatuje pouze `private`). 403 (ne 404)
+   * dle rozhodnutí: friendly hláška „nemáte přístup" (auth-leak-policy: auth-
+   * required, existuje-ale-není-můj → 403).
+   */
+  private async assertCanViewWorld(
+    worldId: string,
+    userId: string,
+    platformRole?: UserRole,
+  ): Promise<void> {
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    if (world.accessMode !== 'private') return;
+    if (platformRole !== undefined && platformRole <= UserRole.Admin) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (membership) return;
+    throw new ForbiddenException({
+      code: 'WORLD_ACCESS_DENIED',
+      message: 'Tahle část světa je jen pro jeho členy.',
     });
   }
 

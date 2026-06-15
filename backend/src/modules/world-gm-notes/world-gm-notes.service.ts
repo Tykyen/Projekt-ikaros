@@ -48,6 +48,10 @@ export class WorldGmNotesService {
       worldId,
     );
     const role = membership?.role ?? WorldRole.Hrac;
-    if (role < WorldRole.PomocnyPJ) throw new ForbiddenException();
+    if (role < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Deník PJ spravují jen vedoucí světa.',
+      });
   }
 }

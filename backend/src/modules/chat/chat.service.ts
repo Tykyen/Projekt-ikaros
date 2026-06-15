@@ -196,10 +196,42 @@ export class ChatService implements OnApplicationBootstrap {
 
   // ─── Groups ───────────────────────────────────────────────────────────────
 
+  /**
+   * R-09b — world-level read brána pro chat (mirror `pages.service`). Privátní
+   * svět: strukturu kanálů vidí jen jeho člen (nebo platform Admin+ — read
+   * viditelnost ponechána, R-20); jinak 403 friendly. Veřejný / open / closed
+   * beze změny — konzistentní s `worlds.service.applyDetailScope`.
+   */
+  private async assertCanViewWorldChat(
+    worldId: string,
+    requester: RequestUser,
+  ): Promise<void> {
+    const world = await this.worldsService.findById(worldId);
+    if (!world)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    if (world.accessMode !== 'private') return;
+    if (requester.role <= UserRole.Admin) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (membership) return;
+    throw new ForbiddenException({
+      code: 'WORLD_ACCESS_DENIED',
+      message: 'Tahle část světa je jen pro jeho členy.',
+    });
+  }
+
   async getGroupsWithChannels(
     worldId: string,
     requester: RequestUser,
   ): Promise<{ group: ChatGroup; channels: ChatChannel[] }[]> {
+    // R-09b — world-level brána: nečlen privátního světa dřív dostal strukturu
+    // kanálů (per-kanál filtr běžel, ale chyběla brána nad světem).
+    await this.assertCanViewWorldChat(worldId, requester);
     let groups = await this.groupRepo.findByWorldId(worldId);
     // Lazy seed (krok 6.1g) — svět bez chat kanálů (vytvořený před modulem
     // chat) je dostane při prvním otevření chatu, nezávisle na boot backfillu.

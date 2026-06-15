@@ -98,9 +98,11 @@ export class BestiaeService {
     if (dto.scope === 'system') {
       // Globální (systémový) bestiář spravuje jen platformový Admin/Superadmin.
       if (!this.isGlobalAdmin(user)) {
-        throw new ForbiddenException(
-          'System bestiae může vytvářet jen Admin/Superadmin',
-        );
+        throw new ForbiddenException({
+          code: 'SYSTEM_BESTIE_READ_ONLY',
+          message:
+            'Systémové bestie zakládá jen správce platformy — můžeš si udělat vlastní.',
+        });
       }
     }
     // Validate systemStats proti per-system bestie schema.
@@ -223,7 +225,10 @@ export class BestiaeService {
     if (bestie.scope === 'system') return;
     if (bestie.scope === 'user') {
       if (bestie.ownerUserId !== user.id && !this.isGlobalAdmin(user)) {
-        throw new ForbiddenException();
+        throw new ForbiddenException({
+          code: 'BESTIE_NOT_OWNER',
+          message: 'Tahle bestie patří někomu jinému.',
+        });
       }
       return;
     }
@@ -233,7 +238,11 @@ export class BestiaeService {
         user.id,
         bestie.worldId!,
       );
-      if (!member) throw new ForbiddenException();
+      if (!member)
+        throw new ForbiddenException({
+          code: 'NOT_A_MEMBER',
+          message: 'Do tohoto světa zatím nemáš přístup.',
+        });
     }
   }
 
@@ -243,12 +252,20 @@ export class BestiaeService {
   ): Promise<void> {
     if (bestie.scope === 'system') {
       if (!this.isGlobalAdmin(user)) {
-        throw new ForbiddenException('System bestiae jsou read-only přes API');
+        throw new ForbiddenException({
+          code: 'SYSTEM_BESTIE_READ_ONLY',
+          message:
+            'Systémové bestie se upravovat nedají — můžeš si udělat vlastní kopii.',
+        });
       }
       return;
     }
     if (bestie.scope === 'user') {
-      if (bestie.ownerUserId !== user.id) throw new ForbiddenException();
+      if (bestie.ownerUserId !== user.id)
+        throw new ForbiddenException({
+          code: 'BESTIE_NOT_OWNER',
+          message: 'Tahle bestie patří někomu jinému.',
+        });
       return;
     }
     if (bestie.scope === 'world') {
@@ -263,7 +280,10 @@ export class BestiaeService {
     if (this.isGlobalAdmin(user)) return;
     const member = await this.memberRepo.findByUserAndWorld(user.id, worldId);
     if (!member || member.role < WorldRole.PomocnyPJ) {
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
     }
   }
 

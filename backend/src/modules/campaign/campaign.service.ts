@@ -169,7 +169,10 @@ export class CampaignService {
         message: 'Subjekt nenalezen',
       });
     if (!this.canModify(entity, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Tohle je vyhrazené — vidí to jen autor nebo PJ.',
+      });
     return entity;
   }
 
@@ -233,7 +236,10 @@ export class CampaignService {
         message: 'Subjekt nenalezen',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.subjectRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -264,7 +270,10 @@ export class CampaignService {
         message: 'Subjekt nenalezen',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     await this.subjectRepo.delete(id);
     await this.relRepo.deleteBySubjectId(id);
     this.logChange(
@@ -309,7 +318,10 @@ export class CampaignService {
         message: 'Vztah nenalezen',
       });
     if (!this.canModify(entity, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Tohle je vyhrazené — vidí to jen autor nebo PJ.',
+      });
     return entity;
   }
 
@@ -375,7 +387,10 @@ export class CampaignService {
         message: 'Vztah nenalezen',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.relRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -406,7 +421,10 @@ export class CampaignService {
         message: 'Vztah nenalezen',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     await this.relRepo.delete(id);
     this.logChange(
       existing,
@@ -445,7 +463,10 @@ export class CampaignService {
         message: 'Storyline nenalezena',
       });
     if (!this.canModify(entity, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Tohle je vyhrazené — vidí to jen autor nebo PJ.',
+      });
     return entity;
   }
 
@@ -517,7 +538,10 @@ export class CampaignService {
         message: 'Storyline nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.storylineRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -548,7 +572,10 @@ export class CampaignService {
         message: 'Storyline nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     await this.storylineRepo.delete(id);
     this.logChange(
       existing,
@@ -583,7 +610,10 @@ export class CampaignService {
         message: 'Scénář nenalezen',
       });
     if (!this.canModify(entity, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Tohle je vyhrazené — vidí to jen autor nebo PJ.',
+      });
     return entity;
   }
 
@@ -646,7 +676,10 @@ export class CampaignService {
         message: 'Scénář nenalezen',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.scenarioRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -677,7 +710,10 @@ export class CampaignService {
         message: 'Scénář nenalezen',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     await this.scenarioRepo.delete(id);
     this.logChange(
       existing,
@@ -715,7 +751,10 @@ export class CampaignService {
         message: 'Poznámka nenalezena',
       });
     if (!this.canModify(entity, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Tohle je vyhrazené — vidí to jen autor nebo PJ.',
+      });
     return entity;
   }
 
@@ -775,7 +814,10 @@ export class CampaignService {
         message: 'Poznámka nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.noteRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -806,7 +848,10 @@ export class CampaignService {
         message: 'Poznámka nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     await this.noteRepo.delete(id);
     this.logChange(
       existing,
@@ -848,7 +893,10 @@ export class CampaignService {
         message: 'Položka nenalezena',
       });
     if (!this.canModify(entity, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Tohle je vyhrazené — vidí to jen autor nebo PJ.',
+      });
     return entity;
   }
 
@@ -916,7 +964,10 @@ export class CampaignService {
         message: 'Položka nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.shopRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -947,7 +998,10 @@ export class CampaignService {
         message: 'Položka nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     await this.shopRepo.delete(id);
     await this.shopRepo.pullLinkedItem(existing.worldId, id);
     this.logChange(
@@ -1023,7 +1077,10 @@ export class CampaignService {
         message: 'Skupina nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     const updated = await this.shopGroupRepo.update(id, dto);
     if (!updated)
       throw new NotFoundException({
@@ -1054,7 +1111,10 @@ export class CampaignService {
         message: 'Skupina nenalezena',
       });
     if (!this.canModify(existing, userId, worldRole))
-      throw new ForbiddenException();
+      throw new ForbiddenException({
+        code: 'CAMPAIGN_FORBIDDEN',
+        message: 'Upravit to může jen autor nebo PJ.',
+      });
     // Guard: neprázdná skupina (položky nebo podskupiny) — nemazat naslepo
     const itemCount = await this.shopRepo.countByGroup(existing.worldId, id);
     const childCount = await this.shopGroupRepo.countChildren(
