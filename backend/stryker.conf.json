@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Race-condition audit (15. styl) — M-MUT teeth, ON-DEMAND a SCOPED. Mutuje JEN service/repo soubory dotčené race fixy a běží proti UNIT specům (jest). POZOR: full e2e-race mutace je neproveditelná (každý mutant = boot in-memory replica setu → hodiny). Unit-level mutace ověří zuby unit testů; zuby RACE e2e testů jsou doloženy empiricky (každý 🐛 test červený PŘED fixem, zelený PO — viz docs/race-condition-audit.md). Spuštění: npx stryker run",
+  "packageManager": "npm",
+  "testRunner": "jest",
+  "jest": {
+    "projectType": "custom",
+    "configFile": "package.json"
+  },
+  "coverageAnalysis": "perTest",
+  "concurrency": 2,
+  "timeoutMS": 60000,
+  "mutate": [
+    "src/modules/character-subdocs/character-accounts.service.ts",
+    "src/modules/character-subdocs/repositories/character-account.repository.ts",
+    "src/modules/campaign/services/campaign-purchase.service.ts",
+    "src/modules/campaign/repositories/campaign-purchase.repository.ts",
+    "src/modules/pages/pages.service.ts",
+    "src/modules/worlds/worlds.service.ts"
+  ],
+  "reporters": ["clear-text", "progress"],
+  "thresholds": { "high": 80, "low": 60, "break": 0 }
+}

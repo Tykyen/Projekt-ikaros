@@ -12,7 +12,12 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { getConnectionToken } from '@nestjs/mongoose';
 import mongoose from 'mongoose';
-import { AppModule } from '../../src/app.module';
+// AppModule se importuje DYNAMICKY uvnitř createTestApp (až PO nastavení
+// process.env.MONGODB_URI) — jeho `ConfigModule.forRoot({ validate })` zmrazí
+// konfiguraci (vč. MONGODB_URI z .env) SYNCHRONNĚ při importu. Statický import
+// na vrchu by proběhl při načtení spec souboru, PŘED beforeAll → zmrazil by
+// `.env` localhost a test by se připojoval na localhost:27017 místo na
+// in-memory replica set. Dynamický import to posouvá za `process.env` setup.
 import { DatabaseModule } from '../../src/database/database.module';
 import { RedisModule } from '../../src/common/redis/redis.module';
 import { HttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
@@ -64,6 +69,11 @@ export async function createTestApp(
     process.env[k] = v;
   }
 
+  // Lazy require AppModule AŽ TEĎ (po `process.env.MONGODB_URI` setupu výše) —
+  // viz komentář u importů nahoře (jinak by se .env localhost zmrazil dřív).
+  // `require` (ne `await import`) protože ts-jest běží v CJS VM bez
+  // `--experimental-vm-modules` → native dynamic import() tam hodí. require je
+  // synchronní a vyhodnotí AppModule (a jeho ConfigModule.forRoot) teprve teď.
   const imports: Array<
     Type<unknown> | DynamicModule | Promise<DynamicModule> | ForwardReference
   > = opts.modules
@@ -79,7 +89,17 @@ export async function createTestApp(
         RedisModule,
         ...opts.modules,
       ]
-    : [AppModule];
+    : [
+        // Lazy require ZÁMĚRNĚ: AppModule se importuje až po setupu process.env
+        // (jinak ConfigModule.forRoot zmrazí .env localhost při top-level importu
+        // → testy se připojí na localhost místo in-memory replSetu).
+        ((): Type<unknown> => {
+          const appModule =
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            require('../../src/app.module') as typeof import('../../src/app.module');
+          return appModule.AppModule;
+        })(),
+      ];
 
   const moduleBuilder = Test.createTestingModule({
     imports,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, Types, type ClientSession } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { CampaignPurchaseSchemaClass } from '../schemas/campaign-purchase.schema';
 import type {
@@ -35,8 +35,12 @@ export class MongoCampaignPurchaseRepository
     );
   }
 
-  async create(data: Partial<CampaignPurchase>): Promise<CampaignPurchase> {
-    const doc = await this.model.create(data);
+  async create(
+    data: Partial<CampaignPurchase>,
+    session?: ClientSession,
+  ): Promise<CampaignPurchase> {
+    // RC-E5 — `model.create` se session se předává jako pole + options.
+    const [doc] = await this.model.create([data], session ? { session } : {});
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
@@ -47,6 +51,26 @@ export class MongoCampaignPurchaseRepository
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model
       .findByIdAndUpdate(id, { $set: data }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  /**
+   * RC-E2 fix — atomický flip `active` → `refunded`. Podmínka `status:'active'`
+   * ve filtru zajistí, že ze dvou souběžných stornů uspěje právě jedno (druhé
+   * dostane null = už není aktivní). Brání double-refundu (peníze 2×).
+   */
+  async markRefundedIfActive(id: string): Promise<CampaignPurchase | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const doc = await this.model
+      .findOneAndUpdate(
+        { _id: id, status: 'active' },
+        { $set: { status: 'refunded', refundedAt: new Date() } },
+        { new: true },
+      )
       .lean()
       .exec();
     return doc

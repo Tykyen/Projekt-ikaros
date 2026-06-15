@@ -98,6 +98,31 @@ export class CharacterAccountRepository {
   }
 
   /**
+   * RC-E1 fix — atomický odečet S kontrolou krytí. `$push` tx + `$inc` balance
+   * proběhne JEN když `balance >= requiredAbs` (podmínka ve filtru se vyhodnotí
+   * atomicky při zápisu). Vrací null při nedostatku NEBO neexistujícím účtu →
+   * volající rozliší přes předchozí `findById`. Brání TOCTOU overdraftu: dva
+   * souběžné nákupy nemůžou oba projít, protože druhý už nesplní `$gte`.
+   */
+  async appendTransactionIfSufficient(
+    accountId: string,
+    tx: FinanceTransaction,
+    requiredAbs: number,
+    session?: ClientSession,
+  ): Promise<CharacterAccount | null> {
+    const q = this.model.findOneAndUpdate(
+      { _id: accountId, balance: { $gte: requiredAbs } },
+      { $push: { transactions: tx }, $inc: { balance: tx.delta } },
+      { new: true },
+    );
+    if (session) q.session(session);
+    const doc = await q.lean().exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  /**
    * 8.x currency-conversion — atomický přepočet měny účtu: jedním `$set`
    * nahradí `currency` + všechna peněžní pole (balance, transactions,
    * income/expenseEntries). Single-doc update = atomický (žádná tx potřeba).

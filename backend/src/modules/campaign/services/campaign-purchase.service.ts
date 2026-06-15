@@ -1,11 +1,13 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { InjectConnection } from '@nestjs/mongoose';
+import type { ClientSession, Connection } from 'mongoose';
 import type { ICampaignShopItemRepository } from '../interfaces/campaign-shop-item-repository.interface';
 import type { ICampaignShopGroupRepository } from '../interfaces/campaign-shop-group-repository.interface';
 import type { ICampaignPurchaseRepository } from '../interfaces/campaign-purchase-repository.interface';
@@ -17,7 +19,6 @@ import { CharacterSubdocsService } from '../../character-subdocs/character-subdo
 import { WorldCurrenciesService } from '../../world-currencies/world-currencies.service';
 import { CharactersService } from '../../characters/characters.service';
 import type { Character } from '../../characters/interfaces/character.interface';
-import type { PageSection } from '../../pages/interfaces/page.interface';
 import type { PurchaseShopItemDto } from '../dto/purchase-shop-item.dto';
 import { UserRole } from '../../users/interfaces/user.interface';
 
@@ -31,13 +32,18 @@ function round4(n: number): number {
  * Krok 11.3 §5 — atomický nákup / storno přes 3 moduly (katalog ↔ účet ↔
  * vybavení). Sleva + převod počítá BE (autorita); FE číslo je jen náhled.
  *
- * Atomicita bez Mongo session: pořadí (1) inventář → (2) odečet z účtu;
- * při selhání kroku 2 se inventář kompenzuje (odebrání položky). Permission
- * na účet se ověří *předem* (`assertCanAdjust`), aby se nezapisoval inventář
- * zbytečně.
+ * RC-E5 (race-condition audit) — nákup je 3 kroky (1) append do inventáře,
+ * (2) odečet z účtu, (3) purchase log. Dřív bez transakce: pád kroku (3) nechal
+ * peníze odečtené + položku v inventáři, ale BEZ purchase logu → nešlo stornovat
+ * (nevratný částečný stav, peníze pryč). Teď: všechny 3 kroky v jediné
+ * `withTransaction` (vzor RC-E3 — replica set) → pád kdekoli rollbackne vše.
+ * Fallback bez replica setu (single-instance prod) = sekvenční s plnou
+ * kompenzací (revert účtu + odebrání inventáře) i při selhání kroku (3).
  */
 @Injectable()
 export class CampaignPurchaseService {
+  private readonly logger = new Logger(CampaignPurchaseService.name);
+
   constructor(
     @Inject('ICampaignShopItemRepository')
     private readonly shopRepo: ICampaignShopItemRepository,
@@ -49,6 +55,7 @@ export class CampaignPurchaseService {
     private readonly subdocsService: CharacterSubdocsService,
     private readonly currenciesService: WorldCurrenciesService,
     private readonly charactersService: CharactersService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   /** Efektivní sleva %: položka > podskupina > skupina (nesčítá se). */
@@ -149,42 +156,25 @@ export class CampaignPurchaseService {
         required: paidAmount,
       });
 
-    // (1) Přidej do vybavení.
-    const { sectionId, itemId: invItemId } = await this.addToInventory(
-      character,
-      item.name,
-      quantity,
-      dto.sectionId,
+    const reason =
+      quantity > 1 ? `Nákup: ${item.name} ×${quantity}` : `Nákup: ${item.name}`;
+
+    // Lazy-create gate inventáře MIMO transakci (read-side; NPC/Lokace nemají
+    // výbavu, PC subdoc se případně lazy-creatne) — nesmí být v tx kvůli
+    // možnému lazy-create write konfliktu se session a re-checku rodiče.
+    await this.subdocsService.getInventory(
+      character.id,
+      character.isNpc,
+      character.kind,
     );
 
-    // (2) Odečti z účtu (kompenzace vybavení při selhání).
-    let accountTransactionId = '';
-    let newBalance = account.balance;
-    if (paidAmount > 0) {
-      try {
-        const reason =
-          quantity > 1
-            ? `Nákup: ${item.name} ×${quantity}`
-            : `Nákup: ${item.name}`;
-        const updatedAcc = await this.accountsService.adjust(
-          dto.accountId,
-          { amount: -paidAmount, reason },
-          buyerUserId,
-          buyerRole,
-        );
-        newBalance = updatedAcc.balance;
-        accountTransactionId =
-          updatedAcc.transactions[updatedAcc.transactions.length - 1]?.id ?? '';
-      } catch (err) {
-        await this.removeFromInventory(character, sectionId, invItemId).catch(
-          () => undefined,
-        );
-        throw err;
-      }
-    }
-
-    // (3) Purchase log.
-    const purchase = await this.purchaseRepo.create({
+    // RC-E5 — všechny 3 zápisy (inventář / účet / purchase log) atomicky.
+    // Buduje plný `purchaseData` payload sdílený mezi tx i fallback cestou.
+    const buildPurchaseData = (
+      accountTransactionId: string,
+      sectionId: string,
+      invItemId: string,
+    ): Partial<CampaignPurchase> => ({
       worldId,
       characterId: dto.characterId,
       buyerUserId,
@@ -210,7 +200,199 @@ export class CampaignPurchaseService {
       status: 'active',
     });
 
+    const session = await this.connection.startSession();
+    try {
+      let result: { purchase: CampaignPurchase; newBalance: number } | null =
+        null;
+      try {
+        await session.withTransaction(async () => {
+          result = await this.runPurchaseSteps(
+            { worldId, item, quantity, paidAmount, reason, dto, buyerUserId },
+            buildPurchaseData,
+            session,
+          );
+        });
+      } catch (txErr) {
+        const msg = (txErr as Error).message || '';
+        // Replica set není (dev / single-instance prod) → sekvenční fallback
+        // s plnou kompenzací (vzor RC-E3 `transferSequentialFallback`).
+        if (
+          msg.includes('replica set') ||
+          msg.includes('Transaction numbers') ||
+          msg.includes('IllegalOperation')
+        ) {
+          this.logger.warn(
+            'Mongo replica set not available, falling back to sequential purchase with compensation (RC-E5).',
+          );
+          return await this.purchaseSequentialFallback(
+            { worldId, item, quantity, paidAmount, reason, dto, buyerUserId },
+            character,
+            buildPurchaseData,
+          );
+        }
+        throw txErr;
+      }
+      return result!;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  /**
+   * RC-E5 — 3 zápisové kroky nákupu v rámci jedné session (`withTransaction`).
+   * Pád kdekoli → withTransaction abort → rollback všech tří. Drží invariant
+   * „peníze se neztratí ani neduplikují": odečet z účtu a purchase log jsou
+   * commitnuté výhradně společně.
+   */
+  private async runPurchaseSteps(
+    ctx: {
+      worldId: string;
+      item: CampaignShopItem;
+      quantity: number;
+      paidAmount: number;
+      reason: string;
+      dto: PurchaseShopItemDto;
+      buyerUserId: string;
+    },
+    buildPurchaseData: (
+      accountTransactionId: string,
+      sectionId: string,
+      invItemId: string,
+    ) => Partial<CampaignPurchase>,
+    session: ClientSession,
+  ): Promise<{ purchase: CampaignPurchase; newBalance: number }> {
+    const { item, quantity, paidAmount, reason, dto, buyerUserId } = ctx;
+
+    // (1) Append do inventáře.
+    const { sectionId, itemId: invItemId } =
+      await this.subdocsService.appendInventoryItem(
+        dto.characterId,
+        { text: item.name, quantity, note: '' },
+        AUTO_SECTION_TITLE,
+        dto.sectionId,
+        session,
+      );
+
+    // (2) Odečet z účtu (atomický `$gte` floor; RC-E1).
+    let accountTransactionId = '';
+    let newBalance = ctx.item.price; // přepíše se níže
+    if (paidAmount > 0) {
+      const updatedAcc = await this.accountsService.debitIfSufficient(
+        dto.accountId,
+        paidAmount,
+        reason,
+        buyerUserId,
+        null,
+        session,
+      );
+      newBalance = updatedAcc.balance;
+      accountTransactionId =
+        updatedAcc.transactions[updatedAcc.transactions.length - 1]?.id ?? '';
+    } else {
+      // Položka zdarma — balance se nemění, načti aktuální.
+      const acc = await this.accountsService.getAccount(dto.accountId);
+      newBalance = acc.balance;
+    }
+
+    // (3) Purchase log — commit jen společně s odečtem.
+    const purchase = await this.purchaseRepo.create(
+      buildPurchaseData(accountTransactionId, sectionId, invItemId),
+      session,
+    );
+
     return { purchase, newBalance };
+  }
+
+  /**
+   * RC-E5 — fallback bez replica setu (single-instance prod). Sekvenční s plnou
+   * kompenzací: když selže odečet → odeber inventář; když selže purchase log →
+   * vrať peníze (kredit) + odeber inventář. Invariant „peníze se neztratí" drží
+   * i tady — částečný stav se vždy kompenzuje, nezůstane peníze-bez-logu.
+   */
+  private async purchaseSequentialFallback(
+    ctx: {
+      worldId: string;
+      item: CampaignShopItem;
+      quantity: number;
+      paidAmount: number;
+      reason: string;
+      dto: PurchaseShopItemDto;
+      buyerUserId: string;
+    },
+    character: Character,
+    buildPurchaseData: (
+      accountTransactionId: string,
+      sectionId: string,
+      invItemId: string,
+    ) => Partial<CampaignPurchase>,
+  ): Promise<{ purchase: CampaignPurchase; newBalance: number }> {
+    const { item, quantity, paidAmount, reason, dto, buyerUserId } = ctx;
+
+    // (1) Append do inventáře.
+    const { sectionId, itemId: invItemId } =
+      await this.subdocsService.appendInventoryItem(
+        dto.characterId,
+        { text: item.name, quantity, note: '' },
+        AUTO_SECTION_TITLE,
+        dto.sectionId,
+      );
+
+    // (2) Odečet z účtu (kompenzace vybavení při selhání).
+    let accountTransactionId = '';
+    let newBalance = 0;
+    if (paidAmount > 0) {
+      try {
+        const updatedAcc = await this.accountsService.debitIfSufficient(
+          dto.accountId,
+          paidAmount,
+          reason,
+          buyerUserId,
+        );
+        newBalance = updatedAcc.balance;
+        accountTransactionId =
+          updatedAcc.transactions[updatedAcc.transactions.length - 1]?.id ?? '';
+      } catch (err) {
+        await this.removeFromInventory(character, sectionId, invItemId).catch(
+          () => undefined,
+        );
+        throw err;
+      }
+    } else {
+      const acc = await this.accountsService.getAccount(dto.accountId);
+      newBalance = acc.balance;
+    }
+
+    // (3) Purchase log — při selhání kompenzuj OBA předchozí kroky (RC-E5):
+    // vrať peníze + odeber inventář, ať nezůstane peníze-bez-logu.
+    try {
+      const purchase = await this.purchaseRepo.create(
+        buildPurchaseData(accountTransactionId, sectionId, invItemId),
+      );
+      return { purchase, newBalance };
+    } catch (err) {
+      if (paidAmount > 0) {
+        try {
+          // Kompenzační kredit zpět na účet (peníze se nesmí ztratit).
+          await this.accountsService.adjust(
+            dto.accountId,
+            {
+              amount: paidAmount,
+              reason: `Storno (neúspěšný nákup): ${item.name}`,
+            },
+            buyerUserId,
+          );
+        } catch (revertErr) {
+          this.logger.error(
+            `RC-E5 kompenzační revert účtu selhal pro ${dto.accountId} (paidAmount ${paidAmount}). Ruční oprava nutná.`,
+            revertErr as Error,
+          );
+        }
+      }
+      await this.removeFromInventory(character, sectionId, invItemId).catch(
+        () => undefined,
+      );
+      throw err;
+    }
   }
 
   async refund(
@@ -245,6 +427,16 @@ export class CampaignPurchaseService {
         message: 'Storno smíš jen u svého nákupu.',
       });
 
+    // RC-E2 fix — atomický flip statusu PŘED kreditem. Souběžná storna téhož
+    // nákupu: jen jedno projde filtrem `{status:'active'}` → peníze se vrátí
+    // max 1×. (Brzký `status!=='active'` check výše zůstává jako rychlá pojistka.)
+    const flipped = await this.purchaseRepo.markRefundedIfActive(purchaseId);
+    if (!flipped)
+      throw new ConflictException({
+        code: 'PURCHASE_ALREADY_REFUNDED',
+        message: 'Nákup už byl vrácen.',
+      });
+
     // Vrať peníze na účet (tolerantní k chybějícímu účtu při čtení balance).
     let newBalance = 0;
     if (purchase.paidAmount > 0) {
@@ -274,11 +466,7 @@ export class CampaignPurchaseService {
       ).catch(() => undefined);
     }
 
-    const updated = await this.purchaseRepo.update(purchaseId, {
-      status: 'refunded',
-      refundedAt: new Date(),
-    });
-    return { purchase: updated as CampaignPurchase, newBalance };
+    return { purchase: flipped, newBalance };
   }
 
   async listPurchases(
@@ -311,47 +499,6 @@ export class CampaignPurchaseService {
   }
 
   // ── Inventář helpers ───────────────────────────────────────────────────
-
-  private async addToInventory(
-    character: Character,
-    name: string,
-    quantity: number,
-    sectionId?: string,
-  ): Promise<{ sectionId: string; itemId: string }> {
-    const inv = await this.subdocsService.getInventory(
-      character.id,
-      character.isNpc,
-      character.kind,
-    );
-    const sections: PageSection[] = inv.sections.map((sec) => ({
-      ...sec,
-      items: [...sec.items],
-    }));
-    const newItem = { id: randomUUID(), text: name, quantity, note: '' };
-
-    let target = sectionId
-      ? sections.find((sec) => sec.id === sectionId)
-      : undefined;
-    if (!target)
-      target = sections.find((sec) => sec.title === AUTO_SECTION_TITLE);
-
-    if (target) {
-      target.items.push(newItem);
-    } else {
-      target = {
-        id: randomUUID(),
-        title: AUTO_SECTION_TITLE,
-        content: '',
-        order: sections.length,
-        isCollapsed: false,
-        items: [newItem],
-      };
-      sections.push(target);
-    }
-
-    await this.subdocsService.updateInventory(character.id, { sections });
-    return { sectionId: target.id, itemId: newItem.id };
-  }
 
   private async removeFromInventory(
     character: Character,

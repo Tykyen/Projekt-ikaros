@@ -59,6 +59,15 @@ export interface IWorldMembershipRepository {
     data: Partial<WorldMembership>,
   ): Promise<WorldMembership | null>;
   /**
+   * RC-R2 fix — atomicky nastaví roli JEN když se liší od cílové. Vrací doc
+   * PŘED změnou (pro výpočet wasPlayer/isPlayer) nebo null při idempotentním
+   * no-op (role už byla cílová) → zabrání `playerCount` driftu pod souběhem.
+   */
+  updateRoleIfChanged(
+    id: string,
+    role: number,
+  ): Promise<WorldMembership | null>;
+  /**
    * Odpojení postavy od člena — `$unset` characterPath + avatarUrl.
    * (Plain `update({characterPath: undefined})` Mongoose ignoruje, proto
    * dedikovaná metoda.)

@@ -1042,6 +1042,23 @@ export class ChatService implements OnApplicationBootstrap {
       diceSkin: dto.diceSkin ?? null,
     });
 
+    // RC-D3 fix (race-condition audit) — kanál mohl být smazán v okně mezi
+    // findById (výš) a save zprávy → jinak zůstane živá zpráva s channelId na
+    // neexistující kanál (orphan). Re-ověř existenci; pokud zmizel, soft-smaž
+    // zprávu (stejně jako deleteChannel/deleteGroup soft-maže své zprávy) a vrať
+    // 404. Bez atomické tx je tohle kompenzace (vzor jako shop-purchase),
+    // která zavírá okno na minimum a uklízí orphan.
+    const channelStillExists = await this.channelRepo.findById(channelId);
+    if (!channelStillExists) {
+      await this.messageRepo
+        .update(message.id, { isDeleted: true })
+        .catch(() => undefined);
+      throw new NotFoundException({
+        code: 'CHANNEL_NOT_FOUND',
+        message: 'Konverzace byla mezitím smazána.',
+      });
+    }
+
     // Náhled poslední zprávy pro sidebar (krok 6.1b).
     const lastMessagePreview = message.content?.trim()
       ? message.content.trim().slice(0, 80)

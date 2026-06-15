@@ -68,6 +68,12 @@ describe('CharactersService', () => {
   const mockPagesRepo = {
     findByWorld: jest.fn().mockResolvedValue([]),
   };
+  // RC-D2 — assertCanManage nově ověřuje, že svět je aktivní (worldsRepo.findById).
+  const mockWorldsRepo = {
+    findById: jest
+      .fn()
+      .mockResolvedValue({ id: 'world1', isActive: true, deletedAt: null }),
+  };
   const mockEventEmitter = {
     emit: jest.fn(),
     emitAsync: jest.fn().mockResolvedValue([]),
@@ -81,6 +87,7 @@ describe('CharactersService', () => {
         { provide: 'ICharactersRepository', useValue: mockCharRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
+        { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
         { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
@@ -292,6 +299,20 @@ describe('CharactersService', () => {
           slug: 'medak',
         }),
       );
+    });
+
+    // CD-09 (cascade-delete audit) — cascade přes 3 @OnEvent (účty/subdocy/
+    // membership) je best-effort: postava je smazána PŘED emitem, takže selhání
+    // jednoho listeneru nesmí shodit delete (HTTP 500). Bez try/catch by
+    // emitAsync rejectnul a metoda propagovala chybu volajícímu.
+    it('CD-09 — cascade selhání listeneru NEshodí delete (best-effort try/catch)', async () => {
+      mockCharRepo.findBySlugAndWorld.mockResolvedValue(mockCharacter);
+      mockEventEmitter.emitAsync.mockRejectedValueOnce(
+        new Error('subdocs listener failed'),
+      );
+      await expect(service.delete('medak', 'world1')).resolves.toBeUndefined();
+      // postava se smazala i tak (delete proběhl před emitem)
+      expect(mockCharRepo.delete).toHaveBeenCalledWith('char1');
     });
   });
 

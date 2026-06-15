@@ -197,6 +197,42 @@ describe('AuthService', () => {
       );
     });
 
+    it('F-03 (GDPR) — register s acceptedTerms:false hodí BadRequest TERMS_NOT_ACCEPTED', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.findByUsername.mockResolvedValue(null);
+      try {
+        await service.register({
+          email: 'a@a.com',
+          username: 'new',
+          password: 'pass123',
+          acceptedTerms: false,
+        });
+        fail('expected BadRequestException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        const response = (err as BadRequestException).getResponse();
+        expect(response).toMatchObject({ code: 'TERMS_NOT_ACCEPTED' });
+      }
+      // souhlas se vynucuje před DB zápisem
+      expect(mockUsersRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('F-03 (GDPR) — register s acceptedTerms:true uloží acceptedTermsAt', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.findByUsername.mockResolvedValue(null);
+      mockUsersRepo.save.mockResolvedValue(mockUser);
+      mockRefreshRepo.save.mockResolvedValue({});
+      await service.register({
+        email: 'a@a.com',
+        username: 'new',
+        password: 'pass123',
+        acceptedTerms: true,
+      });
+      expect(mockUsersRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ acceptedTermsAt: expect.any(Date) }),
+      );
+    });
+
     it('1.3a — registrace ukládá lastLoginAt (první přihlášení)', async () => {
       mockUsersRepo.findByEmail.mockResolvedValue(null);
       mockUsersRepo.findByUsername.mockResolvedValue(null);

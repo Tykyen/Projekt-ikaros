@@ -63,3 +63,15 @@ describe('CreatePageDto — focal/zoom/fit (parita s GameEvent)', () => {
     );
   });
 });
+
+describe('CreatePageDto — F-14 (title @MaxLength 200)', () => {
+  it('F-14 — přijme title do 200 znaků', async () => {
+    expect(await focalErrorProps({ title: 'x'.repeat(200) })).toEqual([]);
+  });
+
+  it('F-14 — odmítne title nad 200 znaků', async () => {
+    expect(await focalErrorProps({ title: 'x'.repeat(201) })).toContain(
+      'title',
+    );
+  });
+});

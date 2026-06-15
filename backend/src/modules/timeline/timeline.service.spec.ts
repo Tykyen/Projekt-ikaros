@@ -268,6 +268,20 @@ describe('TimelineService', () => {
       expect(result.id).toBe('ev1');
     });
 
+    // F-02 — timeline `text` se renderuje přes dangerouslySetInnerHTML, takže
+    // musí být sanitizován při zápisu (stored XSS guard). Bez sanitizace by se
+    // <script>/<img onerror> uložil raw a spustil každému divákovi timeline.
+    it('F-02 — create sanitizuje <script> z text (stored XSS guard)', async () => {
+      mockRepo.create.mockResolvedValue(mockEvent());
+      await service.create(
+        { ...baseDto, text: '<p>ahoj</p><script>alert(1)</script>' },
+        Admin,
+      );
+      const saved = mockRepo.create.mock.calls[0][0] as { text: string };
+      expect(saved.text).not.toContain('<script>');
+      expect(saved.text).toContain('ahoj');
+    });
+
     it('Superadmin smí vytvořit', async () => {
       mockRepo.create.mockResolvedValue(mockEvent());
       await service.create(baseDto, Superadmin);

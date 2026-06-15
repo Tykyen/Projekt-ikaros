@@ -239,6 +239,20 @@ export class WorldOperationsService {
     // Atomic update membership
     await this.membershipRepo.setCurrentScene(op.userId, worldId, op.sceneId);
 
+    // RC-D6 fix — scéna se mohla smazat v okně mezi validací (findById výše) a
+    // tímto zápisem (`deleteScene` → `clearSceneForAll` proběhl DŘÍV, než jsme
+    // sem zapsali → náš zápis vyrobil dangling `currentSceneId` na mrtvou scénu).
+    // Re-ověř existenci po zápisu; když scéna zmizela, vrať membership zpět na
+    // oldSceneId a hoď 404 (vzor RC-D3 re-check rodiče po save).
+    const stillExists = await this.mapsRepo.findById(op.sceneId);
+    if (!stillExists) {
+      await this.membershipRepo.setCurrentScene(op.userId, worldId, oldSceneId);
+      throw new NotFoundException({
+        code: 'MAP_SCENE_NOT_FOUND',
+        message: 'Cílová scéna byla mezitím smazána',
+      });
+    }
+
     // Inverse — zpět na oldSceneId (může být null → `member.unassign`)
     const inverse: WorldOperationPayload = oldSceneId
       ? {
@@ -359,6 +373,22 @@ export class WorldOperationsService {
       worldId,
       op.sceneId,
     );
+
+    // RC-D6 fix — scéna se mohla smazat v okně validace↔zápis (viz
+    // `handleAssignToScene`). Re-ověř; když zmizela, vyčisti právě nastavené
+    // dangling refy (set null) a hoď 404.
+    const stillExists = await this.mapsRepo.findById(op.sceneId);
+    if (!stillExists) {
+      await this.membershipRepo.setCurrentSceneForMany(
+        op.userIds,
+        worldId,
+        null,
+      );
+      throw new NotFoundException({
+        code: 'MAP_SCENE_NOT_FOUND',
+        message: 'Cílová scéna byla mezitím smazána',
+      });
+    }
 
     // Inverse: pole jednotlivých per-user assignToScene (nebo unassign).
     // V MVP držíme bulk inverse jako single bulk-assign zpět na PŮVODNÍ scenes —

@@ -78,6 +78,13 @@ describe('PagesService', () => {
       slug: 'mock',
       kind: 'persona',
     });
+    // RC-D2 — assertCanWrite nově ověřuje, že svět je aktivní. Default = živý
+    // svět (jednotlivé testy si ho přepisují na null / soft-smazaný dle potřeby).
+    mockWorldsRepo.findById.mockResolvedValue({
+      id: 'world1',
+      isActive: true,
+      deletedAt: null,
+    });
     const module = await Test.createTestingModule({
       providers: [
         PagesService,
@@ -258,7 +265,11 @@ describe('PagesService', () => {
     });
 
     it('Hrac bez membership dostane Forbidden (role gating)', async () => {
-      mockWorldsRepo.findById.mockResolvedValue({ id: 'world1' });
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
         service.create(
@@ -270,7 +281,11 @@ describe('PagesService', () => {
     });
 
     it('Hrac s WorldRole.Hrac dostane Forbidden (potřebuje PomocnyPJ+)', async () => {
-      mockWorldsRepo.findById.mockResolvedValue({ id: 'world1' });
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
         role: WorldRole.Hrac,
@@ -285,7 +300,11 @@ describe('PagesService', () => {
     });
 
     it('PomocnyPJ může vytvořit stránku', async () => {
-      mockWorldsRepo.findById.mockResolvedValue({ id: 'world1' });
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         ...mockMembership,
         role: WorldRole.PomocnyPJ,
@@ -372,7 +391,11 @@ describe('PagesService', () => {
     });
 
     it('Hrac bez membership nemůže mazat (role gating)', async () => {
-      mockWorldsRepo.findById.mockResolvedValue({ id: 'world1' });
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
         service.delete('page1', 'world1', hracRequester),

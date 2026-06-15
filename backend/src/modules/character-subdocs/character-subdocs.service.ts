@@ -1,6 +1,7 @@
 import { Injectable, Inject, NotFoundException, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { randomUUID } from 'crypto';
+import type { ClientSession } from 'mongoose';
 import type { CharacterDiaryRepository } from './repositories/character-diary.repository';
 import type { CharacterCalendarRepository } from './repositories/character-calendar.repository';
 import type { CharacterFinanceRepository } from './repositories/character-finance.repository';
@@ -16,6 +17,7 @@ import type { CharacterInventory } from './interfaces/character-inventory.interf
 import type { CharacterNotes } from './interfaces/character-notes.interface';
 import type { IDiarySchemaVersionsRepository } from '../worlds/diary-schema-versions/diary-schema-versions-repository.interface';
 import type { SchemaBlock } from '../characters/interfaces/character.interface';
+import type { ICharactersRepository } from '../characters/interfaces/characters-repository.interface';
 
 interface CharacterCreatedPayload {
   characterId: string;
@@ -57,7 +59,32 @@ export class CharacterSubdocsService {
     // 8.5 — fallback při čtení deníku postavy bez `personalDiarySchema`
     @Inject('IDiarySchemaVersionsRepository')
     private readonly diaryVersionsRepo: IDiarySchemaVersionsRepository,
+    // RC-D1 (race-condition audit) — po lazy-create subdocu re-ověř, že rodičovská
+    // postava ještě existuje (mohla se mezitím smazat → orphan subdoc).
+    @Inject('ICharactersRepository')
+    private readonly charactersRepo: ICharactersRepository,
   ) {}
+
+  /**
+   * RC-D1 fix — po lazy-create subdokumentu ověř, že rodičovská postava pořád
+   * existuje. Když se smazala v okně mezi „subdoc chybí" a `create` (souběžný
+   * `character.deleted` cascade proběhl DŘÍV, než jsme vytvořili) → vzniklý
+   * subdoc je orphan; smaž ho (vzor RC-D3 re-check rodiče po save). Volá se jen
+   * na lazy-create cestě (čtení), ne v každém GET — overhead je minimální.
+   */
+  private async rollbackIfParentGone(
+    characterId: string,
+    deleteSubdoc: () => Promise<void>,
+  ): Promise<void> {
+    const parent = await this.charactersRepo.findById(characterId);
+    if (!parent) {
+      await deleteSubdoc().catch(() => undefined);
+      throw new NotFoundException({
+        code: 'CHARACTER_NOT_FOUND',
+        message: 'Postava byla mezitím smazána',
+      });
+    }
+  }
 
   /**
    * 8.5-BE-4 — vrátí povolené klíče pro `customData` podle nejvíc specifického
@@ -175,6 +202,10 @@ export class CharacterSubdocsService {
       }
       // Self-healing: vytvoř prázdný diary pro tuto postavu.
       diary = await this.diaryRepo.create(characterId, worldId);
+      // RC-D1 — postava se mohla smazat během lazy-create → orphan subdoc.
+      await this.rollbackIfParentGone(characterId, () =>
+        this.diaryRepo.deleteByCharacterId(characterId),
+      );
     }
     // 2026-05-24 (D-040-followup) — read-side coerce ODSTRANĚN. Předtím
     // filtroval `customData` proti aktivnímu schématu, ale ve spárování
@@ -340,6 +371,10 @@ export class CharacterSubdocsService {
         });
       }
       calendar = await this.calendarRepo.create(characterId, worldId);
+      // RC-D1 — postava se mohla smazat během lazy-create → orphan subdoc.
+      await this.rollbackIfParentGone(characterId, () =>
+        this.calendarRepo.deleteByCharacterId(characterId),
+      );
     }
     return calendar;
   }
@@ -382,7 +417,12 @@ export class CharacterSubdocsService {
     }
     const finance = await this.financeRepo.findByCharacterId(characterId);
     if (finance) return finance;
-    return this.financeRepo.create(characterId);
+    const created = await this.financeRepo.create(characterId);
+    // RC-D1 — postava se mohla smazat během lazy-create → orphan subdoc.
+    await this.rollbackIfParentGone(characterId, () =>
+      this.financeRepo.deleteByCharacterId(characterId),
+    );
+    return created;
   }
 
   async updateFinance(
@@ -456,7 +496,12 @@ export class CharacterSubdocsService {
     }
     const inventory = await this.inventoryRepo.findByCharacterId(characterId);
     if (inventory) return inventory;
-    return this.inventoryRepo.create(characterId);
+    const created = await this.inventoryRepo.create(characterId);
+    // RC-D1 — postava se mohla smazat během lazy-create → orphan subdoc.
+    await this.rollbackIfParentGone(characterId, () =>
+      this.inventoryRepo.deleteByCharacterId(characterId),
+    );
+    return created;
   }
 
   async updateInventory(
@@ -473,6 +518,42 @@ export class CharacterSubdocsService {
   }
 
   /**
+   * RC-E4 fix — atomický append položky do výbavy (nákup z obchodu). Delegace
+   * na repo `appendItemToSection` (`$push`, ne full-array `$set`). Souběžné
+   * nákupy se neztratí: každý append míří na svou položku, ne na celé pole.
+   *
+   * `sectionId` — cílová sekce (z DTO); pokud chybí nebo neexistuje, položka
+   * jde do auto-sekce `autoTitle` (vytvoří se idempotentně). Vrací id sekce +
+   * položky pro purchase log a případný kompenzační rollback.
+   */
+  async appendInventoryItem(
+    characterId: string,
+    item: { text: string; quantity?: number; note?: string },
+    autoTitle: string,
+    sectionId?: string,
+    // RC-E5 — volitelná session pro `withTransaction` scope nákupu.
+    session?: ClientSession,
+  ): Promise<{ sectionId: string; itemId: string }> {
+    const result = await this.inventoryRepo.appendItemToSection(
+      characterId,
+      {
+        id: randomUUID(),
+        text: item.text,
+        quantity: item.quantity,
+        note: item.note ?? '',
+      },
+      { sectionId, autoTitle },
+      session,
+    );
+    if (!result)
+      throw new NotFoundException({
+        code: 'INVENTORY_NOT_FOUND',
+        message: 'Výbava nenalezena',
+      });
+    return result;
+  }
+
+  /**
    * 2026-05-24 — lazy-create pro Poznámky (analogicky k Finance/Inventory).
    * Notes je dostupné pro všechny postavy včetně Lokací (sloupek dohod s PJ).
    * Legacy postavy (před kaskádou) se uzdraví prvním GET.
@@ -480,7 +561,12 @@ export class CharacterSubdocsService {
   async getNotes(characterId: string): Promise<CharacterNotes> {
     const notes = await this.notesRepo.findByCharacterId(characterId);
     if (notes) return notes;
-    return this.notesRepo.create(characterId);
+    const created = await this.notesRepo.create(characterId);
+    // RC-D1 — postava se mohla smazat během lazy-create → orphan subdoc.
+    await this.rollbackIfParentGone(characterId, () =>
+      this.notesRepo.deleteByCharacterId(characterId),
+    );
+    return created;
   }
 
   async updateNotes(

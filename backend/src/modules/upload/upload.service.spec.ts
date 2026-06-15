@@ -4,14 +4,16 @@ import {
   BadGatewayException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BadRequestException } from '@nestjs/common';
 import { UploadService } from './upload.service';
 import { v2 as cloudinary } from 'cloudinary';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
 
-// Mock fs/promises pro disk fallback test (saveImageToDisk)
+// Mock fs/promises pro disk fallback test (saveImageToDisk) + UM-06 cleanup (unlink)
 jest.mock('fs/promises', () => ({
   writeFile: jest.fn(),
   mkdir: jest.fn(),
+  unlink: jest.fn(),
 }));
 
 jest.mock('cloudinary', () => ({
@@ -106,6 +108,14 @@ describe('UploadService', () => {
   it('should throw UnsupportedMediaTypeException for application/zip', async () => {
     await expect(
       service.uploadFile(makeFile('application/zip'), 'world1', 'ch1'),
+    ).rejects.toThrow(UnsupportedMediaTypeException);
+  });
+
+  // UM-01 — image/svg+xml byl odebrán z whitelistu (stored-XSS přes <script> v SVG).
+  // Regresní guard: kdyby se svg vrátilo do povolených MIME, tenhle test zčervená.
+  it('UM-01 — odmítne image/svg+xml (XSS vektor, ven z whitelistu)', async () => {
+    await expect(
+      service.uploadFile(makeFile('image/svg+xml'), 'world1', 'ch1'),
     ).rejects.toThrow(UnsupportedMediaTypeException);
   });
 
@@ -255,7 +265,7 @@ describe('UploadService', () => {
     ).resolves.not.toThrow();
   });
 
-  describe('extractCloudinaryPublicId (CD-01/02/03 — blob cleanup guard)', () => {
+  describe('extractCloudinaryPublicId (CD-01, CD-02, CD-03 — blob cleanup guard)', () => {
     it('Cloudinary URL → public_id (bez verze a přípony)', () => {
       expect(
         service.extractCloudinaryPublicId(
@@ -478,6 +488,268 @@ describe('UploadService', () => {
       expect(result.publicId).toContain('local:platform/');
       expect(writeFile).toHaveBeenCalled();
       expect(mkdir).toHaveBeenCalled();
+    });
+  });
+
+  // UM-09 — EXIF/GPS/ICC strip na content/galerie/platform cestě
+  // (`uploadImageToFolder`). Bez `flags: strip_profile` se originál vč. metadat
+  // (GPS hráčovy fotky = PII leak) uloží beze změny. Avatar cesta to řeší
+  // vlastní webp+crop transformací (jiná metoda).
+  describe('UM-09 — EXIF strip (strip_profile) na image-folder cestě', () => {
+    const expectStripProfile = async (
+      upload: () => Promise<unknown>,
+    ): Promise<void> => {
+      let capturedOpts: any;
+      const mockWritable = { end: jest.fn() };
+      (cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
+        (opts, cb) => {
+          capturedOpts = opts;
+          cb(null, {
+            secure_url: 'https://cdn/x.jpg',
+            public_id: 'x',
+            width: 1,
+            height: 1,
+          });
+          return mockWritable;
+        },
+      );
+      await upload();
+      expect(capturedOpts.transformation).toEqual(
+        expect.arrayContaining([{ flags: 'strip_profile' }]),
+      );
+    };
+
+    it('UM-09 — uploadContentImage předá strip_profile transformaci', async () => {
+      await expectStripProfile(() =>
+        service.uploadContentImage(makeFile('image/jpeg')),
+      );
+    });
+
+    it('UM-09 — uploadGalleryImage předá strip_profile transformaci', async () => {
+      await expectStripProfile(() =>
+        service.uploadGalleryImage(makeFile('image/png')),
+      );
+    });
+
+    it('UM-09 — uploadImage (platform) předá strip_profile transformaci', async () => {
+      await expectStripProfile(() =>
+        service.uploadImage(makeFile('image/webp')),
+      );
+    });
+  });
+
+  // UM-14 (DoS) — pixel/rozměr strop proti dekompresní bombě. Image-folder cesta
+  // (`uploadImageToFolder`: content/galerie/platform) musí Cloudinaru předat
+  // `c_limit` transformaci na max 4000×4000 → gigapixel canvas se zmenší dřív,
+  // než ohrozí instanci. Strop je v JEDNÉ transformaci spolu se strip_profile.
+  describe('UM-14 — pixel/rozměr strop (dekompresní bomba)', () => {
+    const captureOpts = async (
+      upload: () => Promise<unknown>,
+    ): Promise<any> => {
+      let capturedOpts: any;
+      const mockWritable = { end: jest.fn() };
+      (cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
+        (opts, cb) => {
+          capturedOpts = opts;
+          cb(null, {
+            secure_url: 'https://cdn/x.jpg',
+            public_id: 'x',
+            width: 1,
+            height: 1,
+          });
+          return mockWritable;
+        },
+      );
+      await upload();
+      return capturedOpts;
+    };
+
+    it('UM-14 — uploadContentImage předá c_limit strop 4000×4000', async () => {
+      const opts = await captureOpts(() =>
+        service.uploadContentImage(makeFile('image/jpeg')),
+      );
+      expect(opts.transformation).toEqual(
+        expect.arrayContaining([{ width: 4000, height: 4000, crop: 'limit' }]),
+      );
+    });
+
+    it('UM-14 — uploadGalleryImage předá c_limit strop', async () => {
+      const opts = await captureOpts(() =>
+        service.uploadGalleryImage(makeFile('image/png')),
+      );
+      expect(opts.transformation).toEqual(
+        expect.arrayContaining([{ width: 4000, height: 4000, crop: 'limit' }]),
+      );
+    });
+
+    it('UM-14 — uploadImage (platform) předá c_limit strop', async () => {
+      const opts = await captureOpts(() =>
+        service.uploadImage(makeFile('image/webp')),
+      );
+      expect(opts.transformation).toEqual(
+        expect.arrayContaining([{ width: 4000, height: 4000, crop: 'limit' }]),
+      );
+    });
+  });
+
+  // UM-08 — origin guard příloh world-chatu / scheduled zpráv. Brání podstrčení
+  // cizí `url` do zprávy (tracking/phishing odkaz). Příloha musí pocházet z
+  // našeho Cloudinary účtu (doména + folder prefix) nebo disk fallbacku (local:).
+  describe('UM-08 — assertAttachmentsOrigin (origin guard příloh)', () => {
+    const base = 'https://res.cloudinary.com/test-cloud/';
+
+    it('UM-08 — prázdné / undefined přílohy projdou', () => {
+      expect(() =>
+        service.assertAttachmentsOrigin(undefined, ['world-chat/']),
+      ).not.toThrow();
+      expect(() =>
+        service.assertAttachmentsOrigin([], ['world-chat/']),
+      ).not.toThrow();
+    });
+
+    it('UM-08 — příloha z našeho Cloudinary účtu + povolený folder projde', () => {
+      expect(() =>
+        service.assertAttachmentsOrigin(
+          [
+            {
+              url: `${base}image/upload/v1/world-chat/w1/a.png`,
+              publicId: 'world-chat/w1/a',
+              type: 'image',
+            },
+          ],
+          ['world-chat/'],
+        ),
+      ).not.toThrow();
+    });
+
+    it('UM-08 — disk fallback (local:) projde', () => {
+      expect(() =>
+        service.assertAttachmentsOrigin(
+          [
+            {
+              url: 'http://x/static/world-chat/w1/a.png',
+              publicId: 'local:world-chat/w1/a',
+              type: 'image',
+            },
+          ],
+          ['world-chat/'],
+        ),
+      ).not.toThrow();
+    });
+
+    it('UM-08 — cizí doména (podstrčená url) → BadRequestException', () => {
+      expect(() =>
+        service.assertAttachmentsOrigin(
+          [
+            {
+              url: 'https://evil.com/track.png',
+              publicId: 'world-chat/w1/a',
+              type: 'image',
+            },
+          ],
+          ['world-chat/'],
+        ),
+      ).toThrow(BadRequestException);
+    });
+
+    it('UM-08 — správná doména ale cizí folder prefix → BadRequestException', () => {
+      expect(() =>
+        service.assertAttachmentsOrigin(
+          [
+            {
+              url: `${base}image/upload/v1/global-chat/x/a.png`,
+              publicId: 'global-chat/x/a',
+              type: 'image',
+            },
+          ],
+          ['world-chat/'],
+        ),
+      ).toThrow(BadRequestException);
+    });
+
+    it('UM-08 — nepovolený typ (video) → BadRequestException', () => {
+      expect(() =>
+        service.assertAttachmentsOrigin(
+          [
+            {
+              url: `${base}video/upload/v1/world-chat/w1/v.mp4`,
+              publicId: 'world-chat/w1/v',
+              type: 'video',
+            },
+          ],
+          ['world-chat/'],
+        ),
+      ).toThrow(BadRequestException);
+    });
+  });
+
+  // UM-03, UM-04, UM-05 — generický úklid osiřelých blobů po REPLACE/delete přes event
+  // `media.orphaned`. Doplňuje `*.deleted` cesty, jež řešily jen smazání celé
+  // entity, ne výměnu obrázku (pages hero/galerie, worlds, chat-group,
+  // world-news, game-events, emotes, mapy, world-maps).
+  describe('UM-03, UM-04, UM-05 — handleMediaOrphaned (media.orphaned event)', () => {
+    it('UM-03, UM-04, UM-05 — smaže každý Cloudinary blob z payloadu', async () => {
+      (cloudinary.uploader.destroy as jest.Mock).mockResolvedValue({
+        result: 'ok',
+      });
+      await service.handleMediaOrphaned({
+        urls: [
+          'https://res.cloudinary.com/demo/image/upload/v1/ikaros/pages/old.webp',
+          'https://res.cloudinary.com/demo/image/upload/v1/ikaros/worlds/bg.webp',
+        ],
+      });
+      expect(cloudinary.uploader.destroy).toHaveBeenCalledWith(
+        'ikaros/pages/old',
+        { resource_type: 'image' },
+      );
+      expect(cloudinary.uploader.destroy).toHaveBeenCalledWith(
+        'ikaros/worlds/bg',
+        { resource_type: 'image' },
+      );
+    });
+
+    it('UM-03, UM-04, UM-05 — ne-Cloudinary (GDrive) URL se NEmaže', async () => {
+      await service.handleMediaOrphaned({
+        urls: ['https://drive.google.com/uc?id=XYZ', null, undefined],
+      });
+      expect(cloudinary.uploader.destroy).not.toHaveBeenCalled();
+    });
+
+    it('UM-03, UM-04, UM-05 — prázdný payload neselže', async () => {
+      await expect(service.handleMediaOrphaned({})).resolves.not.toThrow();
+    });
+  });
+
+  // UM-06 — disk-fallback bloby (`/static/...`) Cloudinary extractor míjí
+  // (vrací null) → bez lokálního cleanupu by ležely v uploads/ navždy.
+  // `deleteImageByUrl` proto na ně volá unlink, s traversal guardem.
+  describe('UM-06 — deleteLocalImageByUrl (disk fallback cleanup)', () => {
+    it('UM-06 — /static/ URL → unlink lokálního souboru', async () => {
+      (unlink as jest.Mock).mockResolvedValue(undefined);
+      await service.deleteImageByUrl(
+        'http://localhost:3000/static/platform/123-abc.jpg',
+      );
+      expect(unlink).toHaveBeenCalledTimes(1);
+      const calledPath = (unlink as jest.Mock).mock.calls[0][0] as string;
+      expect(calledPath).toContain('uploads');
+      expect(calledPath).toContain('platform');
+    });
+
+    it('UM-06 — path traversal (../) NEsmaže soubor mimo uploads/', async () => {
+      (unlink as jest.Mock).mockResolvedValue(undefined);
+      await service.deleteImageByUrl(
+        'http://localhost:3000/static/../../../etc/passwd',
+      );
+      expect(unlink).not.toHaveBeenCalled();
+    });
+
+    it('UM-06 — ENOENT (soubor neexistuje) je best-effort, neselže', async () => {
+      (unlink as jest.Mock).mockRejectedValue(
+        Object.assign(new Error('not found'), { code: 'ENOENT' }),
+      );
+      await expect(
+        service.deleteImageByUrl('http://x/static/platform/gone.jpg'),
+      ).resolves.not.toThrow();
     });
   });
 });

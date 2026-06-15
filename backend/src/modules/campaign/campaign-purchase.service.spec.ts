@@ -4,6 +4,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { getConnectionToken } from '@nestjs/mongoose';
 import { CampaignPurchaseService } from './services/campaign-purchase.service';
 import { CharacterAccountsService } from '../character-subdocs/character-accounts.service';
 import { CharacterSubdocsService } from '../character-subdocs/character-subdocs.service';
@@ -20,18 +21,42 @@ describe('CampaignPurchaseService', () => {
     create: jest.fn(),
     update: jest.fn(),
     findMany: jest.fn(),
+    markRefundedIfActive: jest.fn(),
   };
   const mockAccounts = {
     assertCanAdjust: jest.fn(),
     adjust: jest.fn(),
+    debitIfSufficient: jest.fn(),
     getAccount: jest.fn(),
   };
-  const mockSubdocs = { getInventory: jest.fn(), updateInventory: jest.fn() };
+  const mockSubdocs = {
+    getInventory: jest.fn(),
+    updateInventory: jest.fn(),
+    // RC-E4 — purchase path nově atomicky appenduje přes appendInventoryItem.
+    appendInventoryItem: jest.fn(),
+  };
   const mockCurrencies = { convert: jest.fn() };
   const mockCharacters = {
     findById: jest.fn(),
     isWorldStaff: jest.fn(),
     findByUser: jest.fn(),
+  };
+  // RC-E5 — bez reálného replica setu `withTransaction` v unit testu hodí
+  // „Transaction numbers..." → service spadne do sekvenční fallback cesty
+  // (plná kompenzace). Tím unit spec ověřuje právě fallback (single-instance
+  // prod) chování; transakční cestu pokrývá race e2e na MongoMemoryReplSet.
+  const mockSession = {
+    withTransaction: jest.fn(() =>
+      Promise.reject(
+        new Error(
+          'Transaction numbers are only allowed on a replica set member or mongos',
+        ),
+      ),
+    ),
+    endSession: jest.fn(() => Promise.resolve(undefined)),
+  };
+  const mockConnection = {
+    startSession: jest.fn(() => Promise.resolve(mockSession)),
   };
 
   const character = {
@@ -77,6 +102,7 @@ describe('CampaignPurchaseService', () => {
         { provide: CharacterSubdocsService, useValue: mockSubdocs },
         { provide: WorldCurrenciesService, useValue: mockCurrencies },
         { provide: CharactersService, useValue: mockCharacters },
+        { provide: getConnectionToken(), useValue: mockConnection },
       ],
     }).compile();
     service = moduleRef.get(CampaignPurchaseService);
@@ -85,8 +111,14 @@ describe('CampaignPurchaseService', () => {
     mockCharacters.findById.mockResolvedValue(character);
     mockCharacters.isWorldStaff.mockResolvedValue(true);
     mockAccounts.assertCanAdjust.mockResolvedValue(account);
+    // RC-E5 — cena 0 cesta čte aktuální balance přes getAccount (žádný odečet).
+    mockAccounts.getAccount.mockResolvedValue(account);
     mockSubdocs.getInventory.mockResolvedValue({ sections: [] });
     mockSubdocs.updateInventory.mockResolvedValue({ sections: [] });
+    mockSubdocs.appendInventoryItem.mockResolvedValue({
+      sectionId: 'sec-auto',
+      itemId: 'it-new',
+    });
     mockPurchaseRepo.create.mockImplementation((d: Record<string, unknown>) =>
       Promise.resolve({ id: 'p1', ...d }),
     );
@@ -97,7 +129,7 @@ describe('CampaignPurchaseService', () => {
   describe('purchase', () => {
     it('happy path — odečte z účtu, přidá do vybavení, zapíše log', async () => {
       mockShopRepo.findById.mockResolvedValue(makeItem());
-      mockAccounts.adjust.mockResolvedValue({
+      mockAccounts.debitIfSufficient.mockResolvedValue({
         ...account,
         balance: 100,
         transactions: [{ id: 'tx1', delta: -100 }],
@@ -105,12 +137,12 @@ describe('CampaignPurchaseService', () => {
 
       const res = await service.purchase('w1', 'item1', 'pj1', dto);
 
-      expect(mockSubdocs.updateInventory).toHaveBeenCalled();
-      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+      expect(mockSubdocs.appendInventoryItem).toHaveBeenCalled();
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
-        expect.objectContaining({ amount: -100 }),
+        100,
+        expect.stringContaining('Nákup'),
         'pj1',
-        undefined,
       );
       expect(mockPurchaseRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ paidAmount: 100, status: 'active' }),
@@ -122,17 +154,17 @@ describe('CampaignPurchaseService', () => {
       mockShopRepo.findById.mockResolvedValue(
         makeItem({ discountPercent: 20 }),
       );
-      mockAccounts.adjust.mockResolvedValue({
+      mockAccounts.debitIfSufficient.mockResolvedValue({
         ...account,
         balance: 120,
         transactions: [{ id: 'tx1' }],
       });
       await service.purchase('w1', 'item1', 'pj1', dto);
-      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
-        expect.objectContaining({ amount: -80 }),
+        80,
+        expect.stringContaining('Nákup'),
         'pj1',
-        undefined,
       );
     });
 
@@ -143,17 +175,17 @@ describe('CampaignPurchaseService', () => {
         name: 'Zbraně',
         discountPercent: 10,
       });
-      mockAccounts.adjust.mockResolvedValue({
+      mockAccounts.debitIfSufficient.mockResolvedValue({
         ...account,
         balance: 110,
         transactions: [{ id: 'tx1' }],
       });
       await service.purchase('w1', 'item1', 'pj1', dto);
-      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
-        expect.objectContaining({ amount: -90 }),
+        90,
+        expect.stringContaining('Nákup'),
         'pj1',
-        undefined,
       );
     });
 
@@ -164,7 +196,7 @@ describe('CampaignPurchaseService', () => {
         balance: 1000,
       });
       mockCurrencies.convert.mockResolvedValue({ result: 800 });
-      mockAccounts.adjust.mockResolvedValue({
+      mockAccounts.debitIfSufficient.mockResolvedValue({
         ...account,
         balance: 200,
         transactions: [{ id: 'tx1' }],
@@ -178,11 +210,11 @@ describe('CampaignPurchaseService', () => {
         expect.objectContaining({ amount: 100, from: 'GP', to: 'ZL' }),
         'pj1',
       );
-      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
-        expect.objectContaining({ amount: -800 }),
+        800,
+        expect.stringContaining('Nákup'),
         'pj1',
-        undefined,
       );
     });
 
@@ -192,17 +224,17 @@ describe('CampaignPurchaseService', () => {
         ...account,
         balance: 1000,
       });
-      mockAccounts.adjust.mockResolvedValue({
+      mockAccounts.debitIfSufficient.mockResolvedValue({
         ...account,
         balance: 700,
         transactions: [{ id: 'tx1' }],
       });
       await service.purchase('w1', 'item1', 'pj1', { ...dto, quantity: 3 });
-      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
-        expect.objectContaining({ amount: -300 }),
+        300,
+        expect.stringContaining('Nákup'),
         'pj1',
-        undefined,
       );
     });
 
@@ -211,8 +243,8 @@ describe('CampaignPurchaseService', () => {
       await expect(service.purchase('w1', 'item1', 'pj1', dto)).rejects.toThrow(
         ConflictException,
       );
-      expect(mockSubdocs.updateInventory).not.toHaveBeenCalled();
-      expect(mockAccounts.adjust).not.toHaveBeenCalled();
+      expect(mockSubdocs.appendInventoryItem).not.toHaveBeenCalled();
+      expect(mockAccounts.debitIfSufficient).not.toHaveBeenCalled();
     });
 
     it('hráč nakupující cizí postavě → 403', async () => {
@@ -234,13 +266,13 @@ describe('CampaignPurchaseService', () => {
       await expect(service.purchase('w1', 'item1', 'u1', dto)).rejects.toThrow(
         ForbiddenException,
       );
-      expect(mockSubdocs.updateInventory).not.toHaveBeenCalled();
+      expect(mockSubdocs.appendInventoryItem).not.toHaveBeenCalled();
     });
 
     it('položka zdarma (cena 0) → bez adjustu, log s paidAmount 0', async () => {
       mockShopRepo.findById.mockResolvedValue(makeItem({ price: 0 }));
       const res = await service.purchase('w1', 'item1', 'pj1', dto);
-      expect(mockAccounts.adjust).not.toHaveBeenCalled();
+      expect(mockAccounts.debitIfSufficient).not.toHaveBeenCalled();
       expect(mockPurchaseRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ paidAmount: 0, accountTransactionId: '' }),
       );
@@ -270,17 +302,18 @@ describe('CampaignPurchaseService', () => {
 
     it('vrátí peníze + odebere položku z vybavení', async () => {
       mockPurchaseRepo.findById.mockResolvedValue(activePurchase);
+      mockPurchaseRepo.markRefundedIfActive.mockResolvedValue({
+        ...activePurchase,
+        status: 'refunded',
+      });
       mockAccounts.adjust.mockResolvedValue({ ...account, balance: 300 });
       mockSubdocs.getInventory.mockResolvedValue({
         sections: [{ id: 'sec1', items: [{ id: 'it1' }] }],
       });
-      mockPurchaseRepo.update.mockResolvedValue({
-        ...activePurchase,
-        status: 'refunded',
-      });
 
       const res = await service.refund('w1', 'p1', 'pj1');
 
+      expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalledWith('p1');
       expect(mockAccounts.adjust).toHaveBeenCalledWith(
         'acc1',
         expect.objectContaining({ amount: 100 }),
@@ -288,10 +321,6 @@ describe('CampaignPurchaseService', () => {
         undefined,
       );
       expect(mockSubdocs.updateInventory).toHaveBeenCalled();
-      expect(mockPurchaseRepo.update).toHaveBeenCalledWith(
-        'p1',
-        expect.objectContaining({ status: 'refunded' }),
-      );
       expect(res.newBalance).toBe(300);
     });
 
@@ -307,15 +336,15 @@ describe('CampaignPurchaseService', () => {
 
     it('tolerantní: smazaná položka ve vybavení nezabrání vrácení peněz', async () => {
       mockPurchaseRepo.findById.mockResolvedValue(activePurchase);
-      mockAccounts.adjust.mockResolvedValue({ ...account, balance: 300 });
-      mockSubdocs.getInventory.mockRejectedValue(new Error('gone'));
-      mockPurchaseRepo.update.mockResolvedValue({
+      mockPurchaseRepo.markRefundedIfActive.mockResolvedValue({
         ...activePurchase,
         status: 'refunded',
       });
+      mockAccounts.adjust.mockResolvedValue({ ...account, balance: 300 });
+      mockSubdocs.getInventory.mockRejectedValue(new Error('gone'));
       const res = await service.refund('w1', 'p1', 'pj1');
       expect(res.newBalance).toBe(300);
-      expect(mockPurchaseRepo.update).toHaveBeenCalled();
+      expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalled();
     });
   });
 });

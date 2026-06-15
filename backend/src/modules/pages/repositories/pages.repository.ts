@@ -55,6 +55,29 @@ export class MongoPagesRepository
     );
   }
 
+  /**
+   * RC-P1 fix — atomický optimistic lock. `findOneAndUpdate` s podmínkou
+   * `updatedAt: expectedUpdatedAt` ve filtru: ze dvou souběžných editů stejné
+   * verze uspěje právě jeden (druhý už nesplní filtr → null = konflikt).
+   */
+  async updateIfUnchanged(
+    id: string,
+    data: Partial<Page>,
+    expectedUpdatedAt: Date,
+  ): Promise<Page | null> {
+    const doc = await this.model
+      .findOneAndUpdate(
+        { _id: id, updatedAt: expectedUpdatedAt },
+        { $set: data },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   async existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean> {
     const count = await this.model
       .countDocuments({ slug: slug.toLowerCase(), worldId })

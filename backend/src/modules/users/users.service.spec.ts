@@ -71,6 +71,7 @@ describe('UsersService', () => {
     findPublicPaginated: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    pullFavoritePageSlug: jest.fn(),
   };
   const mockUsernameRequestsRepo = {
     create: jest.fn(),
@@ -1180,6 +1181,21 @@ describe('UsersService', () => {
         world2: ['existing'],
         [VALID_WORLD]: ['domov'],
       });
+    });
+  });
+
+  // CD-08 (cascade-delete audit) — po smazání stránky se její slug musí
+  // odebrat z `favoritePageSlugs` VŠECH uživatelů (jinak mrtvý slug → broken
+  // dlaždice oblíbených). Handler `onPageDeleted` reaguje na event `page.deleted`
+  // a deleguje na repo `$pull` (scoped na worldId).
+  describe('onPageDeleted (CD-08 — favoritePageSlugs orphan cleanup)', () => {
+    it('CD-08 — odebere smazaný slug z oblíbených napříč uživateli (scoped na worldId)', async () => {
+      mockRepo.pullFavoritePageSlug.mockResolvedValue(undefined);
+      await service.onPageDeleted({ worldId: 'world1', slug: 'stara-stranka' });
+      expect(mockRepo.pullFavoritePageSlug).toHaveBeenCalledWith(
+        'world1',
+        'stara-stranka',
+      );
     });
   });
 

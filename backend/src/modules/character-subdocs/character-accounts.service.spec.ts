@@ -24,6 +24,7 @@ describe('CharacterAccountsService', () => {
     create: jest.fn(),
     update: jest.fn(),
     appendTransaction: jest.fn(),
+    appendTransactionIfSufficient: jest.fn(),
     replaceMoneyFields: jest.fn(),
     deleteById: jest.fn(),
     countByOwnerCharacterId: jest.fn(),
@@ -481,10 +482,14 @@ describe('CharacterAccountsService', () => {
 
       const result = await service.undoLast('acc1');
 
-      expect(mockAccountsRepo.update).toHaveBeenCalledWith('acc1', {
-        balance: 1000,
-        transactions: [],
-      });
+      // RC-E3 fix: undoLast jede přes withTransaction; unit mock rejectne
+      // ('replica set') → fallback `undoLastOnce(accountId)` → update(id, patch,
+      // session=undefined) → 3. argument je undefined.
+      expect(mockAccountsRepo.update).toHaveBeenCalledWith(
+        'acc1',
+        { balance: 1000, transactions: [] },
+        undefined,
+      );
       expect(result.balance).toBe(1000);
     });
 

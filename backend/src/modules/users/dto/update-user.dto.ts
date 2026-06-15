@@ -2,6 +2,7 @@ import {
   IsString,
   IsOptional,
   MaxLength,
+  MinLength,
   IsUrl,
   Matches,
   IsObject,
@@ -14,7 +15,15 @@ export class UpdateUserDto {
   @IsOptional() @IsString() @MaxLength(32) displayName?: string;
   @IsOptional() @IsUrl() avatarUrl?: string;
   @IsOptional() @Matches(/^[a-z0-9-]+\/[a-z0-9-]+$/) characterPath?: string;
-  @IsOptional() @IsString() @MaxLength(32) username?: string;
+  // F-23 — sjednoceno s RegisterDto + RequestUsernameChangeDto
+  // (MinLength(3), MaxLength(32), /^[^@]+$/). Přímý PATCH dříno bez
+  // MinLength/Matches → kratší/`@`-jméno prošlo, na rozdíl od registrace.
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(32)
+  @Matches(/^[^@]+$/, { message: 'Přezdívka nesmí obsahovat @' })
+  username?: string;
   @IsOptional() @IsObject() themeSettings?: Record<string, unknown>;
   @IsOptional() @IsObject() chatPreferences?: Record<string, unknown>;
   // D-052 — privacy „neviditelný" mód (skrýt online stav)

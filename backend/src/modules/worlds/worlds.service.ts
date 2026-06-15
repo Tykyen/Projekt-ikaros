@@ -1272,16 +1272,30 @@ export class WorldsService implements OnApplicationBootstrap {
         });
     }
 
-    const updated = await this.membershipRepo.update(membershipId, { role });
-    if (!updated)
-      throw new NotFoundException({
-        code: 'WORLD_NOT_FOUND',
-        message: 'Membership nenalezeno',
-      });
+    // RC-R2 fix — atomický conditional update role. `updateRoleIfChanged` vrací
+    // dokument PŘED změnou, nebo null když role už byla cílová (idempotentní
+    // no-op). Tím se playerCount inkrementuje JEN při skutečném přechodu →
+    // dvě souběžné stejné změny nezdvojí counter (DI-05 + drift fix).
+    const prev = await this.membershipRepo.updateRoleIfChanged(
+      membershipId,
+      role,
+    );
+    if (!prev) {
+      // Role se nezměnila (souběžný/idempotentní no-op) — žádný counter drift.
+      const current = await this.membershipRepo.findById(membershipId);
+      if (!current)
+        throw new NotFoundException({
+          code: 'WORLD_NOT_FOUND',
+          message: 'Membership nenalezeno',
+        });
+      return current;
+    }
+    const updated: WorldMembership = { ...prev, role };
 
     // DI-05 (db-integrity audit) — playerCount = automatický počet Hráčů.
-    // Udrž ho při změně role (párově k −1 v leave/remove členství).
-    const wasPlayer = membership.role === WorldRole.Hrac;
+    // wasPlayer se počítá z atomicky zachyceného PŘEDCHOZÍHO stavu (`prev`),
+    // ne ze samostatného readu výš → nezdvojí inkrement pod souběhem.
+    const wasPlayer = prev.role === WorldRole.Hrac;
     const isPlayer = role === WorldRole.Hrac;
     if (!wasPlayer && isPlayer)
       await this.worldsRepo.increment(membership.worldId, 'playerCount', 1);
@@ -1862,6 +1876,33 @@ export class WorldsService implements OnApplicationBootstrap {
         message: 'Svět nenalezen',
       });
 
+    // RC-R3 (race-condition audit) — TOCTOU: newOwner mohl mezi readem jeho
+    // membershipu a tímto zápisem opustit svět (souběžný `leave`). Bez re-checku
+    // by `ownerId` ukazoval na uživatele BEZ membershipu = vlastník-duch (svět
+    // bez funkčního vlastníka, nelze jej spravovat). Re-ověř PO zápisu ownerId
+    // (vzor RC-D3/D6 re-check po zápisu + rollback); když membership zmizel,
+    // vrať ownerId i role zpět na původního vlastníka a odmítni transfer →
+    // invariant „svět má vždy právě 1 vlastníka s membershipem" drží.
+    const stillMember = await this.membershipRepo.findByUserAndWorld(
+      newOwnerId,
+      worldId,
+    );
+    if (!stillMember) {
+      // Rollback: vrať vlastnictví i role původnímu vlastníkovi (best-effort).
+      await this.worldsRepo
+        .update(worldId, { ownerId: world.ownerId })
+        .catch(() => undefined);
+      if (oldOwnerMembership && oldOwnerMembership.role === WorldRole.PJ) {
+        await this.membershipRepo
+          .update(oldOwnerMembership.id, { role: WorldRole.PJ })
+          .catch(() => undefined);
+      }
+      throw new BadRequestException({
+        code: 'WORLD_TRANSFER_NOT_MEMBER',
+        message: 'Nový vlastník mezitím opustil svět',
+      });
+    }
+
     this.eventEmitter.emit('world.updated', updated);
     // N-15 — membership.changed se z transferu odebral: emitoval `{ worldId }`
     // bez `membership`, takže gateway pushoval `undefined`. Transfer navíc mění
@@ -1947,10 +1988,13 @@ export class WorldsService implements OnApplicationBootstrap {
       payload.worldId,
     );
     if (!membership) return;
-    await this.membershipRepo.update(membership.id, {
-      characterPath: payload.slug,
-      avatarUrl: payload.imageUrl,
-    });
+    // UM-15 — `avatarUrl` aktualizuj JEN když payload obrázek opravdu nese.
+    // Od 9.1 character.* eventy `imageUrl` neposílají (Page mirror ho drží), takže
+    // bezpodmínečný zápis vynuloval snapshot membership.avatarUrl → broken image
+    // v chat personě. Chybějící pole = neměnit (drží hodnotu z updateMemberCharacter).
+    const updates: Partial<WorldMembership> = { characterPath: payload.slug };
+    if (payload.imageUrl !== undefined) updates.avatarUrl = payload.imageUrl;
+    await this.membershipRepo.update(membership.id, updates);
   }
 
   @OnEvent('character.updated')
@@ -1968,10 +2012,10 @@ export class WorldsService implements OnApplicationBootstrap {
       payload.worldId,
     );
     if (!membership) return;
-    await this.membershipRepo.update(membership.id, {
-      characterPath: payload.slug,
-      avatarUrl: payload.imageUrl,
-    });
+    // UM-15 — viz onCharacterCreated: avatarUrl jen při dodaném imageUrl.
+    const updates: Partial<WorldMembership> = { characterPath: payload.slug };
+    if (payload.imageUrl !== undefined) updates.avatarUrl = payload.imageUrl;
+    await this.membershipRepo.update(membership.id, updates);
   }
 
   @OnEvent('character.converted')
@@ -1992,10 +2036,10 @@ export class WorldsService implements OnApplicationBootstrap {
     if (payload.toNpc) {
       await this.membershipRepo.clearCharacter(membership.id);
     } else {
-      await this.membershipRepo.update(membership.id, {
-        characterPath: payload.slug,
-        avatarUrl: payload.imageUrl,
-      });
+      // UM-15 — viz onCharacterCreated: avatarUrl jen při dodaném imageUrl.
+      const updates: Partial<WorldMembership> = { characterPath: payload.slug };
+      if (payload.imageUrl !== undefined) updates.avatarUrl = payload.imageUrl;
+      await this.membershipRepo.update(membership.id, updates);
     }
   }
 

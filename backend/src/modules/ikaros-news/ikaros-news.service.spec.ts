@@ -171,6 +171,23 @@ describe('IkarosNewsService', () => {
       ).resolves.toBeDefined();
     });
 
+    it('F-10 — content se sanitizuje (<script> se zahodí) před uložením', async () => {
+      mockRepo.create.mockResolvedValue(mockItem);
+      await service.create(
+        {
+          title: 'X',
+          content: '<p>ahoj</p><script>alert(1)</script>',
+        },
+        'user1',
+        UserRole.Admin,
+      );
+      const savedContent = (
+        mockRepo.create.mock.calls[0][0] as { content: string }
+      ).content;
+      expect(savedContent).not.toContain('<script');
+      expect(savedContent).toContain('<p>ahoj</p>');
+    });
+
     it('D-069 — PJ NESMÍ vytvořit novinku (platform obsah jen pro globální role)', async () => {
       await expect(
         service.create({ title: 'X', content: 'Y' }, 'user1', UserRole.PJ),
@@ -291,6 +308,20 @@ describe('IkarosNewsService', () => {
       await expect(
         service.update('missing', { title: 'X' }, UserRole.Admin),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('F-10 — update content se sanitizuje (<script> se zahodí)', async () => {
+      mockRepo.update.mockResolvedValue(mockItem);
+      await service.update(
+        'news1',
+        { content: '<p>nove</p><script>evil()</script>' },
+        UserRole.Admin,
+      );
+      const savedContent = (
+        mockRepo.update.mock.calls[0][1] as { content: string }
+      ).content;
+      expect(savedContent).not.toContain('<script');
+      expect(savedContent).toContain('<p>nove</p>');
     });
 
     it('předává jen poslané fieldy (partial update)', async () => {

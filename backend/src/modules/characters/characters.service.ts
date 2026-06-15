@@ -10,6 +10,7 @@ import { logError } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { ICharactersRepository } from './interfaces/characters-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type {
   Character,
@@ -36,6 +37,10 @@ export class CharactersService {
     // ho doplňují pro avatar ve spawn paletě (vzor: maps.enrichTokens).
     @Inject('IPagesRepository')
     private readonly pagesRepo: IPagesRepository,
+    // RC-D2 (race-condition audit) — guard proti create postavy v soft-smazaném
+    // světě (assertCanManage čte stav světa, ne jen membership).
+    @Inject('IWorldsRepository')
+    private readonly worldsRepo: IWorldsRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -80,6 +85,15 @@ export class CharactersService {
     userRole: UserRole,
     worldId: string,
   ): Promise<void> {
+    // RC-D2 (race-condition audit) — svět musí být aktivní (i pro Admin), jinak
+    // by create postavy vytvořil phantom dítě v soft-smazaném světě.
+    // `worldsRepo.findById` (BaseMongo) NEfiltruje `isActive`.
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world || !world.isActive || world.deletedAt)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
     if (userRole <= UserRole.Admin) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,

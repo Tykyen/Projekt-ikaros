@@ -158,6 +158,29 @@ export class MongoWorldMembershipRepository
     );
   }
 
+  /**
+   * RC-R2 fix — atomicky nastaví roli JEN když se liší od cílové. Vrací dokument
+   * PŘED změnou (pro výpočet wasPlayer/isPlayer), nebo null když role už cílová
+   * byla (idempotentní no-op → žádný `playerCount` drift pod souběhem: druhý
+   * z dvou souběžných stejných změn už filtr `role:{$ne}` nesplní a neinkrementuje).
+   */
+  async updateRoleIfChanged(
+    id: string,
+    role: number,
+  ): Promise<WorldMembership | null> {
+    const prev = await this.model
+      .findOneAndUpdate(
+        { _id: id, role: { $ne: role } },
+        { $set: { role } },
+        { new: false },
+      )
+      .lean()
+      .exec();
+    return prev
+      ? this.toEntity(prev as unknown as Record<string, unknown>)
+      : null;
+  }
+
   async clearCharacter(id: string): Promise<WorldMembership | null> {
     const doc = await this.model
       .findByIdAndUpdate(

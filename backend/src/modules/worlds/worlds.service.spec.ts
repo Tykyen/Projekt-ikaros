@@ -63,6 +63,7 @@ describe('WorldsService', () => {
     countByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
+    updateRoleIfChanged: jest.fn(),
     clearCharacter: jest.fn(),
     delete: jest.fn(),
     findById: jest.fn(),
@@ -444,6 +445,15 @@ describe('WorldsService', () => {
       mockMembershipRepo.update.mockImplementation((id, patch) =>
         Promise.resolve({ ...target(WorldRole.Ctenar), id, ...patch }),
       );
+      // RC-R2 fix — service teď mění roli přes updateRoleIfChanged (vrací stav
+      // PŘED změnou, nebo null když beze změny). Mimikuj: vrať findById doc když
+      // se role liší, jinak null.
+      mockMembershipRepo.updateRoleIfChanged.mockImplementation(
+        async (id: string, role: number) => {
+          const cur = await mockMembershipRepo.findById(id);
+          return cur && cur.role !== role ? cur : null;
+        },
+      );
     });
 
     it('povýšení na Hrac → playerCount +1', async () => {
@@ -802,11 +812,12 @@ describe('WorldsService', () => {
         worldId: 'world1',
         role: WorldRole.PJ,
       });
-      mockMembershipRepo.update.mockResolvedValue({
+      // RC-R2 fix — role se mění přes updateRoleIfChanged (vrací PŘEDCHOZÍ doc).
+      mockMembershipRepo.updateRoleIfChanged.mockResolvedValue({
         id: 'm1',
         userId: 'victim',
         worldId: 'world1',
-        role: WorldRole.Korektor,
+        role: WorldRole.Hrac, // stav PŘED změnou
       });
       const result = await service.updateMemberRole('m1', WorldRole.Korektor, {
         id: 'pj',
@@ -814,9 +825,10 @@ describe('WorldsService', () => {
         username: 'pj',
       });
       expect(result.role).toBe(WorldRole.Korektor);
-      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m1', {
-        role: WorldRole.Korektor,
-      });
+      expect(mockMembershipRepo.updateRoleIfChanged).toHaveBeenCalledWith(
+        'm1',
+        WorldRole.Korektor,
+      );
     });
   });
 
@@ -1909,6 +1921,59 @@ describe('WorldsService', () => {
       ]);
       await service.onCharacterDeleted({ worldId: 'world1', slug: 'medak' });
       expect(mockMembershipRepo.clearCharacter).not.toHaveBeenCalled();
+    });
+  });
+
+  // UM-15 — membership.avatarUrl je snapshot obrázku postavy (chat persona).
+  // Od 9.1 character.* eventy `imageUrl` NEnesou (Page mirror ho drží), takže
+  // bezpodmínečný zápis `avatarUrl: payload.imageUrl` vynuloval snapshot →
+  // broken image. Fix: avatarUrl měň JEN když payload imageUrl opravdu nese.
+  describe('UM-15 — avatarUrl snapshot se nevynuluje při character.* bez imageUrl', () => {
+    beforeEach(() => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'm1',
+        avatarUrl: 'https://cdn/character.webp',
+      });
+    });
+
+    it('UM-15 — onCharacterUpdated bez imageUrl NEpřepíše avatarUrl', async () => {
+      await service.onCharacterUpdated({
+        userId: 'u1',
+        worldId: 'world1',
+        isNpc: false,
+        slug: 'medak',
+      });
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m1', {
+        characterPath: 'medak',
+      });
+      const updateArg = mockMembershipRepo.update.mock.calls[0][1];
+      expect('avatarUrl' in updateArg).toBe(false);
+    });
+
+    it('UM-15 — onCharacterCreated bez imageUrl NEpřepíše avatarUrl', async () => {
+      await service.onCharacterCreated({
+        userId: 'u1',
+        worldId: 'world1',
+        isNpc: false,
+        name: 'Meďák',
+        slug: 'medak',
+      });
+      const updateArg = mockMembershipRepo.update.mock.calls[0][1];
+      expect('avatarUrl' in updateArg).toBe(false);
+    });
+
+    it('UM-15 — onCharacterUpdated s imageUrl avatarUrl nastaví (regrese)', async () => {
+      await service.onCharacterUpdated({
+        userId: 'u1',
+        worldId: 'world1',
+        isNpc: false,
+        slug: 'medak',
+        imageUrl: 'https://cdn/new.webp',
+      });
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith('m1', {
+        characterPath: 'medak',
+        avatarUrl: 'https://cdn/new.webp',
+      });
     });
   });
 

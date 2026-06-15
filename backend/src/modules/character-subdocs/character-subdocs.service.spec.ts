@@ -79,10 +79,16 @@ describe('CharacterSubdocsService', () => {
     create: jest.fn(),
     archive: jest.fn(),
   };
+  // RC-D1 — subdocs service re-ověřuje existenci rodiče po lazy-create. Default:
+  // rodič existuje (lazy-create testy nesmí 404). Konkrétní test může přepsat.
+  const mockCharactersRepo = {
+    findById: jest.fn().mockResolvedValue({ id: 'char1' }),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     mockDiaryVersionsRepo.findActive.mockResolvedValue(null);
+    mockCharactersRepo.findById.mockResolvedValue({ id: 'char1' });
     const module = await Test.createTestingModule({
       providers: [
         CharacterSubdocsService,
@@ -98,6 +104,7 @@ describe('CharacterSubdocsService', () => {
           provide: 'IDiarySchemaVersionsRepository',
           useValue: mockDiaryVersionsRepo,
         },
+        { provide: 'ICharactersRepository', useValue: mockCharactersRepo },
       ],
     }).compile();
     service = module.get(CharacterSubdocsService);

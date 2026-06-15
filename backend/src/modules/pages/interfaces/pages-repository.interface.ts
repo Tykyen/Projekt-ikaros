@@ -8,6 +8,18 @@ export interface IPagesRepository {
   existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean>;
   save(page: Partial<Page>): Promise<Page>;
   update(id: string, data: Partial<Page>): Promise<Page | null>;
+  /**
+   * RC-P1 fix — atomický optimistic lock: zapíše JEN když se `updatedAt` od
+   * `expectedUpdatedAt` nezměnil (podmínka ve filtru). Vrací null při neshodě
+   * verze (souběžný/stale zápis) NEBO neexistující stránce → volající rozliší
+   * podle předchozího findById. Brání lost-updatu, který app-level check (mezi
+   * findById a update) pod souběhem nechytí.
+   */
+  updateIfUnchanged(
+    id: string,
+    data: Partial<Page>,
+    expectedUpdatedAt: Date,
+  ): Promise<Page | null>;
   delete(id: string): Promise<boolean>;
   findDirectory(
     worldId: string,

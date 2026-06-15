@@ -80,23 +80,39 @@ export class EmotesService {
     return this.repo.findGlobal();
   }
 
+  /**
+   * UM-11 — FE nahraje obrázek (přes /upload) PŘED tímto create. Když create
+   * skončí konfliktem (limit / obsazený shortcode), nahraný blob nikdo
+   * nereferencuje → orphan. Uklidíme ho přes existující `media.orphaned` cestu
+   * (upload.service ho best-effort smaže z Cloudinaru/disku).
+   */
+  private cleanupOrphanedImage(imageUrl: string | null | undefined): void {
+    if (imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [imageUrl] });
+    }
+  }
+
   async create(
     worldId: string,
     dto: CreateEmoteDto,
     userId: string,
   ): Promise<CustomEmote> {
     const count = await this.repo.countByWorldId(worldId);
-    if (count >= EMOTE_LIMIT_PER_WORLD)
+    if (count >= EMOTE_LIMIT_PER_WORLD) {
+      this.cleanupOrphanedImage(dto.imageUrl); // UM-11
       throw new ConflictException({
         code: 'EMOTE_LIMIT_REACHED',
         message: `Svět dosáhl limitu ${EMOTE_LIMIT_PER_WORLD} emotů. Smaž nepoužívané.`,
       });
+    }
     const existing = await this.repo.findByShortcode(dto.shortcode, worldId);
-    if (existing)
+    if (existing) {
+      this.cleanupOrphanedImage(dto.imageUrl); // UM-11
       throw new ConflictException({
         code: 'EMOTE_SHORTCODE_TAKEN',
         message: `Shortcode :${dto.shortcode}: je již použit`,
       });
+    }
     const emote = await this.repo.create({
       worldId,
       name: dto.name,
@@ -115,17 +131,21 @@ export class EmotesService {
     userId: string,
   ): Promise<CustomEmote> {
     const count = await this.repo.countGlobal();
-    if (count >= EMOTE_LIMIT_GLOBAL)
+    if (count >= EMOTE_LIMIT_GLOBAL) {
+      this.cleanupOrphanedImage(dto.imageUrl); // UM-11
       throw new ConflictException({
         code: 'EMOTE_LIMIT_REACHED',
         message: `Platforma dosáhla limitu ${EMOTE_LIMIT_GLOBAL} globálních emotů.`,
       });
+    }
     const existing = await this.repo.findByShortcode(dto.shortcode, null);
-    if (existing)
+    if (existing) {
+      this.cleanupOrphanedImage(dto.imageUrl); // UM-11
       throw new ConflictException({
         code: 'EMOTE_SHORTCODE_TAKEN',
         message: `Shortcode :${dto.shortcode}: je již použit globálně`,
       });
+    }
     const emote = await this.repo.create({
       worldId: null,
       name: dto.name,

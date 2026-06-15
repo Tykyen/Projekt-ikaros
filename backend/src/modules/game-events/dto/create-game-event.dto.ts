@@ -67,9 +67,14 @@ export class CreateGameEventDto {
   @IsIn(['cover', 'contain'])
   imageFit?: 'cover' | 'contain';
 
-  // F-08 — když groupOnly===true, targetGroup musí být neprázdný.
-  @IsOptional()
-  @ValidateIf((o: CreateGameEventDto) => o.groupOnly === true)
+  // F-08 (+AR-13 fix) — když groupOnly===true, targetGroup MUSÍ být neprázdný
+  // string. `@IsOptional()` odebrán: přebíjel @ValidateIf a u `null` přeskočil
+  // veškerou validaci → `{groupOnly:true, targetGroup:null}` dřív prošel (FE
+  // posílá null). Teď @ValidateIf řídí: při groupOnly!==true se validace přeskočí
+  // (cíl=všichni, hodnota targetGroup ignorována), při true se vynutí neprázdný string.
+  @ValidateIf(
+    (o: CreateGameEventDto) => o.groupOnly === true || o.targetGroup != null,
+  )
   @IsNotEmpty({ message: 'targetGroup je povinný, když groupOnly===true' })
   @IsString()
   @MaxLength(64)

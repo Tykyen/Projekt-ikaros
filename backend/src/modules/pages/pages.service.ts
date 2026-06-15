@@ -251,6 +251,17 @@ export class PagesService {
         characterRef,
         akjTabs: sanitizeAkjTabs(dto.akjTabs) ?? [],
       });
+      // RC-D2 — svět se mohl soft-smazat v okně mezi `assertCanWrite` a `save`
+      // → phantom stránka v mrtvém světě. Re-ověř a ukliď (vzor RC-D3/D6
+      // re-check po zápisu + rollback). Hodí stejný NotFoundException jako
+      // selhání save níže → rollback nově vytvořené postavy proběhne v catch.
+      if (!(await this.isWorldActive(worldId))) {
+        await this.pagesRepo.delete(savedPage.id).catch(() => undefined);
+        throw new NotFoundException({
+          code: 'WORLD_NOT_FOUND',
+          message: 'Svět byl mezitím smazán',
+        });
+      }
     } catch (err) {
       // DI-04 — page save selhal PO vytvoření Character → postava + subdocs by
       // zůstaly osiřelé a retry by narazil na {worldId,slug} unique. Rollback
@@ -364,7 +375,7 @@ export class PagesService {
         expectedKind,
       );
     }
-    const updated = await this.pagesRepo.update(id, {
+    const patch: Partial<Page> = {
       ...persistDto,
       ...(safeContent !== undefined && { content: safeContent }),
       ...(safeSections && { sections: safeSections }),
@@ -384,7 +395,34 @@ export class PagesService {
       // Spec 9.2 — characterRef se maže jen pokud nový type nepotřebuje
       // Character entity (tj. ani persona, ani Lokace).
       ...(!needsCharacterUpd && { characterRef: undefined }),
-    });
+    };
+    // RC-P1 fix — atomický optimistic lock. Když klient poslal expectedUpdatedAt,
+    // zapiš JEN když se updatedAt mezitím nezměnil (podmínka v DB filtru). App-level
+    // check výše je rychlá pojistka; tohle chytá i souběžný zápis v okně read↔write
+    // (dva edity stejné verze → uspěje právě jeden, druhý 409).
+    let updated: Page | null;
+    if (dto.expectedUpdatedAt) {
+      updated = await this.pagesRepo.updateIfUnchanged(
+        id,
+        patch,
+        new Date(dto.expectedUpdatedAt),
+      );
+      if (!updated)
+        throw new ConflictException({
+          code: 'PAGE_CONFLICT',
+          message:
+            'Stránka byla mezitím upravena. Načti aktuální verzi nebo přepiš.',
+        });
+    } else {
+      updated = await this.pagesRepo.update(id, patch);
+    }
+    // RC-P4 fix — stránka mohla být smazána v okně mezi findById a update →
+    // update vrátí null → 404 místo dřívějšího 200 s prázdným (null) tělem.
+    if (!updated)
+      throw new NotFoundException({
+        code: 'PAGE_NOT_FOUND',
+        message: 'Stránka nenalezena',
+      });
     // UM-03 — úklid starých blobů při výměně hero / odebrání položek galerie
     // (replace orphan; delete-cesta řeší jen smazání celé stránky).
     const orphaned: (string | null | undefined)[] = [];
@@ -407,11 +445,11 @@ export class PagesService {
       this.eventEmitter.emit('media.orphaned', { urls: orphaned });
     }
     void this.searchCoordinator
-      ?.updatePageInIndex(updated!)
+      ?.updatePageInIndex(updated)
       .catch((err: unknown) =>
         logWarn(this.logger, `updatePageInIndex selhal pro id=${id}`, err),
       );
-    return updated!;
+    return updated;
   }
 
   async delete(
@@ -847,13 +885,17 @@ export class PagesService {
     worldId: string,
     requester: PagesRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    // RC-D2 (race-condition audit) — svět se načte VŽDY (i pro Admin), aby šlo
+    // ověřit, že je aktivní. `worldsRepo.findById` (BaseMongo) NEfiltruje
+    // `isActive`, takže soft-smazaný svět by tudy prošel a create by vytvořil
+    // phantom dítě (stránku/postavu) v mrtvém světě.
     const world = await this.worldsRepo.findById(worldId);
-    if (!world)
+    if (!world || !world.isActive || world.deletedAt)
       throw new NotFoundException({
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
+    if (requester.role <= UserRole.Admin) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -864,5 +906,15 @@ export class PagesService {
         message: 'Nedostatečná oprávnění',
       });
     }
+  }
+
+  /**
+   * RC-D2 (race-condition audit) — re-ověří, že svět je stále aktivní. Volá se
+   * PO zápisu stránky (create), aby pokryl okno, kdy se svět soft-smazal mezi
+   * `assertCanWrite` readem a `pagesRepo.save`. Vrací true, když svět žije.
+   */
+  private async isWorldActive(worldId: string): Promise<boolean> {
+    const world = await this.worldsRepo.findById(worldId);
+    return !!world && world.isActive && !world.deletedAt;
   }
 }

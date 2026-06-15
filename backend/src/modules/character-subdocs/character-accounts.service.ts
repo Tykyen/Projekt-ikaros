@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -9,7 +10,7 @@ import { logError } from '../../common/logging/log-error.util';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { InjectConnection } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
-import type { Connection } from 'mongoose';
+import type { ClientSession, Connection } from 'mongoose';
 import { CharacterAccountRepository } from './repositories/character-account.repository';
 import { CharactersService } from '../characters/characters.service';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -407,15 +408,97 @@ export class CharacterAccountsService {
     return account;
   }
 
+  /**
+   * RC-E1 fix — atomický odečet s kontrolou krytí (pro nákup). Na rozdíl od
+   * `adjust` (PJ ruční, záporný zůstatek povolen) odmítne, když na účtu není
+   * dost. Permission gatuje volající (purchase už ověřil `assertCanAdjust`).
+   */
+  async debitIfSufficient(
+    accountId: string,
+    amountAbs: number,
+    reason: string,
+    performedByUserId: string,
+    inGameDate?: FantasyDateLike | null,
+    // RC-E5 — volitelná session, aby šel odečet zařadit do `withTransaction`
+    // scope nákupu (atomicita napříč účet/inventář/purchase log).
+    session?: ClientSession,
+  ): Promise<CharacterAccount> {
+    const abs = Math.abs(amountAbs);
+    const tx: FinanceTransaction = {
+      id: randomUUID(),
+      date: new Date(),
+      inGameDate: inGameDate ?? null,
+      delta: -abs,
+      description: reason,
+      performedByUserId,
+    };
+    const updated = await this.accountsRepo.appendTransactionIfSufficient(
+      accountId,
+      tx,
+      abs,
+      session,
+    );
+    if (!updated)
+      throw new ConflictException({
+        code: 'INSUFFICIENT_FUNDS',
+        message: 'Na účtu není dostatek prostředků.',
+      });
+    return updated;
+  }
+
+  /**
+   * RC-E3 fix — undo poslední transakce ATOMICKY. Dřív: read → `$set` celého
+   * pole ze zastaralého snapshotu → souběžný `adjust` mezi read↔write se ztratil
+   * (lost update, smazaly se DVĚ transakce). Teď: read+write v jedné
+   * `withTransaction` → souběžný zápis vyvolá write-conflict → withTransaction
+   * retry re-čte čerstvý stav. Replica-set fallback (dev) = sekvenční (vzor `transfer`).
+   */
   async undoLast(accountId: string): Promise<CharacterAccount> {
-    const account = await this.getAccount(accountId);
+    const session = await this.connection.startSession();
+    try {
+      let result: CharacterAccount | null = null;
+      try {
+        await session.withTransaction(async () => {
+          result = await this.undoLastOnce(accountId, session);
+        });
+      } catch (txErr) {
+        const msg = (txErr as Error).message || '';
+        if (
+          msg.includes('replica set') ||
+          msg.includes('Transaction numbers') ||
+          msg.includes('IllegalOperation')
+        ) {
+          return this.undoLastOnce(accountId);
+        }
+        throw txErr;
+      }
+      return result!;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private async undoLastOnce(
+    accountId: string,
+    session?: ClientSession,
+  ): Promise<CharacterAccount> {
+    const account = await this.accountsRepo.findById(accountId, session);
+    if (!account)
+      throw new NotFoundException({
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'Účet nenalezen',
+      });
     if (account.transactions.length === 0) return account;
 
     const last = account.transactions[account.transactions.length - 1];
-    const updated = await this.accountsRepo.update(accountId, {
-      balance: account.balance - last.delta,
-      transactions: account.transactions.slice(0, -1),
-    });
+    const updated = await this.accountsRepo.update(
+      accountId,
+      {
+        balance: account.balance - last.delta,
+        transactions: account.transactions.slice(0, -1),
+      },
+      session,
+    );
     return updated!;
   }
 

@@ -226,6 +226,57 @@ describe('EmotesService', () => {
       expect(mockRepo.findByShortcode).not.toHaveBeenCalled();
       expect(mockRepo.create).not.toHaveBeenCalled();
     });
+
+    // UM-11 — FE nahraje obrázek PŘED create. Při 409 (shortcode kolize / limit)
+    // by nahraný blob zůstal orphan → emote.service ho uklidí přes media.orphaned.
+    it('UM-11 — shortcode kolize → uklidí orphan blob (media.orphaned)', async () => {
+      mockRepo.findByShortcode.mockResolvedValue(mockEmote);
+      const imageUrl = 'https://res.cloudinary.com/x/image/upload/img1.png';
+      await expect(
+        service.create(
+          'world1',
+          { name: 'Smích', shortcode: 'smich', imageId: 'img1', imageUrl },
+          'user1',
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: [imageUrl],
+      });
+    });
+
+    it('UM-11 — limit dosažen → uklidí orphan blob (media.orphaned)', async () => {
+      mockRepo.countByWorldId.mockResolvedValueOnce(100);
+      const imageUrl = 'https://res.cloudinary.com/x/image/upload/img1.png';
+      await expect(
+        service.create(
+          'world1',
+          { name: 'Smích', shortcode: 'smich', imageId: 'img1', imageUrl },
+          'user1',
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: [imageUrl],
+      });
+    });
+
+    it('UM-11 — úspěšný create NEemituje media.orphaned', async () => {
+      mockRepo.findByShortcode.mockResolvedValue(null);
+      mockRepo.create.mockResolvedValue(mockEmote);
+      await service.create(
+        'world1',
+        {
+          name: 'Smích',
+          shortcode: 'smich',
+          imageId: 'img1',
+          imageUrl: 'https://res.cloudinary.com/x/image/upload/img1.png',
+        },
+        'user1',
+      );
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
+        'media.orphaned',
+        expect.anything(),
+      );
+    });
   });
 
   describe('createGlobal', () => {
@@ -298,6 +349,24 @@ describe('EmotesService', () => {
       expect(mockEventEmitter.emit).toHaveBeenCalledWith('emote.created', {
         worldId: null,
         emote: globalEmote,
+      });
+    });
+
+    // UM-11 — global cesta: orphan cleanup při 409.
+    it('UM-11 — globální shortcode kolize → uklidí orphan blob', async () => {
+      mockRepo.findByShortcode.mockResolvedValue({
+        ...mockEmote,
+        worldId: null,
+      });
+      const imageUrl = 'https://res.cloudinary.com/x/image/upload/img1.png';
+      await expect(
+        service.createGlobal(
+          { name: 'Smích', shortcode: 'smich', imageId: 'img1', imageUrl },
+          'admin1',
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: [imageUrl],
       });
     });
   });

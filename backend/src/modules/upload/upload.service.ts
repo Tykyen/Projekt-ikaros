@@ -92,6 +92,22 @@ function assertMagicBytes(file: Express.Multer.File): void {
   }
 }
 
+/**
+ * UM-14 (DoS) — pixel/rozměr strop proti dekompresní bombě. Malý vstupní
+ * soubor může nést gigapixel canvas → OOM/CPU spike při dekódování/transformaci.
+ * Cloudinary `c_limit` zmenší asset jen pokud přesahuje strop (menší nechá beze
+ * změny → bezpečné pro běžné obrázky). 4000 px = generózní pro fotky i atlasy,
+ * pod hranicí, kde dekódování ohrozí instanci.
+ */
+export const MAX_IMAGE_DIMENSION = 4000;
+
+/** UM-14 — Cloudinary transformace stropu rozměru (sdílená image cesta). */
+const LIMIT_DIMENSION_TRANSFORM = {
+  width: MAX_IMAGE_DIMENSION,
+  height: MAX_IMAGE_DIMENSION,
+  crop: 'limit' as const,
+};
+
 /** 3.3a — výsledek image uploadu vč. rozměrů (masonry). */
 export interface UploadedImage {
   url: string;
@@ -373,11 +389,15 @@ export class UploadService {
         cloudinary.uploader
           // UM-09 — `strip_profile` odstraní EXIF/GPS/ICC z uloženého assetu
           // (avatar je řešen webp+crop transformací; tahle cesta byla holá).
+          // UM-14 — `c_limit` strop rozměru proti dekompresní bombě.
           .upload_stream(
             {
               folder,
               resource_type: 'image',
-              transformation: [{ flags: 'strip_profile' }],
+              transformation: [
+                LIMIT_DIMENSION_TRANSFORM,
+                { flags: 'strip_profile' },
+              ],
             },
             (err, res) => {
               if (err || !res)
