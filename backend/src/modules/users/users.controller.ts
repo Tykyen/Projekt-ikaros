@@ -377,13 +377,11 @@ export class UsersController {
     return this.usersService.markUsernameRequestSeen(requester.id, id);
   }
 
-  @Get('profile/:id')
-  @ApiOperation({ summary: 'Veřejný profil uživatele' })
-  @ApiResponse({ status: 200, description: 'Veřejný profil' })
-  @ApiResponse({ status: 404, description: 'Uživatel nenalezen' })
-  publicProfile(@Param('id') id: string) {
-    return this.usersService.publicProfile(id);
-  }
+  // Bezpečnost (2026-06-18): odstraněna nechráněná routa `GET profile/:id`.
+  // Obcházela friend-only viditelnost i tombstone gate a bez auth/rate-limitu
+  // šla hromadně scrapovat. Veřejný profil jde výhradně přes `profile/v14/:id`
+  // (JwtAuthGuard + gating). Servisní metoda `usersService.publicProfile`
+  // zůstává pro interní enrichment (worlds/friendships).
 
   @Get('getCalendarMonth/:id')
   @UseGuards(JwtAuthGuard)

@@ -36,11 +36,13 @@ export class AdminStatsService {
     private readonly discussionsRepo: IIkarosDiscussionsRepository,
     private readonly configService: ConfigService,
   ) {
+    // Default 24 h, ať „Aktivní (24 h)" karta v admin Overview sedí s realitou
+    // (přepsatelné env PRESENCE_THRESHOLD_HOURS pro sladění s presence oknem).
     const hours = Number(
-      this.configService.get('PRESENCE_THRESHOLD_HOURS', 25),
+      this.configService.get('PRESENCE_THRESHOLD_HOURS', 24),
     );
     this.onlineThresholdMs =
-      (Number.isFinite(hours) && hours > 0 ? hours : 25) * HOUR_MS;
+      (Number.isFinite(hours) && hours > 0 ? hours : 24) * HOUR_MS;
   }
 
   async getOverview(): Promise<AdminStatsOverview> {

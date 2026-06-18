@@ -8,7 +8,7 @@ import type { ArticleReviewListItem } from './interfaces/article-review-list-ite
 const REVIEWER_ROLES: UserRole[] = [
   UserRole.Superadmin,
   UserRole.Admin,
-  UserRole.SpravceClanku, // BE enum jméno má dvojité „uu" (FE má SpravceClanku — viz dluh D-NEW-role-name-mismatch)
+  UserRole.SpravceClanku,
 ];
 
 /**

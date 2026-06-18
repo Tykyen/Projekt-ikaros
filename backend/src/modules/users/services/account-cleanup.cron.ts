@@ -9,7 +9,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * 1.3c (N-3) — hard-cleanup pending-deletion účtů po 30denním grace holdu.
  *
- * Běží 1× za hodinu. Najde účty s `deletionRequestedAt < now-30d` (a dosud
+ * Běží denně v 03:00 (Europe/Prague, viz `@Cron` níže). Najde účty s
+ * `deletionRequestedAt < now-30d` (a dosud
  * neanonymizované) a nevratně je anonymizuje (PII zničení, viz
  * `usersRepo.anonymizeForHardDelete`). Pro každý emituje `user.deletion.hardDeleted`,
  * který `admin.service` zapíše do audit logu (ACCOUNT_HARD_DELETE).

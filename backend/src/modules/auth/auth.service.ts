@@ -69,9 +69,10 @@ export class AuthService {
 
   static readonly PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hodina
   static readonly EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hodin
-  // F-03 (GDPR) — verze podmínek platná pro nově ukládaný souhlas. Při změně textu
-  // podmínek zvyš (provozovatel řeší re-souhlas existujících účtů dle potřeby).
-  static readonly TERMS_VERSION = '2026-06-05';
+  // F-03 (GDPR) — verze podmínek platná pro nově ukládaný souhlas. Musí sedět s
+  // verzí na stránce Podmínky (FE TermsPage). Při změně textu zvyš (provozovatel
+  // řeší re-souhlas existujících účtů dle potřeby).
+  static readonly TERMS_VERSION = '1.0'; // Podmínky 1.0 (2026-06-18)
 
   constructor(
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,

@@ -1860,6 +1860,8 @@ combat?: {
 
 ### 23.5 A* měření vzdálenosti (respekt překážek)
 
+> ⚠️ **Stav k 2026-06-18 (ověřeno v kódu, inventura `docs/funkce/14`):** Tahle sekce je **design/spec, NE realita.** V kódu je `movement` stat jen **dosah (range)** a bariéry pohyb fyzicky neblokují — skutečný A* pathfinding (pohyb ani měření přes překážky) zatím **není implementován**. Status „✅ ANO" v přehledové tabulce (§ výše) znamená „rozhodnuto udělat", ne „hotovo". Dotažení sledováno jako **D-NEW-INV-MAPS** (roadmap2 Průřez Ú).
+
 **Princip:** Místo prosté Manhattan-hex distance měření přes A* pathfinding, který respektuje `barrier` efekty.
 
 **Hex distance vzorec (přímá):**
