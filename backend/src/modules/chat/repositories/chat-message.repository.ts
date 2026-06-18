@@ -253,6 +253,7 @@ export class MongoChatMessageRepository
       senderAvatarUrl: doc.senderAvatarUrl as string | undefined,
       overrideName: doc.overrideName as string | undefined,
       overrideAvatarUrl: doc.overrideAvatarUrl as string | undefined,
+      overridePageSlug: doc.overridePageSlug as string | undefined,
       content: doc.content as string | null,
       isEdited: (doc.isEdited as boolean) ?? false,
       isDeleted: (doc.isDeleted as boolean) ?? false,

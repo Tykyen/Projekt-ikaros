@@ -28,6 +28,8 @@ export interface ChatMessage {
   senderIsDeleted?: boolean;
   overrideName?: string;
   overrideAvatarUrl?: string;
+  /** 6.2-followup — slug karty (Page) NPC/postavy pro klikací jméno v chatu. */
+  overridePageSlug?: string;
   content: string | null;
   isEdited: boolean;
   isDeleted: boolean;

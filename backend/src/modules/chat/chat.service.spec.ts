@@ -1996,6 +1996,44 @@ describe('sendMessage — new fields', () => {
     expect(result.overrideName).toBe('Starý kovář');
   });
 
+  it('should persist overridePageSlug together with overrideName (6.2-followup)', async () => {
+    const membership = { ...mockPJMembership, characterPath: 'PJ' };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.save.mockResolvedValue(baseMockMsg);
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    await service.sendMessage(
+      'ch1',
+      {
+        content: 'x',
+        overrideName: 'Starý kovář',
+        overridePageSlug: 'stary-kovar',
+      },
+      mockPJ,
+    );
+    expect(mockMessageRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ overridePageSlug: 'stary-kovar' }),
+    );
+  });
+
+  it('should drop overridePageSlug without overrideName (6.2-followup)', async () => {
+    const membership = { ...mockPJMembership, characterPath: 'PJ' };
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(membership);
+    mockMembershipRepo.findByWorldId.mockResolvedValue([membership]);
+    mockMessageRepo.save.mockResolvedValue(baseMockMsg);
+    mockChannelRepo.update.mockResolvedValue(mockChannel);
+    await service.sendMessage(
+      'ch1',
+      { content: 'x', overridePageSlug: 'stary-kovar' },
+      mockPJ,
+    );
+    expect(mockMessageRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ overridePageSlug: undefined }),
+    );
+  });
+
   it('should populate replyToPreview from cited message', async () => {
     const citedMsg = {
       ...baseMockMsg,

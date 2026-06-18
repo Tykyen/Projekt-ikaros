@@ -13,6 +13,8 @@ export class ChatMessageSchemaClass {
   @Prop({ type: String }) senderAvatarUrl?: string;
   @Prop({ type: String }) overrideName?: string;
   @Prop({ type: String }) overrideAvatarUrl?: string;
+  // 6.2-followup — slug karty (Page) NPC/postavy → klikací jméno v chatu.
+  @Prop({ type: String }) overridePageSlug?: string;
   @Prop({ type: String, default: null }) content: string | null;
   @Prop({ default: false }) isEdited: boolean;
   @Prop({ default: false }) isDeleted: boolean;

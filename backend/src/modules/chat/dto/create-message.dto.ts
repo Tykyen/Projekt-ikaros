@@ -51,6 +51,14 @@ export class CreateMessageDto {
   @MaxLength(512)
   overrideAvatarUrl?: string;
 
+  // 6.2-followup — vazba masky na kartu (Page slug NPC/postavy). Když je
+  // vyplněn, FE udělá jméno odesílatele klikací → karta. Free-text (BE
+  // neověřuje existenci, stejně jako overrideName); platí jen s overrideName.
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  overridePageSlug?: string;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

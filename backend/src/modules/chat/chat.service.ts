@@ -922,7 +922,11 @@ export class ChatService implements OnApplicationBootstrap {
       });
     }
 
-    if (dto.overrideName !== undefined || dto.overrideAvatarUrl !== undefined) {
+    if (
+      dto.overrideName !== undefined ||
+      dto.overrideAvatarUrl !== undefined ||
+      dto.overridePageSlug !== undefined
+    ) {
       if (!(await this.canManageChat(requester, channel.worldId))) {
         throw new ForbiddenException({
           code: 'CHAT_NPC_FORBIDDEN',
@@ -1053,6 +1057,8 @@ export class ChatService implements OnApplicationBootstrap {
       senderAvatarUrl,
       overrideName: dto.overrideName,
       overrideAvatarUrl: dto.overrideAvatarUrl,
+      // Vazba na kartu dává smysl jen pod maskou — bez overrideName ji zahodíme.
+      overridePageSlug: dto.overrideName ? dto.overridePageSlug : undefined,
       content: dto.content ?? null,
       isEdited: false,
       isDeleted: false,
