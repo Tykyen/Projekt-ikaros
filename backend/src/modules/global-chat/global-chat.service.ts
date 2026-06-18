@@ -18,6 +18,7 @@ import type { CreateGlobalMessageDto } from './dto/create-global-message.dto';
 import type { ChatAttachmentDto } from './dto/chat-attachment.dto';
 import { PushService } from '../push/push.service';
 import { UploadService } from '../upload/upload.service';
+import { UsersService } from '../users/users.service';
 import { HOUR_MS } from '../../common/constants/time.constants';
 
 /** Klíč globální chat místnosti — Hospoda + tři Rozcestí (krok 4.2a). */
@@ -55,7 +56,45 @@ export class GlobalChatService implements OnModuleInit {
     private readonly eventEmitter: EventEmitter2,
     private readonly pushService: PushService,
     private readonly uploadService: UploadService,
+    private readonly usersService: UsersService,
   ) {}
+
+  /**
+   * Identita autora zprávy (4.2e §1) — snapshot v okamžiku odeslání. Hospoda
+   * vystupuje účtem, Rozcestí postavou z profilu (fallback účet, když postavu
+   * nevyplnil). Zdroj je autoritativní profil z DB — klient nic neposílá, aby
+   * nemohl lhát o cizí identitě. Snapshot (ne render-time): roleplay zpráva si
+   * natrvalo pamatuje, za koho byla psána, i když autor postavu později změní.
+   */
+  private async resolveSenderIdentity(
+    room: RoomKey,
+    userId: string,
+    username: string,
+  ): Promise<{ senderName: string; senderAvatarUrl?: string }> {
+    let avatarUrl: string | undefined;
+    let characterName: string | undefined;
+    let characterAvatarUrl: string | undefined;
+    try {
+      const profile = await this.usersService.findById(userId);
+      avatarUrl = profile.avatarUrl;
+      characterName = profile.characterName;
+      characterAvatarUrl = profile.characterAvatarUrl;
+    } catch (err: unknown) {
+      // Profil nenačten → padáme na účet/iniciálu, zprávu kvůli avataru neztratíme.
+      logWarn(
+        this.logger,
+        `Identita odesílatele (userId=${userId}) nenačtena`,
+        err,
+      );
+    }
+    if (room === 'hospoda') {
+      return { senderName: username, senderAvatarUrl: avatarUrl };
+    }
+    return {
+      senderName: characterName || username,
+      senderAvatarUrl: characterAvatarUrl || avatarUrl,
+    };
+  }
 
   /**
    * Ověří přílohy zprávy (krok 4.3b). Klient posílá v DTO celý `ChatAttachment`
@@ -217,11 +256,17 @@ export class GlobalChatService implements OnModuleInit {
     const attachments = this.validateAttachments(dto.attachments);
     this.assertNotEmpty(dto.content, attachments);
     const reply = await this.resolveReply(channelId, dto.replyToId);
+    const identity = await this.resolveSenderIdentity(
+      room,
+      user.id,
+      user.username,
+    );
     const message = await this.messageRepo.save({
       channelId,
       worldId: null,
       senderId: user.id,
-      senderName: user.username,
+      senderName: identity.senderName,
+      senderAvatarUrl: identity.senderAvatarUrl,
       content: dto.content ?? null,
       color: dto.color ?? null,
       isEdited: false,
@@ -266,11 +311,17 @@ export class GlobalChatService implements OnModuleInit {
     const attachments = this.validateAttachments(attachmentsDto);
     this.assertNotEmpty(content, attachments);
     const reply = await this.resolveReply(channelId, replyToId);
+    const identity = await this.resolveSenderIdentity(
+      room,
+      from.id,
+      from.username,
+    );
     const message = await this.messageRepo.save({
       channelId,
       worldId: null,
       senderId: from.id,
-      senderName: from.username,
+      senderName: identity.senderName,
+      senderAvatarUrl: identity.senderAvatarUrl,
       content: content || null,
       color: color ?? null,
       isEdited: false,

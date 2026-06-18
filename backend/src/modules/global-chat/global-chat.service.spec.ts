@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { GlobalChatService } from './global-chat.service';
 import { PushService } from '../push/push.service';
 import { UploadService } from '../upload/upload.service';
+import { UsersService } from '../users/users.service';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import type { ChatChannel } from '../chat/interfaces/chat-channel.interface';
@@ -54,6 +55,7 @@ describe('GlobalChatService', () => {
   let channelRepo: jest.Mocked<IChatChannelRepository>;
   let messageRepo: jest.Mocked<IChatMessageRepository>;
   let eventEmitter: jest.Mocked<EventEmitter2>;
+  let usersService: { findById: jest.Mock };
 
   beforeEach(async () => {
     channelRepo = {
@@ -90,6 +92,15 @@ describe('GlobalChatService', () => {
 
     eventEmitter = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
 
+    // Default profil: má účet i postavu → testy si přepisují per case.
+    usersService = {
+      findById: jest.fn().mockResolvedValue({
+        avatarUrl: 'acc.webp',
+        characterName: 'Aragorn',
+        characterAvatarUrl: 'aragorn.webp',
+      }),
+    };
+
     const module = await Test.createTestingModule({
       providers: [
         GlobalChatService,
@@ -108,6 +119,7 @@ describe('GlobalChatService', () => {
             deleteAttachments: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -264,6 +276,41 @@ describe('GlobalChatService', () => {
       await service.sendMessage('hospoda', { content: 'hello' }, mockUser);
       expect(messageRepo.save.mock.calls[0][0].color).toBeNull();
     });
+
+    // 4.2e §1 — snapshot identity dle místnosti.
+    it('Rozcestí: ukládá jméno + avatar postavy z profilu', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('rozcesti-1', { content: 'ahoj' }, mockUser);
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.senderName).toBe('Aragorn');
+      expect(call.senderAvatarUrl).toBe('aragorn.webp');
+    });
+
+    it('Hospoda: ukládá username + avatar účtu (ne postavu)', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('hospoda', { content: 'ahoj' }, mockUser);
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.senderName).toBe('gandalf');
+      expect(call.senderAvatarUrl).toBe('acc.webp');
+    });
+
+    it('Rozcestí bez postavy: fallback na účet (username + avatarUrl)', async () => {
+      usersService.findById.mockResolvedValue({ avatarUrl: 'acc.webp' });
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('rozcesti-2', { content: 'ahoj' }, mockUser);
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.senderName).toBe('gandalf');
+      expect(call.senderAvatarUrl).toBe('acc.webp');
+    });
+
+    it('profil nenačten: zpráva projde, avatar undefined', async () => {
+      usersService.findById.mockRejectedValue(new NotFoundException({}));
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('rozcesti-1', { content: 'ahoj' }, mockUser);
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.senderName).toBe('gandalf');
+      expect(call.senderAvatarUrl).toBeUndefined();
+    });
   });
 
   describe('sendWhisper', () => {
@@ -303,6 +350,20 @@ describe('GlobalChatService', () => {
         'pst',
       );
       expect(messageRepo.save.mock.calls[0][0].channelId).toBe('rozcesti-3-id');
+    });
+
+    // 4.2e §1 — whisper v Rozcestí nese identitu postavy (snapshot).
+    it('Rozcestí: whisper nese jméno + avatar postavy', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendWhisper(
+        'rozcesti-1',
+        { id: 'u1', username: 'gandalf' },
+        'u2',
+        'pst',
+      );
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.senderName).toBe('Aragorn');
+      expect(call.senderAvatarUrl).toBe('aragorn.webp');
     });
   });
 
