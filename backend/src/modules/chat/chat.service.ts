@@ -862,13 +862,16 @@ export class ChatService implements OnApplicationBootstrap {
       ),
     );
     const worldNames = new Map<string, string>();
+    const worldSlugs = new Map<string, string>();
     await Promise.all(
       worldIds.map(async (wid) => {
         try {
           const w = await this.worldsService.findById(wid);
           worldNames.set(wid, w.name);
+          worldSlugs.set(wid, w.slug);
         } catch {
           worldNames.set(wid, '');
+          worldSlugs.set(wid, '');
         }
       }),
     );
@@ -879,6 +882,7 @@ export class ChatService implements OnApplicationBootstrap {
         ...m,
         worldId: meta?.worldId ?? m.worldId,
         worldName: meta ? (worldNames.get(meta.worldId) ?? '') : '',
+        worldSlug: meta ? (worldSlugs.get(meta.worldId) ?? '') : '',
         channelName: meta?.channelName ?? '',
       };
     });

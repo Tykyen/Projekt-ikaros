@@ -74,5 +74,7 @@ export interface ChatMessage {
  */
 export interface ChatFeedItem extends ChatMessage {
   worldName: string;
+  /** Slug světa — pro deep-link z notifikačního feedu na `/svet/:slug/chat`. */
+  worldSlug: string;
   channelName: string;
 }

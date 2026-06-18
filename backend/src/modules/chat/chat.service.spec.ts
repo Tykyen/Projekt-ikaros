@@ -208,6 +208,7 @@ describe('ChatService', () => {
       mockWorldsService.findById.mockResolvedValue({
         id: 'world1',
         name: 'Svět 1',
+        slug: 'svet-1',
       });
       mockMessageRepo.findFeed.mockResolvedValue([
         { ...baseMsg, id: 'msg1', channelId: 'ch1', worldId: 'world1' },
@@ -224,6 +225,7 @@ describe('ChatService', () => {
       expect(res[0]).toMatchObject({
         channelName: 'obecný',
         worldName: 'Svět 1',
+        worldSlug: 'svet-1',
         worldId: 'world1',
       });
     });
