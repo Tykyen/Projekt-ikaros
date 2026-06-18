@@ -82,6 +82,39 @@ export class SecurityTokensService {
   }
 
   /**
+   * 14.1 — jako `consume()`, ale token NEspotřebuje (neoznačí `usedAt`). Pro
+   * flow, kde se stejný token ověřuje víckrát (TOTP challenge = víc pokusů o
+   * kód, aniž by překlep zničil challenge). Volající po úspěchu zavolá
+   * `consume()` sám. Brute-force chrání Throttler na endpointu + 5min TTL.
+   */
+  async peek(
+    plainToken: string,
+    type: SecurityTokenType,
+  ): Promise<ConsumedToken> {
+    if (!plainToken || typeof plainToken !== 'string') {
+      throw this.invalidTokenException();
+    }
+    const tokenHash = this.hash(plainToken);
+    const record = await this.repo.findByHash(tokenHash);
+    if (!record || record.type !== type) {
+      throw this.invalidTokenException();
+    }
+    if (record.usedAt) {
+      throw new BadRequestException({
+        message: 'Token byl už použit',
+        code: 'ALREADY_USED',
+      });
+    }
+    if (record.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException({
+        message: 'Token expiroval',
+        code: 'EXPIRED_TOKEN',
+      });
+    }
+    return { userId: record.userId, meta: record.meta };
+  }
+
+  /**
    * SHA-256 hash. Public — AuthService (SP2) může používat pro consistency.
    */
   hash(plain: string): string {

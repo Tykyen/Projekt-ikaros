@@ -123,6 +123,14 @@ export interface User {
   favoriteCharacters: Record<string, string[]>;
   // 5.2-followup — osobní oblíbené stránky per svět. `worldId → slug[]`, pořadí významné.
   favoritePageSlugs: Record<string, string[]>;
+
+  // 14.1 — 2FA / TOTP (spec-14.1). `totpSecretEnc` + `backupCodeHashes` jsou
+  // citlivé → sanitize() je nikdy nevrací ven (viz SafeUser v auth.service).
+  totpEnabled?: boolean;
+  totpSecretEnc?: string | null;
+  backupCodeHashes?: string[];
+  totpEnabledAt?: Date;
+  twoFactorMethod?: string;
 }
 
 /**

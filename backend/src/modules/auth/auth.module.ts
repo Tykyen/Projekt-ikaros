@@ -4,10 +4,14 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthController } from './auth.controller';
+import { TwoFactorController } from './two-factor.controller';
 import { AuthService } from './auth.service';
 import { CaptchaService } from './captcha.service';
+import { TotpService } from './services/totp.service';
+import { TotpCryptoService } from './services/totp-crypto.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
+import { TrustedDevicesModule } from '../trusted-devices/trusted-devices.module';
 import {
   RefreshTokenSchemaClass,
   RefreshTokenSchema,
@@ -17,6 +21,7 @@ import { MongoRefreshTokenRepository } from './repositories/refresh-token.reposi
 @Module({
   imports: [
     UsersModule,
+    TrustedDevicesModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -39,10 +44,12 @@ import { MongoRefreshTokenRepository } from './repositories/refresh-token.reposi
       { name: RefreshTokenSchemaClass.name, schema: RefreshTokenSchema },
     ]),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, TwoFactorController],
   providers: [
     AuthService,
     CaptchaService,
+    TotpService,
+    TotpCryptoService,
     JwtStrategy,
     {
       provide: 'IRefreshTokenRepository',

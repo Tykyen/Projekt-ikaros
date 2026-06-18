@@ -39,7 +39,11 @@ import {
   executePJHandover,
 } from './helpers/pj-handover.helper';
 
-type SanitizedUser = Omit<User, 'passwordHash'>;
+// 14.1 — 2FA tajemství (totpSecretEnc, backupCodeHashes) nikdy ven (ani /me).
+type SanitizedUser = Omit<
+  User,
+  'passwordHash' | 'totpSecretEnc' | 'backupCodeHashes'
+>;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DELETION_HOLD_DAYS = 30; // 1.3c — hardcoded (admin-config = dluh)
@@ -827,7 +831,12 @@ export class UsersService implements OnModuleInit {
   }
 
   private sanitize(user: User): SanitizedUser {
-    const { passwordHash: _, ...rest } = user;
+    const {
+      passwordHash: _p,
+      totpSecretEnc: _s,
+      backupCodeHashes: _b,
+      ...rest
+    } = user;
     return rest;
   }
 

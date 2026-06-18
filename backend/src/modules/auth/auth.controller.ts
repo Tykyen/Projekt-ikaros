@@ -16,6 +16,8 @@ import {
   setRefreshCookie,
   clearRefreshCookie,
   readRefreshCookie,
+  setTrustCookie,
+  readTrustCookie,
 } from '../../common/utils/auth-cookie';
 import {
   ApiTags,
@@ -27,6 +29,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { LoginTotpDto } from './dto/login-totp.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { LogoutDto } from './dto/logout.dto';
@@ -71,12 +74,43 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Nesprávné přihlašovací údaje' })
   async login(
     @Body() dto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(dto);
-    // PC-18: union — refresh token jen v "ok" případě (ne deletion_pending).
+    const result = await this.authService.login(dto, readTrustCookie(req));
+    // PC-18: union — refresh token jen v "ok" případě (ne deletion_pending /
+    // totp_required — tam se token vydá až po /auth/login/totp).
     if ('refreshToken' in result && result.refreshToken) {
       setRefreshCookie(res, result.refreshToken);
+    }
+    return result;
+  }
+
+  @Post('login/totp')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '14.1 — dokončení loginu druhým faktorem (TOTP / záložní kód)',
+  })
+  @ApiResponse({ status: 200, description: 'Tokeny + user' })
+  @ApiResponse({
+    status: 401,
+    description: 'TOTP_INVALID_CODE / neplatný challenge',
+  })
+  async loginTotp(
+    @Body() dto: LoginTotpDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { result, newTrustToken } = await this.authService.loginTotp(
+      dto,
+      req.headers['user-agent'],
+    );
+    if ('refreshToken' in result && result.refreshToken) {
+      setRefreshCookie(res, result.refreshToken);
+    }
+    if (newTrustToken) {
+      setTrustCookie(res, newTrustToken); // 14.1 — důvěryhodné zařízení
     }
     return result;
   }

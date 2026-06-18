@@ -22,6 +22,8 @@ const REQUIRED_IN_PROD = ['MONGODB_URI', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
  *  - TURNSTILE_SECRET — captcha je fail-closed (registrace bez secretu v prod selže)
  *  - MEILI_API_KEY — search degraduje
  *  - CLOUDINARY_URL — disk fallback; VAPID — push volitelný; SMTP — mailer jen loguje
+ *  - TOTP_ENC_KEY (14.1) — 2FA je opt-in; bez klíče je 2FA setup runtime fail-closed
+ *    (TotpCryptoService throw), ale zbytek appky běží → varování, ne boot-fatal.
  */
 const RECOMMENDED_IN_PROD = [
   'FRONTEND_URL',
@@ -34,6 +36,7 @@ const RECOMMENDED_IN_PROD = [
   'VAPID_PRIVATE_KEY',
   'SMTP_HOST',
   'SMTP_USER',
+  'TOTP_ENC_KEY',
 ];
 
 /** URL proměnné, které by v produkci neměly mířit na localhost (jen varování). */

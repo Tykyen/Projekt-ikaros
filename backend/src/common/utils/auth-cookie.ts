@@ -44,12 +44,48 @@ export function clearRefreshCookie(res: Response): void {
 
 /** Přečte refresh token z cookie hlavičky (bez cookie-parser). */
 export function readRefreshCookie(req: Request): string | undefined {
+  return readCookie(req, REFRESH_COOKIE);
+}
+
+// ── 14.1 — trust cookie (důvěryhodné zařízení; přeskočí 2FA) ──────────────
+//
+// Stejný bezpečnostní profil jako refresh cookie: httpOnly (mimo dosah XSS),
+// cross-site (`SameSite=None; Secure` v prod, jinak se při FE↔BE loginu
+// nepošle), path `/api/auth` → chodí na login i 2fa endpointy. TTL 30 d.
+export const TRUST_COOKIE = 'ikaros_td';
+const TRUST_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export function setTrustCookie(res: Response, token: string): void {
+  res.cookie(TRUST_COOKIE, token, {
+    httpOnly: true,
+    secure: isProd(),
+    sameSite: isProd() ? 'none' : 'lax',
+    path: '/api/auth',
+    maxAge: TRUST_TTL_MS,
+  });
+}
+
+export function clearTrustCookie(res: Response): void {
+  res.clearCookie(TRUST_COOKIE, {
+    httpOnly: true,
+    secure: isProd(),
+    sameSite: isProd() ? 'none' : 'lax',
+    path: '/api/auth',
+  });
+}
+
+export function readTrustCookie(req: Request): string | undefined {
+  return readCookie(req, TRUST_COOKIE);
+}
+
+/** Sdílené ruční čtení cookie z hlavičky (bez cookie-parser). */
+function readCookie(req: Request, name: string): string | undefined {
   const header = req.headers?.cookie;
   if (!header) return undefined;
   for (const part of header.split(';')) {
     const idx = part.indexOf('=');
     if (idx === -1) continue;
-    if (part.slice(0, idx).trim() === REFRESH_COOKIE) {
+    if (part.slice(0, idx).trim() === name) {
       return decodeURIComponent(part.slice(idx + 1).trim());
     }
   }

@@ -23,6 +23,9 @@ import { MailerService } from '../mailer/mailer.service';
 import { SecurityTokensService } from '../security-tokens/security-tokens.service';
 import { UserBanCacheService } from '../users/services/user-ban-cache.service';
 import { CaptchaService } from './captcha.service';
+import { LoginTotpDto } from './dto/login-totp.dto';
+import { TrustedDevicesService } from '../trusted-devices/trusted-devices.service';
+import { TotpService } from './services/totp.service';
 
 /**
  * Login response — discriminated union (krok 1.3c).
@@ -31,21 +34,34 @@ import { CaptchaService } from './captcha.service';
  * SP2 přidá: `{ status: 'email_not_verified'; email: string }`.
  * SP4 přidá: `{ status: 'banned'; bannedUntil?: Date; banReason?: string }`.
  */
+/** User bez citlivých polí (heslo + 2FA tajemství) — to, co smí ven na FE. */
+export type SafeUser = Omit<
+  User,
+  'passwordHash' | 'totpSecretEnc' | 'backupCodeHashes'
+>;
+
 export type LoginResult =
   | {
       status: 'ok';
       accessToken: string;
       refreshToken: string;
-      user: Omit<User, 'passwordHash'>;
+      user: SafeUser;
     }
   // 1.3c (N-6b) — účet v pending self-delete: FE nabídne reaktivaci.
   | {
       status: 'deletion_pending';
       deletionRequestedAt: Date;
       scheduledHardDeleteAt: Date;
+    }
+  // 14.1 — účet má 2FA: heslo OK, ale chybí druhý faktor. ŽÁDNÝ token se
+  // nevydává; FE pošle kód na /auth/login/totp s tímto challengeId.
+  | {
+      status: 'totp_required';
+      challengeId: string;
     };
 
 const DELETION_HOLD_DAYS = 30; // 1.3c — sjednotné s UsersService
+const TOTP_CHALLENGE_TTL_MS = 5 * 60 * 1000; // 14.1 — challenge mezi heslem a 2FA kódem
 
 @Injectable()
 export class AuthService {
@@ -68,6 +84,8 @@ export class AuthService {
     private readonly banCache: UserBanCacheService,
     private readonly events: EventEmitter2,
     private readonly captcha: CaptchaService,
+    private readonly trustedDevices: TrustedDevicesService,
+    private readonly totpService: TotpService,
   ) {}
 
   private get refreshSecret(): string {
@@ -82,7 +100,7 @@ export class AuthService {
   async register(dto: RegisterDto): Promise<{
     accessToken: string;
     refreshToken: string;
-    user: Omit<User, 'passwordHash'>;
+    user: SafeUser;
   }> {
     // D-011 — Cloudflare Turnstile captcha verify.
     const captchaOk = await this.captcha.verify(dto.captchaToken);
@@ -154,7 +172,7 @@ export class AuthService {
     return { ...tokens, user: this.sanitize(user) };
   }
 
-  async login(dto: LoginDto): Promise<LoginResult> {
+  async login(dto: LoginDto, trustToken?: string): Promise<LoginResult> {
     const isEmail = dto.identifier.includes('@');
     const user = isEmail
       ? await this.usersRepo.findByEmail(dto.identifier)
@@ -195,6 +213,22 @@ export class AuthService {
         ),
       };
 
+    // 14.1 — 2FA gate. Heslo sedí, ale účet má druhý faktor. Buď je zařízení
+    // důvěryhodné (přeskoč 2FA), nebo vydáme challenge a ŽÁDNÝ token.
+    if (user.totpEnabled) {
+      const trusted = await this.trustedDevices.match(trustToken, user.id);
+      if (trusted) {
+        await this.trustedDevices.touch(trusted.id);
+      } else {
+        const challengeId = await this.securityTokens.issue(
+          user.id,
+          'totp_challenge',
+          TOTP_CHALLENGE_TTL_MS,
+        );
+        return { status: 'totp_required', challengeId };
+      }
+    }
+
     const now = new Date();
     await this.usersRepo.updateLastSeen(user.id);
     // 1.3a — lastLoginAt (≠ lastSeenAt; ten se mění s presence pingem).
@@ -202,6 +236,72 @@ export class AuthService {
     user.lastLoginAt = now;
     const tokens = await this.generateTokenPair(user);
     return { status: 'ok', ...tokens, user: this.sanitize(user) };
+  }
+
+  /**
+   * 14.1 — dokončení loginu druhým faktorem. Challenge se ověří přes `peek`
+   * (NEspotřebuje při špatném kódu), TOTP/záložní kód se ověří, teprve při
+   * úspěchu se challenge spotřebuje a vydají tokeny. Vrací i `newTrustToken`
+   * (když si uživatel zařízení zapamatoval) — controller ho dá do cookie.
+   */
+  async loginTotp(
+    dto: LoginTotpDto,
+    userAgent?: string,
+  ): Promise<{ result: LoginResult; newTrustToken?: string }> {
+    const { userId } = await this.securityTokens.peek(
+      dto.challengeId,
+      'totp_challenge',
+    );
+    const user = await this.usersRepo.findById(userId);
+    if (!user)
+      throw new UnauthorizedException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel neexistuje',
+      });
+    // Re-check stavu účtu (mohl se mezi krokem 1 a 2 změnit).
+    if (user.isDeleted)
+      throw new UnauthorizedException({
+        code: 'DELETED',
+        message: 'Účet byl smazán',
+      });
+    if (user.bannedAt)
+      throw new UnauthorizedException({
+        code: 'BANNED',
+        message: 'Účet byl zablokován',
+      });
+    if (!user.totpEnabled)
+      throw new BadRequestException({
+        code: 'TOTP_NOT_ENABLED',
+        message: 'Dvoufaktorové ověření není aktivní.',
+      });
+
+    const ok = await this.totpService.verifyForLogin(user, dto.code);
+    if (!ok)
+      throw new UnauthorizedException({
+        code: 'TOTP_INVALID_CODE',
+        message: 'Neplatný kód.',
+      });
+
+    // Úspěch → spotřebuj challenge (jednorázový).
+    await this.securityTokens.consume(dto.challengeId, 'totp_challenge');
+
+    let newTrustToken: string | undefined;
+    if (dto.trustDevice) {
+      newTrustToken = await this.trustedDevices.createForUser(
+        user.id,
+        userAgent,
+      );
+    }
+
+    const now = new Date();
+    await this.usersRepo.updateLastSeen(user.id);
+    await this.usersRepo.updateLastLogin(user.id, now);
+    user.lastLoginAt = now;
+    const tokens = await this.generateTokenPair(user);
+    return {
+      result: { status: 'ok', ...tokens, user: this.sanitize(user) },
+      newTrustToken,
+    };
   }
 
   /**
@@ -576,8 +676,13 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private sanitize(user: User): Omit<User, 'passwordHash'> {
-    const { passwordHash: _, ...rest } = user;
+  private sanitize(user: User): SafeUser {
+    const {
+      passwordHash: _p,
+      totpSecretEnc: _s,
+      backupCodeHashes: _b,
+      ...rest
+    } = user;
     return rest;
   }
 }

@@ -138,6 +138,16 @@ export class UserSchemaClass {
   // world.favoritePageSlugs. Mongo Map; toEntity → Record.
   @Prop({ type: Map, of: [String], default: {} })
   favoritePageSlugs: Map<string, string[]>;
+
+  // 14.1 — 2FA / TOTP (spec-14.1). totpSecretEnc je AES-256-GCM ciphertext
+  // ("iv:tag:ct"), drží se i jako "pending" (po setup, před enable).
+  // backupCodeHashes = bcrypt hashe jednorázových kódů. twoFactorMethod je
+  // method-agnostic příprava pro budoucí e-mail OTP (14.1-a).
+  @Prop({ default: false, index: true }) totpEnabled?: boolean;
+  @Prop({ type: String, default: null }) totpSecretEnc?: string | null;
+  @Prop({ type: [String], default: [] }) backupCodeHashes?: string[];
+  @Prop({ type: Date }) totpEnabledAt?: Date;
+  @Prop({ type: String, default: 'totp' }) twoFactorMethod?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(UserSchemaClass);

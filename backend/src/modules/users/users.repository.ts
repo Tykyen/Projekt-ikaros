@@ -377,6 +377,13 @@ export class MongoUsersRepository
       favoriteCharacters: this.toSlugMapRecord(doc.favoriteCharacters),
       // 5.2-followup — osobní oblíbené stránky per svět (stejný Map→Record mapper).
       favoritePageSlugs: this.toSlugMapRecord(doc.favoritePageSlugs),
+
+      // 14.1 — 2FA / TOTP (bez mapování by /users/me i login zahodily stav 2FA).
+      totpEnabled: (doc.totpEnabled as boolean | undefined) ?? false,
+      totpSecretEnc: doc.totpSecretEnc as string | null | undefined,
+      backupCodeHashes: (doc.backupCodeHashes as string[]) ?? [],
+      totpEnabledAt: doc.totpEnabledAt as Date | undefined,
+      twoFactorMethod: (doc.twoFactorMethod as string | undefined) ?? 'totp',
     };
   }
 

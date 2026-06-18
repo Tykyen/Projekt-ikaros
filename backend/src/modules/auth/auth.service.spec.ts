@@ -13,6 +13,8 @@ import { UserRole } from '../users/interfaces/user.interface';
 import { MailerService } from '../mailer/mailer.service';
 import { SecurityTokensService } from '../security-tokens/security-tokens.service';
 import { UserBanCacheService } from '../users/services/user-ban-cache.service';
+import { TrustedDevicesService } from '../trusted-devices/trusted-devices.service';
+import { TotpService } from './services/totp.service';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn().mockResolvedValue('hashed'),
@@ -82,7 +84,21 @@ describe('AuthService', () => {
   const mockSecurityTokens = {
     issue: jest.fn().mockResolvedValue('plain-token-123'),
     consume: jest.fn(),
+    peek: jest.fn(),
     hash: jest.fn((p: string) => `hash:${p}`),
+  };
+
+  // 14.1 — 2FA závislosti (default: žádné trusted device, kód neplatný).
+  const mockTrustedDevices = {
+    match: jest.fn().mockResolvedValue(null),
+    touch: jest.fn(),
+    createForUser: jest.fn().mockResolvedValue('trust-token'),
+    revokeAllForUser: jest.fn(),
+    list: jest.fn(),
+    revoke: jest.fn(),
+  };
+  const mockTotp = {
+    verifyForLogin: jest.fn().mockResolvedValue(false),
   };
 
   // 1.3c — banCache se invaliduje při reaktivaci pending soft-delete
@@ -119,6 +135,9 @@ describe('AuthService', () => {
         { provide: SecurityTokensService, useValue: mockSecurityTokens },
         // D-011 — captcha (Cloudflare Turnstile).
         { provide: CaptchaService, useValue: mockCaptcha },
+        // 14.1 — 2FA + remember-device.
+        { provide: TrustedDevicesService, useValue: mockTrustedDevices },
+        { provide: TotpService, useValue: mockTotp },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -129,6 +148,77 @@ describe('AuthService', () => {
     mockJwt.sign.mockImplementation(
       (payload: any) => `signed-${JSON.stringify(payload).slice(0, 30)}`,
     );
+  });
+
+  describe('login — 2FA (14.1)', () => {
+    const totpUser = { ...mockUser, totpEnabled: true };
+
+    it('totpEnabled bez důvěryhodného zařízení → totp_required (ŽÁDNÝ token)', async () => {
+      mockUsersRepo.findByUsername.mockResolvedValue(totpUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockTrustedDevices.match.mockResolvedValue(null);
+      mockSecurityTokens.issue.mockResolvedValue('challenge-abc');
+      const res = await service.login({ identifier: 'user', password: 'pw' });
+      expect(res).toEqual({
+        status: 'totp_required',
+        challengeId: 'challenge-abc',
+      });
+      expect(mockJwt.sign).not.toHaveBeenCalled();
+    });
+
+    it('totpEnabled + důvěryhodné zařízení → přeskočí 2FA (status ok)', async () => {
+      mockUsersRepo.findByUsername.mockResolvedValue(totpUser);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockTrustedDevices.match.mockResolvedValue({ id: 'd1' });
+      const res = await service.login(
+        { identifier: 'user', password: 'pw' },
+        'trust-tok',
+      );
+      expect(res.status).toBe('ok');
+      expect(mockTrustedDevices.touch).toHaveBeenCalledWith('d1');
+    });
+  });
+
+  describe('loginTotp (14.1)', () => {
+    const totpUser = { ...mockUser, totpEnabled: true };
+
+    it('správný kód → ok + spotřebuje challenge', async () => {
+      mockSecurityTokens.peek.mockResolvedValue({ userId: '1' });
+      mockUsersRepo.findById.mockResolvedValue(totpUser);
+      mockTotp.verifyForLogin.mockResolvedValue(true);
+      const { result } = await service.loginTotp({
+        challengeId: 'c',
+        code: '123456',
+      });
+      expect(result.status).toBe('ok');
+      expect(mockSecurityTokens.consume).toHaveBeenCalledWith(
+        'c',
+        'totp_challenge',
+      );
+    });
+
+    it('špatný kód → Unauthorized, challenge NEspotřebovaná', async () => {
+      mockSecurityTokens.peek.mockResolvedValue({ userId: '1' });
+      mockUsersRepo.findById.mockResolvedValue(totpUser);
+      mockTotp.verifyForLogin.mockResolvedValue(false);
+      await expect(
+        service.loginTotp({ challengeId: 'c', code: 'bad' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(mockSecurityTokens.consume).not.toHaveBeenCalled();
+    });
+
+    it('trustDevice → vytvoří důvěryhodné zařízení (newTrustToken)', async () => {
+      mockSecurityTokens.peek.mockResolvedValue({ userId: '1' });
+      mockUsersRepo.findById.mockResolvedValue(totpUser);
+      mockTotp.verifyForLogin.mockResolvedValue(true);
+      mockTrustedDevices.createForUser.mockResolvedValue('new-trust');
+      const { newTrustToken } = await service.loginTotp({
+        challengeId: 'c',
+        code: '123456',
+        trustDevice: true,
+      });
+      expect(newTrustToken).toBe('new-trust');
+    });
   });
 
   describe('register', () => {
