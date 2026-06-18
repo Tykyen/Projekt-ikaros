@@ -2,7 +2,6 @@
  * 10.2d-prep-B — CreateBestieDto pro `POST /api/bestiae`.
  */
 import {
-  IsArray,
   IsIn,
   IsNumber,
   IsObject,
@@ -12,20 +11,7 @@ import {
   MaxLength,
   Min,
   MinLength,
-  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-
-/** Prvek `abilities[]` — label/value pár (zrcadlí bestie.schema.ts). */
-export class AbilityDto {
-  @IsString()
-  @MaxLength(200)
-  label!: string;
-
-  @IsString()
-  @MaxLength(2000)
-  value!: string;
-}
 
 export class CreateBestieDto {
   @IsIn(['user', 'world', 'system'])
@@ -79,12 +65,8 @@ export class CreateBestieDto {
   @MaxLength(2000)
   notes?: string;
 
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AbilityDto)
-  abilities?: AbilityDto[];
-
+  // Schopnosti jsou součást `systemStats.abilities` (per-system schéma) —
+  // top-level pole `abilities` zrušeno (D-NEW-BESTIE-ABILITIES-DUP).
   @IsObject()
   systemStats!: Record<string, unknown>;
 }

@@ -3,7 +3,6 @@
  * scope/systemId/ownerUserId/worldId jsou immutable (po create se nemění).
  */
 import {
-  IsArray,
   IsIn,
   IsNumber,
   IsObject,
@@ -13,10 +12,7 @@ import {
   MaxLength,
   Min,
   MinLength,
-  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { AbilityDto } from './create-bestie.dto';
 
 export class UpdateBestieDto {
   @IsOptional()
@@ -58,12 +54,8 @@ export class UpdateBestieDto {
   @MaxLength(2000)
   notes?: string;
 
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AbilityDto)
-  abilities?: AbilityDto[];
-
+  // Schopnosti jsou součást `systemStats.abilities` — top-level pole zrušeno
+  // (D-NEW-BESTIE-ABILITIES-DUP).
   @IsOptional()
   @IsObject()
   systemStats?: Record<string, unknown>;

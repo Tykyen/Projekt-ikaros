@@ -38,7 +38,6 @@ export class BestiaeRepository {
       imageZoom: (o.imageZoom as number | null) ?? null,
       imageFit: (o.imageFit as Bestie['imageFit']) ?? null,
       notes: (o.notes as string) ?? '',
-      abilities: (o.abilities as Bestie['abilities']) ?? [],
       systemStats: (o.systemStats as Record<string, unknown>) ?? {},
       clonedFromId: o.clonedFromId as string | undefined,
       deletedAt: o.deletedAt as Date | null,

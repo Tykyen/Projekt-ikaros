@@ -15,7 +15,8 @@ export interface Bestie {
   imageZoom?: number | null;
   imageFit?: 'cover' | 'contain' | null;
   notes: string;
-  abilities: Array<{ label: string; value: string }>;
+  // Schopnosti = `systemStats.abilities` (per-system schéma); top-level pole
+  // `abilities` zrušeno (D-NEW-BESTIE-ABILITIES-DUP).
   systemStats: Record<string, unknown>;
   clonedFromId?: string;
   deletedAt: Date | null;

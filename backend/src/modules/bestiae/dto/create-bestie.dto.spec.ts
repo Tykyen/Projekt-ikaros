@@ -32,37 +32,3 @@ describe('CreateBestieDto — F-09 (imageUrl @MaxLength 2048)', () => {
     );
   });
 });
-
-describe('CreateBestieDto — F-20 (abilities[] @ValidateNested)', () => {
-  it('F-20 — přijme validní abilities {label,value}', async () => {
-    expect(
-      await errorProps({
-        abilities: [{ label: 'Síla', value: '18' }],
-      }),
-    ).toEqual([]);
-  });
-
-  it('F-20 — odmítne prvek bez label/value (číslo místo objektu)', async () => {
-    // Bez @ValidateNested by nevalidovaný prvek prošel.
-    expect(await errorProps({ abilities: [123] })).toContain('abilities');
-  });
-
-  it('F-20 — odmítne prvek s label/value nesprávného typu', async () => {
-    expect(
-      await errorProps({ abilities: [{ label: 5, value: true }] }),
-    ).toContain('abilities');
-  });
-
-  it('F-20 — odmítne label nad 200 / value nad 2000 znaků', async () => {
-    expect(
-      await errorProps({
-        abilities: [{ label: 'x'.repeat(201), value: 'ok' }],
-      }),
-    ).toContain('abilities');
-    expect(
-      await errorProps({
-        abilities: [{ label: 'ok', value: 'x'.repeat(2001) }],
-      }),
-    ).toContain('abilities');
-  });
-});

@@ -29,9 +29,9 @@ export class BestieSchemaClass {
   @Prop({ type: String, default: null }) imageFit?: 'cover' | 'contain' | null;
   @Prop({ default: '' }) notes!: string;
 
-  @Prop({ type: [Object], default: [] })
-  abilities!: Array<{ label: string; value: string }>;
-
+  // Schopnosti jsou součást `systemStats.abilities` (per-system schéma).
+  // Top-level pole `abilities` zrušeno (D-NEW-BESTIE-ABILITIES-DUP) — editor do
+  // něj nikdy nepsal; existující dokumenty mají jen prázdné [], data nemizí.
   @Prop({ type: Object, default: {} })
   systemStats!: Record<string, unknown>;
 
