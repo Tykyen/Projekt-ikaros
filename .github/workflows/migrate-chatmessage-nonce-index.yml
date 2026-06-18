@@ -50,19 +50,23 @@ jobs:
             if [ "$CONFIRM" != "MIGRATE" ]; then echo "CHYBA: migrate vyzaduje confirm=MIGRATE"; exit 1; fi
             DRY=false
           fi
+          # IIFE: mongosh cte stdin po radcich, takze samostatne `if/else`/`}`
+          # radky by se rozpadly. Obalenim do (function(){...})() ma REPL
+          # nevyvazene zavorky -> bufferuje VSE az do `})();` a vyhodnoti jako
+          # jeden blok (if/else + dry-run `return` funguji spravne).
           {
-            echo "const DRY=$DRY;"
-            echo 'const NAME="channelId_1_clientNonce_1";'
-            echo 'const idx=db.chatmessages.getIndexes().find(function(i){return i.name===NAME;});'
-            echo 'const isPartial=!!(idx && idx.partialFilterExpression && !idx.sparse);'
-            echo 'if(!idx){print("stav: index neexistuje -> vytvorim partial");}'
-            echo 'else if(isPartial){print("stav: uz je partial -> nic k migraci");}'
-            echo 'else{print("stav: nalezen STARY index (sparse="+idx.sparse+") -> drop + recreate");}'
-            echo 'if(DRY){print("DRY-RUN: nic nezapisuji");}'
-            echo 'else{'
+            echo '(function(){'
+            echo "  const DRY=$DRY;"
+            echo '  const NAME="channelId_1_clientNonce_1";'
+            echo '  const idx=db.chatmessages.getIndexes().find(function(i){return i.name===NAME;});'
+            echo '  const isPartial=!!(idx && idx.partialFilterExpression && !idx.sparse);'
+            echo '  if(!idx){print("stav: index neexistuje -> vytvorim partial");}'
+            echo '  else if(isPartial){print("stav: uz je partial -> nic k migraci");}'
+            echo '  else{print("stav: nalezen STARY index (sparse="+idx.sparse+") -> drop + recreate");}'
+            echo '  if(DRY){print("DRY-RUN: nic nezapisuji"); return;}'
             echo '  if(idx && !isPartial){db.chatmessages.dropIndex(NAME);print("OK: stary index zahozen");}'
             echo '  if(!isPartial){db.chatmessages.createIndex({channelId:1,clientNonce:1},{unique:true,partialFilterExpression:{clientNonce:{$type:"string"}}});print("OK: partial index vytvoren");}'
-            echo '}'
+            echo '})();'
             echo 'print("--- aktualni indexy chatmessages ---");'
             echo 'db.chatmessages.getIndexes().forEach(function(i){print(JSON.stringify({name:i.name,key:i.key,unique:i.unique,sparse:i.sparse,partial:i.partialFilterExpression}));});'
           } > script.js
