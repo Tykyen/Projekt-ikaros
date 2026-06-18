@@ -1,0 +1,72 @@
+name: Migrate chat clientNonce index sparse->partial (one-off)
+
+# Opravuje unique index `channelId_1_clientNonce_1` na kolekci `chatmessages`.
+# Stary `{unique, sparse}` v KOMPOZITNIM indexu nevyradi global-chat zpravy
+# (clientNonce=null, channelId je vzdy pritomny) -> 2. zprava v kanalu narazi
+# na duplicitni klic (channelId,null) -> E11000 -> HTTP 409 -> v Hospode i
+# Rozcesti neslo odeslat zpravu. Novy `partialFilterExpression: clientNonce je
+# string` indexuje jen world-chat retry nonce; null/global zpravy se neindexuji.
+#
+# ZADNA data se nemazou (sahame jen na index). Idempotentni (po opravde uz nic).
+#
+# Spusteni: Actions -> tento workflow -> Run workflow:
+#   mode = dry-run            -> jen vypise stav indexu, NIC nezmeni
+#   mode = migrate + MIGRATE  -> zahodi stary index a vytvori partial
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, migrate]
+        default: dry-run
+      confirm:
+        description: 'pro migrate napis MIGRATE'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          DRY=true
+          if [ "$MODE" = "migrate" ]; then
+            if [ "$CONFIRM" != "MIGRATE" ]; then echo "CHYBA: migrate vyzaduje confirm=MIGRATE"; exit 1; fi
+            DRY=false
+          fi
+          {
+            echo "const DRY=$DRY;"
+            echo 'const NAME="channelId_1_clientNonce_1";'
+            echo 'const idx=db.chatmessages.getIndexes().find(function(i){return i.name===NAME;});'
+            echo 'const isPartial=!!(idx && idx.partialFilterExpression && !idx.sparse);'
+            echo 'if(!idx){print("stav: index neexistuje -> vytvorim partial");}'
+            echo 'else if(isPartial){print("stav: uz je partial -> nic k migraci");}'
+            echo 'else{print("stav: nalezen STARY index (sparse="+idx.sparse+") -> drop + recreate");}'
+            echo 'if(DRY){print("DRY-RUN: nic nezapisuji");}'
+            echo 'else{'
+            echo '  if(idx && !isPartial){db.chatmessages.dropIndex(NAME);print("OK: stary index zahozen");}'
+            echo '  if(!isPartial){db.chatmessages.createIndex({channelId:1,clientNonce:1},{unique:true,partialFilterExpression:{clientNonce:{$type:"string"}}});print("OK: partial index vytvoren");}'
+            echo '}'
+            echo 'print("--- aktualni indexy chatmessages ---");'
+            echo 'db.chatmessages.getIndexes().forEach(function(i){print(JSON.stringify({name:i.name,key:i.key,unique:i.unique,sparse:i.sparse,partial:i.partialFilterExpression}));});'
+          } > script.js
+          echo "skript pripraven ($(wc -l < script.js) radku)"
+      - name: Run on server
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
