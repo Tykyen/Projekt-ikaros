@@ -9,6 +9,11 @@ export interface Bestie {
   worldId?: string;
   name: string;
   imageUrl?: string;
+  /** Výřez obrázku — parity s GameEvent/WorldNews/Page (focal + zoom + fit). */
+  imageFocalX?: number | null;
+  imageFocalY?: number | null;
+  imageZoom?: number | null;
+  imageFit?: 'cover' | 'contain' | null;
   notes: string;
   abilities: Array<{ label: string; value: string }>;
   systemStats: Record<string, unknown>;

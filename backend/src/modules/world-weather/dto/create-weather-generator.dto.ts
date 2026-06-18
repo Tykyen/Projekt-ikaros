@@ -13,6 +13,29 @@ import {
   ArrayMinSize,
   IsNotEmpty,
 } from 'class-validator';
+import type { WeatherGeneratorConfig } from '../interfaces/weather-generator.interface';
+
+/** 9.4-I — Köppen zóny; drží se unionu `WeatherGeneratorConfig.climateZone`. */
+const KOPPEN_ZONES = [
+  'Af',
+  'Am',
+  'Aw',
+  'BWh',
+  'BWk',
+  'BSh',
+  'BSk',
+  'Csa',
+  'Csb',
+  'Cfa',
+  'Cfb',
+  'Dfa',
+  'Dfb',
+  'Dfc',
+  'ET',
+  'EF',
+  'EXTRATERRESTRIAL',
+  'CONTROLLED',
+] as const;
 
 export class WeatherTypeEntryDto {
   @IsIn(['clear', 'cloudy', 'rain', 'storm', 'snow', 'fog', 'custom'])
@@ -65,6 +88,23 @@ export class WeatherGeneratorConfigDto {
   @Type(() => CustomFieldConfigDto)
   @IsOptional()
   customFields?: CustomFieldConfigDto[];
+
+  // 9.4-I — data klimatického modelu (variance/Markov). BE simulace je konzumuje
+  // (interface WeatherGeneratorConfig je má), ale DTO je dřív nevalidoval →
+  // ValidationPipe `forbidNonWhitelisted` 400oval celý config při create/apply.
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  monthlyTemps?: number[];
+
+  @IsArray()
+  @IsNumber({}, { each: true })
+  @IsOptional()
+  monthlyStdDev?: number[];
+
+  @IsIn(KOPPEN_ZONES)
+  @IsOptional()
+  climateZone?: WeatherGeneratorConfig['climateZone'];
 }
 
 export class CreateWeatherGeneratorDto {

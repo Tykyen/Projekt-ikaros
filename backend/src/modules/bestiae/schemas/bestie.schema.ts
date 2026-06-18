@@ -22,6 +22,11 @@ export class BestieSchemaClass {
 
   @Prop({ required: true }) name!: string;
   @Prop() imageUrl?: string;
+  // Výřez obrázku (parity s GameEvent/WorldNews). null = default (focal 50/50).
+  @Prop({ type: Number, default: null }) imageFocalX?: number | null;
+  @Prop({ type: Number, default: null }) imageFocalY?: number | null;
+  @Prop({ type: Number, default: null }) imageZoom?: number | null;
+  @Prop({ type: String, default: null }) imageFit?: 'cover' | 'contain' | null;
   @Prop({ default: '' }) notes!: string;
 
   @Prop({ type: [Object], default: [] })

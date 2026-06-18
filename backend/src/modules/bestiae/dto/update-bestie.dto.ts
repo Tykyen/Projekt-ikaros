@@ -4,10 +4,14 @@
  */
 import {
   IsArray,
+  IsIn,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -25,6 +29,29 @@ export class UpdateBestieDto {
   @IsString()
   @MaxLength(2048)
   imageUrl?: string;
+
+  // Výřez obrázku — viz CreateBestieDto. null projde přes @IsOptional.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  imageFocalX?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  imageFocalY?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(100)
+  @Max(400)
+  imageZoom?: number | null;
+
+  @IsOptional()
+  @IsIn(['cover', 'contain'])
+  imageFit?: 'cover' | 'contain' | null;
 
   @IsOptional()
   @IsString()
