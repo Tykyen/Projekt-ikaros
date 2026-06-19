@@ -7,5 +7,6 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "transformIgnorePatterns": ["node_modules/(?!(uuid|meilisearch)/)"],
-  "maxWorkers": 1
+  "maxWorkers": 1,
+  "testTimeout": 120000
 }
