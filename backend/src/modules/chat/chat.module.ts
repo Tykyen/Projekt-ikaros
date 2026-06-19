@@ -91,6 +91,11 @@ import { AuthModule } from '../auth/auth.module';
     ScheduledMessagesJob,
     ChatGateway,
   ],
-  exports: [ChatService, 'IChatChannelRepository', 'IChatMessageRepository'],
+  exports: [
+    ChatService,
+    'IChatGroupRepository', // 14.7c — world-export
+    'IChatChannelRepository',
+    'IChatMessageRepository',
+  ],
 })
 export class ChatModule {}

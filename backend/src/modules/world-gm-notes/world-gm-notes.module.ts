@@ -19,5 +19,6 @@ import { WorldsModule } from '../worlds/worlds.module';
   ],
   controllers: [WorldGmNotesController],
   providers: [WorldGmNotesService, WorldGmNotesRepository],
+  exports: [WorldGmNotesRepository], // 14.7c — world-export
 })
 export class WorldGmNotesModule {}

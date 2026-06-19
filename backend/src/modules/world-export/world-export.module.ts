@@ -13,6 +13,8 @@ import { GameEventsModule } from '../game-events/game-events.module';
 import { CampaignModule } from '../campaign/campaign.module';
 import { BestiaeModule } from '../bestiae/bestiae.module';
 import { CharacterSubdocsModule } from '../character-subdocs/character-subdocs.module';
+import { WorldGmNotesModule } from '../world-gm-notes/world-gm-notes.module';
+import { ChatModule } from '../chat/chat.module';
 
 /**
  * 14.7c — Export celého světa do ZIP (pilíř B spec-14.7).
@@ -36,6 +38,8 @@ import { CharacterSubdocsModule } from '../character-subdocs/character-subdocs.m
     CampaignModule,
     BestiaeModule,
     CharacterSubdocsModule,
+    WorldGmNotesModule,
+    ChatModule,
   ],
   controllers: [WorldExportController],
   providers: [WorldExportService],

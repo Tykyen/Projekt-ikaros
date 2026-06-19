@@ -35,6 +35,10 @@ import { CharacterNotesRepository } from '../character-subdocs/repositories/char
 import { CharacterCalendarRepository } from '../character-subdocs/repositories/character-calendar.repository';
 import { CharacterAccountRepository } from '../character-subdocs/repositories/character-account.repository';
 import { BestiaeRepository } from '../bestiae/repositories/bestiae.repository';
+import { WorldGmNotesRepository } from '../world-gm-notes/repositories/world-gm-notes.repository';
+import type { IChatGroupRepository } from '../chat/interfaces/chat-group-repository.interface';
+import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
+import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import {
   WORLD_EXPORT_VERSION,
   type WorldExportManifest,
@@ -48,6 +52,20 @@ export interface ExportOptions {
 /** Vyfiltruje null z pole subdoců (postavy bez daného subdocu). */
 function compact<T>(items: (T | null)[]): T[] {
   return items.filter((x): x is T => x != null);
+}
+
+const MEDIA_EXT = /\.(png|jpe?g|gif|webp|avif|svg|mp4|webm)(?:\?|$)/i;
+
+/** URL na naše médium (absolutní http, Cloudinary nebo obrázková/video přípona). */
+function isMediaUrl(value: string): boolean {
+  if (!/^https?:\/\//i.test(value)) return false; // relativní /static neumíme fetchnout
+  return value.includes('cloudinary') || MEDIA_EXT.test(value);
+}
+
+/** Přípona souboru z URL (pro pojmenování v ZIP); prázdná když chybí. */
+function extFromUrl(url: string): string {
+  const m = url.match(/\.([a-z0-9]{2,5})(?:\?|$)/i);
+  return m ? `.${m[1].toLowerCase()}` : '';
 }
 
 /**
@@ -114,6 +132,13 @@ export class WorldExportService {
     private readonly characterCalendarRepo: CharacterCalendarRepository,
     private readonly accountRepo: CharacterAccountRepository,
     private readonly bestiaeRepo: BestiaeRepository,
+    private readonly gmNotesRepo: WorldGmNotesRepository,
+    @Inject('IChatGroupRepository')
+    private readonly chatGroupRepo: IChatGroupRepository,
+    @Inject('IChatChannelRepository')
+    private readonly chatChannelRepo: IChatChannelRepository,
+    @Inject('IChatMessageRepository')
+    private readonly chatMessageRepo: IChatMessageRepository,
   ) {}
 
   /** Určí scope exportu, nebo vyhodí 403/404. */
@@ -167,7 +192,12 @@ export class WorldExportService {
       });
     }
 
-    const tree = await this.collectTree(worldId, world.system, requester.id);
+    const tree = await this.collectTree(
+      worldId,
+      world.system,
+      requester.id,
+      !!opts.chat,
+    );
 
     const manifest: WorldExportManifest = {
       version: WORLD_EXPORT_VERSION,
@@ -175,7 +205,7 @@ export class WorldExportService {
       exportedAt: new Date().toISOString(),
       worldId,
       worldSlug: world.slug,
-      hasChat: false,
+      hasChat: !!opts.chat,
       counts: {
         pages: tree.pages.length,
         characters: tree.characters.length,
@@ -189,6 +219,8 @@ export class WorldExportService {
         diaries: tree.characterSubdocs.diaries.length,
         campaignSubjects: tree.campaign.subjects.length,
         shopItems: tree.campaign.shopItems.length,
+        gmNotes: tree.gmNotes.length,
+        chatMessages: tree.chat?.messages.length ?? 0,
       },
     };
 
@@ -208,6 +240,29 @@ export class WorldExportService {
     });
     archive.append(JSON.stringify(tree, null, 2), { name: 'data.json' });
 
+    // Binárky médií → media/ + media-manifest.json (URL → soubor pro budoucí
+    // import). Graceful: propadlé/cizí/relativní URL přeskočíme (zůstávají v datech).
+    const mediaUrls = new Set<string>();
+    this.collectMediaUrls(tree, mediaUrls);
+    const mediaManifest: Record<string, string> = {};
+    let mediaIdx = 0;
+    for (const url of mediaUrls) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const buf = Buffer.from(await resp.arrayBuffer());
+        const name = `media/${mediaIdx}${extFromUrl(url)}`;
+        archive.append(buf, { name });
+        mediaManifest[url] = name;
+        mediaIdx += 1;
+      } catch {
+        // nedostupné médium (propadlý odkaz na starý web aj.) — vynech.
+      }
+    }
+    archive.append(JSON.stringify(mediaManifest, null, 2), {
+      name: 'media-manifest.json',
+    });
+
     await archive.finalize();
   }
 
@@ -220,6 +275,7 @@ export class WorldExportService {
     worldId: string,
     systemId: string,
     requesterId: string,
+    includeChat: boolean,
   ) {
     const characters = await this.charactersRepo.findByWorld(worldId);
     const charIds = characters.map((c) => c.id);
@@ -245,6 +301,7 @@ export class WorldExportService {
       campaignQuickNotes,
       shopGroups,
       shopItems,
+      gmNotes,
     ] = await Promise.all([
       this.settingsRepo.findByWorldId(worldId),
       this.membershipRepo.findByWorldId(worldId),
@@ -266,6 +323,7 @@ export class WorldExportService {
       this.campaignQuickNoteRepo.findMany({ worldId }),
       this.shopGroupRepo.findMany({ worldId }),
       this.shopItemRepo.findMany({ worldId }),
+      this.gmNotesRepo.findByWorldId(worldId),
     ]);
 
     const [diaries, finances, inventories, notes] = await Promise.all([
@@ -276,6 +334,8 @@ export class WorldExportService {
       ),
       Promise.all(charIds.map((id) => this.notesRepo.findByCharacterId(id))),
     ]);
+
+    const chat = includeChat ? await this.collectChat(worldId) : undefined;
 
     return {
       world: await this.worldsRepo.findById(worldId),
@@ -309,6 +369,39 @@ export class WorldExportService {
         shopGroups,
         shopItems,
       },
+      gmNotes,
+      chat,
     };
+  }
+
+  /** Volitelný chat — skupiny + kanály + zprávy (limit 2000 / kanál). */
+  private async collectChat(worldId: string) {
+    const [groups, channels] = await Promise.all([
+      this.chatGroupRepo.findByWorldId(worldId),
+      this.chatChannelRepo.findByWorldId(worldId),
+    ]);
+    const perChannel = await Promise.all(
+      channels.map((ch) =>
+        this.chatMessageRepo.findByChannelId(ch.id, { limit: 2000 }),
+      ),
+    );
+    return { groups, channels, messages: perChannel.flat() };
+  }
+
+  /** Rekurzivně posbírá z JSON stromu všechny URL na naše média. */
+  private collectMediaUrls(node: unknown, acc: Set<string>): void {
+    if (typeof node === 'string') {
+      if (isMediaUrl(node)) acc.add(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) this.collectMediaUrls(item, acc);
+      return;
+    }
+    if (node && typeof node === 'object') {
+      for (const value of Object.values(node)) {
+        this.collectMediaUrls(value, acc);
+      }
+    }
   }
 }

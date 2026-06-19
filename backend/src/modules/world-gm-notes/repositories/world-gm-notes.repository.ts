@@ -40,6 +40,14 @@ export class WorldGmNotesRepository {
     return this.toEntity(doc as unknown as Record<string, unknown>);
   }
 
+  /** 14.7c — všechny PJ poznámky světa (per-PJ bloky) pro world-export. */
+  async findByWorldId(worldId: string): Promise<WorldGmNotes[]> {
+    const docs = await this.model.find({ worldId }).lean().exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
   private toEntity(doc: Record<string, unknown>): WorldGmNotes {
     return {
       id: String(doc._id),
