@@ -34,6 +34,11 @@ import { WorldsModule } from '../worlds/worlds.module';
       useClass: MongoWorldMapFoldersRepository,
     },
   ],
-  exports: [WorldMapsService],
+  exports: [
+    WorldMapsService,
+    // 14.7c — repo tokeny pro world-export (raw data vč. viditelnosti).
+    'IWorldMapsRepository',
+    'IWorldMapFoldersRepository',
+  ],
 })
 export class WorldMapsModule {}

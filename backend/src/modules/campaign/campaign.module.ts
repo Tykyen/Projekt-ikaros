@@ -150,5 +150,15 @@ import { WorldsModule } from '../worlds/worlds.module';
       useClass: MongoScenarioTemplateRepository,
     },
   ],
+  // 14.7c — repo tokeny pro world-export (záloha stromu světa).
+  exports: [
+    'ICampaignSubjectRepository',
+    'ICampaignRelationshipRepository',
+    'ICampaignStorylineRepository',
+    'ICampaignScenarioRepository',
+    'ICampaignQuickNoteRepository',
+    'ICampaignShopItemRepository',
+    'ICampaignShopGroupRepository',
+  ],
 })
 export class CampaignModule {}

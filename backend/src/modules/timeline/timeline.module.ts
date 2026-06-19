@@ -23,5 +23,6 @@ import { WorldCalendarConfigModule } from '../world-calendar-config/world-calend
     TimelineService,
     { provide: 'ITimelineRepository', useClass: MongoTimelineRepository },
   ],
+  exports: ['ITimelineRepository'], // 14.7c — world-export
 })
 export class TimelineModule {}

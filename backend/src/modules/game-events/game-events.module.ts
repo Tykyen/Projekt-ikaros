@@ -23,6 +23,6 @@ import { WorldsModule } from '../worlds/worlds.module';
     GameEventReminderJob,
     { provide: 'IGameEventRepository', useClass: MongoGameEventRepository },
   ],
-  exports: [GameEventsService],
+  exports: [GameEventsService, 'IGameEventRepository'], // 14.7c — world-export
 })
 export class GameEventsModule {}

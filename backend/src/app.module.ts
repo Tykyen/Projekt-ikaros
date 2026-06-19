@@ -54,6 +54,7 @@ import { StatsModule } from './modules/stats/stats.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { FriendshipsModule } from './modules/friendships/friendships.module';
 import { DataExportModule } from './modules/data-export/data-export.module';
+import { WorldExportModule } from './modules/world-export/world-export.module';
 import { SecurityTokensModule } from './modules/security-tokens/security-tokens.module';
 import { MailerModule } from './modules/mailer/mailer.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
@@ -113,6 +114,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     AdminModule,
     FriendshipsModule,
     DataExportModule,
+    WorldExportModule,
     WorldNewsModule,
     TimelineModule,
     WorldCalendarConfigModule,

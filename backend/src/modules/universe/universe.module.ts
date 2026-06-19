@@ -23,6 +23,6 @@ import { WorldsModule } from '../worlds/worlds.module';
     UniverseGateway,
     { provide: 'IUniverseRepository', useClass: MongoUniverseRepository },
   ],
-  exports: [UniverseService],
+  exports: [UniverseService, 'IUniverseRepository'],
 })
 export class UniverseModule {}

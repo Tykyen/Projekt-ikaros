@@ -106,6 +106,12 @@ import { WorldCurrenciesModule } from '../world-currencies/world-currencies.modu
     // 10.2g — maps.enrichTokens potřebuje read-only diary subdoc (HP postavy
     // pro HP bar PC/NPC na taktické mapě).
     'ICharacterDiaryRepository',
+    // 14.7c — world-export (záloha subdoc stromu).
+    'ICharacterCalendarRepository',
+    'ICharacterFinanceRepository',
+    'ICharacterInventoryRepository',
+    'ICharacterNotesRepository',
+    CharacterAccountRepository,
   ],
 })
 export class CharacterSubdocsModule {}
