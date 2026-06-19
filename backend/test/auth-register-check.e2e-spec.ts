@@ -79,6 +79,38 @@ describe('Auth register conflict + check (e2e)', () => {
     });
   });
 
+  describe('POST /api/auth/register — honeypot (D-011)', () => {
+    it('201 pro prázdné hp (reálný uživatel) — regrese: forbidNonWhitelisted nesmí odmítnout hp', async () => {
+      const res = await request(testApp.app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'human@test.io',
+          username: 'realHuman',
+          password: 'Password123!',
+          acceptedTerms: true,
+          captchaToken: 'dev-bypass',
+          hp: '',
+        });
+
+      expect(res.status).toBe(201);
+    });
+
+    it('400 pro vyplněné hp (bot) — honeypot detection', async () => {
+      const res = await request(testApp.app.getHttpServer())
+        .post('/api/auth/register')
+        .send({
+          email: 'bot@test.io',
+          username: 'sneakyBot',
+          password: 'Password123!',
+          acceptedTerms: true,
+          captchaToken: 'dev-bypass',
+          hp: 'i-am-a-bot',
+        });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
   describe('GET /api/auth/check-username', () => {
     it('200 + available=true pro neobsazenou přezdívku', async () => {
       const res = await request(testApp.app.getHttpServer())

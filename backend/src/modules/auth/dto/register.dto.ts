@@ -37,4 +37,17 @@ export class RegisterDto {
   @IsString()
   @MaxLength(2048)
   captchaToken?: string;
+
+  /**
+   * D-011 — honeypot. FE pole `hp` je offscreen, skutečný uživatel ho nevidí
+   * a posílá prázdný řetězec; bot ho vyplní → `@MaxLength(0)` vrátí 400.
+   *
+   * POZOR: musí být v DTO, protože `forbidNonWhitelisted` (PC-07) jinak každou
+   * registraci s `hp:''` z FE odmítne 400 „Neznámé pole hp" → rozbitá registrace.
+   * Symetrické s FE zod `hp: z.string().max(0)`.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(0, { message: 'Bot detection' })
+  hp?: string;
 }

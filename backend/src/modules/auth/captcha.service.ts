@@ -20,7 +20,11 @@ interface TurnstileVerifyResponse {
  * V produkci (`NODE_ENV=production`) bez `TURNSTILE_SECRET` service vrátí `false`
  * (fail-closed) → registrace selže 400 CAPTCHA_FAILED. Tj. captcha nelze v produkci
  * tiše vypnout. Mimo produkci (dev/test) bez secretu vrací `true` (bypass + warning).
- * Navíc `env.validation` vyžaduje `TURNSTILE_SECRET` jako povinný v produkci.
+ *
+ * `env.validation` řadí `TURNSTILE_SECRET` mezi RECOMMENDED (jen VARUJE při startu,
+ * neshazuje boot) — právě proto, že tento runtime fail-closed je reálná ochrana.
+ * Boot brána navíc by netechnickému uživateli shodila celý deploy, viz incident
+ * 2026-06-14 (PC-24).
  */
 @Injectable()
 export class CaptchaService {
