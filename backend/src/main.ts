@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import helmet from 'helmet';
 import { resolve } from 'path';
 import type { ServerResponse } from 'http';
 import { AppModule } from './app.module';
@@ -64,6 +65,31 @@ async function bootstrap() {
     origin: getAllowedOrigins(),
     credentials: true,
   });
+
+  // 14.3 — Bezpečnostní hlavičky (API hardening). Hlavní XSS-CSP žije na FE
+  // nginx (servíruje HTML dokument); BE vrací jen JSON (/api) a obrázky
+  // (/static/), takže tady stačí restriktivní hardening:
+  //   • CSP default-src 'none' — kdyby někdo otevřel /api/... přímo v
+  //     prohlížeči, nespustí se žádný skript ani se nic nenačte.
+  //   • HSTS — vynutí HTTPS na API doméně (ctěno jen po HTTPS spojení).
+  //   • crossOriginResourcePolicy:false — /static/ si CORP řídí sám níže
+  //     ('cross-origin' pro PixiJS WebGL textury); helmetí default 'same-origin'
+  //     by cross-origin texture load rozbil.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+          defaultSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      hsts: { maxAge: 31536000, includeSubDomains: true },
+      referrerPolicy: { policy: 'no-referrer' },
+      frameguard: { action: 'deny' },
+      crossOriginResourcePolicy: false,
+    }),
+  );
 
   // 10.2c-fix — lokální storage fallback pro Cloudinary outage.
   // Soubory v `backend/uploads/` jsou servable přes `/static/`.
