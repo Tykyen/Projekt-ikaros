@@ -1152,10 +1152,15 @@ export class ChatService implements OnApplicationBootstrap {
           const url = world
             ? `/svet/${world.slug}/chat?konverzace=${channelId}`
             : undefined;
+          // tag = slučování na zařízení; topic = server-side collapse offline
+          // fronty (víc zpráv z jedné konverzace → jen poslední, ne hromada).
+          const collapseKey = `chat-${channelId}`;
           await this.pushService.notifyUsers(pushIds, {
             title: message.overrideName ?? message.senderName,
             body: (message.content ?? '').slice(0, 100),
             url,
+            tag: collapseKey,
+            topic: collapseKey,
           });
         }
 

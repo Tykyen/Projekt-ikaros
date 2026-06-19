@@ -13,11 +13,41 @@ export interface PushPayload {
   body: string;
   icon?: string;
   url?: string;
+  /**
+   * Klientský dedup klíč (service worker `showNotification` tag). Notifikace se
+   * stejným tagem se na zařízení slučují (poslední přepíše) místo hromadění.
+   * Posílá se v těle payloadu klientovi.
+   */
+  tag?: string;
+  /**
+   * Server-side collapse key (Push Message Topic, RFC 8030). Nová notifikace se
+   * stejným topicem **nahradí** předchozí **nedoručenou** ve frontě providera —
+   * offline zařízení tak po probuzení nedostane hromadu starých, jen poslední.
+   * Transport-only (HTTP hlavička), neposílá se klientovi. Max 32 znaků,
+   * URL-safe base64 ([A-Za-z0-9-_]); jinak se tiše vynechá.
+   */
+  topic?: string;
+  /**
+   * Time-To-Live v sekundách — jak dlouho provider drží notifikaci pro offline
+   * zařízení, než ji zahodí. Default knihovny je 28 dní (offline telefon pak
+   * dostane i dny staré zprávy) → držíme krátký default. Transport-only.
+   */
+  ttl?: number;
 }
 
 @Injectable()
 export class PushService implements OnModuleInit {
   private readonly logger = new Logger(PushService.name);
+
+  /**
+   * Default TTL pro push (sekundy). Notifikace „máš novou zprávu" má smysl jen
+   * krátce; po vypršení ji provider zahodí, místo aby ji po dnech doručil.
+   * Přebíjitelné per-notifikace přes `PushPayload.ttl`.
+   */
+  private static readonly DEFAULT_TTL_SECONDS = 4 * 60 * 60; // 4 h
+
+  /** Validní Push Message Topic dle RFC 8030 (URL-safe base64, ≤32 znaků). */
+  private static readonly TOPIC_RE = /^[A-Za-z0-9\-_]{1,32}$/;
 
   constructor(
     @Inject('IPushSubscriptionRepository')
@@ -39,12 +69,23 @@ export class PushService implements OnModuleInit {
 
   async subscribe(
     userId: string,
-    data: { endpoint: string; p256dh: string; auth: string },
+    data: {
+      endpoint: string;
+      p256dh: string;
+      auth: string;
+      oldEndpoint?: string;
+    },
     userAgent?: string,
   ): Promise<PushSubscription> {
+    const { oldEndpoint, ...sub } = data;
+    // Rotace odběru (prohlížeč/OS změní endpoint): smaž starý záznam, ať se
+    // notifikace neposílá na mrtvý i nový endpoint zároveň → duplicitní push.
+    if (oldEndpoint && oldEndpoint !== sub.endpoint) {
+      await this.repo.deleteByEndpointOnly(oldEndpoint);
+    }
     return this.repo.upsertByEndpoint({
       userId,
-      ...data,
+      ...sub,
       userAgent,
       lastUsedAt: new Date(),
     });
@@ -89,7 +130,13 @@ export class PushService implements OnModuleInit {
     subs: PushSubscription[],
     payload: PushPayload,
   ): Promise<void> {
-    const body = JSON.stringify(payload);
+    // Transport-only pole (ttl/topic) jdou do HTTP hlaviček, ne klientovi.
+    const { ttl, topic, ...clientPayload } = payload;
+    const body = JSON.stringify(clientPayload);
+    const options: webpush.RequestOptions = {
+      TTL: ttl ?? PushService.DEFAULT_TTL_SECONDS,
+    };
+    if (topic && PushService.TOPIC_RE.test(topic)) options.topic = topic;
     await Promise.all(
       subs.map(async (sub) => {
         try {
@@ -99,6 +146,7 @@ export class PushService implements OnModuleInit {
               keys: { p256dh: sub.p256dh, auth: sub.auth },
             },
             body,
+            options,
           );
         } catch (err: unknown) {
           const status = (err as { statusCode?: number }).statusCode;

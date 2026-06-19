@@ -133,6 +133,73 @@ describe('PushService', () => {
       userAgent: 'Mozilla/5.0',
       lastUsedAt: expect.any(Date),
     });
+    // oldEndpoint se nepropisuje do upsertu (jen řídí cleanup).
+    expect(repo.deleteByEndpointOnly).not.toHaveBeenCalled();
+  });
+
+  it('subscribe — při rotaci smaže starý endpoint [push dedup]', async () => {
+    repo.upsertByEndpoint.mockResolvedValue(makeSub());
+    await service.subscribe('user1', {
+      endpoint: 'https://new',
+      p256dh: 'k',
+      auth: 'a',
+      oldEndpoint: 'https://old',
+    });
+    expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith('https://old');
+    expect(repo.upsertByEndpoint).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'https://new' }),
+    );
+  });
+
+  it('subscribe — nemaže když oldEndpoint == nový endpoint', async () => {
+    repo.upsertByEndpoint.mockResolvedValue(makeSub());
+    await service.subscribe('user1', {
+      endpoint: 'https://same',
+      p256dh: 'k',
+      auth: 'a',
+      oldEndpoint: 'https://same',
+    });
+    expect(repo.deleteByEndpointOnly).not.toHaveBeenCalled();
+  });
+
+  it('TTL — default 4 h se předá jako option', async () => {
+    repo.findByUserId.mockResolvedValue([makeSub()]);
+    await service.notify('user1', { title: 'T', body: 'B' });
+    expect(webpush.sendNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(String),
+      expect.objectContaining({ TTL: 4 * 60 * 60 }),
+    );
+  });
+
+  it('topic + ttl — validní topic projde, transport-only pole nejdou klientovi', async () => {
+    repo.findByUserId.mockResolvedValue([makeSub()]);
+    await service.notify('user1', {
+      title: 'T',
+      body: 'B',
+      tag: 'chat-abc',
+      topic: 'chat-abc',
+      ttl: 120,
+    });
+    const [, sentBody, sentOpts] = (webpush.sendNotification as jest.Mock).mock
+      .calls[0] as [unknown, string, { TTL: number; topic?: string }];
+    expect(sentOpts).toEqual({ TTL: 120, topic: 'chat-abc' });
+    const parsed = JSON.parse(sentBody) as Record<string, unknown>;
+    expect(parsed.tag).toBe('chat-abc'); // tag klientovi ANO
+    expect(parsed).not.toHaveProperty('ttl'); // transport-only NE
+    expect(parsed).not.toHaveProperty('topic');
+  });
+
+  it('topic — nevalidní (mezera/>32) se vynechá', async () => {
+    repo.findByUserId.mockResolvedValue([makeSub()]);
+    await service.notify('user1', {
+      title: 'T',
+      body: 'B',
+      topic: 'invalid topic with spaces',
+    });
+    const [, , sentOpts] = (webpush.sendNotification as jest.Mock).mock
+      .calls[0] as [unknown, string, { topic?: string }];
+    expect(sentOpts).not.toHaveProperty('topic');
   });
 
   it('unsubscribe — smaže subscription', async () => {
