@@ -4,6 +4,7 @@ import { validateEnv } from './common/config/env.validation';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { createThrottlerOptions } from './common/throttler/throttler.config';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
@@ -63,7 +64,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     // Default: 100 requestů/min/IP. Citlivé endpointy mají vlastní @Throttle (login, register, refresh, exists).
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // D-028: storage je opt-in Redis (THROTTLER_REDIS=1) pro multi-instance, jinak in-memory — viz throttler.config.
+    ThrottlerModule.forRootAsync({ useFactory: createThrottlerOptions }),
     DatabaseModule,
     // D-028 / D-051 / D-NEW-chat-presence-scale — globální Redis client (cache + pub/sub).
     RedisModule,

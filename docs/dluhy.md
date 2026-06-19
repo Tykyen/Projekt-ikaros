@@ -16,16 +16,18 @@ _(žádné — account-cleanup cron vyřešen 2026-06-03, viz Vyřešené níže
 
 Záznamy zde jsou legitní budoucí práce, ne aktuální technický dluh. Mají uvedený explicitní trigger — událost, která je převede do "Otevřené".
 
-### Rate limit: Redis-backed throttler — TRIGGER: multi-instance deploy
-- **Soubor:** `backend/src/app.module.ts` (ThrottlerModule.forRoot)
-- **Trigger:** Migrace na 2+ replik backendu (Render/Railway scale-up, K8s deploy, nebo paralelní instance pro blue-green release).
-- **Co dělá aktuální stav:** `@nestjs/throttler` používá in-memory storage. Pro single-instance deploy je to **správné rozhodnutí** — žádný Redis runtime overhead.
-- **Co bude potřeba při triggeru:** Nainstalovat `@nestjs/throttler-storage-redis`, provisionovat sdílený Redis, override storage v ThrottlerModule. Bez sdíleného storage každá replika počítá vlastní bucket → reálné limity jsou N× vyšší než nakonfigurováno.
-- **Zdroj:** Otevřený follow-up z `60a90c64` (rate limiting commit). Překlasifikováno 2026-05-06 z "Otevřené" — bez Redis runtime nelze opravit, single-instance deploy ho nepotřebuje.
+_(žádné — D-028 Redis throttler vyřešen 2026-06-19 jako opt-in přepínač, viz Vyřešené níže)_
 
 ---
 
 ## Vyřešené
+
+### [vyřešeno 2026-06-19] D-028 Rate limit: opt-in Redis-backed throttler (krok 14.6)
+- **Soubory:** `backend/src/common/throttler/throttler.config.ts` (nový), `backend/src/app.module.ts` (`ThrottlerModule.forRootAsync`), `backend/.env.example` (`THROTTLER_REDIS`).
+- **Řešení:** Storage je teď přepínatelný. Default (`THROTTLER_REDIS` != '1') = in-memory (single-instance, nulový overhead — beze změny). `THROTTLER_REDIS=1` + dostupný `REDIS_URL` → sdílený counter přes `@nest-lab/throttler-storage-redis` (v1.2.0, kompatibilní s `@nestjs/throttler` v6 + NestJS 11). Vzor = `SOCKET_IO_REDIS=1`.
+- **Fallback:** Boot-time probe ověří Redis; když přepínač zapnutý ale Redis nedostupný / `REDIS_URL` chybí → varování + in-memory (throttling neshodí start).
+- **Aktivace = ops:** kód existuje, env přepínač zapnout až při 2+ replikách BE. Limity (100/min + per-endpoint `@Throttle`) beze změny — mění se jen úložiště.
+- **Ověřeno:** unit test `throttler.config.spec.ts` (4 větve), celý BE suite 2163/2163.
 
 ### [vyřešeno 2026-06-03] account-cleanup.cron.spec.ts kontrakt mismatch (= N-3)
 

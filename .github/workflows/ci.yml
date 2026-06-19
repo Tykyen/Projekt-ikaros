@@ -32,6 +32,10 @@ jobs:
       - name: Lint check
         run: npm run lint:check
 
+      # 14.6 SCA: blokuje na prod high+critical. Dev/build toolchain řeší Dependabot.
+      - name: SCA — npm audit (prod závislosti)
+        run: npm audit --omit=dev --audit-level=high
+
   backend-test:
     name: Backend tests
     runs-on: ubuntu-latest

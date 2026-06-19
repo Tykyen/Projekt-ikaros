@@ -33,6 +33,7 @@
     "prepare": "cd .. && husky backend/.husky"
   },
   "dependencies": {
+    "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -57,7 +58,7 @@
     "ioredis": "^5.10.1",
     "meilisearch": "^0.58.0",
     "mongoose": "^9.6.1",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^9.0.1",
     "onnxruntime-node": "^1.25.1",
     "otplib": "^12.0.1",
     "passport": "^0.7.0",
@@ -85,7 +86,7 @@
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.1.0",
     "@types/node": "^24.0.0",
-    "@types/nodemailer": "^8.0.0",
+    "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.6",
     "@types/supertest": "^7.0.0",
@@ -110,5 +111,8 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "overrides": {
+    "multer": "^2.2.0"
   }
 }

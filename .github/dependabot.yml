@@ -1,0 +1,28 @@
+# Dependabot — automatické PR s bumpem zranitelných / zastaralých balíčků (krok 14.6 / SCA).
+# Doplňuje blokující `npm audit` v ci.yml: brána zastaví build na prod high+critical,
+# Dependabot průběžně řeší zbytek (low/moderate + dev závislosti) přes PR.
+version: 2
+updates:
+  # BE npm závislosti (package.json je v /backend).
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    # Bezpečnostní opravy mají přednost; běžné minor/patch bumpy seskupit do 1 PR.
+    groups:
+      minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Verze samotných GitHub Actions ve workflow (checkout/setup-node/...).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels:
+      - ci
