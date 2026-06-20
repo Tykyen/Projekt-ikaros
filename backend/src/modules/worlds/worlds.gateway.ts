@@ -35,7 +35,12 @@ export class WorldsGateway implements OnGatewayConnection {
 
   @OnEvent('world.updated')
   handleWorldUpdated(world: World) {
-    this.server.to(`world:${world.id}`).emit('world:updated', world);
+    // R-RUN-01 / W-RUN-01 (plný audit 2026-06-20) — leak-safe signál místo
+    // plného `World` (ownerId/deletedAt/themeOverrides/activeMapWeather…). FE
+    // (useWorldSocket) jen invaliduje a refetchne filtrovaný GET — payload nečte.
+    this.server
+      .to(`world:${world.id}`)
+      .emit('world:updated', { worldId: world.id });
   }
 
   @OnEvent('world.deleted')
@@ -62,9 +67,16 @@ export class WorldsGateway implements OnGatewayConnection {
     worldId: string;
     membership: WorldMembership;
   }) {
+    // R-RUN-01 / W-RUN-01 (plný audit 2026-06-20) — leak-safe signál místo
+    // plného `WorldMembership` (per-user privátní data: chatColor, chatFont,
+    // themeUserOverrides, jailedDiceSkins, akj, chatGroupOrder, currentSceneId).
+    // FE (useWorldSocket) jen invaliduje seznam členů — payload nečte.
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('world:membership:changed', payload.membership);
+      .emit('world:membership:changed', {
+        worldId: payload.worldId,
+        membershipId: payload.membership.id,
+      });
   }
 
   @OnEvent('world.membership.removed')

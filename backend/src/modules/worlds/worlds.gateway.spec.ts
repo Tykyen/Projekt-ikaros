@@ -26,11 +26,28 @@ describe('WorldsGateway', () => {
     expect(gateway).toBeDefined();
   });
 
-  it('broadcasts world:updated to correct world room', () => {
-    const world = { id: 'world1', name: 'Matrix' };
+  it('broadcasts world:updated jako leak-safe signál (jen worldId)', () => {
+    // R-RUN-01 (plný audit 2026-06-20) — žádný plný World objekt v payloadu.
+    const world = { id: 'world1', name: 'Matrix', ownerId: 'secret' };
     gateway.handleWorldUpdated(world as never);
     expect(mockServer.to).toHaveBeenCalledWith('world:world1');
-    expect(mockServer.emit).toHaveBeenCalledWith('world:updated', world);
+    expect(mockServer.emit).toHaveBeenCalledWith('world:updated', {
+      worldId: 'world1',
+    });
+  });
+
+  it('broadcasts world:membership:changed jako leak-safe signál (worldId+membershipId)', () => {
+    // R-RUN-01 (plný audit 2026-06-20) — žádný plný WorldMembership (privátní
+    // per-user data) v payloadu.
+    gateway.handleMembershipChanged({
+      worldId: 'w1',
+      membership: { id: 'm1', chatColor: 'secret', akj: {} } as never,
+    });
+    expect(mockServer.to).toHaveBeenCalledWith('world:w1');
+    expect(mockServer.emit).toHaveBeenCalledWith('world:membership:changed', {
+      worldId: 'w1',
+      membershipId: 'm1',
+    });
   });
 
   it('emits world:access-requested to PJ owner room', () => {

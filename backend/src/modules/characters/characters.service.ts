@@ -221,6 +221,36 @@ export class CharactersService {
     }));
   }
 
+  /**
+   * R-RUN-02 (plný audit 2026-06-20) — read brána pro adresář postav. Veřejný
+   * svět = veřejně, privátní = jen členové (jinak leak postav nečlenovi/anonymovi).
+   * POZOR: gate je SAMOSTATNÝ a volá ho jen HTTP controller. `getDirectory` musí
+   * zůstat bez brány, protože ho volá i `chat.service` interně (enrich postav) —
+   * tam žádný user kontext není a brána by způsobila 403 (regrese chat kanálů).
+   */
+  async assertCanViewDirectory(
+    worldId: string,
+    userId?: string,
+    platformRole?: UserRole,
+  ): Promise<void> {
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    if (world.accessMode !== 'private') return;
+    if (platformRole !== undefined && platformRole <= UserRole.Admin) return;
+    const membership = userId
+      ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+      : null;
+    if (!membership)
+      throw new ForbiddenException({
+        code: 'WORLD_ACCESS_DENIED',
+        message: 'Tahle část světa je jen pro jeho členy.',
+      });
+  }
+
   async getDirectory(worldId: string): Promise<CharacterDirectoryEntry[]> {
     const entries = await this.charRepo.findDirectory(worldId);
     const imgBySlug = await this.imageUrlBySlug(worldId);

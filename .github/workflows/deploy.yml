@@ -59,6 +59,7 @@ jobs:
           JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
           JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
           JWT_REFRESH_TTL_DAYS=${{ vars.JWT_REFRESH_TTL_DAYS }}
+          TOTP_ENC_KEY=${{ secrets.TOTP_ENC_KEY }}
           CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}
           CLOUDINARY_CLOUD_NAME=${{ vars.CLOUDINARY_CLOUD_NAME }}
           TURNSTILE_SECRET=${{ secrets.TURNSTILE_SECRET }}

@@ -420,6 +420,42 @@ describe('SoundsService', () => {
     });
   });
 
+  // R-RUN-01 (plný audit 2026-06-20) — member gate na GET /worlds/:id/sounds.
+  describe('assertIsMember', () => {
+    it('odmítne nečlena světa (ForbiddenException)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.assertIsMember('outsider', UserRole.Hrac, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('odmítne Zadatele (pending člen)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Zadatel,
+      });
+      await expect(
+        service.assertIsMember('pending', UserRole.Hrac, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('propustí běžného člena (Hráč)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.assertIsMember('member', UserRole.Hrac, 'world1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('propustí Admina bez kontroly membershipu', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockClear();
+      await expect(
+        service.assertIsMember('admin1', UserRole.Admin, 'world1'),
+      ).resolves.toBeUndefined();
+      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+  });
+
   describe('assertIsAdmin', () => {
     it('propustí Admina', async () => {
       await expect(

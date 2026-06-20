@@ -37,15 +37,27 @@ export class WorldSoundsController {
   @Get()
   @ApiOperation({ summary: 'Zvuky světa' })
   @ApiResponse({ status: 200 })
-  findAll(@Param('worldId') worldId: string) {
+  @ApiResponse({ status: 403 })
+  async findAll(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // R-RUN-01 (plný audit 2026-06-20) — member-only (leak privátního světa).
+    await this.service.assertIsMember(user.id, user.role, worldId);
     return this.service.findByWorld(worldId);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Detail world zvuku' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
   @ApiResponse({ status: 404 })
-  findOne(@Param('worldId') worldId: string, @Param('id') id: string) {
+  async findOne(
+    @Param('worldId') worldId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertIsMember(user.id, user.role, worldId);
     return this.service.findOne(id, worldId);
   }
 

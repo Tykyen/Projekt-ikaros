@@ -16,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { CharactersService } from './characters.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
@@ -50,9 +51,24 @@ export class CharactersController {
   }
 
   @Get('directory')
-  @ApiOperation({ summary: 'Veřejný adresář postav' })
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Adresář postav (veřejný svět = veřejně, privátní = jen členové)',
+  })
   @ApiResponse({ status: 200, description: 'OK' })
-  getDirectory(@Param('worldId') worldId: string) {
+  @ApiResponse({ status: 403 })
+  async getDirectory(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user?: RequestUser,
+  ) {
+    // R-RUN-02 — OptionalJwt: anonym smí veřejný svět, privátní jen členové.
+    // Brána je v controlleru (HTTP vrstva); service.getDirectory zůstává bez ní,
+    // protože ho volá i chat.service interně (enrich).
+    await this.charactersService.assertCanViewDirectory(
+      worldId,
+      user?.id,
+      user?.role,
+    );
     return this.charactersService.getDirectory(worldId);
   }
 

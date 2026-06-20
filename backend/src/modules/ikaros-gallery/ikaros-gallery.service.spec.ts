@@ -84,8 +84,11 @@ describe('IkarosGalleryService', () => {
       expect(service.isAdmin(UserRole.SpravceGalerie, 'nekdo')).toBe(true));
     it('PJ NENÍ admin (galerie = platformový obsah, PJ je world-scoped)', () =>
       expect(service.isAdmin(UserRole.PJ, 'nekdo')).toBe(false));
-    it('Tyky je admin', () =>
-      expect(service.isAdmin(UserRole.Hrac, 'Tyky')).toBe(true));
+    // R-RUN-03 (plný audit 2026-06-20) — username backdoor odstraněn.
+    it('Superadmin je admin', () =>
+      expect(service.isAdmin(UserRole.Superadmin, 'kdokoli')).toBe(true));
+    it('Hráč přejmenovaný na „Tyky" NENÍ admin (backdoor odstraněn)', () =>
+      expect(service.isAdmin(UserRole.Hrac, 'Tyky')).toBe(false));
     it('Hráč není admin', () =>
       expect(service.isAdmin(UserRole.Hrac, 'nekdo')).toBe(false));
     it('anon (undefined role) není admin', () =>

@@ -98,6 +98,10 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      # PC-RUN-01 (plný audit 2026-06-20) — šifrovací klíč pro 2FA TOTP secrety
+      # (14.1). 2FA je opt-in → bez klíče je setup runtime fail-closed (503),
+      # NE boot-fatal (proto `:-`, ne `:?`). Nastav přes GitHub secret TOTP_ENC_KEY.
+      TOTP_ENC_KEY: ${TOTP_ENC_KEY:-}
       # SMTP (transakční maily — reset hesla, ověření emailu). Když nejsou
       # nastaveny SMTP_HOST + SMTP_USER, mailer jen loguje (neodesílá).
       SMTP_HOST: ${SMTP_HOST}

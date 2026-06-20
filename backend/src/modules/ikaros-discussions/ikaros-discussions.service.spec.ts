@@ -103,8 +103,11 @@ describe('IkarosDiscussionsService', () => {
   describe('isAdmin', () => {
     it('SpravceDiskuzi je admin', () =>
       expect(service.isAdmin(UserRole.SpravceDiskuzi, 'nekdo')).toBe(true));
-    it('Tyky je admin', () =>
-      expect(service.isAdmin(UserRole.Hrac, 'Tyky')).toBe(true));
+    // R-RUN-03 (plný audit 2026-06-20) — username backdoor odstraněn.
+    it('Superadmin je admin', () =>
+      expect(service.isAdmin(UserRole.Superadmin, 'kdokoli')).toBe(true));
+    it('Hráč přejmenovaný na „Tyky" NENÍ admin (backdoor odstraněn)', () =>
+      expect(service.isAdmin(UserRole.Hrac, 'Tyky')).toBe(false));
     it('Hráč není admin', () =>
       expect(service.isAdmin(UserRole.Hrac, 'nekdo')).toBe(false));
     it('PJ NENÍ admin diskuzí (3.4 — platformový obsah)', () =>
@@ -362,7 +365,7 @@ describe('IkarosDiscussionsService', () => {
     it('hodí BadRequestException pokud diskuze není schválena', async () => {
       mockRepo.findById.mockResolvedValue(mockDiscussion); // isApproved: false
       await expect(
-        service.addPost('disc1', 'Obsah', 'user2', 'Autor'),
+        service.addPost('disc1', 'Obsah', 'user2', 'Autor', UserRole.Hrac),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -372,10 +375,39 @@ describe('IkarosDiscussionsService', () => {
         isApproved: true,
       });
       mockPostsRepo.create.mockResolvedValue(mockPost);
-      const result = await service.addPost('disc1', 'Obsah', 'user2', 'Autor');
+      const result = await service.addPost(
+        'disc1',
+        'Obsah',
+        'user2',
+        'Autor',
+        UserRole.Hrac,
+      );
       expect(mockPostsRepo.create).toHaveBeenCalled();
       expect(mockRepo.adjustPostCount).toHaveBeenCalledWith('disc1', 1, true);
       expect(result).toEqual(mockPost);
+    });
+
+    // N-RUN-01 / R-RUN-01 (plný audit 2026-06-20) — regrese: nepozvaný uživatel
+    // do uzavřené (neveřejné) schválené diskuze musí dostat 403, ne zápis.
+    it('hodí ForbiddenException pro nepozvaného uživatele v uzavřené diskuzi', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+        isOpen: false,
+        creatorId: 'user1',
+        managerIds: [],
+        invitedUserIds: [],
+      });
+      await expect(
+        service.addPost(
+          'disc1',
+          'Obsah',
+          'outsider',
+          'Vetřelec',
+          UserRole.Hrac,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPostsRepo.create).not.toHaveBeenCalled();
     });
   });
 

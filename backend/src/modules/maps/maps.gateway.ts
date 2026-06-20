@@ -119,10 +119,19 @@ export class MapsGateway implements OnGatewayConnection {
         data.user!.id,
         scene.worldId,
       );
-      if (!membership) {
+      // W-RUN-07-02 / R-RUN-02 (plný audit 2026-06-20) — sjednoceno s REST
+      // `assertCanReadScene`: dřív stačilo pouhé členství → Zadatel(0)/pending
+      // i Hráč s cizí (nepřiřazenou) scénou dostávali live `map:operation`
+      // (HP/pozice/fog). Teď: PomocnyPJ+ smí všechny scény, ostatní jen vlastní
+      // `currentSceneId`.
+      if (
+        !membership ||
+        (membership.role < WorldRole.PomocnyPJ &&
+          membership.currentSceneId !== scene.id)
+      ) {
         client.emit('error', {
           code: 'MAP_FORBIDDEN',
-          message: 'Nejsi member tohoto světa',
+          message: 'Tuto scénu nemáš přiřazenou',
         });
         return;
       }
@@ -197,6 +206,10 @@ export class MapsGateway implements OnGatewayConnection {
     @ConnectedSocket() client: AuthedSocket,
   ): void {
     if (!this.requireAuth(client)) return;
+    // W-RUN-07-03 (plný audit 2026-06-20) — dřív mohl libovolný přihlášený
+    // klient broadcastnout ping do JAKÉKOLIV scény (cross-scene spoof). Teď jen
+    // do scény, do které je skutečně připojen (prošel map:join gate).
+    if (!client.rooms.has(payload.sceneId)) return;
     client
       .to(payload.sceneId)
       .emit('map:pinged', payload.x, payload.y, payload.userName);

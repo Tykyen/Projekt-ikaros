@@ -39,6 +39,26 @@ export class SoundsService {
       });
   }
 
+  // R-RUN-01 (plný audit 2026-06-20) — GET /worlds/:id/sounds dřív neměl
+  // membership gate → nečlen privátního světa četl celou zvukovou DB. Vzor
+  // shodný s emotes.assertIsMember (vyloučí nečleny i Zadatele, pustí Ctenar+).
+  async assertIsMember(
+    userId: string,
+    userRole: UserRole,
+    worldId: string,
+  ): Promise<void> {
+    if (userRole <= UserRole.Admin) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      userId,
+      worldId,
+    );
+    if (!membership || membership.role === WorldRole.Zadatel)
+      throw new ForbiddenException({
+        code: 'NOT_WORLD_MEMBER',
+        message: 'Nejsi člen tohoto světa',
+      });
+  }
+
   // Sync logika, ale držíme Promise<void> kontrakt — testy spoléhají na .rejects.toThrow.
   // eslint-disable-next-line @typescript-eslint/require-await
   async assertIsAdmin(userRole: UserRole): Promise<void> {

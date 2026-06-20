@@ -468,7 +468,12 @@ export class AdminService {
         message: 'Uživatel nenalezen',
       });
     }
-    assertCanModerate(actor, target, 'DELETE');
+    // N-AD-01 (plný audit 2026-06-20) — `actor` přichází jako RequestUser z JWT
+    // bez `adminPermissions`; assertCanModerate(DELETE) vyžaduje
+    // `canModerateContent` → načti čerstvého uživatele z DB (vzor
+    // setAdminPermissions), jinak Admin s oprávněním vždy dostane 403.
+    const actorFull = (await this.usersRepo.findById(actor.id)) ?? actor;
+    assertCanModerate(actorFull, target, 'DELETE');
     if (target.isDeleted) {
       throw new ConflictException({
         code: 'ALREADY_DELETED',
@@ -558,7 +563,9 @@ export class AdminService {
         message: 'Uživatel nenalezen',
       });
     }
-    assertCanModerate(actor, target, 'UNDELETE');
+    // N-AD-01 (plný audit 2026-06-20) — viz requestUserDeletion: actorFull z DB.
+    const actorFull = (await this.usersRepo.findById(actor.id)) ?? actor;
+    assertCanModerate(actorFull, target, 'UNDELETE');
     if (target.isDeleted) {
       throw new ConflictException({
         code: 'ALREADY_DELETED',

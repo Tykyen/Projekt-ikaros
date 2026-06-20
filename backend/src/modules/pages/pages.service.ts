@@ -55,6 +55,20 @@ function sanitizeTable(table: CreatePageDto['table']): CreatePageDto['table'] {
   };
 }
 
+// F-RUN-02 (plný audit 2026-06-20) — `customData` (typ Noviny) se renderuje
+// přes `dangerouslySetInnerHTML` (NovinyLayout). Bez sanitizace stejná stored-XSS
+// třída jako F-02 (timeline). Sanitizujeme každou HTML hodnotu.
+function sanitizeCustomData(
+  customData: CreatePageDto['customData'],
+): CreatePageDto['customData'] {
+  if (!customData) return customData;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(customData)) {
+    out[key] = typeof value === 'string' ? sanitizeRichText(value) : value;
+  }
+  return out;
+}
+
 /**
  * AKJ záložky — sanitizuje HTML uvnitř `contentOverride` (content, table,
  * sections, infoBlocks value) stejným allowlistem jako základní obsah stránky.
@@ -255,6 +269,9 @@ export class PagesService {
         ownerUserId: dto.type === 'Postava hráče' ? dto.ownerUserId : undefined,
         characterRef,
         akjTabs: sanitizeAkjTabs(dto.akjTabs) ?? [],
+        ...(dto.customData && {
+          customData: sanitizeCustomData(dto.customData),
+        }),
       });
       // RC-D2 — svět se mohl soft-smazat v okně mezi `assertCanWrite` a `save`
       // → phantom stránka v mrtvém světě. Re-ověř a ukliď (vzor RC-D3/D6
@@ -389,6 +406,9 @@ export class PagesService {
       // Prázdné pole [] (smazání všech záložek) projde (je truthy).
       ...(persistDto.akjTabs && {
         akjTabs: sanitizeAkjTabs(persistDto.akjTabs),
+      }),
+      ...(persistDto.customData && {
+        customData: sanitizeCustomData(persistDto.customData),
       }),
       ...extra,
       menu: persistDto.menu?.map((m) => ({ ...m, order: m.order ?? 0 })),

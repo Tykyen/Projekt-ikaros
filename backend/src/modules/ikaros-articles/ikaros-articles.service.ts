@@ -55,9 +55,12 @@ export class IkarosArticlesService {
     private readonly versionsRepo?: ArticleVersionsRepository,
   ) {}
 
-  isAdmin(role: UserRole | undefined, username: string | undefined): boolean {
+  // R-RUN-03 (plný audit 2026-06-20) — odstraněn hardcoded `username === 'Tyky'`
+  // backdoor (rename-útok: kdokoli přejmenovaný na „Tyky" by dostal admin).
+  // Tyky má plnou moc přes roli Superadmin v ADMIN_ROLES — kontrola zůstává.
+  isAdmin(role: UserRole | undefined, _username?: string): boolean {
     if (role === undefined) return false;
-    return ADMIN_ROLES.includes(role) || username === 'Tyky';
+    return ADMIN_ROLES.includes(role);
   }
 
   private assertAdmin(

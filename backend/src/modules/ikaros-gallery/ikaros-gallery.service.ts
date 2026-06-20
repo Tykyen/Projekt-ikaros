@@ -93,10 +93,10 @@ export class IkarosGalleryService {
     return category;
   }
 
-  isAdmin(role?: UserRole, username?: string): boolean {
-    return (
-      (role !== undefined && ADMIN_ROLES.includes(role)) || username === 'Tyky'
-    );
+  // R-RUN-03 (plný audit 2026-06-20) — odstraněn `username === 'Tyky'` backdoor
+  // (rename-útok); Tyky má plnou moc přes roli Superadmin v ADMIN_ROLES.
+  isAdmin(role?: UserRole, _username?: string): boolean {
+    return role !== undefined && ADMIN_ROLES.includes(role);
   }
 
   private assertAdmin(role?: UserRole, username?: string): void {

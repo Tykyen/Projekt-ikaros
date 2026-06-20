@@ -18,7 +18,9 @@ export abstract class BaseGateway
   @WebSocketServer() server: Server;
   protected readonly logger = new Logger(this.constructor.name);
 
-  handleConnection(client: Socket) {
+  // Návratový typ `void | Promise<void>` — NestJS await-uje async override
+  // (PresenceGateway načítá `hiddenPresence` z DB, W-RUN-01).
+  handleConnection(client: Socket): void | Promise<void> {
     // D-070 (2026-05-21) — Default Node max listeners limit je 10. Víc gateways
     // se registruje na jeden socket `disconnect` (AppGateway + GlobalChatGateway +
     // ChatGateway + WorldsGateway + IkarosMessagesGateway + presence/friendships).

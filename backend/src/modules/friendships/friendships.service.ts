@@ -271,7 +271,7 @@ export class FriendshipsService {
   async getStatus(
     actorId: string,
     otherUserId: string,
-  ): Promise<{ kind: FriendStatusKind }> {
+  ): Promise<{ kind: FriendStatusKind; friendshipId?: string }> {
     if (actorId === otherUserId) return { kind: 'self' };
 
     const myBlock = await this.blocksRepo.findActive(actorId, otherUserId);
@@ -286,11 +286,15 @@ export class FriendshipsService {
       otherUserId,
     );
     if (!friendship) return { kind: 'none' };
-    if (friendship.status === 'accepted') return { kind: 'accepted' };
+    // N-RUN-05 (plný audit 2026-06-20) — vracíme `friendshipId`: FE profil
+    // (PublicProfileActions) ho potřebuje pro tlačítka Přijmout/Odmítnout, bez
+    // něj se accept/decline na profilu nikdy nezobrazily.
+    if (friendship.status === 'accepted')
+      return { kind: 'accepted', friendshipId: friendship.id };
     if (friendship.status === 'pending') {
       return friendship.requesterId === actorId
-        ? { kind: 'pending_outgoing' }
-        : { kind: 'pending_incoming' };
+        ? { kind: 'pending_outgoing', friendshipId: friendship.id }
+        : { kind: 'pending_incoming', friendshipId: friendship.id };
     }
     return { kind: 'none' };
   }

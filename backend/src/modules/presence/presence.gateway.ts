@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { SubscribeMessage, ConnectedSocket } from '@nestjs/websockets';
 import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { BaseGateway } from '../../gateways/base.gateway';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 
 interface PresenceSocketData {
   presenceUserId?: string;
@@ -29,31 +30,57 @@ export class PresenceGateway extends BaseGateway {
   private readonly idleSockets = new Map<string, Set<string>>();
   /** userId aktuálně VYHLÁŠENÝ jako idle (poslední broadcastnutý stav). */
   private readonly idle = new Set<string>();
+  /**
+   * W-RUN-01 (plný audit 2026-06-20) — userId v „neviditelném módu"
+   * (`hiddenPresence`). Drží se interní stav (idle/online), ale ostatním se
+   * NEbroadcastuje a vynechá se ze snapshotu pro ostatní.
+   */
+  private readonly hiddenUsers = new Set<string>();
 
-  constructor(private readonly jwtService: JwtService) {
+  constructor(
+    private readonly jwtService: JwtService,
+    @Inject('IUsersRepository')
+    private readonly usersRepo: IUsersRepository,
+  ) {
     super();
   }
 
-  override handleConnection(client: Socket): void {
-    super.handleConnection(client);
+  override async handleConnection(client: Socket): Promise<void> {
+    void super.handleConnection(client);
     const userId = this.authUser(client);
     if (!userId) return;
     (client.data as PresenceSocketData).presenceUserId = userId;
+
+    // W-RUN-01 — respektovat neviditelný mód. Fail-safe: chyba DB nesmí rozbít
+    // presence (default = viditelný).
+    let hidden = false;
+    try {
+      const user = await this.usersRepo.findById(userId);
+      hidden = user?.hiddenPresence === true;
+    } catch {
+      hidden = false;
+    }
+    if (hidden) this.hiddenUsers.add(userId);
+    else this.hiddenUsers.delete(userId);
 
     const wasOffline = !this.sockets.has(userId);
     if (wasOffline) this.sockets.set(userId, new Set());
     this.sockets.get(userId)!.add(client.id);
 
-    // Snapshot aktuálního stavu novému klientovi.
-    const entries = [...this.sockets.keys()].map((uid) => ({
-      userId: uid,
-      status: this.idle.has(uid) ? 'idle' : 'online',
-    }));
+    // Snapshot aktuálního stavu novému klientovi — skryté uživatele vynech
+    // (kromě sebe sama).
+    const entries = [...this.sockets.keys()]
+      .filter((uid) => uid === userId || !this.hiddenUsers.has(uid))
+      .map((uid) => ({
+        userId: uid,
+        status: this.idle.has(uid) ? 'idle' : 'online',
+      }));
     client.emit('presence:snapshot', { entries });
 
     if (wasOffline) {
-      // Ostatním oznam nově příchozího (jen při prvním socketu uživatele).
-      client.broadcast.emit('presence:update', { userId, status: 'online' });
+      // Ostatním oznam nově příchozího (jen při prvním socketu + ne skrytý).
+      if (!hidden)
+        client.broadcast.emit('presence:update', { userId, status: 'online' });
     } else {
       // Další tab/zařízení = aktivní socket → pokud byl uživatel vyhlášen idle,
       // přejde zpět na online (nový socket není v idleSockets).
@@ -73,7 +100,10 @@ export class PresenceGateway extends BaseGateway {
       this.sockets.delete(userId);
       this.idleSockets.delete(userId);
       this.idle.delete(userId);
-      this.server.emit('presence:update', { userId, status: 'offline' });
+      // W-RUN-01 — skrytý uživatel offline nebroadcastuje (a vyčistí flag).
+      const wasHidden = this.hiddenUsers.delete(userId);
+      if (!wasHidden)
+        this.server.emit('presence:update', { userId, status: 'offline' });
     } else {
       // Odpojil se aktivní socket → zbývající mohou být všechny idle.
       this.recomputeIdle(userId);
@@ -111,12 +141,16 @@ export class PresenceGateway extends BaseGateway {
     const idleSet = this.idleSockets.get(userId);
     const allIdle = !!idleSet && idleSet.size >= all.size;
     const wasIdle = this.idle.has(userId);
+    // W-RUN-01 — skrytý uživatel: drž interní stav, ale ostatním nebroadcastuj.
+    const broadcast = !this.hiddenUsers.has(userId);
     if (allIdle && !wasIdle) {
       this.idle.add(userId);
-      this.server.emit('presence:update', { userId, status: 'idle' });
+      if (broadcast)
+        this.server.emit('presence:update', { userId, status: 'idle' });
     } else if (!allIdle && wasIdle) {
       this.idle.delete(userId);
-      this.server.emit('presence:update', { userId, status: 'online' });
+      if (broadcast)
+        this.server.emit('presence:update', { userId, status: 'online' });
     }
   }
 

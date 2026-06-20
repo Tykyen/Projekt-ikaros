@@ -39,6 +39,10 @@ const WORLD_SCOPED_COLLECTIONS = [
   'mapScenes',
   'worldMaps',
   'universeMaps',
+  // CD-RUN-5 (plný audit 2026-06-20) — 13.4 obrázkový atlas: dřív orphan po
+  // hard-delete světa (chyběly v listu).
+  'worldMapEntries',
+  'worldMapFolders',
   // čas / kalendáře / novinky / timeline
   'world_calendar_configs',
   'worldnews',
@@ -55,11 +59,28 @@ const WORLD_SCOPED_COLLECTIONS = [
   'world_currencies',
   'world_gm_notes',
   'world_page_templates',
+  // CD-RUN-6 (plný audit 2026-06-20) — per-svět verze deníkového schématu.
+  'diary_schema_versions',
   'worldaccessrequests',
   'worldmemberships',
   'worldOperations',
   'worldsettings',
 ];
+
+/**
+ * CD-RUN-7..12 (plný audit 2026-06-20) — world-scoped kolekce nesoucí Cloudinary
+ * blob URL. Před hard-delete je posbíráme a emitneme `media.orphaned`, jinak
+ * bloby (emoty/avatary/scény/ikony/bestie/atlas) leakují na Cloudinary navždy.
+ * (Dřív se čistil jen `world.imageUrl` přes CD-03.)
+ */
+const BLOB_COLLECTIONS: Record<string, string[]> = {
+  custom_emotes: ['imageUrl'],
+  mapScenes: ['imageUrl'],
+  chatgroups: ['imageUrl'],
+  bestiae: ['imageUrl'],
+  worldMapEntries: ['imageUrl'],
+  worldmemberships: ['avatarUrl', 'pjPersonaAvatarUrl'],
+};
 
 /**
  * Subdoc kolekce keyed `characterId` (NEMAJÍ `worldId`) — smažou se podle
@@ -93,9 +114,16 @@ export class WorldHardDeleteService {
         .collection('worlds')
         .findOne(
           { _id: new Types.ObjectId(worldId) },
-          { projection: { imageUrl: 1 } },
+          { projection: { imageUrl: 1, deletedAt: 1 } },
         );
-      const imageUrl = world?.imageUrl as string | undefined;
+      // RC-D7 (plný audit 2026-06-20) — restore-race: jediný caller je cron
+      // (`findExpiredDeleted`). Pokud Admin svět obnovil v okně mezi výběrem
+      // a touto kaskádou, `restore` nastavil `deletedAt=null` → NESMÍME smazat
+      // živý svět (~35 kolekcí). Kaskádu provádíme jen na stále soft-smazaném.
+      if (!world || !world.deletedAt) {
+        return;
+      }
+      const imageUrl = world.imageUrl as string | undefined;
       if (imageUrl) {
         this.eventEmitter.emit('world.image.removed', { url: imageUrl });
       }
@@ -113,6 +141,12 @@ export class WorldHardDeleteService {
       }
     }
 
+    // 1.5) CD-RUN-7..12 — posbírat blob URL z blob-nesoucích kolekcí PŘED
+    // jejich smazáním → úklid Cloudinary přes media.orphaned listener.
+    for (const [coll, fields] of Object.entries(BLOB_COLLECTIONS)) {
+      await this.collectBlobs(coll, { worldId }, fields);
+    }
+
     // 2) všechny world-scoped kolekce.
     for (const coll of WORLD_SCOPED_COLLECTIONS) {
       await this.safeDelete(coll, { worldId });
@@ -126,6 +160,39 @@ export class WorldHardDeleteService {
     this.logger.log(
       `World ${worldId} hard-deleted (cascade ${WORLD_SCOPED_COLLECTIONS.length} kolekcí + ${CHARACTER_KEYED_COLLECTIONS.length} subdoc, ${charIds.length} postav)`,
     );
+  }
+
+  /**
+   * CD-RUN-7..12 — posbírá hodnoty blob polí z dokumentů kolekce a emitne
+   * `media.orphaned` (úklid Cloudinary). Ne-Cloudinary URL listener ignoruje.
+   */
+  private async collectBlobs(
+    collection: string,
+    filter: Record<string, unknown>,
+    fields: string[],
+  ): Promise<void> {
+    try {
+      const projection: Record<string, 1> = {};
+      for (const f of fields) projection[f] = 1;
+      const docs = (await this.connection
+        .collection(collection)
+        .find(filter, { projection })
+        .toArray()) as Array<Record<string, unknown>>;
+      const urls: string[] = [];
+      for (const doc of docs) {
+        for (const f of fields) {
+          const v = doc[f];
+          if (typeof v === 'string' && v.length > 0) urls.push(v);
+        }
+      }
+      if (urls.length > 0) {
+        this.eventEmitter.emit('media.orphaned', { urls });
+      }
+    } catch (err) {
+      this.logger.error(
+        `hardDelete: blob collect ${collection} selhal: ${(err as Error).message}`,
+      );
+    }
   }
 
   private async safeDelete(

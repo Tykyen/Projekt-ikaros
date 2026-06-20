@@ -88,8 +88,10 @@ export class IkarosDiscussionsService {
     }));
   }
 
-  isAdmin(role: UserRole, username: string): boolean {
-    return ADMIN_ROLES.includes(role) || username === 'Tyky';
+  // R-RUN-03 (plný audit 2026-06-20) — odstraněn `username === 'Tyky'` backdoor
+  // (rename-útok); Tyky má plnou moc přes roli Superadmin v ADMIN_ROLES.
+  isAdmin(role: UserRole, _username?: string): boolean {
+    return ADMIN_ROLES.includes(role);
   }
 
   private assertAdmin(role: UserRole, username: string): void {
@@ -498,6 +500,7 @@ export class IkarosDiscussionsService {
     content: string,
     authorId: string,
     authorName: string,
+    role: UserRole,
   ): Promise<IkarosDiscussionPost> {
     const discussion = await this.repo.findById(discussionId);
     if (!discussion)
@@ -509,6 +512,14 @@ export class IkarosDiscussionsService {
       throw new BadRequestException(
         'Nelze přidat příspěvek do neschválené diskuze',
       );
+    // N-RUN-01 / R-RUN-01 (plný audit 2026-06-20) — addPost minul access gate,
+    // který getPosts a findById mají → nepozvaný uživatel mohl psát do uzavřené
+    // (neveřejné) schválené diskuze, znal-li ID.
+    if (!this.canAccessDiscussion(discussion, authorId, role, authorName))
+      throw new ForbiddenException({
+        code: 'DISCUSSION_ACCESS_DENIED',
+        message: 'Přístup odepřen',
+      });
     // D-NEW-html-sanitization (2026-05-21) — sanitize TipTap output před uložením.
     const post = await this.postsRepo.create({
       discussionId,

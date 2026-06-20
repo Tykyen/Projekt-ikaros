@@ -314,7 +314,13 @@ export class IkarosDiscussionsController {
     @Body() dto: AddPostDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.addPost(id, dto.content, user.id, user.username);
+    return this.service.addPost(
+      id,
+      dto.content,
+      user.id,
+      user.username,
+      user.role,
+    );
   }
 
   @Delete(':id/posts/:postId')
