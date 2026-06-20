@@ -80,10 +80,8 @@ export class MongoIkarosEventRepository implements IIkarosEventRepository {
     return this.toEntity(doc as unknown as Record<string, unknown>);
   }
 
-  async softDelete(id: string): Promise<boolean> {
-    const doc = await this.model
-      .findByIdAndUpdate(id, { $set: { isActive: false } }, { new: true })
-      .exec();
+  async delete(id: string): Promise<boolean> {
+    const doc = await this.model.findByIdAndDelete(id).exec();
     return doc !== null;
   }
 

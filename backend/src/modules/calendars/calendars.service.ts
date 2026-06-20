@@ -12,10 +12,7 @@ import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.i
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
-import type {
-  CharacterCalendar,
-  CalendarEvent,
-} from '../character-subdocs/interfaces/character-calendar.interface';
+import type { CharacterCalendar } from '../character-subdocs/interfaces/character-calendar.interface';
 import type {
   CalendarAggregateResponse,
   UpdateCalendarSettingsDto,
@@ -104,33 +101,6 @@ export class CalendarsService {
     }
 
     return this.subdocsService.updateCalendar(character.id, update);
-  }
-
-  async getBySlug(
-    slug: string,
-    worldId: string,
-    requesterId: string,
-  ): Promise<CharacterCalendar> {
-    const character = await this.charactersService.assertSubdocAccess(
-      slug,
-      worldId,
-      requesterId,
-    );
-    return this.subdocsService.getCalendar(character.id);
-  }
-
-  async updateBySlug(
-    slug: string,
-    worldId: string,
-    events: CalendarEvent[],
-    requesterId: string,
-  ): Promise<CharacterCalendar> {
-    const character = await this.charactersService.assertSubdocAccess(
-      slug,
-      worldId,
-      requesterId,
-    );
-    return this.subdocsService.updateCalendar(character.id, { events });
   }
 
   /**

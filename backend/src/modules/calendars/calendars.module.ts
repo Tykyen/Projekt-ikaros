@@ -6,11 +6,10 @@ import { CharactersService } from '../characters/characters.service';
 import { WorldsModule } from '../worlds/worlds.module';
 import { CalendarsService } from './calendars.service';
 import { CalendarsController } from './calendars.controller';
-import { LegacyCalendersController } from './legacy-calenders.controller';
 
 @Module({
   imports: [CharacterSubdocsModule, CharactersModule, WorldsModule],
-  controllers: [CalendarsController, LegacyCalendersController],
+  controllers: [CalendarsController],
   providers: [
     CalendarsService,
     {

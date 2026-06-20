@@ -128,12 +128,19 @@ export class IkarosEventsService {
 
   async delete(id: string, role: UserRole): Promise<void> {
     this.assertCanWrite(role);
-    const ok = await this.repo.softDelete(id);
+    // CD-RUN-4b (2026-06-20) — hard delete: soft-delete (`isActive=false`) neměl
+    // žádnou cestu k obnově → jen se hromadil + leakoval blob. Načteme před
+    // smazáním kvůli úklidu obrázku (vzor ikaros-news / game-events).
+    const existing = await this.repo.findById(id);
+    const ok = await this.repo.delete(id);
     if (!ok)
       throw new NotFoundException({
         code: 'IKAROS_EVENT_NOT_FOUND',
         message: 'Akce nenalezena',
       });
+    if (existing?.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.eventEmitter.emit('ikaros-events.changed', {});
   }
 

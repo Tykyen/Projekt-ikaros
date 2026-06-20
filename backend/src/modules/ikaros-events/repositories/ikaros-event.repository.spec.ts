@@ -72,28 +72,24 @@ describe('MongoIkarosEventRepository', () => {
     });
   });
 
-  describe('softDelete', () => {
-    it('nastaví isActive:false, vrací true pokud dokument existuje', async () => {
-      const findByIdAndUpdate = jest
+  describe('delete (hard, CD-RUN-4b)', () => {
+    it('volá findByIdAndDelete, vrací true pokud dokument existuje', async () => {
+      const findByIdAndDelete = jest
         .fn()
         .mockReturnValue(execMock({ _id: 'e1' }));
       const repo = new MongoIkarosEventRepository({
-        findByIdAndUpdate,
+        findByIdAndDelete,
       } as never);
-      await expect(repo.softDelete('e1')).resolves.toBe(true);
-      expect(findByIdAndUpdate).toHaveBeenCalledWith(
-        'e1',
-        { $set: { isActive: false } },
-        { new: true },
-      );
+      await expect(repo.delete('e1')).resolves.toBe(true);
+      expect(findByIdAndDelete).toHaveBeenCalledWith('e1');
     });
 
     it('vrací false pokud dokument neexistuje', async () => {
-      const findByIdAndUpdate = jest.fn().mockReturnValue(execMock(null));
+      const findByIdAndDelete = jest.fn().mockReturnValue(execMock(null));
       const repo = new MongoIkarosEventRepository({
-        findByIdAndUpdate,
+        findByIdAndDelete,
       } as never);
-      await expect(repo.softDelete('x')).resolves.toBe(false);
+      await expect(repo.delete('x')).resolves.toBe(false);
     });
   });
 

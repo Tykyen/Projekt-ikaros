@@ -30,10 +30,11 @@ describe('IkarosEventsService', () => {
     findById: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
-    softDelete: jest.fn(),
+    delete: jest.fn(),
     setAttendee: jest.fn(),
   };
   const mockUsersRepo = { findById: jest.fn() };
+  const mockEmitter = { emit: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -47,7 +48,7 @@ describe('IkarosEventsService', () => {
         { provide: 'IIkarosEventRepository', useValue: mockRepo },
         { provide: 'IUsersRepository', useValue: mockUsersRepo },
         // C-47 — service emituje 'ikaros-events.changed' po mutaci.
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: mockEmitter },
       ],
     }).compile();
     service = module.get(IkarosEventsService);
@@ -213,8 +214,8 @@ describe('IkarosEventsService', () => {
   });
 
   describe('delete', () => {
-    it('Admin smí smazat (soft delete)', async () => {
-      mockRepo.softDelete.mockResolvedValue(true);
+    it('Admin smí smazat (hard delete)', async () => {
+      mockRepo.delete.mockResolvedValue(true);
       await expect(
         service.delete('e1', UserRole.Admin),
       ).resolves.toBeUndefined();
@@ -227,10 +228,23 @@ describe('IkarosEventsService', () => {
     });
 
     it('neexistující id → 404', async () => {
-      mockRepo.softDelete.mockResolvedValue(false);
+      mockRepo.delete.mockResolvedValue(false);
       await expect(service.delete('x', UserRole.Admin)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    // CD-RUN-4b — hard delete s obrázkem uklidí blob (media.orphaned).
+    it('CD-RUN-4b — smazání akce s obrázkem emituje media.orphaned', async () => {
+      mockRepo.findById.mockResolvedValue({
+        id: 'e1',
+        imageUrl: 'https://cdn/e.jpg',
+      });
+      mockRepo.delete.mockResolvedValue(true);
+      await service.delete('e1', UserRole.Admin);
+      expect(mockEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: ['https://cdn/e.jpg'],
+      });
     });
   });
 

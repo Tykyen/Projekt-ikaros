@@ -25,8 +25,9 @@ export interface IIkarosEventRepository {
     id: string,
     fields: UpdateEventFields,
   ): Promise<IkarosEventItem | null>;
-  /** Soft delete — nastaví `isActive=false`. Vrací false pokud neexistuje. */
-  softDelete(id: string): Promise<boolean>;
+  /** Hard delete (CD-RUN-4b 2026-06-20 — soft-delete `isActive=false` neměl
+   * žádnou cestu k obnově, nahrazen tvrdým smazáním). Vrací false pokud neexistuje. */
+  delete(id: string): Promise<boolean>;
   /** RSVP — přidá/odebere userId v `attendeeUserIds`. Vrací updated nebo null. */
   setAttendee(
     id: string,

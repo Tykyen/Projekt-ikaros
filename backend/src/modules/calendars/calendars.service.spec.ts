@@ -314,47 +314,4 @@ describe('CalendarsService', () => {
       });
     });
   });
-
-  describe('getBySlug (legacy)', () => {
-    it('vrátí kalendář postavy', async () => {
-      mockCharsService.assertSubdocAccess.mockResolvedValue(
-        mockChar('char1', 'jan', 'Jan Novák'),
-      );
-      mockSubdocs.getCalendar.mockResolvedValue(mockCalendar('char1'));
-
-      const result = await service.getBySlug('jan', 'w1', 'user1');
-
-      expect(mockCharsService.assertSubdocAccess).toHaveBeenCalledWith(
-        'jan',
-        'w1',
-        'user1',
-      );
-      expect(result.characterId).toBe('char1');
-    });
-  });
-
-  describe('updateBySlug (legacy)', () => {
-    it('nahradí celé events pole', async () => {
-      const newEvents = [{ id: 'e2', title: 'Nová' }];
-      mockCharsService.assertSubdocAccess.mockResolvedValue(
-        mockChar('char1', 'jan', 'Jan Novák'),
-      );
-      mockSubdocs.updateCalendar.mockResolvedValue({
-        ...mockCalendar('char1'),
-        events: newEvents,
-      });
-
-      const result = await service.updateBySlug(
-        'jan',
-        'w1',
-        newEvents,
-        'user1',
-      );
-
-      expect(mockSubdocs.updateCalendar).toHaveBeenCalledWith('char1', {
-        events: newEvents,
-      });
-      expect(result.events).toEqual(newEvents);
-    });
-  });
 });
