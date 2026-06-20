@@ -157,6 +157,16 @@ export class WorldCalendarConfigService {
         code: 'CALENDAR_CONFIG_NOT_FOUND',
         message: 'Kalendář nenalezen',
       });
+    // CD-RUN-2 — smazaný config mohl být zvolen jako timeline/weather kalendář
+    // (`worldSettings.timelineCalendarSlug`). Vynuluj dangling odkaz, jinak na
+    // něj `getTimelineConfig` ukazuje (řeší to sice fallbackem na default, ale
+    // ten odkaz zůstane viset, dokud ho PJ ručně nepřenastaví).
+    const settings = await this.worldSettingsRepo.findByWorldId(worldId);
+    if (settings?.timelineCalendarSlug === slug) {
+      await this.worldSettingsRepo.upsert(worldId, {
+        timelineCalendarSlug: null,
+      });
+    }
   }
 
   /**

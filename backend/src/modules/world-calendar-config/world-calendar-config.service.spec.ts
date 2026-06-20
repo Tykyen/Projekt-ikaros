@@ -176,6 +176,36 @@ describe('WorldCalendarConfigService', () => {
         NotFoundException,
       );
     });
+
+    // CD-RUN-2 — smazaný config zvolený jako timeline kalendář → vynuluj
+    // dangling `worldSettings.timelineCalendarSlug`.
+    it('CD-RUN-2 — smazání config zvoleného jako timeline vynuluje slug', async () => {
+      mockWorlds.findById.mockResolvedValue({
+        id: 'W1',
+        defaultCalendarConfigSlug: 'gregorian',
+      });
+      mockRepo.remove.mockResolvedValue(true);
+      mockWorldSettings.findByWorldId.mockResolvedValue({
+        timelineCalendarSlug: 'elfi',
+      });
+      await service.remove('W1', 'elfi', Admin);
+      expect(mockWorldSettings.upsert).toHaveBeenCalledWith('W1', {
+        timelineCalendarSlug: null,
+      });
+    });
+
+    it('CD-RUN-2 — smazání config, který NENÍ timeline, slug nemění', async () => {
+      mockWorlds.findById.mockResolvedValue({
+        id: 'W1',
+        defaultCalendarConfigSlug: 'gregorian',
+      });
+      mockRepo.remove.mockResolvedValue(true);
+      mockWorldSettings.findByWorldId.mockResolvedValue({
+        timelineCalendarSlug: 'jiny-cal',
+      });
+      await service.remove('W1', 'elfi', Admin);
+      expect(mockWorldSettings.upsert).not.toHaveBeenCalled();
+    });
   });
 
   describe('seedGregorianDefault', () => {

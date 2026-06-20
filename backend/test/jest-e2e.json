@@ -7,6 +7,9 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "transformIgnorePatterns": ["node_modules/(?!(uuid|meilisearch)/)"],
+  "moduleNameMapper": {
+    "^archiver$": "<rootDir>/mocks/archiver.stub.ts"
+  },
   "maxWorkers": 1,
   "testTimeout": 120000
 }

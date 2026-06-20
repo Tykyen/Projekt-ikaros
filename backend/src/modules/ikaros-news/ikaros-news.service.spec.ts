@@ -41,6 +41,7 @@ describe('IkarosNewsService', () => {
   const mockAuditRepo = {
     record: jest.fn().mockResolvedValue(undefined),
   };
+  const mockEmitter = { emit: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -56,7 +57,7 @@ describe('IkarosNewsService', () => {
         },
         { provide: 'IAdminAuditLogRepository', useValue: mockAuditRepo },
         // C-47 — service emituje 'ikaros-news.changed' po mutaci.
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: mockEmitter },
       ],
     }).compile();
     service = module.get(IkarosNewsService);
@@ -260,6 +261,30 @@ describe('IkarosNewsService', () => {
       await expect(
         service.delete('news1', 'user1', UserRole.Hrac),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    // CD-RUN-4 — úklid blobu obrázku smazané novinky (hard delete).
+    it('CD-RUN-4 — smazání novinky s obrázkem emituje media.orphaned', async () => {
+      mockRepo.findById.mockResolvedValue({
+        id: 'news1',
+        title: 'S obrázkem',
+        imageUrl: 'https://cdn/news.jpg',
+      });
+      mockRepo.delete.mockResolvedValue(true);
+      await service.delete('news1', 'user1', UserRole.Admin);
+      expect(mockEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: ['https://cdn/news.jpg'],
+      });
+    });
+
+    it('CD-RUN-4 — novinka bez obrázku neemituje media.orphaned', async () => {
+      mockRepo.findById.mockResolvedValue({ id: 'news1', title: 'Bez' });
+      mockRepo.delete.mockResolvedValue(true);
+      await service.delete('news1', 'user1', UserRole.Admin);
+      expect(mockEmitter.emit).not.toHaveBeenCalledWith(
+        'media.orphaned',
+        expect.anything(),
+      );
     });
   });
 

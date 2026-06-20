@@ -72,6 +72,14 @@ describe('TrustedDevicesService', () => {
     });
   });
 
+  // CD-RUN-3 — hard-delete účtu uklidí důvěryhodná zařízení (orphan cleanup).
+  describe('handleAccountHardDeleted', () => {
+    it('revokuje všechna zařízení smazaného účtu', async () => {
+      await svc.handleAccountHardDeleted({ userId: 'u1' });
+      expect(repo.deleteAllForUser).toHaveBeenCalledWith('u1');
+    });
+  });
+
   describe('list', () => {
     it('bez aktuálního tokenu → current=false', async () => {
       repo.findByUserId.mockResolvedValue([

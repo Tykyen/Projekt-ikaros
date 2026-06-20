@@ -22,5 +22,6 @@ export class CharacterCalendarSchemaClass {
 export const CharacterCalendarSchema = SchemaFactory.createForClass(
   CharacterCalendarSchemaClass,
 );
-CharacterCalendarSchema.index({ characterId: 1 }, { unique: true });
+// DI (plný audit 2026-06-20) — characterId unique už z `@Prop unique` (dedup
+// mongoose „Duplicate schema index" warning); ponechán jen worldId index.
 CharacterCalendarSchema.index({ worldId: 1 });

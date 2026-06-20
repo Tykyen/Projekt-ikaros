@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { ITimelineRepository } from './interfaces/timeline-repository.interface';
 import type {
   TimelineEvent,
@@ -68,6 +69,7 @@ export class TimelineService {
     @Inject('IWorldsRepository')
     private readonly worldsRepo: IWorldsRepository,
     private readonly calendarConfigService: WorldCalendarConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private enrich(
@@ -226,6 +228,15 @@ export class TimelineService {
         code: 'EVENT_NOT_FOUND',
         message: 'Událost nenalezena',
       });
+    // CD-RUN-1 — výměna obrázku → úklid blobu starého (vzor game-events/world-news).
+    if (
+      dto.imageUrl !== undefined &&
+      dto.imageUrl !== null &&
+      existing.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     const config = await this.calendarConfigService.getTimelineConfig(
       updated.worldId,
     );
@@ -246,6 +257,10 @@ export class TimelineService {
         code: 'EVENT_NOT_FOUND',
         message: 'Událost nenalezena',
       });
+    // CD-RUN-1 — úklid blobu obrázku smazané události (vzor game-events).
+    if (existing.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
   }
 
   /**

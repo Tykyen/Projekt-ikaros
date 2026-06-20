@@ -254,6 +254,11 @@ export class IkarosNewsService {
         null,
       );
     }
+    // CD-RUN-4 — úklid blobu obrázku smazané novinky (hard delete, vzor
+    // game-events/world-news). Bez toho Cloudinary blob leaká navždy.
+    if (existing?.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.eventEmitter.emit('ikaros-news.changed', {});
   }
 

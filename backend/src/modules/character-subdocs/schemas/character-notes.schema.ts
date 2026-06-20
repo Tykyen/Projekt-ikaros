@@ -14,4 +14,6 @@ export class CharacterNotesSchemaClass {
 export const CharacterNotesSchema = SchemaFactory.createForClass(
   CharacterNotesSchemaClass,
 );
-CharacterNotesSchema.index({ characterId: 1 }, { unique: true });
+// DI (plný audit 2026-06-20) — index dříve deklarovaný 2×: `@Prop unique` +
+// explicitní `.index()` → mongoose „Duplicate schema index" warning. `@Prop`
+// unique stačí; explicitní řádek odstraněn (stejný unique index na characterId).

@@ -95,6 +95,19 @@ export class TrustedDevicesService {
     await this.revokeAllForUser(payload.userId);
   }
 
+  /**
+   * CD-RUN-3 — hard-delete účtu uklidí i důvěryhodná zařízení. Bez toho zůstanou
+   * orphan záznamy keyed na userId (anonymizace user docu je nezmiňuje); TTL 30d
+   * by je smazal později, tohle hned. GDPR-bezpečné (jen userId+hash+label).
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleAccountHardDeleted(payload: { userId: string }): Promise<void> {
+    this.logger.log(
+      `Account hard-deleted (userId=${payload.userId}) — revokuji důvěryhodná zařízení.`,
+    );
+    await this.revokeAllForUser(payload.userId);
+  }
+
   /** Hrubý label z User-Agent — pořadí detekce kvůli překryvům UA řetězců. */
   private labelFromUserAgent(ua?: string): string {
     if (!ua) return 'Neznámé zařízení';

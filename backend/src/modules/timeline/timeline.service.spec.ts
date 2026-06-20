@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TimelineService } from './timeline.service';
 import type { TimelineEvent } from './interfaces/timeline-event.interface';
 import { WorldCalendarConfigService } from '../world-calendar-config/world-calendar-config.service';
@@ -41,6 +42,7 @@ describe('TimelineService', () => {
     getTimelineConfig: jest.fn().mockResolvedValue(null),
     calculateCelestialStates: jest.fn().mockReturnValue([]),
   };
+  const mockEmitter = { emit: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -53,6 +55,7 @@ describe('TimelineService', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembership },
         { provide: 'IWorldsRepository', useValue: mockWorlds },
         { provide: WorldCalendarConfigService, useValue: mockCalendarService },
+        { provide: EventEmitter2, useValue: mockEmitter },
       ],
     }).compile();
     service = module.get(TimelineService);
@@ -461,6 +464,28 @@ describe('TimelineService', () => {
       mockRepo.delete.mockResolvedValue(true);
       await service.delete('ev1', Admin);
       expect(mockRepo.delete).toHaveBeenCalledWith('ev1');
+    });
+
+    // CD-RUN-1 — úklid blobu obrázku smazané události (jinak Cloudinary leak).
+    it('CD-RUN-1 — smazání události s obrázkem emituje media.orphaned', async () => {
+      mockRepo.findById.mockResolvedValue(
+        mockEvent({ imageUrl: 'https://cdn/x.jpg' }),
+      );
+      mockRepo.delete.mockResolvedValue(true);
+      await service.delete('ev1', Admin);
+      expect(mockEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: ['https://cdn/x.jpg'],
+      });
+    });
+
+    it('CD-RUN-1 — událost bez obrázku neemituje media.orphaned', async () => {
+      mockRepo.findById.mockResolvedValue(mockEvent({ imageUrl: null }));
+      mockRepo.delete.mockResolvedValue(true);
+      await service.delete('ev1', Admin);
+      expect(mockEmitter.emit).not.toHaveBeenCalledWith(
+        'media.orphaned',
+        expect.anything(),
+      );
     });
   });
 

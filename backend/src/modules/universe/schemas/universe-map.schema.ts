@@ -22,4 +22,6 @@ export class UniverseMapSchemaClass {
 export const UniverseMapSchema = SchemaFactory.createForClass(
   UniverseMapSchemaClass,
 );
-UniverseMapSchema.index({ worldId: 1 }, { unique: true });
+// DI (plný audit 2026-06-20) — index dříve deklarovaný 2×: `@Prop unique` +
+// explicitní `.index()` → mongoose „Duplicate schema index" warning. `@Prop`
+// unique stačí; explicitní řádek odstraněn (stejný unique index na worldId).

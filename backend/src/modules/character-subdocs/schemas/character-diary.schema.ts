@@ -23,4 +23,5 @@ export class CharacterDiarySchemaClass {
 export const CharacterDiarySchema = SchemaFactory.createForClass(
   CharacterDiarySchemaClass,
 );
-CharacterDiarySchema.index({ characterId: 1 }, { unique: true });
+// DI (plný audit 2026-06-20) — characterId unique už z `@Prop unique` (dedup
+// mongoose „Duplicate schema index" warning).
