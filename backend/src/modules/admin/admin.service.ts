@@ -19,6 +19,7 @@ import type {
   IAdminAuditLogRepository,
 } from './interfaces/admin-audit-log.interface';
 import { UserBanCacheService } from '../users/services/user-ban-cache.service';
+import type { WorldElevationChangedEvent } from '../world-elevations/world-elevations.service';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
@@ -103,6 +104,34 @@ export class AdminService {
       });
     } catch {
       // Audit failure nesmí blokovat business logiku — log silently.
+    }
+  }
+
+  /**
+   * Elevation audit — admin si „nahodil"/„složil" world pravomoci. Zapisuje se do
+   * admin_audit_log (targetType 'world'). Event emituje worlds.service.
+   */
+  @OnEvent('world.elevation.changed')
+  async handleWorldElevationChanged(
+    e: WorldElevationChangedEvent,
+  ): Promise<void> {
+    try {
+      await this.auditRepo.record({
+        actorId: e.actorId,
+        actorUsername: e.actorUsername,
+        targetId: e.worldId,
+        targetUsername: e.worldName,
+        targetType: 'world',
+        action:
+          e.action === 'activated'
+            ? 'WORLD_ELEVATION_ACTIVATED'
+            : 'WORLD_ELEVATION_REVOKED',
+        before: null,
+        after: null,
+        reason: null,
+      });
+    } catch {
+      // Audit best-effort — nesmí shodit elevaci.
     }
   }
 

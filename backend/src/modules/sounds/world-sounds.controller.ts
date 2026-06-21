@@ -19,13 +19,7 @@ import { CreateSoundDto } from './dto/create-sound.dto';
 import { UpdateSoundDto } from './dto/update-sound.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
-
-interface RequestUser {
-  id: string;
-  role: UserRole;
-  username: string;
-}
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 @ApiTags('World Sounds')
 @ApiBearerAuth()
@@ -43,7 +37,7 @@ export class WorldSoundsController {
     @CurrentUser() user: RequestUser,
   ) {
     // R-RUN-01 (plný audit 2026-06-20) — member-only (leak privátního světa).
-    await this.service.assertIsMember(user.id, user.role, worldId);
+    await this.service.assertIsMember(user, worldId);
     return this.service.findByWorld(worldId);
   }
 
@@ -57,7 +51,7 @@ export class WorldSoundsController {
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertIsMember(user.id, user.role, worldId);
+    await this.service.assertIsMember(user, worldId);
     return this.service.findOne(id, worldId);
   }
 
@@ -70,7 +64,7 @@ export class WorldSoundsController {
     @Param('globalId') globalId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManageWorld(user.id, user.role, worldId);
+    await this.service.assertCanManageWorld(user, worldId);
     return this.service.importToWorld(globalId, worldId, user.id);
   }
 
@@ -83,7 +77,7 @@ export class WorldSoundsController {
     @Body() dto: CreateSoundDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManageWorld(user.id, user.role, worldId);
+    await this.service.assertCanManageWorld(user, worldId);
     return this.service.createWorldSound(dto, worldId, user.id);
   }
 
@@ -98,7 +92,7 @@ export class WorldSoundsController {
     @Body() dto: UpdateSoundDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManageWorld(user.id, user.role, worldId);
+    await this.service.assertCanManageWorld(user, worldId);
     return this.service.updateWorldSound(id, worldId, dto);
   }
 
@@ -111,7 +105,7 @@ export class WorldSoundsController {
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManageWorld(user.id, user.role, worldId);
+    await this.service.assertCanManageWorld(user, worldId);
     return this.service.removeWorldSound(id, worldId);
   }
 
@@ -124,7 +118,7 @@ export class WorldSoundsController {
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManageWorld(user.id, user.role, worldId);
+    await this.service.assertCanManageWorld(user, worldId);
     return this.service.nominateToGlobal(id, worldId, user.id);
   }
 }

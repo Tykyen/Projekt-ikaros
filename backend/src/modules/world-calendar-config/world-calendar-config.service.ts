@@ -21,11 +21,13 @@ import type { CreateWorldCalendarConfigDto } from './dto/create-world-calendar-c
 import type { PatchWorldCalendarConfigDto } from './dto/patch-world-calendar-config.dto';
 import { calculateCelestialStates } from './world-calendar-config.utils';
 import { GREGORIAN_DEFAULT_TEMPLATE } from './gregorian-default';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 
 export interface CalendarConfigRequester {
   id: string;
   role: UserRole;
   username: string;
+  elevatedWorldIds?: string[];
 }
 
 @Injectable()
@@ -324,7 +326,7 @@ export class WorldCalendarConfigService {
     worldId: string,
     requester: CalendarConfigRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
@@ -352,7 +354,7 @@ export class WorldCalendarConfigService {
     worldId: string,
     requester: CalendarConfigRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({

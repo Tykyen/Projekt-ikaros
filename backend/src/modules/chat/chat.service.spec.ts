@@ -14,6 +14,7 @@ import { PushService } from '../push/push.service';
 import { WorldsService } from '../worlds/worlds.service';
 import { CharactersService } from '../characters/characters.service';
 import { UploadService } from '../upload/upload.service';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 /** Mock WorldsService — `onApplicationBootstrap` se v `.compile()` testech nespouští. */
 const mockWorldsService = {
@@ -37,10 +38,17 @@ const mockPJ: { id: string; role: UserRole; username: string } = {
   role: UserRole.Hrac,
   username: 'pj1',
 };
-const mockAdmin: { id: string; role: UserRole; username: string } = {
+const mockAdmin: {
+  id: string;
+  role: UserRole;
+  username: string;
+  elevatedWorldIds?: string[];
+} = {
   id: 'admin1',
   role: UserRole.Admin,
   username: 'admin1',
+  // Elevated na 'world1' — admin má chat bypass jen díky aktivní elevaci.
+  elevatedWorldIds: ['world1'],
 };
 
 const mockGroup = {
@@ -155,6 +163,13 @@ describe('ChatService', () => {
         { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
         {
           provide: 'IUsersRepository',
           useValue: {
@@ -1931,6 +1946,13 @@ describe('sendMessage — new fields', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
           provide: 'IUsersRepository',
           useValue: {
             findByUsernames: jest.fn().mockResolvedValue([]),
@@ -2189,6 +2211,13 @@ describe('toggleReaction', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
           provide: 'IUsersRepository',
           useValue: {
             findByUsernames: jest.fn().mockResolvedValue([]),
@@ -2379,6 +2408,13 @@ describe('sendMessage — character mentions', () => {
         { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
         { provide: 'IUsersRepository', useValue: mockUsersRepo },
         { provide: UsersService, useValue: mockUsersService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
@@ -2550,6 +2586,13 @@ describe('sendMessage — attachments', () => {
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
           provide: 'IUsersRepository',
           useValue: {
             findByUsernames: jest.fn().mockResolvedValue([]),
@@ -2678,6 +2721,13 @@ describe('findChannelForUpload', () => {
         { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
         {
           provide: 'IUsersRepository',
           useValue: {
@@ -2813,6 +2863,13 @@ describe('getMessages — whisper filtering', () => {
         { provide: 'IChatMessageRepository', useValue: mockMessageRepo },
         { provide: 'IChannelReadStatusRepository', useValue: mockReadRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        {
+          provide: WorldElevationsService,
+          useValue: {
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+          },
+        },
         {
           provide: 'IUsersRepository',
           useValue: {

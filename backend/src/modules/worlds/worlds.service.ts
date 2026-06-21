@@ -47,11 +47,13 @@ import type {
   DiarySchemaVersionMeta,
 } from './diary-schema-versions/diary-schema-version.interface';
 
-export interface RequestUser {
-  id: string;
-  role: UserRole;
-  username: string;
-}
+// RequestUser sjednocen do common/interfaces (nese i `elevatedWorldIds` pro
+// elevation). Re-export drží zpětnou kompatibilitu importérů z worlds.service.
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+export type { RequestUser };
+import { worldAdminBypass } from '../../common/utils/world-elevation';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
+import type { WorldElevationChangedEvent } from '../world-elevations/world-elevations.service';
 
 /**
  * 2.3 D-NEW-quota — maximální počet aktivních světů, které smí mít jeden
@@ -143,6 +145,7 @@ export class WorldsService implements OnApplicationBootstrap {
     private readonly usersService: UsersService,
     @Inject(forwardRef(() => WorldCalendarConfigService))
     private readonly calendarConfigService: WorldCalendarConfigService,
+    private readonly elevationService: WorldElevationsService,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
@@ -185,7 +188,8 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser | null,
   ): Promise<World> {
     const world = await this.findById(id);
-    return this.applyDetailScope(world, requester);
+    const scoped = await this.applyDetailScope(world, requester);
+    return this.enrichElevation(scoped, requester);
   }
 
   async findBySlugForRequester(
@@ -193,7 +197,8 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser | null,
   ): Promise<World> {
     const world = await this.findBySlug(slug);
-    return this.applyDetailScope(world, requester);
+    const scoped = await this.applyDetailScope(world, requester);
+    return this.enrichElevation(scoped, requester);
   }
 
   private async applyDetailScope(
@@ -208,10 +213,10 @@ export class WorldsService implements OnApplicationBootstrap {
         message: 'Svět nenalezen',
       });
     }
-    const isAdmin =
-      requester.role === UserRole.Superadmin ||
-      requester.role === UserRole.Admin;
-    if (isAdmin) return world;
+    // Platform admin vidí METADATA světa (shell: název) vždy — potřebuje je pro
+    // elevation toggle a navigaci; OBSAH (pages/chat/settings) zůstává gated.
+    // elevation-exempt: viz spec-world-admin-elevation §3.3.
+    if (requester.role <= UserRole.Admin) return world;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       world.id,
@@ -249,20 +254,114 @@ export class WorldsService implements OnApplicationBootstrap {
     }
   }
 
-  async findMyWorlds(
-    userId: string,
-  ): Promise<{ world: World; membership: WorldMembership }[]> {
+  async findMyWorlds(userId: string): Promise<
+    {
+      world: World;
+      membership: WorldMembership;
+      elevated: boolean;
+    }[]
+  > {
     const memberships = await this.membershipRepo.findByUserId(userId);
     if (memberships.length === 0) return [];
     const worldIds = memberships.map((m) => m.worldId);
     const worlds = await this.worldsRepo.findByIds(worldIds);
     const worldMap = new Map(worlds.map((w) => [w.id, w]));
+    // Elevation stav (jednou) — admin vidí, ve kterých svých světech má nahozeno.
+    const elevatedIds = new Set(
+      await this.elevationService.listWorldIdsForUser(userId),
+    );
     return memberships
-      .map((m) => ({ world: worldMap.get(m.worldId), membership: m }))
+      .map((m) => ({
+        world: worldMap.get(m.worldId),
+        membership: m,
+        elevated: elevatedIds.has(m.worldId),
+      }))
       .filter(
-        (r): r is { world: World; membership: WorldMembership } =>
-          r.world != null,
+        (
+          r,
+        ): r is {
+          world: World;
+          membership: WorldMembership;
+          elevated: boolean;
+        } => r.world != null,
       );
+  }
+
+  // ─── Elevation („nahození práv") ──────────────────────────────────────────
+
+  private assertCanElevate(requester: RequestUser): void {
+    // elevation-exempt: gate elevation API (kdo SMÍ elevovat = platform admin),
+    // ne world bypass.
+    if (requester.role > UserRole.Admin) {
+      throw new ForbiddenException({
+        code: 'NOT_PLATFORM_ADMIN',
+        message: 'Elevaci může aktivovat jen platform Admin/Superadmin',
+      });
+    }
+  }
+
+  /**
+   * Admin si „nahodí" world pravomoci pro daný svět. Jen platform Admin/Sa.
+   * Vyžaduje existující svět (findById hodí 404). Spec-world-admin-elevation.
+   * Nevyžaduje read přístup ke světu — admin se elevuje právě proto, aby dovnitř.
+   */
+  async elevate(
+    worldId: string,
+    requester: RequestUser,
+  ): Promise<{ elevated: boolean }> {
+    this.assertCanElevate(requester);
+    const world = await this.findById(worldId);
+    await this.elevationService.activate(requester.id, worldId);
+    this.eventEmitter.emit('world.elevation.changed', {
+      actorId: requester.id,
+      actorUsername: requester.username,
+      worldId,
+      worldName: world.name,
+      action: 'activated',
+    } satisfies WorldElevationChangedEvent);
+    return { elevated: true };
+  }
+
+  /** Admin „složí" world pravomoci pro daný svět. */
+  async deElevate(
+    worldId: string,
+    requester: RequestUser,
+  ): Promise<{ elevated: boolean }> {
+    this.assertCanElevate(requester);
+    await this.elevationService.deactivate(requester.id, worldId);
+    const world = await this.worldsRepo.findById(worldId);
+    this.eventEmitter.emit('world.elevation.changed', {
+      actorId: requester.id,
+      actorUsername: requester.username,
+      worldId,
+      worldName: world?.name ?? worldId,
+      action: 'revoked',
+    } satisfies WorldElevationChangedEvent);
+    return { elevated: false };
+  }
+
+  /** Stav elevace pro daný svět (ne-admin vždy false). */
+  async getElevationStatus(
+    worldId: string,
+    requester: RequestUser,
+  ): Promise<{ elevated: boolean }> {
+    if (requester.role > UserRole.Admin) return { elevated: false };
+    return {
+      elevated: await this.elevationService.isElevated(requester.id, worldId),
+    };
+  }
+
+  /** Enrich detailu světa o `elevated` (jen pro platform admina). */
+  private async enrichElevation(
+    world: World,
+    requester: RequestUser | null,
+  ): Promise<World> {
+    if (!requester || requester.role > UserRole.Admin) return world;
+    const elevated = await this.elevationService.isElevated(
+      requester.id,
+      world.id,
+    );
+    return { ...world, elevated };
   }
 
   /**
@@ -969,11 +1068,7 @@ export class WorldsService implements OnApplicationBootstrap {
   ): Promise<WorldSettings | null> {
     const settings = await this.settingsRepo.findByWorldId(worldId);
     if (!settings) return null;
-    if (
-      requester &&
-      (requester.role === UserRole.Superadmin ||
-        requester.role === UserRole.Admin)
-    ) {
+    if (worldAdminBypass(requester, worldId)) {
       return settings;
     }
     const membership = requester
@@ -1260,7 +1355,7 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'WORLD_OWNER_ROLE_IMMUTABLE',
         message: 'Roli vlastníka světa nelze měnit — použij předání světa.',
       });
-    const isGlobalAdmin = requester.role <= UserRole.Admin;
+    const isGlobalAdmin = worldAdminBypass(requester, membership.worldId);
     const isOwner = world.ownerId === requester.id;
     if (!isGlobalAdmin && !isOwner) {
       const requesterRole = requesterMembership?.role ?? WorldRole.Zadatel;
@@ -1600,6 +1695,8 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
     newOwnerId?: string,
   ): Promise<{ message: string }> {
+    // elevation-exempt: platform admin recovery (restore/listDeleted opuštěného
+    // světa) — spec §3.3, governance pojistka mimo world runtime.
     if (requester.role > UserRole.Admin) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
@@ -1634,6 +1731,8 @@ export class WorldsService implements OnApplicationBootstrap {
 
   /** Seznam soft-smazaných světů pro Admin recovery panel. Jen Admin/Superadmin. */
   async listDeleted(requester: RequestUser): Promise<World[]> {
+    // elevation-exempt: platform admin recovery (restore/listDeleted opuštěného
+    // světa) — spec §3.3, governance pojistka mimo world runtime.
     if (requester.role > UserRole.Admin) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
@@ -1915,7 +2014,7 @@ export class WorldsService implements OnApplicationBootstrap {
     worldId: string,
     requester: RequestUser,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({

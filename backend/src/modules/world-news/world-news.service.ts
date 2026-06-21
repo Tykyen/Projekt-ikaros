@@ -16,6 +16,7 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { CreateWorldNewsDto } from './dto/create-world-news.dto';
 import type { UpdateWorldNewsDto } from './dto/update-world-news.dto';
 
@@ -41,6 +42,8 @@ export interface WorldNewsRequester {
   id: string;
   role: UserRole;
   username: string;
+  /** Pro world elevation (admin bypass jen v elevovaném světě) — viz worldAdminBypass. */
+  elevatedWorldIds?: string[];
 }
 
 @Injectable()
@@ -279,15 +282,18 @@ export class WorldNewsService {
     worldId: string | null,
     requester: WorldNewsRequester,
   ): Promise<void> {
-    // UserRole.Superadmin = 1, UserRole.Admin = 2 (menší číslo = vyšší role)
-    if (requester.role <= UserRole.Admin) return;
-
     if (worldId === null) {
+      // elevation-exempt: globální novinky (worldId=null), není world-scoped.
+      // UserRole.Superadmin = 1, UserRole.Admin = 2 (menší číslo = vyšší role)
+      if (requester.role <= UserRole.Admin) return;
       throw new ForbiddenException({
         code: 'NOT_PLATFORM_ADMIN',
         message: 'Pouze Admin/Superadmin smí měnit globální novinky',
       });
     }
+
+    // World-scoped: platform admin bypass JEN při aktivní elevaci daného světa.
+    if (worldAdminBypass(requester, worldId)) return;
 
     const world = await this.worldsRepo.findById(worldId);
     if (!world)

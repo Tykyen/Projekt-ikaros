@@ -10,8 +10,8 @@ import type { ICharactersRepository } from '../characters/interfaces/characters-
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { CharacterCalendar } from '../character-subdocs/interfaces/character-calendar.interface';
 import type {
   CalendarAggregateResponse,
@@ -113,7 +113,7 @@ export class CalendarsService {
     worldId: string,
     requester: RequestUser,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({

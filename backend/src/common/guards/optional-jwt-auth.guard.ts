@@ -1,5 +1,8 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { UserRole } from '../../modules/users/interfaces/user.interface';
+import type { RequestUser } from '../interfaces/request-user.interface';
+import { WorldElevationsService } from '../../modules/world-elevations/world-elevations.service';
 
 /**
  * Optional JWT auth guard.
@@ -12,8 +15,19 @@ import { AuthGuard } from '@nestjs/passport';
  */
 @Injectable()
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
-  canActivate(context: ExecutionContext) {
-    return super.canActivate(context) as Promise<boolean>;
+  constructor(private readonly elevationService: WorldElevationsService) {
+    super();
+  }
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const result = (await super.canActivate(context)) as boolean;
+    const request = context.switchToHttp().getRequest<{ user?: RequestUser }>();
+    // Elevation — jen pro platform Admin/Superadmin (viz JwtAuthGuard).
+    if (request.user && request.user.role <= UserRole.Admin) {
+      request.user.elevatedWorldIds =
+        await this.elevationService.listWorldIdsForUser(request.user.id);
+    }
+    return result;
   }
 
   handleRequest<TUser>(err: unknown, user: TUser): TUser | undefined {

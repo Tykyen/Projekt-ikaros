@@ -385,11 +385,30 @@ describe('SoundsService', () => {
   });
 
   describe('assertCanManageWorld', () => {
-    it('propustí Admina bez kontroly membershipu', async () => {
+    it('propustí elevovaného Admina bez kontroly membershipu', async () => {
       await expect(
-        service.assertCanManageWorld('admin1', UserRole.Admin, 'world1'),
+        service.assertCanManageWorld(
+          {
+            id: 'admin1',
+            role: UserRole.Admin,
+            username: 'a',
+            elevatedWorldIds: ['world1'],
+          },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevovaný Admin nemá bypass → padá na membership (nečlen → 403)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.assertCanManageWorld(
+          { id: 'admin1', role: UserRole.Admin, username: 'a' },
+          'world1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('propustí PJ daného světa', async () => {
@@ -397,7 +416,10 @@ describe('SoundsService', () => {
         role: WorldRole.PJ,
       });
       await expect(
-        service.assertCanManageWorld('pj1', UserRole.Hrac, 'world1'),
+        service.assertCanManageWorld(
+          { id: 'pj1', role: UserRole.Hrac, username: 'p' },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
     });
 
@@ -406,7 +428,10 @@ describe('SoundsService', () => {
         role: WorldRole.PomocnyPJ,
       });
       await expect(
-        service.assertCanManageWorld('ppj1', UserRole.Hrac, 'world1'),
+        service.assertCanManageWorld(
+          { id: 'ppj1', role: UserRole.Hrac, username: 'pp' },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
     });
 
@@ -415,7 +440,10 @@ describe('SoundsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.assertCanManageWorld('user1', UserRole.Hrac, 'world1'),
+        service.assertCanManageWorld(
+          { id: 'user1', role: UserRole.Hrac, username: 'u' },
+          'world1',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -425,7 +453,10 @@ describe('SoundsService', () => {
     it('odmítne nečlena světa (ForbiddenException)', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
-        service.assertIsMember('outsider', UserRole.Hrac, 'world1'),
+        service.assertIsMember(
+          { id: 'outsider', role: UserRole.Hrac, username: 'o' },
+          'world1',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -434,7 +465,10 @@ describe('SoundsService', () => {
         role: WorldRole.Zadatel,
       });
       await expect(
-        service.assertIsMember('pending', UserRole.Hrac, 'world1'),
+        service.assertIsMember(
+          { id: 'pending', role: UserRole.Hrac, username: 'p' },
+          'world1',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -443,16 +477,38 @@ describe('SoundsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.assertIsMember('member', UserRole.Hrac, 'world1'),
+        service.assertIsMember(
+          { id: 'member', role: UserRole.Hrac, username: 'm' },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
     });
 
-    it('propustí Admina bez kontroly membershipu', async () => {
+    it('propustí elevovaného Admina bez kontroly membershipu', async () => {
       mockMembershipRepo.findByUserAndWorld.mockClear();
       await expect(
-        service.assertIsMember('admin1', UserRole.Admin, 'world1'),
+        service.assertIsMember(
+          {
+            id: 'admin1',
+            role: UserRole.Admin,
+            username: 'a',
+            elevatedWorldIds: ['world1'],
+          },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevovaný Admin nemá bypass → padá na membership (nečlen → 403)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.assertIsMember(
+          { id: 'admin1', role: UserRole.Admin, username: 'a' },
+          'world1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
   });
 

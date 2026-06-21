@@ -12,7 +12,8 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { WorldMapEntry } from './interfaces/world-map.interface';
 import type { WorldMapFolder } from './interfaces/world-map-folder.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type { CreateMapDto } from './dto/create-map.dto';
 import type { UpdateMapDto } from './dto/update-map.dto';
 import type { CreateFolderDto } from './dto/create-folder.dto';
@@ -32,27 +33,26 @@ export class WorldMapsService {
   ) {}
 
   /**
-   * Smí daný uživatel spravovat mapy světa? Global Admin+ NEBO world PJ.
+   * Smí daný uživatel spravovat mapy světa? Platform Admin/Superadmin jen
+   * s aktivní elevací pro tento svět (worldAdminBypass) NEBO world PJ.
    */
   async canManage(
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
     worldId: string,
   ): Promise<boolean> {
-    if (userRole <= UserRole.Admin) return true;
+    if (worldAdminBypass(requester, worldId)) return true;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     return !!membership && membership.role >= WorldRole.PJ;
   }
 
   async assertCanManage(
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
     worldId: string,
   ): Promise<void> {
-    if (!(await this.canManage(userId, userRole, worldId)))
+    if (!(await this.canManage(requester, worldId)))
       throw new ForbiddenException({
         code: 'NOT_WORLD_PJ',
         message: 'Nedostatečná oprávnění',

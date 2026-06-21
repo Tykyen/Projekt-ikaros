@@ -25,6 +25,7 @@ import {
   type TimelineSort,
 } from './lib/timeline-cursor';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 500;
@@ -52,6 +53,7 @@ export interface TimelineRequester {
   id: string;
   role: UserRole;
   username: string;
+  elevatedWorldIds?: string[];
 }
 
 function stripBase64(url: string | null): string | null {
@@ -271,7 +273,7 @@ export class TimelineService {
     worldId: string,
     requester: TimelineRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
@@ -308,7 +310,7 @@ export class TimelineService {
     worldId: string,
     requester: TimelineRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({

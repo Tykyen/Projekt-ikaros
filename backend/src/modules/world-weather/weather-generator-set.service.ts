@@ -16,7 +16,7 @@ import type {
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import {
   WorldWeatherService,
   type WeatherRequester,
@@ -221,7 +221,7 @@ export class WeatherGeneratorSetService {
     worldId: string,
     requester: WeatherRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
@@ -249,7 +249,7 @@ export class WeatherGeneratorSetService {
     worldId: string,
     requester: WeatherRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
@@ -272,7 +272,7 @@ export class WeatherGeneratorSetService {
     worldId: string,
     requester: WeatherRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({

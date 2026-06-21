@@ -3,7 +3,14 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { UniverseService } from './universe.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type { UniverseMap } from './interfaces/universe-map.interface';
+
+const reqUser = (
+  id: string,
+  role: UserRole,
+  elevatedWorldIds?: string[],
+): RequestUser => ({ id, role, username: id, elevatedWorldIds });
 
 const mockMap: UniverseMap = {
   id: 'map1',
@@ -69,7 +76,7 @@ describe('UniverseService', () => {
   describe('findByWorld', () => {
     it('vrátí existující mapu', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', null, null);
+      const result = await service.findByWorld('world1', null);
       expect(result).toBeDefined();
       expect(mockRepo.findByWorld).toHaveBeenCalledWith('world1');
     });
@@ -77,23 +84,35 @@ describe('UniverseService', () => {
     it('vrátí prázdnou mapu pro neexistující svět (ne Matrix)', async () => {
       mockRepo.findByWorld.mockResolvedValue(null);
       mockRepo.upsert.mockResolvedValue({ ...mockMap, nodes: [], links: [] });
-      const result = await service.findByWorld('other-world', null, null);
+      const result = await service.findByWorld('other-world', null);
       expect(result.nodes).toHaveLength(0);
       expect(mockRepo.upsert).toHaveBeenCalledWith('other-world', [], []);
     });
   });
 
   describe('visibility filtr', () => {
-    it('globální Admin vidí všechny uzly (bez membership dotazu)', async () => {
+    it('elevovaný Admin vidí všechny uzly (bez membership dotazu)', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
       const result = await service.findByWorld(
         'world1',
-        'admin1',
-        UserRole.Admin,
+        reqUser('admin1', UserRole.Admin, ['world1']),
       );
       expect(result.nodes).toHaveLength(3);
       expect(result.links).toHaveLength(3);
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevovaný Admin (bez membershipu) vidí jen veřejné uzly', async () => {
+      mockRepo.findByWorld.mockResolvedValue(mockMap);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findByWorld(
+        'world1',
+        reqUser('admin1', UserRole.Admin),
+      );
+      // bez elevace žádný bypass → padá na membership (žádný) → jen isPublic
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].id).toBe('Midgard');
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('world PJ (globálně Hrac) vidí všechny uzly přes membership [D-034]', async () => {
@@ -101,7 +120,10 @@ describe('UniverseService', () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         role: WorldRole.PJ,
       });
-      const result = await service.findByWorld('world1', 'pj1', UserRole.Hrac);
+      const result = await service.findByWorld(
+        'world1',
+        reqUser('pj1', UserRole.Hrac),
+      );
       expect(result.nodes).toHaveLength(3);
       expect(result.links).toHaveLength(3);
     });
@@ -113,8 +135,7 @@ describe('UniverseService', () => {
       });
       const result = await service.findByWorld(
         'world1',
-        'player1',
-        UserRole.Hrac,
+        reqUser('player1', UserRole.Hrac),
       );
       // Midgard (isPublic) + Asgard (player1 v visibleToPlayerIds)
       expect(result.nodes).toHaveLength(2);
@@ -130,8 +151,7 @@ describe('UniverseService', () => {
       });
       const result = await service.findByWorld(
         'world1',
-        'player2',
-        UserRole.Hrac,
+        reqUser('player2', UserRole.Hrac),
       );
       // jen Midgard (isPublic)
       expect(result.nodes).toHaveLength(1);
@@ -145,16 +165,15 @@ describe('UniverseService', () => {
       });
       const result = await service.findByWorld(
         'world1',
-        'player2',
-        UserRole.Hrac,
+        reqUser('player2', UserRole.Hrac),
       );
       // player2 vidí jen Midgard → žádný link není platný (Asgard a Niflheim skryté)
       expect(result.links).toHaveLength(0);
     });
 
-    it('anon uživatel (null userId) vidí jen isPublic uzly', async () => {
+    it('anon uživatel (null requester) vidí jen isPublic uzly', async () => {
       mockRepo.findByWorld.mockResolvedValue(mockMap);
-      const result = await service.findByWorld('world1', null, null);
+      const result = await service.findByWorld('world1', null);
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].id).toBe('Midgard');
     });
@@ -198,11 +217,22 @@ describe('UniverseService', () => {
   });
 
   describe('assertCanManage', () => {
-    it('propustí Admina bez kontroly membershipu', async () => {
+    it('propustí elevovaného Admina bez kontroly membershipu', async () => {
       await expect(
-        service.assertCanManage('admin1', UserRole.Admin, 'world1'),
+        service.assertCanManage(
+          reqUser('admin1', UserRole.Admin, ['world1']),
+          'world1',
+        ),
       ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevovaný Admin nemá bypass → padá na membership (nečlen → 403)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.assertCanManage(reqUser('admin1', UserRole.Admin), 'world1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('propustí PJ', async () => {
@@ -210,7 +240,7 @@ describe('UniverseService', () => {
         role: WorldRole.PJ,
       });
       await expect(
-        service.assertCanManage('pj1', UserRole.Hrac, 'world1'),
+        service.assertCanManage(reqUser('pj1', UserRole.Hrac), 'world1'),
       ).resolves.toBeUndefined();
     });
 
@@ -219,14 +249,14 @@ describe('UniverseService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.assertCanManage('user1', UserRole.Hrac, 'world1'),
+        service.assertCanManage(reqUser('user1', UserRole.Hrac), 'world1'),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('odmítne pokud membership neexistuje', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
-        service.assertCanManage('user1', UserRole.Hrac, 'world1'),
+        service.assertCanManage(reqUser('user1', UserRole.Hrac), 'world1'),
       ).rejects.toThrow(ForbiddenException);
     });
   });

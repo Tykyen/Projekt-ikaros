@@ -3,8 +3,12 @@ import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 describe('OptionalJwtAuthGuard', () => {
   let guard: OptionalJwtAuthGuard;
 
+  const mockElevationService = {
+    listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+  } as never;
+
   beforeEach(() => {
-    guard = new OptionalJwtAuthGuard();
+    guard = new OptionalJwtAuthGuard(mockElevationService);
   });
 
   describe('handleRequest', () => {

@@ -4,6 +4,7 @@ import { SearchController } from './search.controller';
 import { SearchCoordinator } from './search.coordinator';
 import { WorldsService } from '../worlds/worlds.service';
 import { PagesService } from '../pages/pages.service';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 const mockCoordinator = {
@@ -60,6 +61,10 @@ describe('SearchController', () => {
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: WorldsService, useValue: mockWorldsService },
         { provide: PagesService, useValue: mockPagesService },
+        {
+          provide: WorldElevationsService,
+          useValue: { listWorldIdsForUser: jest.fn().mockResolvedValue([]) },
+        },
       ],
     }).compile();
     controller = module.get(SearchController);

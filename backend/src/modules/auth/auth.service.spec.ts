@@ -15,6 +15,7 @@ import { SecurityTokensService } from '../security-tokens/security-tokens.servic
 import { UserBanCacheService } from '../users/services/user-ban-cache.service';
 import { TrustedDevicesService } from '../trusted-devices/trusted-devices.service';
 import { TotpService } from './services/totp.service';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn().mockResolvedValue('hashed'),
@@ -138,6 +139,12 @@ describe('AuthService', () => {
         // 14.1 — 2FA + remember-device.
         { provide: TrustedDevicesService, useValue: mockTrustedDevices },
         { provide: TotpService, useValue: mockTotp },
+        {
+          provide: WorldElevationsService,
+          useValue: {
+            deactivateAllForUser: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
     service = module.get(AuthService);
@@ -673,6 +680,11 @@ describe('AuthService', () => {
       });
       await service.logout('valid-token');
       expect(mockRefreshRepo.revokeFamily).toHaveBeenCalledWith('fam-X');
+      // Elevation se skládá při odhlášení.
+      expect(
+        (service['elevationService'].deactivateAllForUser as jest.Mock).mock
+          .calls,
+      ).toContainEqual(['1']);
     });
 
     it('je idempotent pro neplatný token (nevyhodí)', async () => {
@@ -694,6 +706,9 @@ describe('AuthService', () => {
     it('revokuje všechny tokeny daného userId', async () => {
       await service.logoutAll('user-99');
       expect(mockRefreshRepo.revokeAllForUser).toHaveBeenCalledWith('user-99');
+      expect(
+        service['elevationService'].deactivateAllForUser as jest.Mock,
+      ).toHaveBeenCalledWith('user-99');
     });
   });
 

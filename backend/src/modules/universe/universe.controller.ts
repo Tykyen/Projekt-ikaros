@@ -21,12 +21,7 @@ import { UpdateUniverseDto } from './dto/update-universe.dto';
 import { UpdateNodeVisibilityDto } from './dto/update-node-visibility.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
-
-interface RequestUser {
-  id: string;
-  role: UserRole;
-}
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 @ApiTags('Universe Map')
 @ApiBearerAuth()
@@ -41,9 +36,7 @@ export class UniverseController {
   @ApiResponse({ status: 200 })
   async findByWorld(@Query('worldId') worldId: string, @Req() req: Request) {
     const user = (req as Request & { user?: RequestUser }).user;
-    const userId = user?.id ?? null;
-    const userRole = user?.role ?? null;
-    return this.service.findByWorld(worldId, userId, userRole);
+    return this.service.findByWorld(worldId, user ?? null);
   }
 
   @Put()
@@ -56,7 +49,7 @@ export class UniverseController {
     @Body() dto: UpdateUniverseDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.update(worldId, dto);
   }
 
@@ -71,7 +64,7 @@ export class UniverseController {
     @Body() dto: UpdateNodeVisibilityDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.updateNodeVisibility(worldId, nodeId, dto);
   }
 }

@@ -31,10 +31,17 @@ import {
   type WorldMembership,
 } from '../worlds/interfaces/world-membership.interface';
 import type { AkjType } from '../worlds/interfaces/world-settings.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 
 export interface PagesRequester {
   id: string;
   role: UserRole;
+  /**
+   * World elevation — platform Admin/Superadmin má world bypass JEN pro světy
+   * v tomto seznamu (plní JwtAuthGuard). Bez elevace žádný bypass. Viz
+   * `worldAdminBypass` / spec-world-admin-elevation.
+   */
+  elevatedWorldIds?: string[];
 }
 
 /**
@@ -156,6 +163,7 @@ export class PagesService {
     type?: string,
     userId?: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<Page[]> {
     const pages = await this.pagesRepo.findByWorld(worldId, type);
     // Bez userId (legacy callers) nefiltruji. Jinak: R-09 — page-level access
@@ -164,16 +172,33 @@ export class PagesService {
     if (!userId) return pages;
     // R-09b — world-level brána PŘED per-stránka filtrem: nečlen privátního světa
     // sem dřív propadl a viděl všechny nechráněné stránky (cross-tenant leak).
-    await this.assertCanViewWorld(worldId, userId, platformRole);
+    await this.assertCanViewWorld(
+      worldId,
+      userId,
+      platformRole,
+      elevatedWorldIds,
+    );
     const filtered: Page[] = [];
     for (const page of pages) {
       try {
-        await this.assertAccess(page, userId, worldId, platformRole);
+        await this.assertAccess(
+          page,
+          userId,
+          worldId,
+          platformRole,
+          elevatedWorldIds,
+        );
       } catch {
         continue; // bez page-level přístupu — stránka se v listingu vynechá
       }
       filtered.push(
-        await this.filterAkjTabsForViewer(page, userId, worldId, platformRole),
+        await this.filterAkjTabsForViewer(
+          page,
+          userId,
+          worldId,
+          platformRole,
+          elevatedWorldIds,
+        ),
       );
     }
     return filtered;
@@ -184,18 +209,36 @@ export class PagesService {
     worldId: string,
     userId: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<Page> {
     // R-09b — world-level brána před čtením stránky (nečlen privátního světa).
-    await this.assertCanViewWorld(worldId, userId, platformRole);
+    await this.assertCanViewWorld(
+      worldId,
+      userId,
+      platformRole,
+      elevatedWorldIds,
+    );
     const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page)
       throw new NotFoundException({
         code: 'PAGE_NOT_FOUND',
         message: 'Stránka nenalezena',
       });
-    await this.assertAccess(page, userId, worldId, platformRole);
+    await this.assertAccess(
+      page,
+      userId,
+      worldId,
+      platformRole,
+      elevatedWorldIds,
+    );
     // AKJ chráněné záložky — odřízni ty, na které viewer nemá přístup.
-    return this.filterAkjTabsForViewer(page, userId, worldId, platformRole);
+    return this.filterAkjTabsForViewer(
+      page,
+      userId,
+      worldId,
+      platformRole,
+      elevatedWorldIds,
+    );
   }
 
   async create(
@@ -552,8 +595,8 @@ export class PagesService {
   ): Promise<string[]> {
     // N-37 — slug list je editor pomůcka (WikilinkSuggestion); bez gatingu
     // leakoval existenci/slugy AKJ-chráněných stránek všem přihlášeným.
-    // PomocnyPJ+ (autorské role) nebo platform Admin+.
-    if (requester.role > UserRole.Admin) {
+    // PomocnyPJ+ (autorské role) nebo elevated platform Admin+.
+    if (!worldAdminBypass(requester, worldId)) {
       const m = await this.membershipRepo.findByUserAndWorld(
         requester.id,
         worldId,
@@ -586,6 +629,7 @@ export class PagesService {
           requester?.id ?? '',
           worldId,
           requester?.role,
+          requester?.elevatedWorldIds,
         );
         visible.add(page.slug);
       } catch {
@@ -747,6 +791,7 @@ export class PagesService {
     worldId: string,
     userId: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<Pick<Page, 'slug' | 'title' | 'type'>[]> {
     const target = await this.pagesRepo.findBySlugAndWorld(targetSlug, worldId);
     if (!target)
@@ -756,7 +801,13 @@ export class PagesService {
       });
     // Cílová stránka musí být přístupná žadateli — jinak by jsme prozradili
     // existenci utajené stránky přes backlinks listing.
-    await this.assertAccess(target, userId, worldId, platformRole);
+    await this.assertAccess(
+      target,
+      userId,
+      worldId,
+      platformRole,
+      elevatedWorldIds,
+    );
 
     const candidates = await this.pagesRepo.findBacklinksToSlug(
       worldId,
@@ -771,7 +822,13 @@ export class PagesService {
       );
       if (!full) continue;
       try {
-        await this.assertAccess(full, userId, worldId, platformRole);
+        await this.assertAccess(
+          full,
+          userId,
+          worldId,
+          platformRole,
+          elevatedWorldIds,
+        );
         accessible.push(candidate);
       } catch {
         // silent skip
@@ -820,12 +877,18 @@ export class PagesService {
     userId: string,
     worldId: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<void> {
     if (!page.accessRequirements || page.accessRequirements.length === 0)
       return;
     // AKJ skrývá obsah jen před hráči. PomocnyPJ+ (autorské role) a platform
     // Admin+ ho obcházejí — jinak by se PJ zamkl ze svého vlastního obsahu.
-    if (platformRole !== undefined && platformRole <= UserRole.Admin) return;
+    // Admin bypass jen při world elevaci (R-20 / spec-world-admin-elevation).
+    if (
+      platformRole !== undefined &&
+      worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)
+    )
+      return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
       worldId,
@@ -862,6 +925,7 @@ export class PagesService {
     worldId: string,
     userId: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<void> {
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
@@ -870,7 +934,13 @@ export class PagesService {
         message: 'Svět nenalezen',
       });
     if (world.accessMode !== 'private') return;
-    if (platformRole !== undefined && platformRole <= UserRole.Admin) return;
+    // Read viditelnost pro platform Admin+ ponechána (R-20), ale jen při world
+    // elevaci. De-elevated admin čte privátní svět jen jako jeho člen.
+    if (
+      platformRole !== undefined &&
+      worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)
+    )
+      return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
       worldId,
@@ -897,6 +967,7 @@ export class PagesService {
     userId: string,
     worldId: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<Page> {
     if (!page.akjTabs || page.akjTabs.length === 0) return page;
     const membership = await this.membershipRepo.findByUserAndWorld(
@@ -904,7 +975,8 @@ export class PagesService {
       worldId,
     );
     const seesAll =
-      (platformRole !== undefined && platformRole <= UserRole.Admin) ||
+      (platformRole !== undefined &&
+        worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)) ||
       (!!membership && membership.role >= WorldRole.PJ);
     if (seesAll) {
       // PJ/Admin: vše odemčené. Explicitní flag, ať FE nemusí stav dohadovat.
@@ -955,7 +1027,7 @@ export class PagesService {
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,

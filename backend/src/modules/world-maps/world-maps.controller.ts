@@ -28,6 +28,8 @@ import { UserRole } from '../users/interfaces/user.interface';
 interface RequestUser {
   id: string;
   role: UserRole;
+  // world elevation — admin bypass jen pro elevované světy (worldAdminBypass).
+  elevatedWorldIds?: string[];
 }
 
 @ApiTags('World Maps')
@@ -44,11 +46,7 @@ export class WorldMapsController {
     @Query('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    const isPjOrAdmin = await this.service.canManage(
-      user.id,
-      user.role,
-      worldId,
-    );
+    const isPjOrAdmin = await this.service.canManage(user, worldId);
     return this.service.list(worldId, user.id, isPjOrAdmin);
   }
 
@@ -61,7 +59,7 @@ export class WorldMapsController {
     @Body() dto: CreateMapDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.create(worldId, dto);
   }
 
@@ -75,7 +73,7 @@ export class WorldMapsController {
     @Body() dto: UpdateMapDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.update(worldId, mapId, dto);
   }
 
@@ -88,7 +86,7 @@ export class WorldMapsController {
     @Param('mapId') mapId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     await this.service.remove(worldId, mapId);
     return { ok: true };
   }
@@ -102,7 +100,7 @@ export class WorldMapsController {
     @Body() dto: ReorderMapsDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.reorder(worldId, dto.orderedIds);
   }
 
@@ -115,11 +113,7 @@ export class WorldMapsController {
     @Query('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    const isPjOrAdmin = await this.service.canManage(
-      user.id,
-      user.role,
-      worldId,
-    );
+    const isPjOrAdmin = await this.service.canManage(user, worldId);
     return this.service.listFolders(worldId, user.id, isPjOrAdmin);
   }
 
@@ -132,7 +126,7 @@ export class WorldMapsController {
     @Body() dto: CreateFolderDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.createFolder(worldId, dto);
   }
 
@@ -145,7 +139,7 @@ export class WorldMapsController {
     @Body() dto: ReorderMapsDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.reorderFolders(worldId, dto.orderedIds);
   }
 
@@ -159,7 +153,7 @@ export class WorldMapsController {
     @Body() dto: UpdateFolderDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.updateFolder(worldId, folderId, dto);
   }
 
@@ -172,7 +166,7 @@ export class WorldMapsController {
     @Param('folderId') folderId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     await this.service.removeFolder(worldId, folderId);
     return { ok: true };
   }

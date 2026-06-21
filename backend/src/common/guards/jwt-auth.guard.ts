@@ -9,6 +9,9 @@ import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import type { IUsersRepository } from '../../modules/users/interfaces/users-repository.interface';
 import { ALLOW_PENDING_DELETION } from '../decorators/allow-pending-deletion.decorator';
+import { UserRole } from '../../modules/users/interfaces/user.interface';
+import type { RequestUser } from '../interfaces/request-user.interface';
+import { WorldElevationsService } from '../../modules/world-elevations/world-elevations.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -17,6 +20,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   constructor(
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
     private readonly reflector: Reflector,
+    private readonly elevationService: WorldElevationsService,
   ) {
     super();
   }
@@ -26,7 +30,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (result) {
       const request = context
         .switchToHttp()
-        .getRequest<{ user?: { id?: string } }>();
+        .getRequest<{ user?: RequestUser }>();
       // R-07 — `JwtStrategy.validate` vrací `{ id: payload.sub, … }`, NE `{ sub }`.
       // Dřív tu bylo `request.user?.sub` → vždy `undefined` → CELÝ gate níže byl
       // mrtvý (smazaný/pending/banned účet s 7d tokenem prošel týden). Čteme `.id`
@@ -58,6 +62,13 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             code: 'DELETION_PENDING',
             message: 'Účet je naplánován ke smazání',
           });
+        // Elevation („nahození práv") — jen pro platform Admin/Superadmin.
+        // Naplní seznam světů, kde má admin aktivní bypass. Běžných uživatelů
+        // se extra lookup netýká (výkon). Helper: `worldAdminBypass`.
+        if (request.user && request.user.role <= UserRole.Admin) {
+          request.user.elevatedWorldIds =
+            await this.elevationService.listWorldIdsForUser(userId);
+        }
         void this.usersRepo.updateLastSeen(userId).catch((err: Error) => {
           this.logger.warn(
             `updateLastSeen failed for ${userId}: ${err.message}`,

@@ -27,10 +27,15 @@ const mockChar = (id: string, slug: string, name: string) => ({
   userId: 'user1',
 });
 
-const mkUser = (role: UserRole, id = 'requester1'): RequestUser => ({
+const mkUser = (
+  role: UserRole,
+  id = 'requester1',
+  elevatedWorldIds?: string[],
+): RequestUser => ({
   id,
   role,
   username: `user-${id}`,
+  ...(elevatedWorldIds ? { elevatedWorldIds } : {}),
 });
 
 describe('CalendarsService', () => {
@@ -134,25 +139,40 @@ describe('CalendarsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('Admin shortcut: globální Admin bez membershipu projde', async () => {
+    it('Admin shortcut: elevated globální Admin bez membershipu projde', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       mockSubdocs.getCalendarsByWorldId.mockResolvedValue([]);
       mockCharRepo.findByWorld.mockResolvedValue([]);
 
-      const result = await service.aggregate('w1', mkUser(UserRole.Admin));
+      const result = await service.aggregate(
+        'w1',
+        mkUser(UserRole.Admin, 'admin1', ['w1']),
+      );
 
       expect(result.characters).toHaveLength(0);
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });
 
-    it('Superadmin shortcut: globální Superadmin bez membershipu projde', async () => {
+    it('Superadmin shortcut: elevated globální Superadmin bez membershipu projde', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       mockSubdocs.getCalendarsByWorldId.mockResolvedValue([]);
       mockCharRepo.findByWorld.mockResolvedValue([]);
 
-      await service.aggregate('w1', mkUser(UserRole.Superadmin));
+      await service.aggregate(
+        'w1',
+        mkUser(UserRole.Superadmin, 'super1', ['w1']),
+      );
 
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevated Admin (bez elevace pro svět) nemá bypass → 403', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.aggregate('w1', mkUser(UserRole.Admin, 'admin1')),
+      ).rejects.toThrow(ForbiddenException);
+      // Bypass neproběhl → sáhl na membership.
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('vyhodí NotFoundException pro neexistující svět (anti-leak)', async () => {
@@ -242,7 +262,7 @@ describe('CalendarsService', () => {
         'w1',
         'jan',
         { color: '#AABBCC' },
-        mkUser(UserRole.Admin, 'admin1'),
+        mkUser(UserRole.Admin, 'admin1', ['w1']),
       );
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });

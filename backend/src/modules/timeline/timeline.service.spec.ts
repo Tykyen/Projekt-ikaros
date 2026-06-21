@@ -103,7 +103,12 @@ describe('TimelineService', () => {
     });
 
     it('Admin: bez kontroly členství, vrátí events', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       mockRepo.findMany.mockResolvedValue({
         events: [mockEvent()],
         nextCursor: null,
@@ -124,7 +129,12 @@ describe('TimelineService', () => {
     });
 
     it('default limit je 100, max 500 clamp', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       mockRepo.findMany.mockResolvedValue({ events: [], nextCursor: null });
       await service.findMany({ worldId: 'W1' }, Admin);
       expect(mockRepo.findMany).toHaveBeenCalledWith(
@@ -139,7 +149,12 @@ describe('TimelineService', () => {
     });
 
     it('strippe data: imageUrl v list response', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       mockRepo.findMany.mockResolvedValue({
         events: [mockEvent({ imageUrl: 'data:image/png;base64,abc' })],
         nextCursor: null,
@@ -149,7 +164,12 @@ describe('TimelineService', () => {
     });
 
     it('zachová normal URL v list response', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       mockRepo.findMany.mockResolvedValue({
         events: [mockEvent({ imageUrl: 'https://cdn.example.com/img.png' })],
         nextCursor: null,
@@ -159,7 +179,12 @@ describe('TimelineService', () => {
     });
 
     it('volá calendar config a obohatí celestialStates pro svět s configem', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       const fakeConfig = { id: 'c1', worldId: 'W1' } as unknown;
       mockCalendarService.getTimelineConfig.mockResolvedValue(fakeConfig);
       mockCalendarService.calculateCelestialStates.mockReturnValue([
@@ -181,7 +206,12 @@ describe('TimelineService', () => {
     });
 
     it('celestialStates: [] pro svět bez configu (default mock)', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       mockRepo.findMany.mockResolvedValue({
         events: [mockEvent()],
         nextCursor: null,
@@ -191,7 +221,12 @@ describe('TimelineService', () => {
     });
 
     it('celestialOverrides z events se předají do calculateCelestialStates', async () => {
-      const Admin = { id: 'a', role: 2, username: 'a' } as const;
+      const Admin = {
+        id: 'a',
+        role: 2,
+        username: 'a',
+        elevatedWorldIds: ['W1'] as string[],
+      } as const;
       const overrides = [{ bodyId: 'm1', phase: 'full' as const }];
       mockRepo.findMany.mockResolvedValue({
         events: [mockEvent({ celestialOverrides: overrides })],
@@ -210,7 +245,12 @@ describe('TimelineService', () => {
   });
 
   describe('findById (detail)', () => {
-    const Admin = { id: 'a', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'a',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
 
     it('zachová data: imageUrl v detail response', async () => {
       mockRepo.findById.mockResolvedValue(
@@ -251,8 +291,18 @@ describe('TimelineService', () => {
   });
 
   describe('create — autorizace', () => {
-    const Superadmin = { id: 'u1', role: 1, username: 'sa' } as const;
-    const Admin = { id: 'u2', role: 2, username: 'a' } as const;
+    const Superadmin = {
+      id: 'u1',
+      role: 1,
+      username: 'sa',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
+    const Admin = {
+      id: 'u2',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
     const PJ = { id: 'u3', role: 3, username: 'pj' } as const;
     const Hrac = { id: 'u4', role: 5, username: 'h' } as const;
 
@@ -335,6 +385,17 @@ describe('TimelineService', () => {
       ).rejects.toMatchObject({ status: 403 });
     });
 
+    it('de-elevated Admin (bez elevace pro svět) nemá bypass → 403', async () => {
+      const DeElevatedAdmin = { id: 'u2', role: 2, username: 'a' } as const;
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.create(baseDto, DeElevatedAdmin),
+      ).rejects.toMatchObject({ status: 403 });
+      // Bypass neproběhl → sáhl na membership.
+      expect(mockMembership.findByUserAndWorld).toHaveBeenCalled();
+    });
+
     it('neexistující svět → 404 (per auth-leak-policy: auth-required)', async () => {
       mockWorlds.findById.mockResolvedValue(null);
       await expect(
@@ -371,7 +432,12 @@ describe('TimelineService', () => {
   });
 
   describe('update — partial + immutable worldId + imageUrl null preserve', () => {
-    const Admin = { id: 'u2', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'u2',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
 
     it('partial update — title', async () => {
       mockRepo.findById.mockResolvedValue(mockEvent());
@@ -450,7 +516,12 @@ describe('TimelineService', () => {
   });
 
   describe('delete', () => {
-    const Admin = { id: 'u2', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'u2',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
 
     it('non-existing :id → 404', async () => {
       mockRepo.findById.mockResolvedValue(null);
@@ -491,7 +562,12 @@ describe('TimelineService', () => {
 
   // 9.3 — cursor pagination + sort param
   describe('findMany — cursor + sort (9.3)', () => {
-    const Admin = { id: 'a', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'a',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
 
     it('default sort=desc propagován do repo', async () => {
       mockRepo.findMany.mockResolvedValue({ events: [], nextCursor: null });
@@ -587,7 +663,12 @@ describe('TimelineService', () => {
 
   // 9.3 — search filter propagace
   describe('findMany — search filter propagace (9.3)', () => {
-    const Admin = { id: 'a', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'a',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
 
     it('předává search string do repo', async () => {
       mockRepo.findMany.mockResolvedValue({ events: [], nextCursor: null });
@@ -623,7 +704,12 @@ describe('TimelineService', () => {
 
   // 9.3 — nová pole: pageSlug + imageFocalX/Y
   describe('create — pageSlug + focal point propagace', () => {
-    const Admin = { id: 'a', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'a',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
     const baseDto = {
       worldId: 'W1',
       year: 1453,
@@ -671,7 +757,12 @@ describe('TimelineService', () => {
   });
 
   describe('update — pageSlug + focal patch sémantika', () => {
-    const Admin = { id: 'a', role: 2, username: 'a' } as const;
+    const Admin = {
+      id: 'a',
+      role: 2,
+      username: 'a',
+      elevatedWorldIds: ['W1'] as string[],
+    } as const;
 
     beforeEach(() => {
       mockRepo.findById.mockResolvedValue(

@@ -46,8 +46,18 @@ const makeToken = (characterId: string, id = 't1') => ({
   customData: {},
 });
 
-const sa = { id: 'sa', role: UserRole.Superadmin };
-const admin = { id: 'admin', role: UserRole.Admin };
+// World-elevation: bypass platí jen pro elevované světy. Scény testů žijí ve
+// `world1`, takže admin/sa musí mít `world1` v elevatedWorldIds, aby měli bypass.
+const sa = {
+  id: 'sa',
+  role: UserRole.Superadmin,
+  elevatedWorldIds: ['world1'],
+};
+const admin = {
+  id: 'admin',
+  role: UserRole.Admin,
+  elevatedWorldIds: ['world1'],
+};
 const player = { id: 'player1', role: UserRole.Hrac };
 const otherPlayer = { id: 'player2', role: UserRole.Hrac };
 
@@ -78,6 +88,22 @@ describe('OperationsAuthorizer', () => {
           revealedHexes: [],
         } as never),
       ).resolves.toBeUndefined();
+    });
+
+    it('Admin BEZ elevace pro daný svět nemá bypass (padá na membership)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        authorizer.assertCanDo(
+          { id: 'admin', role: UserRole.Admin },
+          makeScene(),
+          {
+            type: 'fog.set',
+            enabled: true,
+            revealedHexes: [],
+          } as never,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
   });
 

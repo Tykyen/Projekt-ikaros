@@ -10,6 +10,7 @@ import { Barrier, Gate, withBarrier, withGate } from './race-barrier';
 import { CharacterAccountsService } from '../../src/modules/character-subdocs/character-accounts.service';
 import { CharacterAccountRepository } from '../../src/modules/character-subdocs/repositories/character-account.repository';
 import { CampaignPurchaseService } from '../../src/modules/campaign/services/campaign-purchase.service';
+import { UserRole } from '../../src/modules/users/interfaces/user.interface';
 
 /**
  * Oblast 01 — Paralelní ekonomika (race-condition audit, 15. styl).
@@ -298,9 +299,8 @@ describe('Race: ekonomika (e2e)', () => {
       await purchaseService.purchase(
         seed.worldId,
         item,
-        seed.pj.userId,
+        { id: seed.pj.userId, role: UserRole.Hrac, username: 'pj' },
         { characterId: seed.characterId, accountId: acc },
-        undefined,
       );
     } catch {
       threw = true;

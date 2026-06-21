@@ -16,8 +16,8 @@ import {
 import { UploadService } from '../upload/upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import { CreateScheduledMessageDto } from './dto/create-scheduled-message.dto';
 import type { IScheduledMessageRepository } from './interfaces/scheduled-message-repository.interface';
 import type { ScheduledMessage } from './interfaces/scheduled-message.interface';
@@ -95,7 +95,10 @@ export class ScheduledMessagesController {
         message: 'Naplánovaná zpráva nenalezena',
       });
     }
-    if (existing.ownerId !== user.id && user.role > UserRole.Admin) {
+    if (
+      existing.ownerId !== user.id &&
+      !worldAdminBypass(user, existing.worldId)
+    ) {
       throw new ForbiddenException({
         code: 'SCHEDULED_MESSAGE_FORBIDDEN',
         message: 'Zpráva patří jinému uživateli',

@@ -8,14 +8,8 @@ import {
 import { WorldGmNotesService } from './world-gm-notes.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { UpdateWorldGmNotesDto } from './dto/update-world-gm-notes.dto';
-
-interface RequestUser {
-  id: string;
-  role: UserRole;
-  username: string;
-}
 
 @ApiTags('WorldGmNotes')
 @ApiBearerAuth()
@@ -32,7 +26,7 @@ export class WorldGmNotesController {
     @CurrentUser() user: RequestUser,
     @Param('worldId') worldId: string,
   ) {
-    return this.service.getNotes(user.id, user.role, worldId);
+    return this.service.getNotes(user, worldId);
   }
 
   @Patch()
@@ -44,6 +38,6 @@ export class WorldGmNotesController {
     @Param('worldId') worldId: string,
     @Body() dto: UpdateWorldGmNotesDto,
   ) {
-    return this.service.updateNotes(user.id, user.role, worldId, dto.content);
+    return this.service.updateNotes(user, worldId, dto.content);
   }
 }

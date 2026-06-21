@@ -14,7 +14,8 @@ import type {
   UniverseLink,
 } from './interfaces/universe-map.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import {
   MATRIX_UNIVERSE_NODES,
   MATRIX_UNIVERSE_LINKS,
@@ -41,29 +42,28 @@ export class UniverseService {
   ) {}
 
   /**
-   * Globální Admin+ NEBO world PJ+ smí spravovat / vidět plnou mapu.
+   * Elevovaný platform Admin+ (worldAdminBypass) NEBO world PJ+ smí spravovat /
+   * vidět plnou mapu. De-elevovaný admin nemá bypass — chová se dle membershipu.
    * Jednotné pravidlo pro GET (visibility) i mutace (assertCanManage).
    */
   async resolveIsWorldPjOrAdmin(
-    userId: string | null,
-    userRole: UserRole | null,
+    requester: RequestUser | null,
     worldId: string,
   ): Promise<boolean> {
-    if (userRole !== null && userRole <= UserRole.Admin) return true;
-    if (!userId) return false;
+    if (requester && worldAdminBypass(requester, worldId)) return true;
+    if (!requester) return false;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     return !!membership && membership.role >= WorldRole.PJ;
   }
 
   async assertCanManage(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<void> {
-    if (!(await this.resolveIsWorldPjOrAdmin(userId, userRole, worldId)))
+    if (!(await this.resolveIsWorldPjOrAdmin(requester, worldId)))
       throw new ForbiddenException({
         code: 'NOT_WORLD_PJ',
         message: 'Nedostatečná oprávnění',
@@ -72,8 +72,7 @@ export class UniverseService {
 
   async findByWorld(
     worldId: string,
-    userId: string | null,
-    userRole: UserRole | null,
+    requester: RequestUser | null,
   ): Promise<UniverseMap> {
     let map = await this.repo.findByWorld(worldId);
 
@@ -84,13 +83,9 @@ export class UniverseService {
       map = await this.repo.upsert(worldId, nodes, links);
     }
 
-    const isPjOrAdmin = await this.resolveIsWorldPjOrAdmin(
-      userId,
-      userRole,
-      worldId,
-    );
+    const isPjOrAdmin = await this.resolveIsWorldPjOrAdmin(requester, worldId);
     if (isPjOrAdmin) return map;
-    return this.applyVisibilityFilter(map, userId);
+    return this.applyVisibilityFilter(map, requester?.id ?? null);
   }
 
   async update(

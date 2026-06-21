@@ -28,6 +28,8 @@ import { ExportSceneDto } from './dto/export-scene.dto';
 interface RequestUser {
   id: string;
   role: UserRole;
+  // world elevation — admin bypass jen pro elevované světy (worldAdminBypass).
+  elevatedWorldIds?: string[];
 }
 
 @ApiTags('Dungeon Maps')
@@ -47,7 +49,7 @@ export class DungeonMapsController {
   ) {
     // R-12 — read-gate: dungeon je PJ prep (fog/layout); dřív bez kontroly →
     // každý přihlášený četl dungeony cizího světa.
-    return this.service.findByWorld(worldId, user.id, user.role);
+    return this.service.findByWorld(worldId, user);
   }
 
   @ApiOperation({ summary: 'Detail dungeonu' })
@@ -56,7 +58,7 @@ export class DungeonMapsController {
   @ApiResponse({ status: 404 })
   @Get(':id')
   findById(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    return this.service.findById(id, user.id, user.role);
+    return this.service.findById(id, user);
   }
 
   @ApiOperation({ summary: 'Vytvoření dungeonu' })
@@ -64,7 +66,7 @@ export class DungeonMapsController {
   @ApiResponse({ status: 403 })
   @Post()
   create(@Body() dto: CreateDungeonMapDto, @CurrentUser() user: RequestUser) {
-    return this.service.create(dto as never, user.id, user.role);
+    return this.service.create(dto as never, user);
   }
 
   @ApiOperation({ summary: 'Aktualizace dungeonu' })
@@ -77,7 +79,7 @@ export class DungeonMapsController {
     @Body() dto: UpdateDungeonMapDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.replace(id, dto as never, user.id, user.role);
+    return this.service.replace(id, dto as never, user);
   }
 
   @ApiOperation({ summary: 'Smazání dungeonu' })
@@ -86,7 +88,7 @@ export class DungeonMapsController {
   @Delete(':id')
   @HttpCode(204)
   async delete(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    await this.service.delete(id, user.id, user.role);
+    await this.service.delete(id, user);
   }
 
   @ApiOperation({ summary: 'Export dungeonu jako MapTemplate' })
@@ -97,7 +99,7 @@ export class DungeonMapsController {
     @Body() dto: ExportTemplateDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.exportTemplate(id, dto.imageUrl, user.id, user.role);
+    return this.service.exportTemplate(id, dto.imageUrl, user);
   }
 
   @ApiOperation({ summary: 'Export dungeonu jako MapScene' })
@@ -108,6 +110,6 @@ export class DungeonMapsController {
     @Body() dto: ExportSceneDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.exportScene(id, dto.imageUrl, user.id, user.role);
+    return this.service.exportScene(id, dto.imageUrl, user);
   }
 }

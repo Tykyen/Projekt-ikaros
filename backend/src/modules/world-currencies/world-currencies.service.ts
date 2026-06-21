@@ -14,12 +14,14 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { ConvertCurrencyDto } from './dto/convert-currency.dto';
 
 export interface CurrencyRequester {
   id: string;
   role: UserRole;
   username: string;
+  elevatedWorldIds?: string[];
 }
 
 @Injectable()
@@ -216,7 +218,7 @@ export class WorldCurrenciesService {
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -242,7 +244,7 @@ export class WorldCurrenciesService {
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,

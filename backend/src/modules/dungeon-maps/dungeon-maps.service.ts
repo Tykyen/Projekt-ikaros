@@ -10,7 +10,10 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { IMapTemplatesRepository } from '../maps/interfaces/map-templates-repository.interface';
 import type { IMapsRepository } from '../maps/interfaces/maps-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+
+type Requester = Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>;
 
 @Injectable()
 export class DungeonMapsService {
@@ -24,14 +27,10 @@ export class DungeonMapsService {
     @Inject('IMapsRepository') private readonly mapsRepo: IMapsRepository,
   ) {}
 
-  async assertCanManage(
-    userId: string,
-    userRole: UserRole,
-    worldId: string,
-  ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+  async assertCanManage(requester: Requester, worldId: string): Promise<void> {
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role < WorldRole.PJ)
@@ -43,43 +42,36 @@ export class DungeonMapsService {
 
   async findByWorld(
     worldId: string,
-    userId: string,
-    userRole: UserRole,
+    requester: Requester,
   ): Promise<DungeonMap[]> {
     // R-12 — read-gate stejný jako write (PJ): dungeon je PJ prep obsah.
-    await this.assertCanManage(userId, userRole, worldId);
+    await this.assertCanManage(requester, worldId);
     return this.repo.findByWorld(worldId);
   }
 
-  async findById(
-    id: string,
-    userId: string,
-    userRole: UserRole,
-  ): Promise<DungeonMap> {
+  async findById(id: string, requester: Requester): Promise<DungeonMap> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon)
       throw new NotFoundException({
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
-    await this.assertCanManage(userId, userRole, dungeon.worldId);
+    await this.assertCanManage(requester, dungeon.worldId);
     return dungeon;
   }
 
   async create(
     dto: Partial<DungeonMap>,
-    userId: string,
-    userRole: UserRole,
+    requester: Requester,
   ): Promise<DungeonMap> {
-    await this.assertCanManage(userId, userRole, dto.worldId ?? '');
+    await this.assertCanManage(requester, dto.worldId ?? '');
     return this.repo.create(dto);
   }
 
   async replace(
     id: string,
     dto: Partial<DungeonMap>,
-    userId: string,
-    userRole: UserRole,
+    requester: Requester,
   ): Promise<DungeonMap> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon)
@@ -87,7 +79,7 @@ export class DungeonMapsService {
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
-    await this.assertCanManage(userId, userRole, dungeon.worldId);
+    await this.assertCanManage(requester, dungeon.worldId);
     const updated = await this.repo.replace(id, {
       ...dto,
       worldId: dungeon.worldId,
@@ -95,22 +87,21 @@ export class DungeonMapsService {
     return updated!;
   }
 
-  async delete(id: string, userId: string, userRole: UserRole): Promise<void> {
+  async delete(id: string, requester: Requester): Promise<void> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon)
       throw new NotFoundException({
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
-    await this.assertCanManage(userId, userRole, dungeon.worldId);
+    await this.assertCanManage(requester, dungeon.worldId);
     await this.repo.delete(id);
   }
 
   async exportTemplate(
     id: string,
     imageUrl: string,
-    userId: string,
-    userRole: UserRole,
+    requester: Requester,
   ): Promise<{ templateId: string }> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon)
@@ -118,7 +109,7 @@ export class DungeonMapsService {
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
-    await this.assertCanManage(userId, userRole, dungeon.worldId);
+    await this.assertCanManage(requester, dungeon.worldId);
     const template = await this.templateRepo.create({
       name: dungeon.name,
       imageUrl,
@@ -141,8 +132,7 @@ export class DungeonMapsService {
   async exportScene(
     id: string,
     imageUrl: string,
-    userId: string,
-    userRole: UserRole,
+    requester: Requester,
   ): Promise<{ sceneId: string }> {
     const dungeon = await this.repo.findById(id);
     if (!dungeon)
@@ -150,7 +140,7 @@ export class DungeonMapsService {
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
-    await this.assertCanManage(userId, userRole, dungeon.worldId);
+    await this.assertCanManage(requester, dungeon.worldId);
     const scene = await this.mapsRepo.create({
       name: dungeon.name,
       imageUrl,

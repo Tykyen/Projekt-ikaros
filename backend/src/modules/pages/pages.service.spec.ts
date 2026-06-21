@@ -11,7 +11,14 @@ import { CharactersService } from '../characters/characters.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 
-const adminRequester = { id: 'admin', role: UserRole.Admin };
+// Elevovaný admin (world elevation aktivní pro world1) — drží admin bypass
+// po zavedení worldAdminBypass. De-elevated admin testy mají vlastní requester.
+const adminRequester = {
+  id: 'admin',
+  role: UserRole.Admin,
+  elevatedWorldIds: ['world1'],
+};
+const deElevatedAdminRequester = { id: 'admin', role: UserRole.Admin };
 const hracRequester = { id: 'user1', role: UserRole.Hrac };
 
 const mockPage = {
@@ -203,7 +210,7 @@ describe('PagesService', () => {
       expect(result.id).toBe('page1');
     });
 
-    it('platform Superadmin obejde AKJ i bez membershipu ve světě', async () => {
+    it('platform Superadmin S ELEVACÍ obejde AKJ i bez membershipu ve světě', async () => {
       const restricted = {
         ...mockPage,
         accessRequirements: [{ type: 'AKJ', value: '8' }],
@@ -215,8 +222,28 @@ describe('PagesService', () => {
         'world1',
         'superadmin',
         UserRole.Superadmin,
+        ['world1'],
       );
       expect(result.id).toBe('page1');
+    });
+
+    it('platform Superadmin BEZ ELEVACE nemá AKJ bypass → 403 (R-20)', async () => {
+      const restricted = {
+        ...mockPage,
+        accessRequirements: [{ type: 'AKJ', value: '8' }],
+      };
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(restricted);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findBySlug(
+          'hlavni-lokace',
+          'world1',
+          'superadmin',
+          UserRole.Superadmin,
+          // bez elevace (žádný / cizí svět)
+          ['jiny-svet'],
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('hráč s nedostatečnou úrovní dál dostává 403 (regrese)', async () => {
@@ -318,6 +345,23 @@ describe('PagesService', () => {
           hracRequester,
         ),
       ).resolves.toBeDefined();
+    });
+
+    it('platform Admin BEZ ELEVACE nemá write bypass → Forbidden (R-20)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
+      // de-elevated admin = žádný membership → chová se jako nečlen
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.create(
+          { slug: 'a', type: 'Lokace', title: 'X' },
+          'world1',
+          deElevatedAdminRequester,
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('DI-04 — rollback Character když page save selže (persona, child-first)', async () => {
@@ -690,7 +734,7 @@ describe('PagesService', () => {
       ]);
     });
 
-    it('platform Superadmin vidí vše odemčené i bez membershipu', async () => {
+    it('platform Superadmin S ELEVACÍ vidí vše odemčené i bez membershipu', async () => {
       mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       const result = await service.findBySlug(
@@ -698,9 +742,25 @@ describe('PagesService', () => {
         'world1',
         'super',
         UserRole.Superadmin,
+        ['world1'],
       );
       expect(result.akjTabs?.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
       expect(result.akjTabs?.every((t) => t.locked === false)).toBe(true);
+    });
+
+    it('platform Superadmin BEZ ELEVACE nevidí vše odemčené (R-20)', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue(kral);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findBySlug(
+        'kral',
+        'world1',
+        'super',
+        UserRole.Superadmin,
+        // žádná elevace pro world1
+        [],
+      );
+      // Bez elevace = chová se jako nečlen: NEvidí všechny záložky odemčené.
+      expect(result.akjTabs?.every((t) => t.locked === false)).toBe(false);
     });
   });
 

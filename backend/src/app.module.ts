@@ -56,6 +56,7 @@ import { FriendshipsModule } from './modules/friendships/friendships.module';
 import { DataExportModule } from './modules/data-export/data-export.module';
 import { WorldExportModule } from './modules/world-export/world-export.module';
 import { SecurityTokensModule } from './modules/security-tokens/security-tokens.module';
+import { WorldElevationsModule } from './modules/world-elevations/world-elevations.module';
 import { MailerModule } from './modules/mailer/mailer.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
@@ -72,6 +73,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     RedisModule,
     // SP1: foundational @Global() moduly před AuthModule.
     SecurityTokensModule,
+    // @Global — guard plní `elevatedWorldIds`; musí být před AuthModule (JwtAuthGuard).
+    WorldElevationsModule,
     MailerModule,
     PushModule,
     // @Global pending-actions registry (1.4) — musí být importovaný (i když je @Global),

@@ -12,7 +12,19 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const mockPJUser = { id: 'pj1', role: UserRole.Ikarus, username: 'pj' };
 const mockHracUser = { id: 'h1', role: UserRole.Ikarus, username: 'hrac' };
-const mockAdminUser = { id: 'a1', role: UserRole.Admin, username: 'admin' };
+// Elevated na 'w1' — admin má world bypass jen díky aktivní elevaci.
+const mockAdminUser = {
+  id: 'a1',
+  role: UserRole.Admin,
+  username: 'admin',
+  elevatedWorldIds: ['w1'],
+};
+// De-elevated admin — bez elevace se chová jako nečlen (žádný bypass).
+const mockDeElevatedAdmin = {
+  id: 'a2',
+  role: UserRole.Admin,
+  username: 'admin2',
+};
 
 const mockPJMembership = {
   id: 'm1',
@@ -220,6 +232,16 @@ describe('GameEventsService', () => {
       mockRepo.findList.mockResolvedValue([eventPublic, eventGroupOnly]);
       const result = await service.findList({ worldId: 'w1' }, mockAdminUser);
       expect(result.map((e) => e.id)).toEqual(['e1', 'e2']);
+    });
+
+    it('de-elevated Admin (bez elevace) NEobejde membership → []', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockRepo.findList.mockResolvedValue([eventPublic, eventGroupOnly]);
+      const result = await service.findList(
+        { worldId: 'w1' },
+        mockDeElevatedAdmin,
+      );
+      expect(result).toEqual([]);
     });
 
     it('limit cap na 500', async () => {

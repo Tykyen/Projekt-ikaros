@@ -92,7 +92,7 @@ export class EmotesController {
     @Param('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertIsMember(user.id, user.role, worldId);
+    await this.service.assertIsMember(user, worldId);
     return this.service.findByWorld(worldId);
   }
 
@@ -106,7 +106,7 @@ export class EmotesController {
     @Body() dto: CreateEmoteDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertWorldCanManage(user.id, user.role, worldId);
+    await this.service.assertWorldCanManage(user, worldId);
     return this.service.create(worldId, dto, user.id);
   }
 
@@ -123,7 +123,7 @@ export class EmotesController {
     @Body() dto: UpdateEmoteDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertWorldCanManage(user.id, user.role, worldId);
+    await this.service.assertWorldCanManage(user, worldId);
     return this.service.updateInWorld(id, worldId, dto);
   }
 
@@ -138,7 +138,7 @@ export class EmotesController {
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertWorldCanManage(user.id, user.role, worldId);
+    await this.service.assertWorldCanManage(user, worldId);
     await this.service.deleteFromWorld(id, worldId);
   }
 
@@ -153,12 +153,8 @@ export class EmotesController {
     @Body() dto: CopyEmoteDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertWorldCanManage(user.id, user.role, worldId);
-    await this.service.assertWorldCanManage(
-      user.id,
-      user.role,
-      dto.targetWorldId,
-    );
+    await this.service.assertWorldCanManage(user, worldId);
+    await this.service.assertWorldCanManage(user, dto.targetWorldId);
     return this.service.copy(id, worldId, dto.targetWorldId, user.id);
   }
 }

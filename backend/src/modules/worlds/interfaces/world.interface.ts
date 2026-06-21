@@ -87,4 +87,10 @@ export interface World {
   updatedAt: Date;
   /** Spec 2.4 — populated jen při `findById` / `findBySlug` (controller endpointy). */
   owner?: PublicOwnerSummary;
+  /**
+   * Elevation — read-time enrich pro platform admina: má v tomto světě „nahozené"
+   * pravomoci? Plní `findByIdForRequester` / `findBySlugForRequester`. U ne-admina
+   * undefined. Spec-world-admin-elevation.
+   */
+  elevated?: boolean;
 }

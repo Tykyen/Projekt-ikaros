@@ -15,6 +15,8 @@ import type { UpdateEmoteDto } from './dto/update-emote.dto';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 
 /** Krok 6.4a — limity počtu emotů jako ochrana proti spamu / storage. */
 export const EMOTE_LIMIT_PER_WORLD = 100;
@@ -30,14 +32,10 @@ export class EmotesService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async assertIsMember(
-    userId: string,
-    userRole: UserRole,
-    worldId: string,
-  ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+  async assertIsMember(requester: RequestUser, worldId: string): Promise<void> {
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role === WorldRole.Zadatel)
@@ -48,13 +46,12 @@ export class EmotesService {
   }
 
   async assertWorldCanManage(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role < WorldRole.PomocnyPJ)

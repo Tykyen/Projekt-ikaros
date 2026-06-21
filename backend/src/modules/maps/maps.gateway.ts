@@ -15,6 +15,7 @@ import type { IMapsRepository } from './interfaces/maps-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 interface AuthedSocketData {
   user?: { id: string; role: UserRole };
@@ -49,6 +50,8 @@ export class MapsGateway implements OnGatewayConnection {
     private readonly mapsRepo: IMapsRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    // Elevation: WS nemá `elevatedWorldIds` z HTTP guardu → bypass čteme z DB.
+    private readonly elevationService: WorldElevationsService,
   ) {}
 
   /**
@@ -114,7 +117,10 @@ export class MapsGateway implements OnGatewayConnection {
       return;
     }
     const data = client.data as AuthedSocketData;
-    if (data.user!.role > UserRole.Admin) {
+    const elevated =
+      data.user!.role <= UserRole.Admin &&
+      (await this.elevationService.isElevated(data.user!.id, scene.worldId));
+    if (!elevated) {
       const membership = await this.membershipRepo.findByUserAndWorld(
         data.user!.id,
         scene.worldId,
@@ -158,7 +164,10 @@ export class MapsGateway implements OnGatewayConnection {
   ): Promise<void> {
     if (!this.requireAuth(client)) return;
     const data = client.data as AuthedSocketData;
-    if (data.user!.role > UserRole.Admin) {
+    const elevated =
+      data.user!.role <= UserRole.Admin &&
+      (await this.elevationService.isElevated(data.user!.id, worldId));
+    if (!elevated) {
       const membership = await this.membershipRepo.findByUserAndWorld(
         data.user!.id,
         worldId,
@@ -228,9 +237,12 @@ export class MapsGateway implements OnGatewayConnection {
   ): Promise<void> {
     if (!this.requireAuth(client)) return;
     const data = client.data as AuthedSocketData;
-    if (data.user!.role > UserRole.Admin) {
-      const scene = await this.mapsRepo.findById(payload.sceneId);
-      if (!scene) return;
+    const scene = await this.mapsRepo.findById(payload.sceneId);
+    if (!scene) return;
+    const elevated =
+      data.user!.role <= UserRole.Admin &&
+      (await this.elevationService.isElevated(data.user!.id, scene.worldId));
+    if (!elevated) {
       const membership = await this.membershipRepo.findByUserAndWorld(
         data.user!.id,
         scene.worldId,

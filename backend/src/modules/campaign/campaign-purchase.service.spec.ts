@@ -10,6 +10,15 @@ import { CharacterAccountsService } from '../character-subdocs/character-account
 import { CharacterSubdocsService } from '../character-subdocs/character-subdocs.service';
 import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 import { CharactersService } from '../characters/characters.service';
+import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+
+/** Helper — RequestUser pro permission gating (isWorldStaff je mockované). */
+const ru = (id: string, role: UserRole = UserRole.Hrac): RequestUser => ({
+  id,
+  role,
+  username: id,
+});
 
 describe('CampaignPurchaseService', () => {
   let service: CampaignPurchaseService;
@@ -135,7 +144,7 @@ describe('CampaignPurchaseService', () => {
         transactions: [{ id: 'tx1', delta: -100 }],
       });
 
-      const res = await service.purchase('w1', 'item1', 'pj1', dto);
+      const res = await service.purchase('w1', 'item1', ru('pj1'), dto);
 
       expect(mockSubdocs.appendInventoryItem).toHaveBeenCalled();
       expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
@@ -159,7 +168,7 @@ describe('CampaignPurchaseService', () => {
         balance: 120,
         transactions: [{ id: 'tx1' }],
       });
-      await service.purchase('w1', 'item1', 'pj1', dto);
+      await service.purchase('w1', 'item1', ru('pj1'), dto);
       expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
         80,
@@ -180,7 +189,7 @@ describe('CampaignPurchaseService', () => {
         balance: 110,
         transactions: [{ id: 'tx1' }],
       });
-      await service.purchase('w1', 'item1', 'pj1', dto);
+      await service.purchase('w1', 'item1', ru('pj1'), dto);
       expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
         90,
@@ -201,7 +210,7 @@ describe('CampaignPurchaseService', () => {
         balance: 200,
         transactions: [{ id: 'tx1' }],
       });
-      await service.purchase('w1', 'item1', 'pj1', {
+      await service.purchase('w1', 'item1', ru('pj1'), {
         characterId: 'char1',
         accountId: 'acc1',
       });
@@ -229,7 +238,7 @@ describe('CampaignPurchaseService', () => {
         balance: 700,
         transactions: [{ id: 'tx1' }],
       });
-      await service.purchase('w1', 'item1', 'pj1', { ...dto, quantity: 3 });
+      await service.purchase('w1', 'item1', ru('pj1'), { ...dto, quantity: 3 });
       expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
         'acc1',
         300,
@@ -240,9 +249,9 @@ describe('CampaignPurchaseService', () => {
 
     it('nedostatek prostředků → 409, žádný zápis', async () => {
       mockShopRepo.findById.mockResolvedValue(makeItem({ price: 500 }));
-      await expect(service.purchase('w1', 'item1', 'pj1', dto)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.purchase('w1', 'item1', ru('pj1'), dto),
+      ).rejects.toThrow(ConflictException);
       expect(mockSubdocs.appendInventoryItem).not.toHaveBeenCalled();
       expect(mockAccounts.debitIfSufficient).not.toHaveBeenCalled();
     });
@@ -254,24 +263,24 @@ describe('CampaignPurchaseService', () => {
         ...character,
         userId: 'someone-else',
       });
-      await expect(service.purchase('w1', 'item1', 'u1', dto)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.purchase('w1', 'item1', ru('u1'), dto),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('hráč bez self-adjust → 403 (deleguje na assertCanAdjust), nic nezapíše', async () => {
       mockShopRepo.findById.mockResolvedValue(makeItem());
       mockCharacters.isWorldStaff.mockResolvedValue(false);
       mockAccounts.assertCanAdjust.mockRejectedValue(new ForbiddenException());
-      await expect(service.purchase('w1', 'item1', 'u1', dto)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.purchase('w1', 'item1', ru('u1'), dto),
+      ).rejects.toThrow(ForbiddenException);
       expect(mockSubdocs.appendInventoryItem).not.toHaveBeenCalled();
     });
 
     it('položka zdarma (cena 0) → bez adjustu, log s paidAmount 0', async () => {
       mockShopRepo.findById.mockResolvedValue(makeItem({ price: 0 }));
-      const res = await service.purchase('w1', 'item1', 'pj1', dto);
+      const res = await service.purchase('w1', 'item1', ru('pj1'), dto);
       expect(mockAccounts.debitIfSufficient).not.toHaveBeenCalled();
       expect(mockPurchaseRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ paidAmount: 0, accountTransactionId: '' }),
@@ -281,9 +290,9 @@ describe('CampaignPurchaseService', () => {
 
     it('neexistující položka → 404', async () => {
       mockShopRepo.findById.mockResolvedValue(null);
-      await expect(service.purchase('w1', 'item1', 'pj1', dto)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.purchase('w1', 'item1', ru('pj1'), dto),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -311,14 +320,13 @@ describe('CampaignPurchaseService', () => {
         sections: [{ id: 'sec1', items: [{ id: 'it1' }] }],
       });
 
-      const res = await service.refund('w1', 'p1', 'pj1');
+      const res = await service.refund('w1', 'p1', ru('pj1'));
 
       expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalledWith('p1');
       expect(mockAccounts.adjust).toHaveBeenCalledWith(
         'acc1',
         expect.objectContaining({ amount: 100 }),
-        'pj1',
-        undefined,
+        expect.objectContaining({ id: 'pj1' }),
       );
       expect(mockSubdocs.updateInventory).toHaveBeenCalled();
       expect(res.newBalance).toBe(300);
@@ -329,7 +337,7 @@ describe('CampaignPurchaseService', () => {
         ...activePurchase,
         status: 'refunded',
       });
-      await expect(service.refund('w1', 'p1', 'pj1')).rejects.toThrow(
+      await expect(service.refund('w1', 'p1', ru('pj1'))).rejects.toThrow(
         ConflictException,
       );
     });
@@ -342,7 +350,7 @@ describe('CampaignPurchaseService', () => {
       });
       mockAccounts.adjust.mockResolvedValue({ ...account, balance: 300 });
       mockSubdocs.getInventory.mockRejectedValue(new Error('gone'));
-      const res = await service.refund('w1', 'p1', 'pj1');
+      const res = await service.refund('w1', 'p1', ru('pj1'));
       expect(res.newBalance).toBe(300);
       expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalled();
     });

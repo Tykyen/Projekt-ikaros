@@ -12,7 +12,8 @@ import type { IPagesRepository } from '../pages/interfaces/pages-repository.inte
 import type { CharacterDiaryRepository } from '../character-subdocs/repositories/character-diary.repository';
 import type { MapScene, MapToken } from './interfaces/map-scene.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 export interface MoveTokenInput {
@@ -41,11 +42,10 @@ export class MapsService {
   ) {}
 
   async assertCanManage(
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
     worldId: string,
   ): Promise<void> {
-    if (await this.canManageWorld(userId, userRole, worldId)) return;
+    if (await this.canManageWorld(requester, worldId)) return;
     throw new ForbiddenException({
       code: 'MAP_FORBIDDEN',
       message: 'Nedostatečná oprávnění',
@@ -54,18 +54,18 @@ export class MapsService {
 
   /**
    * D-053b — predikát pro membership-based check.
-   * Sa/Admin (globální) projde vždy; jinak musí mít world membership ≥ PJ
-   * v *konkrétním* světě dané scény. Používá se v `moveToken`/`removeToken`
-   * jako bypass na else-větvi (token ownership check).
+   * Platform Admin/Superadmin projde jen s aktivní elevací pro daný svět
+   * (worldAdminBypass); jinak musí mít world membership ≥ PJ v *konkrétním*
+   * světě dané scény. Používá se v `moveToken`/`removeToken` jako bypass na
+   * else-větvi (token ownership check).
    */
   private async canManageWorld(
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
     worldId: string,
   ): Promise<boolean> {
-    if (userRole <= UserRole.Admin) return true;
+    if (worldAdminBypass(requester, worldId)) return true;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     return !!membership && membership.role >= WorldRole.PJ;
@@ -78,13 +78,12 @@ export class MapsService {
    * zůstává členská přes `currentSceneId`.
    */
   private async assertStaff(
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
     worldId: string,
   ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role < WorldRole.PomocnyPJ)
@@ -96,10 +95,9 @@ export class MapsService {
 
   async findByWorld(
     worldId: string,
-    requesterId: string,
-    requesterRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
   ): Promise<MapScene[]> {
-    await this.assertStaff(requesterId, requesterRole, worldId);
+    await this.assertStaff(requester, worldId);
     return this.repo.findByWorld(worldId);
   }
 
@@ -109,10 +107,9 @@ export class MapsService {
    */
   async findActiveScenes(
     worldId: string,
-    requesterId: string,
-    requesterRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
   ): Promise<MapScene[]> {
-    await this.assertStaff(requesterId, requesterRole, worldId);
+    await this.assertStaff(requester, worldId);
     return this.repo.findActiveScenesByWorld(worldId);
   }
 
@@ -227,8 +224,7 @@ export class MapsService {
   async moveToken(
     sceneId: string,
     dto: MoveTokenInput,
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
   ): Promise<MapToken> {
     const scene = await this.repo.findById(sceneId);
     if (!scene)
@@ -245,13 +241,9 @@ export class MapsService {
       });
 
     // D-053b — membership-based check. PJ daného světa povolen; jinak musí
-    // hýbat jen vlastním tokenem (charakter own=userId).
-    const canManage = await this.canManageWorld(
-      userId,
-      userRole,
-      scene.worldId,
-    );
-    if (!canManage && token.characterId !== userId)
+    // hýbat jen vlastním tokenem (charakter own=requester.id).
+    const canManage = await this.canManageWorld(requester, scene.worldId);
+    if (!canManage && token.characterId !== requester.id)
       throw new ForbiddenException({
         code: 'MAP_TOKEN_NOT_OWNER',
         message: 'Nelze pohybovat cizím tokenem',
@@ -284,8 +276,7 @@ export class MapsService {
   async removeToken(
     sceneId: string,
     tokenId: string,
-    userId: string,
-    userRole: UserRole,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
   ): Promise<void> {
     const scene = await this.repo.findById(sceneId);
     if (!scene)
@@ -302,12 +293,8 @@ export class MapsService {
       });
 
     // D-053b — membership-based check (viz `moveToken`).
-    const canManage = await this.canManageWorld(
-      userId,
-      userRole,
-      scene.worldId,
-    );
-    if (!canManage && token.characterId !== userId)
+    const canManage = await this.canManageWorld(requester, scene.worldId);
+    if (!canManage && token.characterId !== requester.id)
       throw new ForbiddenException({
         code: 'MAP_TOKEN_NOT_OWNER',
         message: 'Nelze odstranit cizí token',

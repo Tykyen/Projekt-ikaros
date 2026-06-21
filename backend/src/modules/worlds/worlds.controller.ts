@@ -67,6 +67,37 @@ export class WorldsController {
     return this.worldsService.findMyWorlds(user.id);
   }
 
+  // ─── Elevation („nahození práv") — jen platform Admin/Superadmin ───────────
+  @Post(':worldId/elevation')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktivovat admin pravomoci ve světě (elevation)' })
+  @ApiResponse({ status: 201, description: '{ elevated: true }' })
+  elevate(@Param('worldId') worldId: string, @CurrentUser() user: RequestUser) {
+    return this.worldsService.elevate(worldId, user);
+  }
+
+  @Delete(':worldId/elevation')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Složit admin pravomoci ve světě (de-elevation)' })
+  @ApiResponse({ status: 200, description: '{ elevated: false }' })
+  deElevate(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.deElevate(worldId, user);
+  }
+
+  @Get(':worldId/elevation')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stav admin elevace pro svět' })
+  @ApiResponse({ status: 200, description: '{ elevated: boolean }' })
+  elevationStatus(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.getElevationStatus(worldId, user);
+  }
+
   // Spec 2.4 — pending access requests current usera (pre-membership pro open/private).
   @Get('my-access-requests')
   @UseGuards(JwtAuthGuard)

@@ -13,7 +13,7 @@ import { randomUUID } from 'crypto';
 import type { ClientSession, Connection } from 'mongoose';
 import { CharacterAccountRepository } from './repositories/character-account.repository';
 import { CharactersService } from '../characters/characters.service';
-import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type {
   CharacterAccount,
   FantasyDateLike,
@@ -341,9 +341,9 @@ export class CharacterAccountsService {
   async adjust(
     accountId: string,
     input: AdjustBalanceInput,
-    performedByUserId: string,
-    performerRole?: UserRole,
+    requester: RequestUser,
   ): Promise<CharacterAccount> {
+    const performedByUserId = requester.id;
     if (!Number.isFinite(input.amount) || input.amount === 0)
       throw new BadRequestException({
         code: 'AMOUNT_INVALID',
@@ -355,7 +355,7 @@ export class CharacterAccountsService {
         message: 'Důvod je povinný.',
       });
 
-    await this.assertCanAdjust(accountId, performedByUserId, performerRole);
+    await this.assertCanAdjust(accountId, requester);
 
     const tx: FinanceTransaction = {
       id: randomUUID(),
@@ -382,15 +382,13 @@ export class CharacterAccountsService {
    */
   async assertCanAdjust(
     accountId: string,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<CharacterAccount> {
     const account = await this.getAccount(accountId);
-    if (await this.isStaff(account.worldId, requesterId, requesterRole))
-      return account;
+    if (await this.isStaff(account.worldId, requester)) return account;
 
     const character = await this.charactersService.findByUser(
-      requesterId,
+      requester.id,
       account.worldId,
     );
     const isOwner =
@@ -754,12 +752,10 @@ export class CharacterAccountsService {
    */
   async assertReadAccess(
     accountId: string,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<CharacterAccount> {
     const account = await this.getAccount(accountId);
-    if (await this.isStaffOrOwner(account, requesterId, requesterRole))
-      return account;
+    if (await this.isStaffOrOwner(account, requester)) return account;
     throw new ForbiddenException({
       code: 'ACCOUNT_ACCESS_DENIED',
       message: 'Přístup k účtu odepřen',
@@ -768,23 +764,20 @@ export class CharacterAccountsService {
 
   async assertWriteContentAccess(
     accountId: string,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<CharacterAccount> {
-    return this.assertReadAccess(accountId, requesterId, requesterRole);
+    return this.assertReadAccess(accountId, requester);
   }
 
   async assertWriteSettingsAccess(
     accountId: string,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<CharacterAccount> {
     const account = await this.getAccount(accountId);
-    // Settings: staff (PomocnyPJ+) nebo GlobalAdmin (R-02 — bypass přes
-    // `requesterRole`). Pozn.: dřív komentář i hláška říkaly „jen PJ", ale
-    // `isStaff` propouští už PomocnyPJ(4) — sjednoceno s realitou.
-    if (await this.isStaff(account.worldId, requesterId, requesterRole))
-      return account;
+    // Settings: staff (PomocnyPJ+) nebo elevovaný platform Admin (world
+    // elevation bypass přes `isStaff`). Pozn.: dřív komentář i hláška říkaly
+    // „jen PJ", ale `isStaff` propouští už PomocnyPJ(4) — sjednoceno s realitou.
+    if (await this.isStaff(account.worldId, requester)) return account;
     throw new ForbiddenException({
       code: 'ACCOUNT_SETTINGS_PJ_ONLY',
       message: 'Nastavení účtu může měnit jen PJ / pomocný PJ (staff).',
@@ -793,15 +786,13 @@ export class CharacterAccountsService {
 
   async assertDeleteAccess(
     accountId: string,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<CharacterAccount> {
     const account = await this.getAccount(accountId);
-    if (await this.isStaff(account.worldId, requesterId, requesterRole))
-      return account;
+    if (await this.isStaff(account.worldId, requester)) return account;
     // Primary owner může mazat
     const character = await this.charactersService.findByUser(
-      requesterId,
+      requester.id,
       account.worldId,
     );
     if (character && character.id === account.primaryOwnerId) return account;
@@ -813,13 +804,11 @@ export class CharacterAccountsService {
 
   private async isStaffOrOwner(
     account: CharacterAccount,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<boolean> {
-    if (await this.isStaff(account.worldId, requesterId, requesterRole))
-      return true;
+    if (await this.isStaff(account.worldId, requester)) return true;
     const character = await this.charactersService.findByUser(
-      requesterId,
+      requester.id,
       account.worldId,
     );
     return !!character && account.ownerCharacterIds.includes(character.id);
@@ -827,14 +816,9 @@ export class CharacterAccountsService {
 
   private async isStaff(
     worldId: string,
-    requesterId: string,
-    requesterRole?: UserRole,
+    requester: RequestUser,
   ): Promise<boolean> {
-    return this.charactersService.isWorldStaff(
-      worldId,
-      requesterId,
-      requesterRole,
-    );
+    return this.charactersService.isWorldStaff(worldId, requester);
   }
 
   // ── Event handlers ────────────────────────────────────────────────

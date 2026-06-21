@@ -20,7 +20,7 @@ import { WorldCurrenciesService } from '../../world-currencies/world-currencies.
 import { CharactersService } from '../../characters/characters.service';
 import type { Character } from '../../characters/interfaces/character.interface';
 import type { PurchaseShopItemDto } from '../dto/purchase-shop-item.dto';
-import { UserRole } from '../../users/interfaces/user.interface';
+import type { RequestUser } from '../../../common/interfaces/request-user.interface';
 
 const AUTO_SECTION_TITLE = 'Nakoupeno z obchodu';
 
@@ -75,10 +75,10 @@ export class CampaignPurchaseService {
   async purchase(
     worldId: string,
     itemId: string,
-    buyerUserId: string,
+    requester: RequestUser,
     dto: PurchaseShopItemDto,
-    buyerRole?: UserRole,
   ): Promise<{ purchase: CampaignPurchase; newBalance: number }> {
+    const buyerUserId = requester.id;
     const quantity =
       dto.quantity && dto.quantity > 0 ? Math.floor(dto.quantity) : 1;
 
@@ -99,8 +99,7 @@ export class CampaignPurchaseService {
     // Hráč smí kupovat jen své postavě; PJ/staff komukoli.
     const isStaff = await this.charactersService.isWorldStaff(
       worldId,
-      buyerUserId,
-      buyerRole,
+      requester,
     );
     if (!isStaff && character.userId !== buyerUserId)
       throw new ForbiddenException({
@@ -111,8 +110,7 @@ export class CampaignPurchaseService {
     // Permission na účet + jeho načtení (PJ ok; hráč jen owner s self-adjust).
     const account = await this.accountsService.assertCanAdjust(
       dto.accountId,
-      buyerUserId,
-      buyerRole,
+      requester,
     );
     if (account.worldId !== worldId)
       throw new NotFoundException({
@@ -225,7 +223,16 @@ export class CampaignPurchaseService {
             'Mongo replica set not available, falling back to sequential purchase with compensation (RC-E5).',
           );
           return await this.purchaseSequentialFallback(
-            { worldId, item, quantity, paidAmount, reason, dto, buyerUserId },
+            {
+              worldId,
+              item,
+              quantity,
+              paidAmount,
+              reason,
+              dto,
+              buyerUserId,
+              requester,
+            },
             character,
             buildPurchaseData,
           );
@@ -318,6 +325,7 @@ export class CampaignPurchaseService {
       reason: string;
       dto: PurchaseShopItemDto;
       buyerUserId: string;
+      requester: RequestUser;
     },
     character: Character,
     buildPurchaseData: (
@@ -379,7 +387,7 @@ export class CampaignPurchaseService {
               amount: paidAmount,
               reason: `Storno (neúspěšný nákup): ${item.name}`,
             },
-            buyerUserId,
+            ctx.requester,
           );
         } catch (revertErr) {
           this.logger.error(
@@ -398,9 +406,9 @@ export class CampaignPurchaseService {
   async refund(
     worldId: string,
     purchaseId: string,
-    userId: string,
-    userRole?: UserRole,
+    requester: RequestUser,
   ): Promise<{ purchase: CampaignPurchase; newBalance: number }> {
+    const userId = requester.id;
     const purchase = await this.purchaseRepo.findById(purchaseId);
     if (!purchase || purchase.worldId !== worldId)
       throw new NotFoundException({
@@ -418,8 +426,7 @@ export class CampaignPurchaseService {
     );
     const isStaff = await this.charactersService.isWorldStaff(
       worldId,
-      userId,
-      userRole,
+      requester,
     );
     if (!isStaff && character?.userId !== userId)
       throw new ForbiddenException({
@@ -446,8 +453,7 @@ export class CampaignPurchaseService {
           amount: purchase.paidAmount,
           reason: `Storno: ${purchase.itemSnapshot.name}`,
         },
-        userId,
-        userRole,
+        requester,
       );
       newBalance = acc.balance;
     } else {
@@ -471,15 +477,14 @@ export class CampaignPurchaseService {
 
   async listPurchases(
     worldId: string,
-    userId: string,
+    requester: RequestUser,
     characterId?: string,
-    requesterRole?: UserRole,
   ): Promise<CampaignPurchase[]> {
+    const userId = requester.id;
     const filter: Record<string, unknown> = { worldId };
     const isStaff = await this.charactersService.isWorldStaff(
       worldId,
-      userId,
-      requesterRole,
+      requester,
     );
     if (isStaff) {
       if (characterId) filter.characterId = characterId;

@@ -37,6 +37,10 @@ export class ScenarioTemplatesController {
 
   @Get()
   async findAll(@CurrentUser() user: RequestUser): Promise<ScenarioTemplate[]> {
+    // World elevation se NEAPLIKUJE: šablony scén jsou per-PJ cross-world
+    // (žádné worldId), takže elevace „pro daný svět" tu nedává smysl. Admin+
+    // bypass tu zůstává jako platformový (vidí všechny knihovny šablon).
+    // elevation-exempt: cross-world per-PJ šablony (bez worldId)
     if (user.role <= UserRole.Admin) {
       return this.repo.findAll();
     }
@@ -70,6 +74,9 @@ export class ScenarioTemplatesController {
         message: 'Šablona nenalezena',
       });
     }
+    // World elevation se NEAPLIKUJE (per-PJ cross-world šablony bez worldId) —
+    // platformový Admin+ bypass cross-owner mazání tu zůstává.
+    // elevation-exempt: cross-world per-PJ šablony (bez worldId)
     if (user.role > UserRole.Admin && existing.ownerId !== user.id) {
       throw new ForbiddenException({
         code: 'SCENARIO_TEMPLATE_FORBIDDEN_OWNER',

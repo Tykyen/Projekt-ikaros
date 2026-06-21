@@ -101,7 +101,10 @@ describe('MapsService', () => {
         role: WorldRole.PomocnyPJ,
       });
       mockRepo.findByWorld.mockResolvedValue([mockScene]);
-      const result = await service.findByWorld('world1', 'pp', UserRole.Ikarus);
+      const result = await service.findByWorld('world1', {
+        id: 'pp',
+        role: UserRole.Ikarus,
+      });
       expect(result).toHaveLength(1);
       expect(mockRepo.findByWorld).toHaveBeenCalledWith('world1');
     });
@@ -111,20 +114,27 @@ describe('MapsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.findByWorld('world1', 'hrac', UserRole.Ikarus),
+        service.findByWorld('world1', { id: 'hrac', role: UserRole.Ikarus }),
       ).rejects.toThrow(ForbiddenException);
       expect(mockRepo.findByWorld).not.toHaveBeenCalled();
     });
 
-    it('GlobalAdmin bez membershipu → projde', async () => {
+    it('GlobalAdmin S ELEVACÍ bez membershipu → projde', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       mockRepo.findByWorld.mockResolvedValue([mockScene]);
-      const result = await service.findByWorld(
-        'world1',
-        'admin',
-        UserRole.Admin,
-      );
+      const result = await service.findByWorld('world1', {
+        id: 'admin',
+        role: UserRole.Admin,
+        elevatedWorldIds: ['world1'],
+      });
       expect(result).toHaveLength(1);
+    });
+
+    it('GlobalAdmin BEZ elevace a bez membershipu → 403', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findByWorld('world1', { id: 'admin', role: UserRole.Admin }),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -272,8 +282,7 @@ describe('MapsService', () => {
       const result = await service.moveToken(
         'scene1',
         { id: 'tok1', q: 1, r: 1 },
-        'user1',
-        UserRole.Hrac,
+        { id: 'user1', role: UserRole.Hrac },
       );
       expect(result.q).toBe(1);
     });
@@ -286,8 +295,10 @@ describe('MapsService', () => {
         service.moveToken(
           'scene1',
           { id: 'tok1', q: 1, r: 1 },
-          'otherUser',
-          UserRole.Hrac,
+          {
+            id: 'otherUser',
+            role: UserRole.Hrac,
+          },
         ),
       ).rejects.toThrow(ForbiddenException);
     });
@@ -298,15 +309,17 @@ describe('MapsService', () => {
         service.moveToken(
           'scene1',
           { id: 'bad', q: 0, r: 0 },
-          'user1',
-          UserRole.Hrac,
+          {
+            id: 'user1',
+            role: UserRole.Hrac,
+          },
         ),
       ).rejects.toThrow(NotFoundException);
     });
 
     // ─── D-053b — membership-based PJ check ─────────────────────────────────
 
-    it('D-053b — Sa hýbe cizím tokenem v jakémkoli světě', async () => {
+    it('D-053b — Sa S ELEVACÍ hýbe cizím tokenem', async () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       mockRepo.replace.mockResolvedValue(scene);
@@ -318,15 +331,18 @@ describe('MapsService', () => {
         service.moveToken(
           'scene1',
           { id: 'tok1', q: 5, r: 5 },
-          'sa1',
-          UserRole.Superadmin,
+          {
+            id: 'sa1',
+            role: UserRole.Superadmin,
+            elevatedWorldIds: ['world1'],
+          },
         ),
       ).resolves.toBeDefined();
-      // Sa nemá smysl konzultovat membership — bypass
+      // Elevovaný Sa = bypass, membership se nekonzultuje
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });
 
-    it('D-053b — Admin hýbe cizím tokenem v jakémkoli světě', async () => {
+    it('D-053b — Admin S ELEVACÍ hýbe cizím tokenem', async () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       mockRepo.replace.mockResolvedValue(scene);
@@ -338,11 +354,31 @@ describe('MapsService', () => {
         service.moveToken(
           'scene1',
           { id: 'tok1', q: 5, r: 5 },
-          'admin1',
-          UserRole.Admin,
+          {
+            id: 'admin1',
+            role: UserRole.Admin,
+            elevatedWorldIds: ['world1'],
+          },
         ),
       ).resolves.toBeDefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('elevation — Admin BEZ elevace nemá token bypass (cizí token = Forbidden)', async () => {
+      const scene = { ...mockScene, tokens: [mockToken] };
+      mockRepo.findById.mockResolvedValue(scene);
+      // bez membershipu v daném světě a bez elevace → padá na ownership check
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.moveToken(
+          'scene1',
+          { id: 'tok1', q: 5, r: 5 },
+          {
+            id: 'admin1',
+            role: UserRole.Admin,
+          },
+        ),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('D-053b — world PJ DANÉHO světa hýbe cizím tokenem', async () => {
@@ -360,8 +396,10 @@ describe('MapsService', () => {
         service.moveToken(
           'scene1',
           { id: 'tok1', q: 5, r: 5 },
-          'worldPj1',
-          UserRole.Hrac,
+          {
+            id: 'worldPj1',
+            role: UserRole.Hrac,
+          },
         ),
       ).resolves.toBeDefined();
       expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalledWith(
@@ -379,8 +417,10 @@ describe('MapsService', () => {
         service.moveToken(
           'scene1',
           { id: 'tok1', q: 5, r: 5 },
-          'otherWorldPj',
-          UserRole.Hrac,
+          {
+            id: 'otherWorldPj',
+            role: UserRole.Hrac,
+          },
         ),
       ).rejects.toThrow(ForbiddenException);
     });
@@ -392,7 +432,10 @@ describe('MapsService', () => {
       mockRepo.findById.mockResolvedValue(scene);
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
-        service.removeToken('scene1', 'tok1', 'otherUser', UserRole.Hrac),
+        service.removeToken('scene1', 'tok1', {
+          id: 'otherUser',
+          role: UserRole.Hrac,
+        }),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -408,11 +451,14 @@ describe('MapsService', () => {
         role: WorldRole.PJ,
       });
       await expect(
-        service.removeToken('scene1', 'tok1', 'worldPj1', UserRole.Hrac),
+        service.removeToken('scene1', 'tok1', {
+          id: 'worldPj1',
+          role: UserRole.Hrac,
+        }),
       ).resolves.toBeUndefined();
     });
 
-    it('D-053b — Sa odstraní libovolný token bez membership lookup', async () => {
+    it('D-053b — elevovaný Sa odstraní libovolný token bez membership lookup', async () => {
       const scene = { ...mockScene, tokens: [mockToken] };
       mockRepo.findById.mockResolvedValue(scene);
       mockRepo.replace.mockResolvedValue({ ...scene, tokens: [] });
@@ -421,18 +467,36 @@ describe('MapsService', () => {
         modifiedCount: 1,
       });
       await expect(
-        service.removeToken('scene1', 'tok1', 'sa1', UserRole.Superadmin),
+        service.removeToken('scene1', 'tok1', {
+          id: 'sa1',
+          role: UserRole.Superadmin,
+          elevatedWorldIds: ['world1'],
+        }),
       ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });
   });
 
   describe('assertCanManage', () => {
-    it('propustí Admina bez kontroly membershipu', async () => {
+    it('propustí elevovaného Admina bez kontroly membershipu', async () => {
       await expect(
-        service.assertCanManage('admin1', UserRole.Admin, 'world1'),
+        service.assertCanManage(
+          { id: 'admin1', role: UserRole.Admin, elevatedWorldIds: ['world1'] },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('Admin BEZ elevace → padá na membership (žádný PJ → 403)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.assertCanManage(
+          { id: 'admin1', role: UserRole.Admin },
+          'world1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('propustí PJ', async () => {
@@ -440,7 +504,7 @@ describe('MapsService', () => {
         role: WorldRole.PJ,
       });
       await expect(
-        service.assertCanManage('pj1', UserRole.Hrac, 'world1'),
+        service.assertCanManage({ id: 'pj1', role: UserRole.Hrac }, 'world1'),
       ).resolves.toBeUndefined();
     });
 
@@ -449,7 +513,7 @@ describe('MapsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.assertCanManage('user1', UserRole.Hrac, 'world1'),
+        service.assertCanManage({ id: 'user1', role: UserRole.Hrac }, 'world1'),
       ).rejects.toThrow(ForbiddenException);
     });
   });

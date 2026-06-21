@@ -115,6 +115,7 @@ export class UploadController {
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser() user: RequestUser,
   ) {
+    // elevation-exempt: platformový upload (bez worldId, generický obrázek)
     if (user.role > UserRole.Admin)
       throw new ForbiddenException({
         code: 'FORBIDDEN_PLATFORM_ROLE',

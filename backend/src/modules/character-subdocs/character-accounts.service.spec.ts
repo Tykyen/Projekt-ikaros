@@ -7,6 +7,15 @@ import { CharacterAccountRepository } from './repositories/character-account.rep
 import { CharactersService } from '../characters/characters.service';
 import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
 import type { CharacterAccount } from './interfaces/character-account.interface';
+import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+
+/** Helper — RequestUser pro permission gating (isWorldStaff je v testech mockované). */
+const ru = (id: string, role: UserRole = UserRole.Hrac): RequestUser => ({
+  id,
+  role,
+  username: id,
+});
 
 /**
  * 8.6 — Spec pro CharacterAccountsService.
@@ -355,7 +364,7 @@ describe('CharacterAccountsService', () => {
       const result = await service.adjust(
         'acc1',
         { amount: 1000, reason: 'Nález pokladu' },
-        'pj1',
+        ru('pj1'),
       );
 
       expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
@@ -378,7 +387,11 @@ describe('CharacterAccountsService', () => {
         balance: 700,
       });
 
-      await service.adjust('acc1', { amount: -300, reason: 'Pokuta' }, 'pj1');
+      await service.adjust(
+        'acc1',
+        { amount: -300, reason: 'Pokuta' },
+        ru('pj1'),
+      );
       expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
         'acc1',
         expect.objectContaining({ delta: -300, description: 'Pokuta' }),
@@ -396,7 +409,7 @@ describe('CharacterAccountsService', () => {
       mockAccountsRepo.appendTransaction.mockResolvedValue({ ...acc });
 
       await expect(
-        service.adjust('acc1', { amount: 50, reason: 'Odměna' }, 'hrac1'),
+        service.adjust('acc1', { amount: 50, reason: 'Odměna' }, ru('hrac1')),
       ).resolves.toBeDefined();
     });
 
@@ -410,7 +423,7 @@ describe('CharacterAccountsService', () => {
       mockCharactersService.findByUser.mockResolvedValue({ id: 'char1' });
 
       await expect(
-        service.adjust('acc1', { amount: 50, reason: 'X' }, 'hrac1'),
+        service.adjust('acc1', { amount: 50, reason: 'X' }, ru('hrac1')),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -424,19 +437,19 @@ describe('CharacterAccountsService', () => {
       mockCharactersService.findByUser.mockResolvedValue({ id: 'charOther' });
 
       await expect(
-        service.adjust('acc1', { amount: 50, reason: 'X' }, 'hrac2'),
+        service.adjust('acc1', { amount: 50, reason: 'X' }, ru('hrac2')),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('amount=0 → 400 AMOUNT_INVALID', async () => {
       await expect(
-        service.adjust('acc1', { amount: 0, reason: 'X' }, 'pj1'),
+        service.adjust('acc1', { amount: 0, reason: 'X' }, ru('pj1')),
       ).rejects.toThrow(/Částka/);
     });
 
     it('prázdný reason → 400 REASON_REQUIRED', async () => {
       await expect(
-        service.adjust('acc1', { amount: 100, reason: '   ' }, 'pj1'),
+        service.adjust('acc1', { amount: 100, reason: '   ' }, ru('pj1')),
       ).rejects.toThrow(/Důvod/);
     });
 
@@ -450,7 +463,7 @@ describe('CharacterAccountsService', () => {
       await service.adjust(
         'acc1',
         { amount: 100, reason: 'Test', inGameDate },
-        'pj1',
+        ru('pj1'),
       );
       expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
         'acc1',
@@ -839,7 +852,7 @@ describe('CharacterAccountsService', () => {
       mockCharactersService.isWorldStaff.mockResolvedValue(true);
 
       await expect(
-        service.assertReadAccess('acc1', 'user1'),
+        service.assertReadAccess('acc1', ru('user1')),
       ).resolves.toBeTruthy();
     });
 
@@ -854,7 +867,7 @@ describe('CharacterAccountsService', () => {
       });
 
       await expect(
-        service.assertReadAccess('acc1', 'user1'),
+        service.assertReadAccess('acc1', ru('user1')),
       ).resolves.toBeTruthy();
     });
 
@@ -869,7 +882,7 @@ describe('CharacterAccountsService', () => {
       });
 
       await expect(
-        service.assertReadAccess('acc1', 'user1'),
+        service.assertReadAccess('acc1', ru('user1')),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -881,7 +894,7 @@ describe('CharacterAccountsService', () => {
       mockCharactersService.findByUser.mockResolvedValue({ id: 'char1' });
 
       await expect(
-        service.assertWriteSettingsAccess('acc1', 'user1'),
+        service.assertWriteSettingsAccess('acc1', ru('user1')),
       ).rejects.toMatchObject({
         response: { code: 'ACCOUNT_SETTINGS_PJ_ONLY' },
       });
@@ -895,7 +908,7 @@ describe('CharacterAccountsService', () => {
       mockCharactersService.findByUser.mockResolvedValue({ id: 'char1' });
 
       await expect(
-        service.assertDeleteAccess('acc1', 'user1'),
+        service.assertDeleteAccess('acc1', ru('user1')),
       ).resolves.toBeTruthy();
     });
 
@@ -910,7 +923,7 @@ describe('CharacterAccountsService', () => {
       mockCharactersService.findByUser.mockResolvedValue({ id: 'char2' });
 
       await expect(
-        service.assertDeleteAccess('acc1', 'user1'),
+        service.assertDeleteAccess('acc1', ru('user1')),
       ).rejects.toMatchObject({ response: { code: 'ACCOUNT_DELETE_DENIED' } });
     });
   });

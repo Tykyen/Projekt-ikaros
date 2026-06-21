@@ -26,6 +26,7 @@ import { CaptchaService } from './captcha.service';
 import { LoginTotpDto } from './dto/login-totp.dto';
 import { TrustedDevicesService } from '../trusted-devices/trusted-devices.service';
 import { TotpService } from './services/totp.service';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 /**
  * Login response — discriminated union (krok 1.3c).
@@ -87,6 +88,7 @@ export class AuthService {
     private readonly captcha: CaptchaService,
     private readonly trustedDevices: TrustedDevicesService,
     private readonly totpService: TotpService,
+    private readonly elevationService: WorldElevationsService,
   ) {}
 
   private get refreshSecret(): string {
@@ -430,6 +432,9 @@ export class AuthService {
         return;
       }
       await this.refreshRepo.revokeFamily(payload.familyId);
+      // Elevation se skládá při odhlášení — jinak by příští přihlášení bylo
+      // rovnou „nahozené" (bezpečnostní překvapení). Spec-world-admin-elevation D-3.
+      await this.elevationService.deactivateAllForUser(payload.sub);
     } catch {
       return;
     }
@@ -437,6 +442,7 @@ export class AuthService {
 
   async logoutAll(userId: string): Promise<void> {
     await this.refreshRepo.revokeAllForUser(userId);
+    await this.elevationService.deactivateAllForUser(userId);
   }
 
   async checkUsername(username: string): Promise<{ available: boolean }> {

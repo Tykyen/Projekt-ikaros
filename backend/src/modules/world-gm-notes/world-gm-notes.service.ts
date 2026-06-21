@@ -1,6 +1,7 @@
 import { Inject, Injectable, ForbiddenException } from '@nestjs/common';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import { WorldGmNotesRepository } from './repositories/world-gm-notes.repository';
 import { WorldGmNotes } from './interfaces/world-gm-notes.interface';
@@ -18,33 +19,31 @@ export class WorldGmNotesService {
   ) {}
 
   async getNotes(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<WorldGmNotes> {
-    await this.assertPj(userId, userRole, worldId);
-    return this.repo.findOrCreate(worldId, userId);
+    await this.assertPj(requester, worldId);
+    return this.repo.findOrCreate(worldId, requester.id);
   }
 
   async updateNotes(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
     content: string,
   ): Promise<WorldGmNotes> {
-    await this.assertPj(userId, userRole, worldId);
-    return this.repo.updateContent(worldId, userId, content);
+    await this.assertPj(requester, worldId);
+    return this.repo.updateContent(worldId, requester.id, content);
   }
 
-  // Mirror CampaignService.getWorldRole — globální Admin/Sa = PJ.
+  // Mirror CampaignService.getWorldRole — elevovaný platform Admin/Sa = PJ
+  // (world elevation; de-elevated admin spadne na membership roli).
   private async assertPj(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     const role = membership?.role ?? WorldRole.Hrac;

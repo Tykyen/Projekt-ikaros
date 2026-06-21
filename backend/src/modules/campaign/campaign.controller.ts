@@ -23,7 +23,6 @@ import {
 import { CampaignService } from './campaign.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole } from '../users/interfaces/user.interface';
 import { CreateCampaignSubjectDto } from './dto/create-campaign-subject.dto';
 import { CreateCampaignRelationshipDto } from './dto/create-campaign-relationship.dto';
 import { CreateCampaignStorylineDto } from './dto/create-campaign-storyline.dto';
@@ -34,12 +33,7 @@ import { CreateCampaignShopGroupDto } from './dto/create-campaign-shop-group.dto
 import { PurchaseShopItemDto } from './dto/purchase-shop-item.dto';
 import { CampaignPurchaseService } from './services/campaign-purchase.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-
-interface RequestUser {
-  id: string;
-  role: UserRole;
-  username: string;
-}
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 @ApiTags('Campaign')
 @ApiBearerAuth()
@@ -57,7 +51,7 @@ export class CampaignController {
         code: 'WORLD_ID_REQUIRED',
         message: 'worldId je povinný parametr',
       });
-    return this.service.getWorldRole(user.id, user.role, worldId);
+    return this.service.getWorldRole(user, worldId);
   }
 
   private resolveIsShared(worldRole: WorldRole, requested?: boolean): boolean {
@@ -696,7 +690,7 @@ export class CampaignController {
     @Body() dto: PurchaseShopItemDto,
   ) {
     await this.role(user, worldId);
-    return this.purchaseService.purchase(worldId, id, user.id, dto, user.role);
+    return this.purchaseService.purchase(worldId, id, user, dto);
   }
 
   @Post('purchases/:id/refund')
@@ -709,7 +703,7 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     await this.role(user, worldId);
-    return this.purchaseService.refund(worldId, id, user.id, user.role);
+    return this.purchaseService.refund(worldId, id, user);
   }
 
   @Get('purchases')
@@ -721,11 +715,6 @@ export class CampaignController {
     @Query('characterId') characterId?: string,
   ) {
     await this.role(user, worldId);
-    return this.purchaseService.listPurchases(
-      worldId,
-      user.id,
-      characterId,
-      user.role,
-    );
+    return this.purchaseService.listPurchases(worldId, user, characterId);
   }
 }

@@ -16,6 +16,7 @@ import { SystemPresetsService } from '../system-presets/system-presets.service';
 import { WorldWeatherService } from '../world-weather/world-weather.service';
 import { UsersService } from '../users/users.service';
 import { WorldCalendarConfigService } from '../world-calendar-config/world-calendar-config.service';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 const mockRequester = { id: 'user1', role: UserRole.Ikarus, username: 'user1' };
 
@@ -147,6 +148,16 @@ describe('WorldsService', () => {
         {
           provide: WorldCalendarConfigService,
           useValue: mockCalendarConfigService,
+        },
+        {
+          provide: WorldElevationsService,
+          useValue: {
+            activate: jest.fn().mockResolvedValue(undefined),
+            deactivate: jest.fn().mockResolvedValue(undefined),
+            isElevated: jest.fn().mockResolvedValue(false),
+            listWorldIdsForUser: jest.fn().mockResolvedValue([]),
+            deactivateAllForUser: jest.fn().mockResolvedValue(undefined),
+          },
         },
         { provide: getConnectionToken(), useValue: mockConnection },
       ],
@@ -1515,6 +1526,36 @@ describe('WorldsService', () => {
         service.getDiarySchemaVersions('W1', Hrac),
       ).rejects.toMatchObject({ status: 403 });
     });
+
+    // R-20 world elevation — assertMember admin bypass jen při elevaci.
+    it('platform Admin S ELEVACÍ obejde assertMember (bez membershipu)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ id: 'W1' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockDiarySchemaVersionsRepo.findMetaByWorldId.mockResolvedValue([]);
+      const elevatedAdmin = {
+        id: 'adm',
+        role: UserRole.Admin,
+        username: 'A',
+        elevatedWorldIds: ['W1'],
+      };
+      const result = await service.getDiarySchemaVersions('W1', elevatedAdmin);
+      expect(result).toEqual([]);
+    });
+
+    it('platform Admin BEZ ELEVACE nemá assertMember bypass → 403 (R-20)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ id: 'W1' });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const deElevatedAdmin = {
+        id: 'adm',
+        role: UserRole.Admin,
+        username: 'A',
+        // žádná elevace pro W1
+        elevatedWorldIds: [],
+      };
+      await expect(
+        service.getDiarySchemaVersions('W1', deElevatedAdmin),
+      ).rejects.toMatchObject({ status: 403 });
+    });
   });
 
   describe('getDiarySchemaVersion — detail', () => {
@@ -2343,6 +2384,50 @@ describe('WorldsService', () => {
           deletedBy: 'system:account-deleted',
         }),
       );
+    });
+  });
+
+  describe('elevation (nahození práv)', () => {
+    const admin = { id: 'adm1', role: UserRole.Admin, username: 'adm' };
+    const hrac = { id: 'h1', role: UserRole.Hrac, username: 'h' };
+
+    it('elevate: admin → activate + event + {elevated:true}', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ id: 'w1', name: 'Svět' });
+      const activate = service['elevationService'].activate as jest.Mock;
+      const emit = service['eventEmitter'].emit as jest.Mock;
+      const res = await service.elevate('w1', admin);
+      expect(res).toEqual({ elevated: true });
+      expect(activate).toHaveBeenCalledWith('adm1', 'w1');
+      expect(emit).toHaveBeenCalledWith(
+        'world.elevation.changed',
+        expect.objectContaining({ action: 'activated', worldId: 'w1' }),
+      );
+    });
+
+    it('elevate: ne-admin → 403', async () => {
+      await expect(service.elevate('w1', hrac)).rejects.toMatchObject({
+        status: 403,
+      });
+    });
+
+    it('elevate: neexistující svět → 404', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(null);
+      await expect(service.elevate('missing', admin)).rejects.toBeDefined();
+    });
+
+    it('deElevate: admin → deactivate + {elevated:false}', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({ id: 'w1', name: 'Svět' });
+      const deactivate = service['elevationService'].deactivate as jest.Mock;
+      const res = await service.deElevate('w1', admin);
+      expect(res).toEqual({ elevated: false });
+      expect(deactivate).toHaveBeenCalledWith('adm1', 'w1');
+    });
+
+    it('getElevationStatus: ne-admin → false bez lookupu', async () => {
+      const isElevated = service['elevationService'].isElevated as jest.Mock;
+      const res = await service.getElevationStatus('w1', hrac);
+      expect(res).toEqual({ elevated: false });
+      expect(isElevated).not.toHaveBeenCalled();
     });
   });
 });

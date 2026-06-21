@@ -11,15 +11,19 @@ describe('MapsGateway — map:join / map:ping access gate', () => {
   const scene = { id: 'scene1', worldId: 'w1' };
   let mapsRepo: { findById: jest.Mock };
   let membershipRepo: { findByUserAndWorld: jest.Mock };
+  let elevationService: { isElevated: jest.Mock };
   let gateway: MapsGateway;
 
   beforeEach(() => {
     mapsRepo = { findById: jest.fn().mockResolvedValue(scene) };
     membershipRepo = { findByUserAndWorld: jest.fn() };
+    // De-elevated default — testy gate předpokládají, že admin bypass je vypnutý.
+    elevationService = { isElevated: jest.fn().mockResolvedValue(false) };
     gateway = new MapsGateway(
       {} as never,
       mapsRepo as never,
       membershipRepo as never,
+      elevationService as never,
     );
   });
 

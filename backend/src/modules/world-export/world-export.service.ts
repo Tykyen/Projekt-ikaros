@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { ZipArchive } from 'archiver';
 import type { Response } from 'express';
-import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -153,7 +153,7 @@ export class WorldExportService {
         message: 'Svět nenalezen.',
       });
     }
-    if (requester.role <= UserRole.Admin) return 'pj-full';
+    if (worldAdminBypass(requester, worldId)) return 'pj-full';
 
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,

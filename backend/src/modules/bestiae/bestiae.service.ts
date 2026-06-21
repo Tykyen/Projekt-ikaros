@@ -26,6 +26,7 @@ import type { CloneBestieDto } from './dto/clone-bestie.dto';
 import type { Bestie } from './interfaces/bestie.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 
 export interface BestiarResponse {
   system: Bestie[];
@@ -36,6 +37,7 @@ export interface BestiarResponse {
 interface CurrentUser {
   id: string;
   role: UserRole;
+  elevatedWorldIds?: string[];
 }
 
 @Injectable()
@@ -240,7 +242,7 @@ export class BestiaeService {
       return;
     }
     if (bestie.scope === 'world') {
-      if (this.isGlobalAdmin(user)) return;
+      if (worldAdminBypass(user, bestie.worldId!)) return;
       const member = await this.memberRepo.findByUserAndWorld(
         user.id,
         bestie.worldId!,
@@ -284,7 +286,7 @@ export class BestiaeService {
     worldId: string,
     user: CurrentUser,
   ): Promise<void> {
-    if (this.isGlobalAdmin(user)) return;
+    if (worldAdminBypass(user, worldId)) return;
     const member = await this.memberRepo.findByUserAndWorld(user.id, worldId);
     if (!member || member.role < WorldRole.PomocnyPJ) {
       throw new ForbiddenException({
@@ -294,6 +296,8 @@ export class BestiaeService {
     }
   }
 
+  // Elevation se netýká — používá se jen pro scope 'system'/'user' (globální
+  // resp. osobní katalog bez worldId). World-scope brány jdou přes worldAdminBypass.
   private isGlobalAdmin(user: CurrentUser): boolean {
     return user.role === UserRole.Superadmin || user.role === UserRole.Admin;
   }

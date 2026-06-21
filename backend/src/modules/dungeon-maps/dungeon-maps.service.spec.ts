@@ -52,7 +52,10 @@ describe('DungeonMapsService', () => {
         role: WorldRole.PJ,
       });
       mockRepo.findByWorld.mockResolvedValue([mockDungeon]);
-      const result = await service.findByWorld('world1', 'pj', UserRole.Ikarus);
+      const result = await service.findByWorld('world1', {
+        id: 'pj',
+        role: UserRole.Ikarus,
+      });
       expect(result).toEqual([mockDungeon]);
       expect(mockRepo.findByWorld).toHaveBeenCalledWith('world1');
     });
@@ -62,7 +65,7 @@ describe('DungeonMapsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.findByWorld('world1', 'h', UserRole.Ikarus),
+        service.findByWorld('world1', { id: 'h', role: UserRole.Ikarus }),
       ).rejects.toThrow(ForbiddenException);
       expect(mockRepo.findByWorld).not.toHaveBeenCalled();
     });
@@ -74,24 +77,42 @@ describe('DungeonMapsService', () => {
         role: WorldRole.PJ,
       });
       mockRepo.findById.mockResolvedValue(mockDungeon);
-      const result = await service.findById('dun1', 'pj', UserRole.Ikarus);
+      const result = await service.findById('dun1', {
+        id: 'pj',
+        role: UserRole.Ikarus,
+      });
       expect(result).toEqual(mockDungeon);
     });
 
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
       await expect(
-        service.findById('neexistuje', 'x', UserRole.Admin),
+        service.findById('neexistuje', {
+          id: 'x',
+          role: UserRole.Admin,
+          elevatedWorldIds: ['world1'],
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('assertCanManage', () => {
-    it('projde pro Admin bez kontroly členství', async () => {
+    it('projde pro elevovaného Admina bez kontroly členství', async () => {
       await expect(
-        service.assertCanManage('u1', UserRole.Admin, 'world1'),
+        service.assertCanManage(
+          { id: 'u1', role: UserRole.Admin, elevatedWorldIds: ['world1'] },
+          'world1',
+        ),
       ).resolves.toBeUndefined();
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('Admin BEZ elevace → padá na membership (žádný → 403)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.assertCanManage({ id: 'u1', role: UserRole.Admin }, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('projde pro PJ světa', async () => {
@@ -99,7 +120,7 @@ describe('DungeonMapsService', () => {
         role: WorldRole.PJ,
       });
       await expect(
-        service.assertCanManage('pj1', UserRole.Hrac, 'world1'),
+        service.assertCanManage({ id: 'pj1', role: UserRole.Hrac }, 'world1'),
       ).resolves.toBeUndefined();
     });
 
@@ -108,14 +129,14 @@ describe('DungeonMapsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.assertCanManage('u1', UserRole.Hrac, 'world1'),
+        service.assertCanManage({ id: 'u1', role: UserRole.Hrac }, 'world1'),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('hodí ForbiddenException pokud nemá členství', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
-        service.assertCanManage('u1', UserRole.Hrac, 'world1'),
+        service.assertCanManage({ id: 'u1', role: UserRole.Hrac }, 'world1'),
       ).rejects.toThrow(ForbiddenException);
     });
   });
@@ -128,8 +149,10 @@ describe('DungeonMapsService', () => {
       mockRepo.create.mockResolvedValue(mockDungeon);
       const result = await service.create(
         { worldId: 'world1', name: 'Kobka' },
-        'pj1',
-        UserRole.Hrac,
+        {
+          id: 'pj1',
+          role: UserRole.Hrac,
+        },
       );
       expect(result).toEqual(mockDungeon);
       expect(mockRepo.create).toHaveBeenCalledWith(
@@ -149,8 +172,10 @@ describe('DungeonMapsService', () => {
       const result = await service.replace(
         'dun1',
         { name: 'Nové jméno' },
-        'pj1',
-        UserRole.Hrac,
+        {
+          id: 'pj1',
+          role: UserRole.Hrac,
+        },
       );
       expect(result).toEqual(updated);
     });
@@ -158,7 +183,7 @@ describe('DungeonMapsService', () => {
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
       await expect(
-        service.replace('x', {}, 'pj1', UserRole.Hrac),
+        service.replace('x', {}, { id: 'pj1', role: UserRole.Hrac }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -171,15 +196,15 @@ describe('DungeonMapsService', () => {
       });
       mockRepo.delete.mockResolvedValue(true);
       await expect(
-        service.delete('dun1', 'pj1', UserRole.Hrac),
+        service.delete('dun1', { id: 'pj1', role: UserRole.Hrac }),
       ).resolves.toBeUndefined();
     });
 
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
-      await expect(service.delete('x', 'pj1', UserRole.Hrac)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.delete('x', { id: 'pj1', role: UserRole.Hrac }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -193,8 +218,7 @@ describe('DungeonMapsService', () => {
       const result = await service.exportTemplate(
         'dun1',
         'https://example.com/img.png',
-        'pj1',
-        UserRole.Hrac,
+        { id: 'pj1', role: UserRole.Hrac },
       );
       expect(result).toEqual({ templateId: 'tpl1' });
       expect(mockTemplateRepo.create).toHaveBeenCalledWith(
@@ -209,7 +233,10 @@ describe('DungeonMapsService', () => {
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
       await expect(
-        service.exportTemplate('x', 'https://img.png', 'pj1', UserRole.Hrac),
+        service.exportTemplate('x', 'https://img.png', {
+          id: 'pj1',
+          role: UserRole.Hrac,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -227,8 +254,7 @@ describe('DungeonMapsService', () => {
       const result = await service.exportScene(
         'dun1',
         'https://example.com/img.png',
-        'pj1',
-        UserRole.Hrac,
+        { id: 'pj1', role: UserRole.Hrac },
       );
       expect(result).toEqual({ sceneId: 'scene1' });
       expect(mockMapsRepo.create).toHaveBeenCalledWith(
@@ -244,7 +270,10 @@ describe('DungeonMapsService', () => {
     it('hodí NotFoundException pokud dungeon neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
       await expect(
-        service.exportScene('x', 'https://img.png', 'pj1', UserRole.Hrac),
+        service.exportScene('x', 'https://img.png', {
+          id: 'pj1',
+          role: UserRole.Hrac,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });

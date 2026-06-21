@@ -25,6 +25,8 @@ import { UserRole } from '../users/interfaces/user.interface';
 interface RequestUser {
   id: string;
   role: UserRole;
+  /** World elevation (platform Admin bypass jen pro tyto světy) — viz worldAdminBypass. */
+  elevatedWorldIds?: string[];
 }
 
 @ApiTags('Pages')
@@ -42,7 +44,13 @@ export class PagesController {
     @CurrentUser() user: RequestUser,
     @Query('type') type?: string,
   ) {
-    return this.pagesService.findByWorld(worldId, type, user.id, user.role);
+    return this.pagesService.findByWorld(
+      worldId,
+      type,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
   }
 
   @Get('directory')
@@ -113,7 +121,13 @@ export class PagesController {
     @Param('slug') slug: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.pagesService.findBySlug(slug, worldId, user.id, user.role);
+    return this.pagesService.findBySlug(
+      slug,
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
   }
 
   @Post()
@@ -172,6 +186,12 @@ export class PagesController {
     @Param('slug') slug: string,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.pagesService.findBacklinks(slug, worldId, user.id, user.role);
+    return this.pagesService.findBacklinks(
+      slug,
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
   }
 }

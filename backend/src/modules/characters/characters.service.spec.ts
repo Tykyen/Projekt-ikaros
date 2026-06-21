@@ -94,22 +94,52 @@ describe('CharactersService', () => {
     service = module.get(CharactersService);
   });
 
-  describe('isWorldStaff (R-02 GlobalAdmin bypass)', () => {
-    it('GlobalAdmin bez membershipu → true (bypass)', async () => {
+  describe('isWorldStaff (world elevation bypass)', () => {
+    it('ELEVOVANÝ platform Admin bez membershipu → true (bypass)', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       expect(
-        await service.isWorldStaff('world1', 'admin1', UserRole.Admin),
+        await service.isWorldStaff('world1', {
+          id: 'admin1',
+          role: UserRole.Admin,
+          username: 'admin',
+          elevatedWorldIds: ['world1'],
+        }),
       ).toBe(true);
     });
-    it('hráč (bez staff role, bez globalRole) → false', async () => {
+    it('de-elevated platform Admin (bez elevace pro svět) bez membershipu → false', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      expect(
+        await service.isWorldStaff('world1', {
+          id: 'admin1',
+          role: UserRole.Admin,
+          username: 'admin',
+        }),
+      ).toBe(false);
+    });
+    it('bez requestera → false (fail-safe)', async () => {
+      expect(await service.isWorldStaff('world1')).toBe(false);
+    });
+    it('hráč (bez staff role) → false', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockMembership);
-      expect(await service.isWorldStaff('world1', 'user1')).toBe(false);
+      expect(
+        await service.isWorldStaff('world1', {
+          id: 'user1',
+          role: UserRole.Hrac,
+          username: 'user1',
+        }),
+      ).toBe(false);
     });
     it('PomocnyPJ membership → true', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
         mockPomocnyPjMembership,
       );
-      expect(await service.isWorldStaff('world1', 'user1')).toBe(true);
+      expect(
+        await service.isWorldStaff('world1', {
+          id: 'user1',
+          role: UserRole.Hrac,
+          username: 'user1',
+        }),
+      ).toBe(true);
     });
   });
 

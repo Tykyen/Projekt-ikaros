@@ -28,6 +28,7 @@ import {
   type WorldMembership,
 } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { CreateGroupDto } from './dto/create-group.dto';
 import type { UpdateGroupDto } from './dto/update-group.dto';
 import type { CreateChannelDto } from './dto/create-channel.dto';
@@ -48,6 +49,7 @@ import {
   type PresenceUser,
 } from './chat-presence.service';
 import { UploadService } from '../upload/upload.service';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 @Injectable()
 export class ChatService implements OnApplicationBootstrap {
@@ -79,6 +81,8 @@ export class ChatService implements OnApplicationBootstrap {
     // UM-08 — origin validace příloh world-chatu (forwardRef: UploadController používá ChatService).
     @Inject(forwardRef(() => UploadService))
     private readonly uploadService: UploadService,
+    // Elevation: cross-user/WS cesty čtou admin bypass z DB (ne z requesteru).
+    private readonly elevationService: WorldElevationsService,
   ) {}
 
   // ─── Permission helpers ───────────────────────────────────────────────────
@@ -97,7 +101,7 @@ export class ChatService implements OnApplicationBootstrap {
     requester: RequestUser,
     worldId: string,
   ): Promise<boolean> {
-    if (requester.role <= UserRole.Admin) return true;
+    if (worldAdminBypass(requester, worldId)) return true;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -107,8 +111,9 @@ export class ChatService implements OnApplicationBootstrap {
   }
 
   /**
-   * 6.7a — „vedení" světa: world role PomocnyPJ+ NEBO platform Admin+.
-   * Stejná sémantika jako `canManageChat`, ale jen z `userId` (bez RequestUser).
+   * 6.7a — „vedení" světa: world role PomocnyPJ+ NEBO elevated platform Admin+.
+   * Cross-user / WS cesta (jen `userId`, bez RequestUser) — admin bypass se proto
+   * čte z DB elevace (`world_elevations`), ne z `requester.elevatedWorldIds`.
    */
   private async isWorldManagerByUserId(
     userId: string,
@@ -120,7 +125,8 @@ export class ChatService implements OnApplicationBootstrap {
     );
     if (membership && membership.role >= WorldRole.PomocnyPJ) return true;
     const user = await this.usersRepo.findById(userId);
-    return !!user && user.role <= UserRole.Admin;
+    if (!user || user.role > UserRole.Admin) return false;
+    return this.elevationService.isElevated(userId, worldId);
   }
 
   async hasChannelAccess(
@@ -213,7 +219,7 @@ export class ChatService implements OnApplicationBootstrap {
         message: 'Svět nenalezen',
       });
     if (world.accessMode !== 'private') return;
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -1325,7 +1331,7 @@ export class ChatService implements OnApplicationBootstrap {
       // ho dělám zvlášť přes role <= UserRole.Admin
       const allowed = msg.worldId
         ? await this.canManageChat(requester, msg.worldId)
-        : requester.role <= UserRole.Admin;
+        : requester.role <= UserRole.Admin; // elevation-exempt: globální chat (worldId=null)
       if (!allowed) {
         throw new ForbiddenException({
           code: 'CHAT_DICE_FORBIDDEN',

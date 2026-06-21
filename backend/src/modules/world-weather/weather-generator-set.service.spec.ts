@@ -3,7 +3,10 @@
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { WeatherGeneratorSetService } from './weather-generator-set.service';
-import { WorldWeatherService } from './world-weather.service';
+import {
+  WorldWeatherService,
+  type WeatherRequester,
+} from './world-weather.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
 /**
@@ -30,7 +33,15 @@ const mockWeatherService = {
 
 // UserRole: Admin=2, Hrac=5
 // WorldRole: Zadatel=0, Ctenar=1, Hrac=2, Korektor=3, PomocnyPJ=4, PJ=5
-const Admin = { id: 'a', role: 2, username: 'a' } as const;
+// World elevation: platform Admin má world bypass jen pokud je elevated pro daný svět.
+const Admin: WeatherRequester = {
+  id: 'a',
+  role: 2,
+  username: 'a',
+  elevatedWorldIds: ['world1'],
+};
+// De-elevated admin (bez elevace pro world1) → world bypass NEPLATÍ.
+const DeElevatedAdmin: WeatherRequester = { id: 'a', role: 2, username: 'a' };
 const PomocnyPJ = { id: 'p', role: 5, username: 'p' } as const;
 const Hrac = { id: 'h', role: 5, username: 'h' } as const;
 const PJ = { id: 'pj', role: 5, username: 'pj' } as const;
@@ -101,6 +112,16 @@ describe('WeatherGeneratorSetService', () => {
       await expect(service.list('world1', Hrac)).rejects.toMatchObject({
         status: 403,
       });
+    });
+
+    it('de-elevated Admin (bez elevace pro svět) nemá bypass → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'world1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.list('world1', DeElevatedAdmin),
+      ).rejects.toMatchObject({ status: 403 });
+      // Bypass neproběhl → sáhl na membership.
+      expect(mockMembership.findByUserAndWorld).toHaveBeenCalled();
     });
   });
 

@@ -28,7 +28,14 @@ describe('WorldCalendarConfigService', () => {
   const mockWorlds = { findById: jest.fn() };
   const mockWorldSettings = { findByWorldId: jest.fn(), upsert: jest.fn() };
 
-  const Admin = { id: 'a', role: UserRole.Admin, username: 'a' };
+  const Admin = {
+    id: 'a',
+    role: UserRole.Admin,
+    username: 'a',
+    elevatedWorldIds: ['W1'],
+  };
+  // De-elevated admin (bez elevace pro W1) → world bypass NEPLATÍ.
+  const DeElevatedAdmin = { id: 'a', role: UserRole.Admin, username: 'a' };
   const Hrac = { id: 'h', role: UserRole.Ikarus, username: 'h' };
 
   beforeEach(async () => {
@@ -123,6 +130,16 @@ describe('WorldCalendarConfigService', () => {
       await expect(service.create('W1', dto, Hrac)).rejects.toThrow(
         ForbiddenException,
       );
+    });
+
+    it('de-elevated Admin (bez elevace pro svět) nemá bypass → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(service.create('W1', dto, DeElevatedAdmin)).rejects.toThrow(
+        ForbiddenException,
+      );
+      // Bypass neproběhl → sáhl na membership.
+      expect(mockMembership.findByUserAndWorld).toHaveBeenCalled();
     });
   });
 

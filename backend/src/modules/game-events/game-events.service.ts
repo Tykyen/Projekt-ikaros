@@ -18,7 +18,7 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { GameEvent } from './interfaces/game-event.interface';
 import type { RequestUser } from '../worlds/worlds.service';
-import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import {
   WorldRole,
   type WorldMembership,
@@ -51,10 +51,6 @@ export class GameEventsService {
 
   // ─── Permission helpers ───────────────────────────────────────────────────
 
-  private isGlobalAdmin(user: RequestUser): boolean {
-    return user.role <= UserRole.Admin; // Superadmin=1, Admin=2
-  }
-
   private async getMembership(
     userId: string,
     worldId: string,
@@ -67,7 +63,7 @@ export class GameEventsService {
     user: RequestUser,
     worldId: string,
   ): Promise<boolean> {
-    if (this.isGlobalAdmin(user)) return true;
+    if (worldAdminBypass(user, worldId)) return true;
     const m = await this.getMembership(user.id, worldId);
     if (!m) return false;
     return m.role >= WorldRole.PomocnyPJ;
@@ -75,7 +71,7 @@ export class GameEventsService {
 
   /** Kdo vidí event (GET, comment, RSVP) — respektuje groupOnly */
   private async canView(user: RequestUser, event: GameEvent): Promise<boolean> {
-    if (this.isGlobalAdmin(user)) return true;
+    if (worldAdminBypass(user, event.worldId)) return true;
     const m = await this.getMembership(user.id, event.worldId);
     if (!m || m.role === WorldRole.Zadatel) return false;
     if (!event.groupOnly) return true;
@@ -136,7 +132,7 @@ export class GameEventsService {
     // Auto-clamp: hráč bez fromDate dostane silent fromDate=cutoff (default = jen nadcházející).
     let effectiveFilters = { ...filters };
     let membership: WorldMembership | null = null;
-    if (!this.isGlobalAdmin(user)) {
+    if (!worldAdminBypass(user, filters.worldId)) {
       membership = await this.getMembership(user.id, filters.worldId);
       if (!membership || membership.role === WorldRole.Zadatel) return [];
 

@@ -64,7 +64,10 @@ export class MapTemplatesController {
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@CurrentUser() user: RequestUser): Promise<MapTemplate[]> {
-    // 10.2c-edit-2 — Admin+Superadmin globální bypass; ostatní jen své
+    // World-elevation NEAPLIKOVÁNA: knihovna šablon je per-owner CROSS-WORLD
+    // (ownerId, žádný worldId — viz project_takticka_mapa_library). Bez worldId
+    // nelze `worldAdminBypass` použít; admin global bypass tu zůstává záměrně
+    // (a vlastnické bypassy `role > Admin` níže taktéž — owner check, ne world).
     if (user.role <= UserRole.Admin) {
       return this.repo.findAll();
     }
@@ -88,6 +91,7 @@ export class MapTemplatesController {
         message: 'Šablona nenalezena',
       });
     }
+    // elevation-exempt: cross-world per-owner šablony (bez worldId)
     if (user.role > UserRole.Admin && tpl.ownerId !== user.id) {
       throw new ForbiddenException({
         code: 'MAP_TEMPLATE_FORBIDDEN_OWNER',
@@ -141,6 +145,7 @@ export class MapTemplatesController {
         message: 'Šablona nenalezena',
       });
     }
+    // elevation-exempt: cross-world per-owner šablony (bez worldId)
     if (user.role > UserRole.Admin && existing.ownerId !== user.id) {
       throw new ForbiddenException({
         code: 'MAP_TEMPLATE_FORBIDDEN_OWNER',
@@ -179,6 +184,7 @@ export class MapTemplatesController {
         message: 'Šablona nenalezena',
       });
     }
+    // elevation-exempt: cross-world per-owner šablony (bez worldId)
     if (user.role > UserRole.Admin && existing.ownerId !== user.id) {
       throw new ForbiddenException({
         code: 'MAP_TEMPLATE_FORBIDDEN_OWNER',

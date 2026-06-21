@@ -9,6 +9,11 @@ const mockRepo = {
   findById: mockFindById,
 };
 
+const mockListWorldIds = jest.fn().mockResolvedValue([]);
+const mockElevationService = {
+  listWorldIdsForUser: mockListWorldIds,
+} as never;
+
 // 1.3c (N-6b) — gate reflector. Default: routa NENÍ @AllowPendingDeletion.
 const mockGetAllAndOverride = jest.fn().mockReturnValue(false);
 const mockReflector = {
@@ -33,10 +38,15 @@ describe('JwtAuthGuard', () => {
   let guard: JwtAuthGuard;
 
   beforeEach(() => {
-    guard = new JwtAuthGuard(mockRepo as never, mockReflector);
+    guard = new JwtAuthGuard(
+      mockRepo as never,
+      mockReflector,
+      mockElevationService,
+    );
     jest.clearAllMocks();
     mockGetAllAndOverride.mockReturnValue(false);
     mockFindById.mockResolvedValue(activeUser());
+    mockListWorldIds.mockResolvedValue([]);
   });
 
   it('calls updateLastSeen with userId after successful JWT validation', async () => {
@@ -146,5 +156,34 @@ describe('JwtAuthGuard', () => {
     const ctx = makeContext({ id: 'user123' });
 
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  // ── Elevation lookup (jen pro platform Admin/Superadmin) ────────────────
+
+  it('naplní elevatedWorldIds pro admina (role <= Admin)', async () => {
+    jest
+      .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
+      .mockResolvedValue(true);
+    mockListWorldIds.mockResolvedValue(['w1', 'w2']);
+    const user: Record<string, unknown> = { id: 'user123', role: 2 };
+    const ctx = makeContext(user);
+
+    await guard.canActivate(ctx);
+
+    expect(mockListWorldIds).toHaveBeenCalledWith('user123');
+    expect(user.elevatedWorldIds).toEqual(['w1', 'w2']);
+  });
+
+  it('NEdělá elevation lookup pro běžného uživatele (role > Admin)', async () => {
+    jest
+      .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
+      .mockResolvedValue(true);
+    const user: Record<string, unknown> = { id: 'user123', role: 5 };
+    const ctx = makeContext(user);
+
+    await guard.canActivate(ctx);
+
+    expect(mockListWorldIds).not.toHaveBeenCalled();
+    expect(user.elevatedWorldIds).toBeUndefined();
   });
 });

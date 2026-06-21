@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { StatsController } from './stats.controller';
+import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 
 const mockStatsRepo = {
   get: jest
@@ -33,6 +34,10 @@ describe('StatsController', () => {
         { provide: 'ISearchStatsRepository', useValue: mockStatsRepo },
         { provide: 'SearchCoordinator', useValue: mockCoordinator },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
+        {
+          provide: WorldElevationsService,
+          useValue: { listWorldIdsForUser: jest.fn().mockResolvedValue([]) },
+        },
       ],
     }).compile();
     controller = module.get(StatsController);

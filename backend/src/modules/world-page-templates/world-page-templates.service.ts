@@ -11,12 +11,14 @@ import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.i
 import type { WorldPageTemplate } from './interfaces/world-page-template.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { CreateWorldPageTemplateDto } from './dto/create-world-page-template.dto';
 import type { UpdateWorldPageTemplateDto } from './dto/update-world-page-template.dto';
 
 export interface TemplateRequester {
   id: string;
   role: UserRole;
+  elevatedWorldIds?: string[];
 }
 
 @Injectable()
@@ -131,7 +133,7 @@ export class WorldPageTemplatesService {
     worldId: string,
     requester: TemplateRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world) {
       throw new NotFoundException({

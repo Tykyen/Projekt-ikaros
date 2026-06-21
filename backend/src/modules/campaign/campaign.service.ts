@@ -6,7 +6,9 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
-import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
+// UserRole už není potřeba (getWorldRole bere requester: RequestUser).
 import type { ICampaignSubjectRepository } from './interfaces/campaign-subject-repository.interface';
 import type { ICampaignRelationshipRepository } from './interfaces/campaign-relationship-repository.interface';
 import type { ICampaignStorylineRepository } from './interfaces/campaign-storyline-repository.interface';
@@ -61,13 +63,14 @@ export class CampaignService {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   async getWorldRole(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<WorldRole> {
-    if (userRole <= UserRole.Admin) return WorldRole.PJ;
+    // World elevation — platform Admin/Sa má bypass (→ PJ) JEN když je pro
+    // tento svět elevovaný; de-elevated admin spadne na svou membership roli.
+    if (worldAdminBypass(requester, worldId)) return WorldRole.PJ;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     // N-06 (nav-audit) — nečlen NESMÍ číst/psát kampaňová data světa. Dřív

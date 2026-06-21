@@ -57,22 +57,44 @@ describe('WorldMapsService', () => {
   });
 
   describe('canManage', () => {
-    it('global Admin+ smí vždy', async () => {
-      expect(await service.canManage('u', UserRole.Admin, 'w')).toBe(true);
-      expect(await service.canManage('u', UserRole.Superadmin, 'w')).toBe(true);
+    it('elevovaný platform Admin+ smí vždy', async () => {
+      expect(
+        await service.canManage(
+          { id: 'u', role: UserRole.Admin, elevatedWorldIds: ['w'] },
+          'w',
+        ),
+      ).toBe(true);
+      expect(
+        await service.canManage(
+          { id: 'u', role: UserRole.Superadmin, elevatedWorldIds: ['w'] },
+          'w',
+        ),
+      ).toBe(true);
       expect(membershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('Admin BEZ elevace = bez bypassu (padá na membership)', async () => {
+      membershipRepo.findByUserAndWorld.mockResolvedValueOnce(null);
+      expect(
+        await service.canManage({ id: 'u', role: UserRole.Admin }, 'w'),
+      ).toBe(false);
+      expect(membershipRepo.findByUserAndWorld).toHaveBeenCalledWith('u', 'w');
     });
 
     it('world PJ smí, hráč ne', async () => {
       membershipRepo.findByUserAndWorld.mockResolvedValueOnce({
         role: WorldRole.PJ,
       });
-      expect(await service.canManage('u', UserRole.Hrac, 'w')).toBe(true);
+      expect(
+        await service.canManage({ id: 'u', role: UserRole.Hrac }, 'w'),
+      ).toBe(true);
 
       membershipRepo.findByUserAndWorld.mockResolvedValueOnce({
         role: WorldRole.Hrac,
       });
-      expect(await service.canManage('u', UserRole.Hrac, 'w')).toBe(false);
+      expect(
+        await service.canManage({ id: 'u', role: UserRole.Hrac }, 'w'),
+      ).toBe(false);
     });
 
     it('assertCanManage hodí 403 bez oprávnění', async () => {
@@ -80,7 +102,7 @@ describe('WorldMapsService', () => {
         role: WorldRole.Hrac,
       });
       await expect(
-        service.assertCanManage('u', UserRole.Hrac, 'w'),
+        service.assertCanManage({ id: 'u', role: UserRole.Hrac }, 'w'),
       ).rejects.toThrow(ForbiddenException);
     });
   });

@@ -9,7 +9,13 @@ import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { WorldPageTemplate } from './interfaces/world-page-template.interface';
 
-const adminRequester = { id: 'admin', role: UserRole.Admin };
+const adminRequester = {
+  id: 'admin',
+  role: UserRole.Admin,
+  elevatedWorldIds: ['w1'],
+};
+// De-elevated admin (žádná elevace pro w1) → world bypass NEPLATÍ.
+const deElevatedAdmin = { id: 'admin', role: UserRole.Admin };
 const hracRequester = { id: 'hrac', role: UserRole.Hrac };
 const korektorRequester = { id: 'korektor', role: UserRole.Hrac };
 
@@ -74,6 +80,16 @@ describe('WorldPageTemplatesService', () => {
       await service.create('w1', dto, adminRequester);
       expect(membershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
       expect(repo.save).toHaveBeenCalled();
+    });
+
+    it('de-elevated Admin (bez elevace pro svět) jde přes membership → 403 bez role', async () => {
+      worldsRepo.findById.mockResolvedValueOnce({ id: 'w1', slug: 'foo' });
+      membershipRepo.findByUserAndWorld.mockResolvedValueOnce(null);
+      await expect(
+        service.create('w1', dto, deElevatedAdmin),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      // Bypass neproběhl → musel sáhnout na membership.
+      expect(membershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('Hráč ve světě bez Korektor role dostane 403', async () => {

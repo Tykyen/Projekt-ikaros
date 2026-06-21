@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { UserRole } from '../../users/interfaces/user.interface';
 import { WorldRole } from '../../worlds/interfaces/world-membership.interface';
+import { worldAdminBypass } from '../../../common/utils/world-elevation';
 import type { IWorldMembershipRepository } from '../../worlds/interfaces/world-membership-repository.interface';
 import type { MapScene } from '../interfaces/map-scene.interface';
 import type { MapOperationPayload } from '../dto/operations';
@@ -21,6 +22,11 @@ import type { WorldOperationPayload } from '../../worlds/dto/operations';
 export interface OperationRequestUser {
   id: string;
   role: UserRole;
+  /**
+   * Světy, kde má platform Admin/Superadmin aktivní elevaci. Bez elevace nemá
+   * admin world bypass — viz `worldAdminBypass`. Plní JwtAuthGuard (jen adminům).
+   */
+  elevatedWorldIds?: string[];
 }
 
 /**
@@ -53,8 +59,8 @@ export class OperationsAuthorizer {
     scene: MapScene,
     op: MapOperationPayload,
   ): Promise<void> {
-    // 1. Global Sa/Admin bypass
-    if (user.role <= UserRole.Admin) return;
+    // 1. Platform Admin/Superadmin bypass — jen s aktivní elevací pro tento svět
+    if (worldAdminBypass(user, scene.worldId)) return;
 
     // 2. Membership ve světě scény
     const membership = await this.membershipRepo.findByUserAndWorld(
@@ -196,8 +202,8 @@ export class OperationsAuthorizer {
     worldId: string,
     op: WorldOperationPayload,
   ): Promise<void> {
-    // 1. Sa/Admin bypass
-    if (user.role <= UserRole.Admin) return;
+    // 1. Platform Admin/Superadmin bypass — jen s aktivní elevací pro tento svět
+    if (worldAdminBypass(user, worldId)) return;
 
     // 2. Membership
     const membership = await this.membershipRepo.findByUserAndWorld(
@@ -243,7 +249,7 @@ export class OperationsAuthorizer {
     user: OperationRequestUser,
     scene: MapScene,
   ): Promise<void> {
-    if (user.role <= UserRole.Admin) return;
+    if (worldAdminBypass(user, scene.worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       user.id,
       scene.worldId,
@@ -275,7 +281,7 @@ export class OperationsAuthorizer {
     user: OperationRequestUser,
     scene: MapScene,
   ): Promise<void> {
-    if (user.role <= UserRole.Admin) return;
+    if (worldAdminBypass(user, scene.worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       user.id,
       scene.worldId,
@@ -305,7 +311,7 @@ export class OperationsAuthorizer {
     user: OperationRequestUser,
     worldId: string,
   ): Promise<void> {
-    if (user.role <= UserRole.Admin) return;
+    if (worldAdminBypass(user, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       user.id,
       worldId,

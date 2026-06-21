@@ -23,6 +23,8 @@ import type { UpdateCharacterDto } from './dto/update-character.dto';
 import type { ConvertCharacterDto } from './dto/convert-character.dto';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 
 @Injectable()
 export class CharactersService {
@@ -66,23 +68,23 @@ export class CharactersService {
    */
   async isWorldStaff(
     worldId: string,
-    userId: string,
-    globalRole?: UserRole,
+    requester?: RequestUser,
   ): Promise<boolean> {
-    // R-02 — GlobalAdmin (Sa/Admin) bypass, konzistentně se sourozencem
-    // `campaign.getWorldRole` (admin→PJ). Volitelný param: volající bez role
-    // = bez bypassu (fail-safe — radši odepře, než aby tiše povolil).
-    if (globalRole !== undefined && globalRole <= UserRole.Admin) return true;
+    // World elevation — platform Admin/Sa bypass (→ staff) JEN když je pro
+    // tento svět elevovaný. Volitelný param: volající bez requestera = bez
+    // bypassu (fail-safe — radši odepře, než aby tiše povolil). Bez requestera
+    // nelze ani ověřit membership → false.
+    if (!requester) return false;
+    if (worldAdminBypass(requester, worldId)) return true;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     return !!membership && membership.role >= WorldRole.PomocnyPJ;
   }
 
   async assertCanManage(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<void> {
     // RC-D2 (race-condition audit) — svět musí být aktivní (i pro Admin), jinak
@@ -94,9 +96,10 @@ export class CharactersService {
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
-    if (userRole <= UserRole.Admin) return;
+    // World elevation — elevovaný platform Admin/Sa má bypass; jinak membership.
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role < WorldRole.PJ)
@@ -232,6 +235,7 @@ export class CharactersService {
     worldId: string,
     userId?: string,
     platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<void> {
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
@@ -240,7 +244,8 @@ export class CharactersService {
         message: 'Svět nenalezen',
       });
     if (world.accessMode !== 'private') return;
-    if (platformRole !== undefined && platformRole <= UserRole.Admin) return;
+    if (worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId))
+      return;
     const membership = userId
       ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
       : null;
@@ -295,7 +300,7 @@ export class CharactersService {
     slug: string,
     worldId: string,
     dto: UpdateCharacterDto,
-    requester?: { id: string; role: UserRole },
+    requester?: { id: string; role: UserRole; elevatedWorldIds?: string[] },
   ): Promise<Character> {
     const character = await this.charRepo.findBySlugAndWorld(slug, worldId);
     if (!character)
@@ -303,7 +308,7 @@ export class CharactersService {
         code: 'CHARACTER_NOT_FOUND',
         message: 'Postava nenalezena',
       });
-    if (requester && requester.role > UserRole.Admin) {
+    if (requester && !worldAdminBypass(requester, worldId)) {
       const membership = await this.membershipRepo.findByUserAndWorld(
         requester.id,
         worldId,

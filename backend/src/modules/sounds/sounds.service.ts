@@ -11,6 +11,8 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { Sound } from './interfaces/sound.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { CreateSoundDto } from './dto/create-sound.dto';
 import type { UpdateSoundDto } from './dto/update-sound.dto';
 
@@ -23,13 +25,12 @@ export class SoundsService {
   ) {}
 
   async assertCanManageWorld(
-    userId: string,
-    userRole: UserRole,
+    requester: RequestUser,
     worldId: string,
   ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role < WorldRole.PomocnyPJ)
@@ -42,14 +43,10 @@ export class SoundsService {
   // R-RUN-01 (plný audit 2026-06-20) — GET /worlds/:id/sounds dřív neměl
   // membership gate → nečlen privátního světa četl celou zvukovou DB. Vzor
   // shodný s emotes.assertIsMember (vyloučí nečleny i Zadatele, pustí Ctenar+).
-  async assertIsMember(
-    userId: string,
-    userRole: UserRole,
-    worldId: string,
-  ): Promise<void> {
-    if (userRole <= UserRole.Admin) return;
+  async assertIsMember(requester: RequestUser, worldId: string): Promise<void> {
+    if (worldAdminBypass(requester, worldId)) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
+      requester.id,
       worldId,
     );
     if (!membership || membership.role === WorldRole.Zadatel)
@@ -59,6 +56,7 @@ export class SoundsService {
       });
   }
 
+  // elevation se netýká — není world-scoped (globální zvuková DB).
   // Sync logika, ale držíme Promise<void> kontrakt — testy spoléhají na .rejects.toThrow.
   // eslint-disable-next-line @typescript-eslint/require-await
   async assertIsAdmin(userRole: UserRole): Promise<void> {

@@ -118,16 +118,28 @@ describe('WorldNewsService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('scope=archived — Admin smí', async () => {
+    it('scope=archived — elevovaný Admin smí (per-world)', async () => {
       mockRepo.findMany.mockResolvedValue([]);
       await service.findMany({
         worldId: 'w1',
         scope: 'archived',
-        requester: Admin,
+        requester: { ...Admin, elevatedWorldIds: ['w1'] },
       });
       expect(mockRepo.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ scope: 'archived' }),
       );
+    });
+
+    it('scope=archived — de-elevated Admin (per-world) → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'w1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findMany({
+          worldId: 'w1',
+          scope: 'archived',
+          requester: Admin,
+        }),
+      ).rejects.toMatchObject({ status: 403 });
     });
 
     it('scope=archived — PomocnyPJ světa smí', async () => {
@@ -269,6 +281,27 @@ describe('WorldNewsService', () => {
       await expect(
         service.create({ title: 't', content: 'c', worldId: 'fake' }, PJ),
       ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('elevovaný Admin smí vytvořit per-world novinku (bypass)', async () => {
+      mockRepo.create.mockResolvedValue(mockItem({ worldId: 'W1' }));
+      await service.create(
+        { title: 't', content: 'c', worldId: 'W1' },
+        { ...Admin, elevatedWorldIds: ['W1'] },
+      );
+      expect(mockRepo.create).toHaveBeenCalled();
+      // bypass = neptá se na svět ani membership
+      expect(mockWorlds.findById).not.toHaveBeenCalled();
+      expect(mockMembership.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevovaný Admin NEMÁ per-world bypass → padá na membership → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'W1' });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.create({ title: 't', content: 'c', worldId: 'W1' }, Admin),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(mockMembership.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('default date je nastaven na server-side ISO UTC', async () => {

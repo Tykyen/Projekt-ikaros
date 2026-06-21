@@ -25,6 +25,8 @@ import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.i
 interface RequestUser {
   id: string;
   role: UserRole;
+  // world elevation — admin bypass jen pro elevované světy (worldAdminBypass).
+  elevatedWorldIds?: string[];
 }
 
 /**

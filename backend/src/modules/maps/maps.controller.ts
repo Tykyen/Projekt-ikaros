@@ -33,6 +33,8 @@ import { RemoveTokenDto } from './dto/remove-token.dto';
 interface RequestUser {
   id: string;
   role: UserRole;
+  // world elevation — admin bypass jen pro elevované světy (worldAdminBypass).
+  elevatedWorldIds?: string[];
 }
 
 @ApiTags('Maps')
@@ -65,8 +67,8 @@ export class MapsController {
     // Teď JWT + staff (PomocnyPJ+) — orchestrator read. Per-hráč scéna jde přes
     // `GET /maps/active` (membership.currentSceneId).
     if (isActive === 'true')
-      return this.service.findActiveScenes(worldId, user.id, user.role);
-    return this.service.findByWorld(worldId, user.id, user.role);
+      return this.service.findActiveScenes(worldId, user);
+    return this.service.findByWorld(worldId, user);
   }
 
   @ApiOperation({
@@ -115,7 +117,7 @@ export class MapsController {
   @UseGuards(JwtAuthGuard)
   async create(@Body() dto: CreateMapDto, @CurrentUser() user: RequestUser) {
     const worldId = dto.worldId ?? '';
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.create(
       dto as unknown as Partial<
         import('./interfaces/map-scene.interface').MapScene
@@ -135,7 +137,7 @@ export class MapsController {
     @Query('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     await this.service.setActive(id, worldId);
   }
 
@@ -151,7 +153,7 @@ export class MapsController {
     @CurrentUser() user: RequestUser,
   ) {
     const worldId = dto.worldId ?? '';
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     return this.service.replace(
       id,
       dto as unknown as Partial<
@@ -174,7 +176,7 @@ export class MapsController {
     @Body() dto: MoveTokenDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.service.moveToken(sceneId, dto, user.id, user.role);
+    return this.service.moveToken(sceneId, dto, user);
   }
 
   @ApiOperation({
@@ -192,7 +194,7 @@ export class MapsController {
     @Body() dto: RemoveTokenDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.removeToken(sceneId, dto.tokenId, user.id, user.role);
+    await this.service.removeToken(sceneId, dto.tokenId, user);
   }
 
   // 10.2-prep-1 — Operations API
@@ -265,7 +267,7 @@ export class MapsController {
     @Query('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.service.assertCanManage(user.id, user.role, worldId);
+    await this.service.assertCanManage(user, worldId);
     await this.service.deleteScene(id);
   }
 }

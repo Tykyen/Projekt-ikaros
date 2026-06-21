@@ -22,14 +22,17 @@ export type AdminAuditAction =
   // D-067 — audit nad novinkami Ikaros (entita ikaros-news).
   | 'IKAROS_NEWS_ARCHIVE'
   | 'IKAROS_NEWS_UNARCHIVE'
-  | 'IKAROS_NEWS_DELETE';
+  | 'IKAROS_NEWS_DELETE'
+  // Elevation — admin si „nahodil"/„složil" pravomoci ve světě.
+  | 'WORLD_ELEVATION_ACTIVATED'
+  | 'WORLD_ELEVATION_REVOKED';
 
 /**
  * D-067 — typ cílové entity audit záznamu. `user` = výchozí (akce nad
  * uživatelem); `ikaros-news` = akce nad novinkou. Starší záznamy bez pole
  * se interpretují jako `user`.
  */
-export type AuditTargetType = 'user' | 'ikaros-news';
+export type AuditTargetType = 'user' | 'ikaros-news' | 'world';
 
 export interface AdminAuditLogEntry {
   id: string;

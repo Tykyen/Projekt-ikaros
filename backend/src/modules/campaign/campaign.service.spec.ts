@@ -116,24 +116,49 @@ describe('CampaignService', () => {
   });
 
   describe('getWorldRole', () => {
-    it('vrátí PJ pro admina bez DB dotazu', async () => {
-      const role = await service.getWorldRole('admin1', UserRole.Admin, 'w1');
+    it('vrátí PJ pro ELEVOVANÉHO admina bez DB dotazu', async () => {
+      const role = await service.getWorldRole(
+        {
+          id: 'admin1',
+          role: UserRole.Admin,
+          username: 'admin',
+          elevatedWorldIds: ['w1'],
+        },
+        'w1',
+      );
       expect(role).toBe(WorldRole.PJ);
       expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('de-elevated admin (bez elevace pro svět) → spadne na membership → nečlen → Forbidden', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.getWorldRole(
+          { id: 'admin1', role: UserRole.Admin, username: 'admin' },
+          'w1',
+        ),
+      ).rejects.toThrow(/Nejsi členem/);
+      expect(mockMembershipRepo.findByUserAndWorld).toHaveBeenCalled();
     });
 
     it('vrátí WorldRole z membership', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
         role: WorldRole.PomocnyPJ,
       });
-      const role = await service.getWorldRole('user1', UserRole.Hrac, 'w1');
+      const role = await service.getWorldRole(
+        { id: 'user1', role: UserRole.Hrac, username: 'user1' },
+        'w1',
+      );
       expect(role).toBe(WorldRole.PomocnyPJ);
     });
 
     it('nečlen → ForbiddenException (N-06: nečlen nemá přístup ke kampaňovým datům)', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
       await expect(
-        service.getWorldRole('user1', UserRole.Hrac, 'w1'),
+        service.getWorldRole(
+          { id: 'user1', role: UserRole.Hrac, username: 'user1' },
+          'w1',
+        ),
       ).rejects.toThrow(/Nejsi členem/);
     });
   });

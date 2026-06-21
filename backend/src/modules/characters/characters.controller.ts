@@ -21,12 +21,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreateCharacterDto } from './dto/create-character.dto';
 import { UpdateCharacterDto } from './dto/update-character.dto';
 import { ConvertCharacterDto } from './dto/convert-character.dto';
-import { UserRole } from '../users/interfaces/user.interface';
-
-interface RequestUser {
-  id: string;
-  role: UserRole;
-}
+import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
 @ApiTags('Characters')
 @ApiBearerAuth()
@@ -68,6 +63,7 @@ export class CharactersController {
       worldId,
       user?.id,
       user?.role,
+      user?.elevatedWorldIds,
     );
     return this.charactersService.getDirectory(worldId);
   }
@@ -105,7 +101,7 @@ export class CharactersController {
     @Body() dto: CreateCharacterDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.charactersService.assertCanManage(user.id, user.role, worldId);
+    await this.charactersService.assertCanManage(user, worldId);
     return this.charactersService.create(dto, worldId);
   }
 
@@ -137,7 +133,7 @@ export class CharactersController {
     @Body() dto: ConvertCharacterDto,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.charactersService.assertCanManage(user.id, user.role, worldId);
+    await this.charactersService.assertCanManage(user, worldId);
     return this.charactersService.convert(slug, worldId, dto);
   }
 
@@ -151,7 +147,7 @@ export class CharactersController {
     @Param('slug') slug: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.charactersService.assertCanManage(user.id, user.role, worldId);
+    await this.charactersService.assertCanManage(user, worldId);
     return this.charactersService.delete(slug, worldId);
   }
 }

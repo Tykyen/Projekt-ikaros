@@ -40,6 +40,7 @@ import type { WorldCalendarConfig } from '../world-calendar-config/interfaces/wo
 import type { IWorldCalendarConfigRepository } from '../world-calendar-config/interfaces/world-calendar-config-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { worldAdminBypass } from '../../common/utils/world-elevation';
 import { ChatService } from '../chat/chat.service';
 import {
   generateTemperature,
@@ -51,6 +52,7 @@ export interface WeatherRequester {
   id: string;
   role: UserRole;
   username: string;
+  elevatedWorldIds?: string[];
 }
 
 @Injectable()
@@ -170,7 +172,7 @@ export class WorldWeatherService {
     worldId: string,
     requester: WeatherRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
@@ -360,7 +362,7 @@ export class WorldWeatherService {
     worldId: string,
     requester: WeatherRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
@@ -391,7 +393,7 @@ export class WorldWeatherService {
     worldId: string,
     requester: WeatherRequester,
   ): Promise<void> {
-    if (requester.role <= UserRole.Admin) return;
+    if (worldAdminBypass(requester, worldId)) return;
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
       throw new NotFoundException({
