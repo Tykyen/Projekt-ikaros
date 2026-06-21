@@ -181,6 +181,35 @@ export class OperationsAuthorizer {
         }
         return;
       }
+      // 15.4 — kreslení hráčem: jen když scéna povolí (`allowPlayerDrawing`) a
+      // jen vlastní kresba; mazání jen vlastní; `drawing.clear` je PJ-only.
+      case 'drawing.add': {
+        if (scene.config.allowPlayerDrawing !== true) {
+          throw new ForbiddenException({
+            code: 'MAP_OP_FORBIDDEN',
+            message: 'Kreslení hráčů je na této scéně vypnuté',
+          });
+        }
+        if (op.drawing.createdByUserId !== user.id) {
+          throw new ForbiddenException({
+            code: 'MAP_OP_FORBIDDEN',
+            message: 'Nelze kreslit cizím jménem',
+          });
+        }
+        return;
+      }
+      case 'drawing.remove': {
+        const drawing = scene.drawings?.find((d) => d.id === op.drawingId);
+        // Mazání neexistující kresby = idempotentní no-op (nezasekne klienta).
+        if (!drawing) return;
+        if (drawing.createdByUserId !== user.id) {
+          throw new ForbiddenException({
+            code: 'MAP_OP_FORBIDDEN',
+            message: 'Nelze smazat cizí kresbu',
+          });
+        }
+        return;
+      }
       default:
         throw new ForbiddenException({
           code: 'MAP_OP_FORBIDDEN',

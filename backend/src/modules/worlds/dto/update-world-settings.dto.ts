@@ -178,4 +178,11 @@ export class UpdateWorldSettingsDto {
   @IsString()
   @MaxLength(64)
   timelineCalendarSlug?: string | null;
+
+  // 15.4 (E) — výchozí nastavení map světa (volný objekt; FE řídí tvar).
+  // `null` = reset. Vzor `groupColors` (@IsObject propustí celý objekt).
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsObject()
+  mapDefaults?: Record<string, unknown> | null;
 }

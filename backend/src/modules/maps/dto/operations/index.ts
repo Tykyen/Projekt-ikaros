@@ -30,6 +30,11 @@ import {
   SceneTokensClearOpDto,
   SceneTokensReplaceOpDto,
 } from './scene-ops.dto';
+import {
+  DrawingAddOpDto,
+  DrawingRemoveOpDto,
+  DrawingClearOpDto,
+} from './drawing-ops.dto';
 import { SoundPlaylistOpDto } from './sound-ops.dto';
 import {
   CombatStartOpDto,
@@ -67,6 +72,10 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   'effect.add': EffectAddOpDto,
   'effect.remove': EffectRemoveOpDto,
   'effect.update': EffectUpdateOpDto,
+  // 15.4 — Drawing (anotace)
+  'drawing.add': DrawingAddOpDto,
+  'drawing.remove': DrawingRemoveOpDto,
+  'drawing.clear': DrawingClearOpDto,
   // Fog
   'fog.set': FogSetOpDto,
   'fog.brush': FogBrushOpDto,
@@ -123,6 +132,9 @@ export type MapOperationPayload =
   | EffectAddOpDto
   | EffectRemoveOpDto
   | EffectUpdateOpDto
+  | DrawingAddOpDto
+  | DrawingRemoveOpDto
+  | DrawingClearOpDto
   | FogSetOpDto
   | FogBrushOpDto
   | SceneStateOpDto

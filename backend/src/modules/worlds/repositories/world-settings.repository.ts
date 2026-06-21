@@ -77,6 +77,8 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
         };
       })(),
       currentInGameDate: (doc.currentInGameDate as Date | null) ?? null,
+      // 15.4 (E) — výchozí nastavení map (volný objekt, passthrough).
+      mapDefaults: (doc.mapDefaults as WorldSettings['mapDefaults']) ?? null,
       updatedAt: doc.updatedAt as Date,
     };
   }

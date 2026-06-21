@@ -12,6 +12,7 @@ import type {
   MapScene,
   MapToken,
   MapEffect,
+  MapDrawing,
   HexCoord,
   ScenePlayerState,
 } from '../interfaces/map-scene.interface';
@@ -249,6 +250,27 @@ export class MapOperationsService {
           patch: oldPatch,
         };
       }
+
+      // 15.4 — drawing inverse (vzor effects). `clear` není undoable (return null).
+      case 'drawing.add':
+        return {
+          type: 'drawing.remove',
+          drawingId: op.drawing.id,
+        };
+
+      case 'drawing.remove': {
+        const drawing = scene.drawings?.find((d) => d.id === op.drawingId);
+        if (!drawing) return null;
+        return {
+          type: 'drawing.add',
+          drawing: drawing as unknown as Record<string, unknown> & {
+            id: string;
+          },
+        } as unknown as MapOperationPayload;
+      }
+
+      case 'drawing.clear':
+        return null;
 
       case 'fog.set':
         return {
@@ -672,6 +694,37 @@ export class MapOperationsService {
             message: 'Efekt nenalezen',
           });
         }
+        return;
+      }
+
+      // 15.4 — drawing (anotace). Vzor effects.
+      case 'drawing.add': {
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $push: { drawings: op.drawing as unknown as MapDrawing },
+            $set: { lastModified: now },
+          },
+        );
+        return;
+      }
+
+      case 'drawing.remove': {
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $pull: { drawings: { id: op.drawingId } },
+            $set: { lastModified: now },
+          },
+        );
+        return;
+      }
+
+      case 'drawing.clear': {
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          { $set: { drawings: [], lastModified: now } },
+        );
         return;
       }
 

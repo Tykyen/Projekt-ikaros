@@ -30,6 +30,12 @@ export class MapSceneSchemaClass {
     default: (): Record<string, unknown>[] => [],
   })
   effects: Record<string, unknown>[];
+  /** 15.4 — anotace (kresby) na mapě. Tvar `MapDrawing`. */
+  @Prop({
+    type: [MixedArraySubSchema],
+    default: (): Record<string, unknown>[] => [],
+  })
+  drawings: Record<string, unknown>[];
   /**
    * 10.2j — persistovaná historie hodů scény. Cap 50 nejnovějších
    * (atomic `$push` + `$slice: -50` v applyAtomic). Tvar: MapDiceRoll

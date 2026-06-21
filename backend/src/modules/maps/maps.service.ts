@@ -7,6 +7,7 @@ import {
 import type { IMapsRepository } from './interfaces/maps-repository.interface';
 import type { IMapTemplatesRepository } from './interfaces/map-templates-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
 import type { ICharactersRepository } from '../characters/interfaces/characters-repository.interface';
 import type { IPagesRepository } from '../pages/interfaces/pages-repository.interface';
 import type { CharacterDiaryRepository } from '../character-subdocs/repositories/character-diary.repository';
@@ -30,6 +31,9 @@ export class MapsService {
     private readonly templateRepo: IMapTemplatesRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    // 15.4 (E) — seed config nové scény z world map defaults.
+    @Inject('IWorldSettingsRepository')
+    private readonly worldSettingsRepo: IWorldSettingsRepository,
     @Inject('ICharactersRepository')
     private readonly characterRepo: ICharactersRepository,
     // 9.1 (cleanup) — pro enrichTokens (Page má imageUrl po sjednocení).
@@ -190,6 +194,30 @@ export class MapsService {
           fogEnabled: tpl.fogEnabled,
           revealedHexes: tpl.revealedHexes,
           activeSoundIds: tpl.activeSoundIds,
+        };
+      }
+    } else if (!dto.config) {
+      // 15.4 (E) — nová scéna (ne ze šablony, bez explicitního configu) dědí
+      // world map defaults (PJ je nastaví jednou); scéna je pak může přepsat.
+      const settings = await this.worldSettingsRepo.findByWorldId(worldId);
+      const md = settings?.mapDefaults;
+      if (md) {
+        data = {
+          ...data,
+          config: {
+            size: md.size ?? 40,
+            originX: 0,
+            originY: 0,
+            showGrid: true,
+            gridType: md.gridType ?? 'hex',
+            unitsPerCell: md.unitsPerCell ?? 1,
+            unitLabel: md.unitLabel ?? 'm',
+            showScale: md.showScale ?? true,
+            showHpPc: md.showHpPc ?? true,
+            showHpNpc: md.showHpNpc ?? true,
+            showHpBestie: md.showHpBestie ?? true,
+            allowPlayerDrawing: md.allowPlayerDrawing ?? false,
+          },
         };
       }
     }

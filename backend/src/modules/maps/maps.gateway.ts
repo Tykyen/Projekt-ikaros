@@ -225,6 +225,32 @@ export class MapsGateway implements OnGatewayConnection {
   }
 
   /**
+   * 15.3 — sdílené pravítko (měření bod↔bod). Ephemeral, NEní v operation
+   * logu (vzor `map:ping`). Hráč i PJ (žádný role gate). `line=null` = konec
+   * měření. `userId` z autentizace (klíč per-uživatel, ne z payloadu) — klient
+   * tak rozliší více současně měřících. Broadcast jen do scény, kde klient je.
+   */
+  @SubscribeMessage('map:ruler')
+  handleRuler(
+    @MessageBody()
+    payload: {
+      sceneId: string;
+      line: { x1: number; y1: number; x2: number; y2: number } | null;
+      userName: string;
+    },
+    @ConnectedSocket() client: AuthedSocket,
+  ): void {
+    if (!this.requireAuth(client)) return;
+    if (!client.rooms.has(payload.sceneId)) return;
+    const data = client.data as AuthedSocketData;
+    client.to(payload.sceneId).emit('map:rulered', {
+      userId: data.user!.id,
+      userName: payload.userName,
+      line: payload.line,
+    });
+  }
+
+  /**
    * 10.2f-3 — spotlight („ukazováček" PJ z iniciativní lišty). Ephemeral,
    * NEní v operation logu. PJ-only (>= PomocnyPJ / Sa / Admin). Broadcast
    * `map:spotlight` všem na scéně kromě odesílatele (ten si highlight nastaví

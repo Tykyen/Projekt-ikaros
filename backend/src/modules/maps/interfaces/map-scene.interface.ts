@@ -1,4 +1,6 @@
 export interface HexConfig {
+  // 15.2 — typ mřížky (hex/square/none); undefined = hex (BC).
+  gridType?: 'hex' | 'square' | 'none';
   size: number;
   originX: number;
   originY: number;
@@ -7,6 +9,26 @@ export interface HexConfig {
   showHpPc?: boolean;
   showHpNpc?: boolean;
   showHpBestie?: boolean;
+  // 15.3 — měřítko (stupnice + pravítko). undefined = 1 / 'm' / true.
+  unitsPerCell?: number;
+  unitLabel?: string;
+  showScale?: boolean;
+  // 15.4 — smí hráč kreslit anotace na této scéně? undefined = false.
+  allowPlayerDrawing?: boolean;
+}
+
+/**
+ * 15.4 — anotace (kresba) na mapě. `points` = map-space px páry
+ * `[x0,y0,x1,y1,...]`. `visibility`: `pj` = jen PJ, `all` = všichni.
+ */
+export interface MapDrawing {
+  id: string;
+  kind: 'line' | 'arrow' | 'circle' | 'text';
+  points: number[];
+  color: string;
+  text?: string;
+  createdByUserId: string;
+  visibility: 'pj' | 'all';
 }
 
 export interface HexCoord {
@@ -114,6 +136,8 @@ export interface MapScene {
   tokens: MapToken[];
   npcTemplates: MapSceneNpc[];
   effects: MapEffect[];
+  /** 15.4 — anotace (kresby) na scéně. Repo vždy vrací `[]` (read-time). */
+  drawings?: MapDrawing[];
   fogEnabled: boolean;
   revealedHexes: HexCoord[];
   templateId?: string;

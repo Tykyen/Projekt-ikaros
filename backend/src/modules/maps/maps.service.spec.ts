@@ -77,6 +77,12 @@ describe('MapsService', () => {
   const mockDiaryRepo = {
     findByCharacterId: jest.fn().mockResolvedValue(null),
   };
+  // 15.4 (E) — seed config nové scény z world map defaults. Default null =
+  // žádné defaulty → seed se přeskočí (existující create testy beze změny).
+  const mockWorldSettingsRepo = {
+    findByWorldId: jest.fn().mockResolvedValue(null),
+    upsert: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -86,6 +92,10 @@ describe('MapsService', () => {
         { provide: 'IMapsRepository', useValue: mockRepo },
         { provide: 'IMapTemplatesRepository', useValue: mockTemplateRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        {
+          provide: 'IWorldSettingsRepository',
+          useValue: mockWorldSettingsRepo,
+        },
         { provide: 'ICharactersRepository', useValue: mockCharacterRepo },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: 'ICharacterDiaryRepository', useValue: mockDiaryRepo },

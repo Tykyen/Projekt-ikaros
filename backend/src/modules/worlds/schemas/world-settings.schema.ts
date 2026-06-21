@@ -69,6 +69,9 @@ export class WorldSettingsSchemaClass {
     // 6.8-followup — `unified` (default) | `individual`. Chybí → migrace v toEntity.
     mode?: 'unified' | 'individual';
   } | null;
+  // 15.4 (E) — výchozí nastavení map světa (seed nové scény). `null` = nenastaveno.
+  @Prop({ type: Object, default: null, _id: false, required: false })
+  mapDefaults?: Record<string, unknown> | null;
   @Prop({ default: Date.now }) updatedAt: Date;
 }
 

@@ -9,6 +9,7 @@ import type {
   MapToken,
   MapSceneNpc,
   MapEffect,
+  MapDrawing,
   HexCoord,
   ScenePlayerState,
 } from '../interfaces/map-scene.interface';
@@ -139,6 +140,7 @@ export class MongoMapsRepository
         (n) => this.toSceneNpc(n),
       ),
       effects: (doc.effects as MapEffect[]) ?? [],
+      drawings: (doc.drawings as MapDrawing[]) ?? [],
       fogEnabled: (doc.fogEnabled as boolean) ?? false,
       revealedHexes: (doc.revealedHexes as HexCoord[]) ?? [],
       templateId: doc.templateId as string | undefined,
