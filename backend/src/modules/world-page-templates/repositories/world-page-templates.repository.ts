@@ -42,6 +42,7 @@ export class MongoWorldPageTemplatesRepository
       label: doc.label as string,
       headers: (doc.headers as string[]) ?? [],
       defaultTitle: doc.defaultTitle as string | undefined,
+      contentOutline: doc.contentOutline as string | undefined,
       icon: doc.icon as string | undefined,
       order: (doc.order as number) ?? 0,
       createdAt: doc.createdAt as Date,

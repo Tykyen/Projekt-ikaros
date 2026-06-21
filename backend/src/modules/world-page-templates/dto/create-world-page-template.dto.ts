@@ -37,6 +37,12 @@ export class CreateWorldPageTemplateDto {
   @MaxLength(120)
   defaultTitle?: string;
 
+  /** 15.5 — obsahová osnova (TipTap HTML). Sanitizuje se v service. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100_000)
+  contentOutline?: string;
+
   @IsOptional()
   @IsIn(WORLD_PAGE_TEMPLATE_ICONS)
   icon?: WorldPageTemplateIcon;

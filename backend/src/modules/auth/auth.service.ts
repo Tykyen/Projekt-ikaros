@@ -663,7 +663,7 @@ export class AuthService {
     const jti = uuid();
     const family = familyId ?? uuid();
     const ttlDays = Number(
-      this.config.get<string>('JWT_REFRESH_TTL_DAYS') ?? '30',
+      this.config.get<string>('JWT_REFRESH_TTL_DAYS') ?? '3',
     );
     const expiresAt = new Date(Date.now() + ttlDays * DAY_MS);
 

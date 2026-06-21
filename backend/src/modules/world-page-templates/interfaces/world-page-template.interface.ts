@@ -16,6 +16,11 @@ export interface WorldPageTemplate {
   headers: string[];
   /** Volitelně předvyplněný `table.title` (např. „Profil státu"). */
   defaultTitle?: string;
+  /**
+   * 15.5 — obsahová osnova (sanitizovaný TipTap HTML). Vloží se do
+   * `page.content` při zakládání stránky, jen pokud je content prázdný.
+   */
+  contentOutline?: string;
   /** Lucide-react ikona (jednoduchý slug). Fallback `FileText`. */
   icon?: string;
   /** Řazení v stripe karet (asc). */

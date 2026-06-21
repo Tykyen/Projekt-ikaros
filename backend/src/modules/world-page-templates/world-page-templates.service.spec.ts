@@ -113,6 +113,31 @@ describe('WorldPageTemplatesService', () => {
       expect(result).toEqual(mockTemplate);
     });
 
+    it('15.5 — contentOutline se sanitizuje před uložením', async () => {
+      repo.existsByKey.mockResolvedValueOnce(false);
+      repo.save.mockResolvedValueOnce(mockTemplate);
+      await service.create(
+        'w1',
+        { ...dto, contentOutline: '<h2>Cíl</h2><script>alert(1)</script>' },
+        adminRequester,
+      );
+      const saved = repo.save.mock.calls[0][0] as { contentOutline?: string };
+      expect(saved.contentOutline).toContain('<h2>Cíl</h2>');
+      expect(saved.contentOutline).not.toContain('<script>');
+    });
+
+    it('15.5 — prázdný contentOutline → undefined (bez osnovy)', async () => {
+      repo.existsByKey.mockResolvedValueOnce(false);
+      repo.save.mockResolvedValueOnce(mockTemplate);
+      await service.create(
+        'w1',
+        { ...dto, contentOutline: '' },
+        adminRequester,
+      );
+      const saved = repo.save.mock.calls[0][0] as { contentOutline?: string };
+      expect(saved.contentOutline).toBeUndefined();
+    });
+
     it('duplicitní key vyhodí 409', async () => {
       repo.existsByKey.mockResolvedValueOnce(true);
       await expect(
@@ -149,6 +174,20 @@ describe('WorldPageTemplatesService', () => {
       await expect(
         service.update('w1', 't1', { key: 'mesto' }, adminRequester),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('15.5 — contentOutline se sanitizuje při update', async () => {
+      repo.findById.mockResolvedValueOnce(mockTemplate);
+      repo.update.mockResolvedValueOnce(mockTemplate);
+      await service.update(
+        'w1',
+        't1',
+        { contentOutline: '<p>x</p><script>bad()</script>' },
+        adminRequester,
+      );
+      const patch = repo.update.mock.calls[0][1] as { contentOutline?: string };
+      expect(patch.contentOutline).toContain('<p>x</p>');
+      expect(patch.contentOutline).not.toContain('<script>');
     });
 
     it('stejný key pass-through (přeskočí unique check)', async () => {

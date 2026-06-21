@@ -18,8 +18,10 @@ function isProd(): boolean {
 }
 
 function ttlMs(): number {
-  const days = Number(process.env.JWT_REFRESH_TTL_DAYS ?? 30);
-  const safe = Number.isFinite(days) && days >= 1 ? days : 30;
+  // Sliding session: refresh token se při každém /auth/refresh razí znovu s touto
+  // expirací od TEĎ → aktivní uživatel se neodhlásí; 3 dny nečinnosti = logout.
+  const days = Number(process.env.JWT_REFRESH_TTL_DAYS ?? 3);
+  const safe = Number.isFinite(days) && days >= 1 ? days : 3;
   return safe * 24 * 60 * 60 * 1000;
 }
 

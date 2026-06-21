@@ -11,6 +11,8 @@ export class WorldPageTemplateSchemaClass {
   @Prop({ required: true }) label: string;
   @Prop({ type: [String], default: [] }) headers: string[];
   @Prop() defaultTitle?: string;
+  /** 15.5 — sanitizovaný TipTap HTML; osnova vkládaná do page.content při create. */
+  @Prop() contentOutline?: string;
   @Prop() icon?: string;
   @Prop({ default: 0 }) order: number;
 }

@@ -12,6 +12,7 @@ import type { WorldPageTemplate } from './interfaces/world-page-template.interfa
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
 import type { CreateWorldPageTemplateDto } from './dto/create-world-page-template.dto';
 import type { UpdateWorldPageTemplateDto } from './dto/update-world-page-template.dto';
 
@@ -56,6 +57,10 @@ export class WorldPageTemplatesService {
       label: dto.label,
       headers: dto.headers,
       defaultTitle: dto.defaultTitle,
+      // 15.5 — osnova je HTML co poteče do page.content → sanitizace u zdroje.
+      contentOutline: dto.contentOutline
+        ? sanitizeRichText(dto.contentOutline)
+        : undefined,
       icon: dto.icon,
       order: dto.order ?? 0,
     });
@@ -91,7 +96,17 @@ export class WorldPageTemplatesService {
         });
       }
     }
-    const updated = await this.repo.update(id, dto);
+    // 15.5 — sanitizace osnovy při změně; prázdný string = mazání osnovy.
+    const patch =
+      dto.contentOutline !== undefined
+        ? {
+            ...dto,
+            contentOutline: dto.contentOutline
+              ? sanitizeRichText(dto.contentOutline)
+              : '',
+          }
+        : dto;
+    const updated = await this.repo.update(id, patch);
     if (!updated) {
       // Race s delete — vyhodíme 404.
       throw new NotFoundException({
