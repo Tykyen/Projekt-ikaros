@@ -3,6 +3,9 @@ import {
   Inject,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
   OnModuleInit,
   InternalServerErrorException,
   Logger,
@@ -19,6 +22,7 @@ import type { ChatAttachmentDto } from './dto/chat-attachment.dto';
 import { PushService } from '../push/push.service';
 import { UploadService } from '../upload/upload.service';
 import { UsersService } from '../users/users.service';
+import { AnonBanService } from './anon-ban.service';
 import { HOUR_MS } from '../../common/constants/time.constants';
 
 /** Klíč globální chat místnosti — Hospoda + tři Rozcestí (krok 4.2a). */
@@ -48,6 +52,29 @@ export class GlobalChatService implements OnModuleInit {
   /** RoomKey → channelId v `chatchannels`. */
   private readonly channels = new Map<RoomKey, string>();
 
+  // 15.8 — rate-limit psaní hosta, JEN guest, per anon-id (in-memory; member
+  // píše bez limitu). In-memory stačí na anti-flood; nepřežije restart /
+  // multi-instance (vědomý kompromis MVP). `anonId → timestampy zpráv`.
+  private static readonly ANON_RATE_LIMIT = 10; // zpráv / okno
+  private static readonly ANON_RATE_WINDOW_MS = 60_000; // 1 min
+  private readonly anonRate = new Map<string, number[]>();
+
+  /** 15.8 — vyhodí 429, když host překročí ANON_RATE_LIMIT zpráv za okno. */
+  private assertAnonRate(anonId: string): void {
+    const now = Date.now();
+    const recent = (this.anonRate.get(anonId) ?? []).filter(
+      (t) => now - t < GlobalChatService.ANON_RATE_WINDOW_MS,
+    );
+    if (recent.length >= GlobalChatService.ANON_RATE_LIMIT) {
+      throw new HttpException(
+        { code: 'ANON_RATE_LIMIT', message: 'Příliš mnoho zpráv. Zpomal.' },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    recent.push(now);
+    this.anonRate.set(anonId, recent);
+  }
+
   constructor(
     @Inject('IChatChannelRepository')
     private readonly channelRepo: IChatChannelRepository,
@@ -57,6 +84,7 @@ export class GlobalChatService implements OnModuleInit {
     private readonly pushService: PushService,
     private readonly uploadService: UploadService,
     private readonly usersService: UsersService,
+    private readonly anonBan: AnonBanService,
   ) {}
 
   /**
@@ -70,7 +98,12 @@ export class GlobalChatService implements OnModuleInit {
     room: RoomKey,
     userId: string,
     username: string,
+    isGuest?: boolean,
   ): Promise<{ senderName: string; senderAvatarUrl?: string }> {
+    // 15.8 — host (anonym): žádný DB profil, jen jméno anonym{N} a bez avataru.
+    if (isGuest) {
+      return { senderName: username, senderAvatarUrl: undefined };
+    }
     let avatarUrl: string | undefined;
     let characterName: string | undefined;
     let characterAvatarUrl: string | undefined;
@@ -252,6 +285,17 @@ export class GlobalChatService implements OnModuleInit {
     dto: CreateGlobalMessageDto,
     user: RequestUser,
   ): Promise<ChatMessage> {
+    // 15.8 — zabanovaný host neprojde (ban váže na anon-id z guest tokenu).
+    if (user.isGuest && (await this.anonBan.isBanned(user.id))) {
+      throw new ForbiddenException({
+        code: 'ANON_BANNED',
+        message: 'Host (anonym) byl v Hospodě zablokován.',
+      });
+    }
+    // 15.8 — anti-flood: jen host, per anon-id (člen píše bez limitu).
+    if (user.isGuest) {
+      this.assertAnonRate(user.id);
+    }
     const channelId = this.getChannelId(room);
     const attachments = this.validateAttachments(dto.attachments);
     this.assertNotEmpty(dto.content, attachments);
@@ -260,6 +304,7 @@ export class GlobalChatService implements OnModuleInit {
       room,
       user.id,
       user.username,
+      user.isGuest,
     );
     const message = await this.messageRepo.save({
       channelId,
@@ -267,6 +312,7 @@ export class GlobalChatService implements OnModuleInit {
       senderId: user.id,
       senderName: identity.senderName,
       senderAvatarUrl: identity.senderAvatarUrl,
+      isAnonymous: user.isGuest ?? false,
       content: dto.content ?? null,
       color: dto.color ?? null,
       isEdited: false,

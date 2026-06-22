@@ -8,6 +8,7 @@ import {
   Body,
   Query,
   BadRequestException,
+  ForbiddenException,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -30,7 +31,9 @@ import {
 import { GlobalChatGateway } from './global-chat.gateway';
 import { CreateGlobalMessageDto } from './dto/create-global-message.dto';
 import { SetRoomEnvironmentDto } from './dto/set-room-environment.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { AnonBanDto } from './dto/anon-ban.dto';
+import { AnonBanService } from './anon-ban.service';
+import { GuestOrMemberGuard } from '../../common/guards/guest-or-member.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -66,21 +69,36 @@ function parseRoom(raw?: string): RoomKey {
 @ApiTags('Global Chat')
 @ApiBearerAuth()
 @Controller('global-chat')
-@UseGuards(JwtAuthGuard)
+// 15.8 — GuestOrMemberGuard pustí člena (plný member gate) i hosta (guest JWT).
+// Scope hosta na Hospodu hlídá `assertGuestScope` níže; upload/delete/PUT
+// environment hosta odmítnou (guest block / AdminGuard / RolesGuard sentinel).
+@UseGuards(GuestOrMemberGuard)
 export class GlobalChatController {
   constructor(
     private readonly globalChatService: GlobalChatService,
     private readonly globalChatGateway: GlobalChatGateway,
     private readonly uploadService: UploadService,
+    private readonly anonBanService: AnonBanService,
   ) {}
+
+  /** 15.8 — host (guest) smí jen Hospodu; jiná místnost → 403. */
+  private assertGuestScope(user: RequestUser, key: RoomKey): void {
+    if (user.isGuest && key !== 'hospoda') {
+      throw new ForbiddenException({
+        code: 'GUEST_HOSPODA_ONLY',
+        message: 'Host (anonym) smí jen Hospodu.',
+      });
+    }
+  }
 
   @Get('room-info')
   @ApiOperation({
     summary: 'Info o místnosti — channelId + seznam přítomných uživatelů',
   })
   @ApiResponse({ status: 200, description: 'Info o místnosti' })
-  getRoomInfo(@Query('room') room?: string) {
+  getRoomInfo(@CurrentUser() user: RequestUser, @Query('room') room?: string) {
     const key = parseRoom(room);
+    this.assertGuestScope(user, key);
     return {
       channelId: this.globalChatService.getChannelId(key),
       users: this.globalChatGateway.getPresence(key),
@@ -107,7 +125,9 @@ export class GlobalChatController {
     @Query('before') before?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.globalChatService.getMessages(parseRoom(room), user.id, {
+    const key = parseRoom(room);
+    this.assertGuestScope(user, key);
+    return this.globalChatService.getMessages(key, user.id, {
       before,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
@@ -121,7 +141,9 @@ export class GlobalChatController {
     @CurrentUser() user: RequestUser,
     @Query('room') room?: string,
   ) {
-    return this.globalChatService.sendMessage(parseRoom(room), dto, user);
+    const key = parseRoom(room);
+    this.assertGuestScope(user, key);
+    return this.globalChatService.sendMessage(key, dto, user);
   }
 
   @Post('upload')
@@ -144,9 +166,17 @@ export class GlobalChatController {
   @ApiResponse({ status: 201, description: 'Nahraná příloha (ChatAttachment)' })
   @ApiResponse({ status: 415, description: 'Nepodporovaný typ souboru' })
   uploadAttachment(
+    @CurrentUser() user: RequestUser,
     @UploadedFile() file: Express.Multer.File,
     @Query('room') room?: string,
   ) {
+    // 15.8 — host (anonym) nemá upload příloh (R4 — jen text).
+    if (user.isGuest) {
+      throw new ForbiddenException({
+        code: 'GUEST_NO_UPLOAD',
+        message: 'Host (anonym) nemůže nahrávat soubory.',
+      });
+    }
     if (!file) {
       throw new BadRequestException({
         code: 'UPLOAD_FILE_REQUIRED',
@@ -166,6 +196,17 @@ export class GlobalChatController {
     @Query('room') room?: string,
   ) {
     return this.globalChatService.deleteMessage(parseRoom(room), messageId);
+  }
+
+  // 15.8 — Admin zabanuje hosta (anonyma) podle anon-id. Zabanovaný host už
+  // v Hospodě nenapíše (global-chat.service ANON_BANNED), dokud si nesmaže cookie.
+  @Post('anon-ban')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Zabanovat hosta (anonyma) v Hospodě (Admin)' })
+  @ApiResponse({ status: 201, description: 'Host zabanován' })
+  @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
+  banAnon(@Body() dto: AnonBanDto, @CurrentUser() admin: RequestUser) {
+    return this.anonBanService.ban(dto.anonId, admin.id);
   }
 
   // ── Prostředí Rozcestí (krok 4.2a) ─────────────────────────────────────

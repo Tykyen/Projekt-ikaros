@@ -5,6 +5,7 @@ import { GlobalChatService } from './global-chat.service';
 import { PushService } from '../push/push.service';
 import { UploadService } from '../upload/upload.service';
 import { UsersService } from '../users/users.service';
+import { AnonBanService } from './anon-ban.service';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import type { ChatChannel } from '../chat/interfaces/chat-channel.interface';
@@ -56,6 +57,7 @@ describe('GlobalChatService', () => {
   let messageRepo: jest.Mocked<IChatMessageRepository>;
   let eventEmitter: jest.Mocked<EventEmitter2>;
   let usersService: { findById: jest.Mock };
+  let anonBan: { isBanned: jest.Mock };
 
   beforeEach(async () => {
     channelRepo = {
@@ -101,6 +103,9 @@ describe('GlobalChatService', () => {
       }),
     };
 
+    // 15.8 — default: host není zabanovaný (testy si přepíšou).
+    anonBan = { isBanned: jest.fn().mockResolvedValue(false) };
+
     const module = await Test.createTestingModule({
       providers: [
         GlobalChatService,
@@ -120,6 +125,7 @@ describe('GlobalChatService', () => {
           },
         },
         { provide: UsersService, useValue: usersService },
+        { provide: AnonBanService, useValue: anonBan },
       ],
     }).compile();
 
@@ -301,6 +307,49 @@ describe('GlobalChatService', () => {
       const call = messageRepo.save.mock.calls[0][0];
       expect(call.senderName).toBe('gandalf');
       expect(call.senderAvatarUrl).toBe('acc.webp');
+    });
+
+    // 15.8 — host (anonym).
+    it('host (guest): senderName=anonName, isAnonymous=true, bez DB profilu', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage(
+        'hospoda',
+        { content: 'ahoj' },
+        {
+          id: 'anon_1',
+          username: 'anonym1234',
+          role: UserRole.Guest,
+          isGuest: true,
+        },
+      );
+      const call = messageRepo.save.mock.calls[0][0];
+      expect(call.senderName).toBe('anonym1234');
+      expect(call.isAnonymous).toBe(true);
+      expect(call.senderAvatarUrl).toBeUndefined();
+      expect(usersService.findById).not.toHaveBeenCalled();
+    });
+
+    it('člen: isAnonymous=false', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('hospoda', { content: 'ahoj' }, mockUser);
+      expect(messageRepo.save.mock.calls[0][0].isAnonymous).toBe(false);
+    });
+
+    it('zabanovaný host → 403 ANON_BANNED, zpráva se neuloží', async () => {
+      anonBan.isBanned.mockResolvedValue(true);
+      await expect(
+        service.sendMessage(
+          'hospoda',
+          { content: 'x' },
+          {
+            id: 'anon_b',
+            username: 'anonym1',
+            role: UserRole.Guest,
+            isGuest: true,
+          },
+        ),
+      ).rejects.toMatchObject({ response: { code: 'ANON_BANNED' } });
+      expect(messageRepo.save).not.toHaveBeenCalled();
     });
 
     it('profil nenačten: zpráva projde, avatar undefined', async () => {
