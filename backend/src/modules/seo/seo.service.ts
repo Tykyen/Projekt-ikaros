@@ -24,6 +24,25 @@ const STATIC_ROUTES: ReadonlyArray<{
   { path: '/ikaros/galerie', changefreq: 'daily', priority: '0.7' },
   { path: '/ikaros/novinky', changefreq: 'weekly', priority: '0.6' },
   { path: '/ikaros/napoveda', changefreq: 'monthly', priority: '0.5' },
+  // 15B.4a — landing RPG systémů (hub + per-systém). ⚠️ dual-source s FE
+  // `systemLandings.ts` (published:true): při publikaci dalšího systému (22.1)
+  // přidej jeho slug i sem, jinak nebude v sitemapě.
+  { path: '/ikaros/systemy', changefreq: 'monthly', priority: '0.6' },
+  {
+    path: '/ikaros/systemy/draci-doupe-1-6',
+    changefreq: 'monthly',
+    priority: '0.6',
+  },
+  {
+    path: '/ikaros/systemy/draci-doupe-2',
+    changefreq: 'monthly',
+    priority: '0.6',
+  },
+  {
+    path: '/ikaros/systemy/jeskyne-a-draci',
+    changefreq: 'monthly',
+    priority: '0.6',
+  },
   { path: '/podminky', changefreq: 'yearly', priority: '0.3' },
 ];
 
