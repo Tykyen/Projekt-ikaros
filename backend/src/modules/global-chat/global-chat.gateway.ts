@@ -196,9 +196,23 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     // ChatGateway na sdíleném socketu), NIKDY z payloadu. Jinak by klient mohl
     // poslat cizí `userId`, joinnout cizí `user:{id}` room a odposlouchávat
     // cizí privátní eventy (whispery, poštu, friend, transfery).
-    const userId = (client.data as { userId?: string }).userId;
-    if (!userId) return;
-    void this.registerPresence(client, 'hospoda', payload.username, userId);
+    const data = client.data as {
+      userId?: string;
+      isGuest?: boolean;
+      anonName?: string;
+    };
+    if (!data.userId) return;
+    // 15.8 — host: jméno anonym{N} z OVĚŘENÉHO tokenu, ne z payloadu (anti-spoof).
+    const username = data.isGuest
+      ? (data.anonName ?? payload.username)
+      : payload.username;
+    void this.registerPresence(
+      client,
+      'hospoda',
+      username,
+      data.userId,
+      data.isGuest,
+    );
   }
 
   @SubscribeMessage('chat:hospoda:leave')
@@ -215,9 +229,24 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   ): void {
     if (!isRoomKey(payload.room)) return;
     // W-10 — viz handleHospodaJoin: userId z ověřeného JWT, ne z payloadu.
-    const userId = (client.data as { userId?: string }).userId;
-    if (!userId) return;
-    void this.registerPresence(client, payload.room, payload.username, userId);
+    const data = client.data as {
+      userId?: string;
+      isGuest?: boolean;
+      anonName?: string;
+    };
+    if (!data.userId) return;
+    // 15.8 — host smí jen Hospodu; join Rozcestí ignorujeme.
+    if (data.isGuest && payload.room !== 'hospoda') return;
+    const username = data.isGuest
+      ? (data.anonName ?? payload.username)
+      : payload.username;
+    void this.registerPresence(
+      client,
+      payload.room,
+      username,
+      data.userId,
+      data.isGuest,
+    );
   }
 
   @SubscribeMessage('chat:room:leave')
@@ -238,6 +267,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     room: RoomKey,
     username: string,
     userId: string,
+    isGuest?: boolean,
   ): Promise<void> {
     // Záznam vytvoříme a uložíme SYNCHRONNĚ (před `await`) — jinak by dva
     // rychlé joiny téhož socketu oba viděly `undefined` a přepsaly se.
@@ -260,8 +290,9 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     record.lastSeen = new Date();
     void client.join(`user:${userId}`);
 
-    // Data profilu (avatar účtu + postava) dotáhneme jen při prvním joinu socketu.
-    if (isNew) {
+    // Data profilu (avatar účtu + postava) dotáhneme jen při prvním joinu
+    // socketu. 15.8 — host (anonym) nemá DB účet → žádný lookup, bez avataru.
+    if (isNew && !isGuest) {
       try {
         const profile = await this.usersService.findById(userId);
         record.avatarUrl = profile.avatarUrl;

@@ -80,6 +80,36 @@ describe('GlobalChatGateway', () => {
     });
   });
 
+  describe('15.8 — host (guest) presence', () => {
+    const guestSock = (id: string, anonId: string, anonName: string) =>
+      ({
+        id,
+        data: { userId: anonId, isGuest: true, anonName },
+        join: jest.fn(),
+      }) as unknown as Socket;
+
+    it('host: jméno z tokenu (anonName), bez DB profilu, bez avataru', async () => {
+      const sock = guestSock('sg', 'anon_1', 'anonym1234');
+      // Útočník v payloadu pošle cizí jméno → ignorováno (anonName z tokenu).
+      gateway.handleHospodaJoin({ username: 'Fake', userId: 'x' }, sock);
+      await flush();
+      expect(users.findById).not.toHaveBeenCalled();
+      expect(gateway.getPresence('hospoda')).toEqual([
+        { userId: 'anon_1', username: 'anonym1234' },
+      ]);
+    });
+
+    it('host nemůže joinnout Rozcestí (scope — jen Hospoda)', async () => {
+      const sock = guestSock('sg2', 'anon_2', 'anonym5678');
+      gateway.handleRoomJoin(
+        { room: 'rozcesti-1', username: 'x', userId: 'x' },
+        sock,
+      );
+      await flush();
+      expect(gateway.getPresence('rozcesti-1')).toEqual([]);
+    });
+  });
+
   describe('presence — multi-room (krok 4.2d §1)', () => {
     it('isolates presence between rooms', async () => {
       gateway.handleRoomJoin(

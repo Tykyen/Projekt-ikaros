@@ -41,11 +41,26 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const auth = client.handshake.auth as { token?: string } | undefined;
       const token = auth?.token;
       if (!token) return;
-      const payload = this.jwtService.verify<{ sub?: string }>(token);
+      const payload = this.jwtService.verify<{
+        sub?: string;
+        guest?: boolean;
+        username?: string;
+      }>(token);
       if (payload?.sub) {
         // N-9 — ověřený userId ze socket handshake; sound handlery ho používají
         // místo nedůvěryhodného payload.userId (anti-spoofing).
-        (client.data as { userId?: string }).userId = payload.sub;
+        const data = client.data as {
+          userId?: string;
+          isGuest?: boolean;
+          anonName?: string;
+        };
+        data.userId = payload.sub;
+        // 15.8 — host (guest): příznak + jméno anonym{N} z OVĚŘENÉHO tokenu
+        // (presence handlery ho použijí místo payloadu — anti-spoof).
+        if (payload.guest === true) {
+          data.isGuest = true;
+          data.anonName = payload.username;
+        }
         void client.join(`user:${payload.sub}`);
       }
     } catch {
