@@ -3,7 +3,9 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -19,6 +21,8 @@ import { UserRole } from '../users/interfaces/user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { CreateWorldNewsDto } from './dto/create-world-news.dto';
 import type { UpdateWorldNewsDto } from './dto/update-world-news.dto';
+import { PushService } from '../push/push.service';
+import { logWarn } from '../../common/logging/log-error.util';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
@@ -56,7 +60,12 @@ export class WorldNewsService {
     @Inject('IWorldsRepository')
     private readonly worldsRepo: IWorldsRepository,
     private readonly eventEmitter: EventEmitter2,
+    // 15.9 — push členům světa; @Optional pro starší testy bez PushModule.
+    @Optional()
+    private readonly pushService?: PushService,
   ) {}
+
+  private readonly logger = new Logger(WorldNewsService.name);
 
   async findMany(args: FindManyArgs): Promise<WorldNewsItem[]> {
     const scope = args.scope ?? 'active';
@@ -116,7 +125,37 @@ export class WorldNewsService {
     this.eventEmitter.emit('world-news.changed', {
       worldId: created.worldId,
     });
+    // 15.9 — push členům světa (kategorie `worldNews`). Globální novinky
+    // (worldId=null) nemají svět → push negenerují. fire-and-forget.
+    // Guard na pushService: bez něj (testy) notifyMembers vůbec nespouštíme,
+    // ať nesáhne na repo navíc a nerozbije asserce volajícího.
+    if (created.worldId && this.pushService) {
+      void this.notifyMembers(created).catch((err: unknown) =>
+        logWarn(this.logger, 'push selhal pro world-news', err),
+      );
+    }
     return created;
+  }
+
+  /** 15.9 — notifikace členům světa o nové novince (mimo Zadatele). */
+  private async notifyMembers(item: WorldNewsItem): Promise<void> {
+    if (!item.worldId) return;
+    const [world, members] = await Promise.all([
+      this.worldsRepo.findById(item.worldId),
+      this.membershipRepo.findByWorldId(item.worldId),
+    ]);
+    const userIds = members
+      .filter((m) => m.role !== WorldRole.Zadatel)
+      .map((m) => m.userId);
+    if (userIds.length === 0) return;
+    await this.pushService?.notifyUsers(
+      userIds,
+      {
+        title: `Novinka ve světě ${world?.name ?? ''}`.trim(),
+        body: item.title.slice(0, 100),
+      },
+      'worldNews',
+    );
   }
 
   async update(

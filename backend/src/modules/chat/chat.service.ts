@@ -1161,13 +1161,17 @@ export class ChatService implements OnApplicationBootstrap {
           // tag = slučování na zařízení; topic = server-side collapse offline
           // fronty (víc zpráv z jedné konverzace → jen poslední, ne hromada).
           const collapseKey = `chat-${channelId}`;
-          await this.pushService.notifyUsers(pushIds, {
-            title: message.overrideName ?? message.senderName,
-            body: (message.content ?? '').slice(0, 100),
-            url,
-            tag: collapseKey,
-            topic: collapseKey,
-          });
+          await this.pushService.notifyUsers(
+            pushIds,
+            {
+              title: message.overrideName ?? message.senderName,
+              body: (message.content ?? '').slice(0, 100),
+              url,
+              tag: collapseKey,
+              topic: collapseKey,
+            },
+            'worldChat',
+          );
         }
 
         // 13.2a — „Souhrn chatů" živě: leak-safe signál (jen worldId, bez obsahu)

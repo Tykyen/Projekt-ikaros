@@ -66,6 +66,7 @@ const baseEvent = {
   confirmedBy: [],
   comments: [],
   reminderSent: false,
+  reminder1hSent: false,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -312,6 +313,7 @@ describe('GameEventsService', () => {
           title: expect.stringContaining('Tamriel'),
           body: 'Test akce',
         }),
+        'worldEvent',
       );
     });
 

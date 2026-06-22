@@ -31,7 +31,13 @@ export interface GameEvent {
   confirmable: boolean;
   confirmedBy: EventConfirmation[];
   comments: EventComment[];
+  /** Příznak odeslání připomínky 24h před začátkem (kategorie `worldEvent`). */
   reminderSent: boolean;
+  /** 15.9 — příznak odeslání připomínky 1h před začátkem. */
+  reminder1hSent: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+/** 15.9 — pole příznaku připomínky, podle okna (24h / 1h). */
+export type ReminderField = 'reminderSent' | 'reminder1hSent';

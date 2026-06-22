@@ -260,6 +260,7 @@ export class GameEventsService {
       confirmedBy: [],
       comments: [],
       reminderSent: false,
+      reminder1hSent: false,
     });
 
     void this.notifyOnCreate(event).catch((err) => {
@@ -577,9 +578,13 @@ export class GameEventsService {
     const userIds = recipients.map((m) => m.userId);
     if (userIds.length === 0) return;
 
-    await this.pushService.notifyUsers(userIds, {
-      title: `Nový event ve světě ${worldName}`,
-      body: event.title,
-    });
+    await this.pushService.notifyUsers(
+      userIds,
+      {
+        title: `Nový event ve světě ${worldName}`,
+        body: event.title,
+      },
+      'worldEvent',
+    );
   }
 }

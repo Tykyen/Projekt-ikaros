@@ -7,6 +7,11 @@ import type {
   PushSubscription,
   PushSubscriptionSummary,
 } from './interfaces/push-subscription.interface';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
+import {
+  wantsPush,
+  type NotificationCategory,
+} from '../../common/notifications/notification-preferences';
 
 export interface PushPayload {
   title: string;
@@ -53,6 +58,10 @@ export class PushService implements OnModuleInit {
     @Inject('IPushSubscriptionRepository')
     private readonly repo: IPushSubscriptionRepository,
     private readonly config: ConfigService,
+    // 15.9 — read-only preference pro filtr (jednosměrná závislost push→users,
+    // oba @Global → token dostupný bez importu UsersModule, bez cyklu).
+    @Inject('IUsersRepository')
+    private readonly usersRepo: IUsersRepository,
   ) {}
 
   onModuleInit(): void {
@@ -112,18 +121,70 @@ export class PushService implements OnModuleInit {
     await this.repo.deleteByIdAndUser(id, userId);
   }
 
-  async notify(userId: string, payload: PushPayload): Promise<void> {
+  /**
+   * 15.9 — `category` (volitelné): když je předáno, odešle jen příjemcům, kteří
+   * danou kategorii nemají vypnutou (`notificationPreferences`). Bez kategorie =
+   * původní chování (odešle vždy) → zpětná kompatibilita.
+   */
+  async notify(
+    userId: string,
+    payload: PushPayload,
+    category?: NotificationCategory,
+  ): Promise<void> {
+    if (category && !(await this.userWantsCategory(userId, category))) return;
     const subs = await this.repo.findByUserId(userId);
     await this.sendToSubscriptions(subs, payload);
   }
 
-  async notifyUsers(userIds: string[], payload: PushPayload): Promise<void> {
-    await Promise.all(userIds.map((id) => this.notify(id, payload)));
+  async notifyUsers(
+    userIds: string[],
+    payload: PushPayload,
+    category?: NotificationCategory,
+  ): Promise<void> {
+    const allowed = category
+      ? await this.filterByCategory(userIds, category)
+      : userIds;
+    // profiltrováno → notify bez kategorie (žádný druhý lookup per příjemce)
+    await Promise.all(allowed.map((id) => this.notify(id, payload)));
   }
 
-  async notifyAll(payload: PushPayload): Promise<void> {
+  async notifyAll(
+    payload: PushPayload,
+    category?: NotificationCategory,
+  ): Promise<void> {
     const subs = await this.repo.findAll();
-    await this.sendToSubscriptions(subs, payload);
+    if (!category) {
+      await this.sendToSubscriptions(subs, payload);
+      return;
+    }
+    const userIds = Array.from(new Set(subs.map((s) => s.userId)));
+    const allowed = new Set(await this.filterByCategory(userIds, category));
+    await this.sendToSubscriptions(
+      subs.filter((s) => allowed.has(s.userId)),
+      payload,
+    );
+  }
+
+  /** Vrátí podmnožinu `userIds`, kteří chtějí push dané kategorie (1 batch dotaz). */
+  private async filterByCategory(
+    userIds: string[],
+    category: NotificationCategory,
+  ): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const distinct = Array.from(new Set(userIds));
+    const users = await this.usersRepo.findByIds(distinct);
+    const prefsById = new Map(
+      users.map((u) => [u.id, u.notificationPreferences]),
+    );
+    return distinct.filter((id) => wantsPush(prefsById.get(id), category));
+  }
+
+  private async userWantsCategory(
+    userId: string,
+    category: NotificationCategory,
+  ): Promise<boolean> {
+    const user = await this.usersRepo.findById(userId);
+    return wantsPush(user?.notificationPreferences, category);
   }
 
   private async sendToSubscriptions(

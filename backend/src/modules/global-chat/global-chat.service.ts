@@ -329,17 +329,24 @@ export class GlobalChatService implements OnModuleInit {
       message,
     });
 
-    // fire-and-forget push — nečekáme na výsledek
-    void this.pushService
-      .notifyAll({
-        title: user.username,
-        body:
-          (dto.content ?? '').slice(0, 100) ||
-          (attachments.length > 0 ? '📎 Příloha' : ''),
-      })
-      .catch((err: unknown) =>
-        logWarn(this.logger, 'notifyAll selhal pro global message', err),
-      );
+    // 15.9 — push JEN z Hospody, a to opt-in (kategorie `hospoda`, default VYP).
+    // Rozcestí push negeneruje vůbec (dřív sdílená notifyAll spamovala všechny
+    // i ze zpráv z Rozcestí). fire-and-forget — nečekáme na výsledek.
+    if (room === 'hospoda') {
+      void this.pushService
+        .notifyAll(
+          {
+            title: user.username,
+            body:
+              (dto.content ?? '').slice(0, 100) ||
+              (attachments.length > 0 ? '📎 Příloha' : ''),
+          },
+          'hospoda',
+        )
+        .catch((err: unknown) =>
+          logWarn(this.logger, 'notifyAll selhal pro global message', err),
+        );
+    }
 
     return message;
   }

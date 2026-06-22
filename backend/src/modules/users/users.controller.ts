@@ -36,6 +36,7 @@ import { RequestUsernameChangeDto } from './dto/request-username-change.dto';
 import { RequestSelfDeletionDto } from './dto/request-self-deletion.dto';
 import { UpdateFavoriteCharactersDto } from './dto/update-favorite-characters.dto';
 import { UpdateFavoritePagesDto } from './dto/update-favorite-pages.dto';
+import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AllowPendingDeletion } from '../../common/decorators/allow-pending-deletion.decorator';
@@ -77,6 +78,20 @@ export class UsersController {
       });
     }
     return this.usersService.update(user.id, dto);
+  }
+
+  // 15.9 — notifikační preference. PŘED `@Patch(':id')` (NestJS matchuje
+  // v pořadí deklarace; jinak by `me/...` spadlo do parametrické `:id`).
+  @Patch('me/notification-preferences')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktualizace notifikačních preferencí (merge)' })
+  @ApiResponse({ status: 200, description: 'Preference aktualizovány' })
+  @ApiResponse({ status: 401, description: 'Neautorizováno' })
+  updateNotificationPreferences(
+    @Body() dto: UpdateNotificationPreferencesDto,
+    @CurrentUser() user: Requester,
+  ) {
+    return this.usersService.updateNotificationPreferences(user.id, dto);
   }
 
   // ── 1.3a — avatar uživatele / postavy ──────────────────────────────

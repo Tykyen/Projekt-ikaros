@@ -7,8 +7,11 @@ import {
   BadRequestException,
   ConflictException,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
+import { logWarn } from '../../common/logging/log-error.util';
+import { PushService } from '../push/push.service';
 import { ArticleVersionsRepository } from './repositories/article-versions.repository';
 import type { IIkarosArticlesRepository } from './interfaces/ikaros-articles-repository.interface';
 import type { IkarosArticle } from './interfaces/ikaros-article.interface';
@@ -53,7 +56,30 @@ export class IkarosArticlesService {
     // D-NEW-article-versions — optional, pro starší testy bez DI module nemusí být.
     @Optional()
     private readonly versionsRepo?: ArticleVersionsRepository,
+    // 15.9 — push autorovi; @Optional pro starší testy bez PushModule.
+    @Optional()
+    private readonly pushService?: PushService,
   ) {}
+
+  private readonly logger = new Logger(IkarosArticlesService.name);
+
+  /** 15.9 — fire-and-forget push autorovi obsahu (kategorie `ownContent`). */
+  private pushAuthor(
+    authorId: string,
+    title: string,
+    body: string,
+    articleId: string,
+  ): void {
+    void this.pushService
+      ?.notify(
+        authorId,
+        { title, body: body.slice(0, 120), url: `/ikaros/clanky/${articleId}` },
+        'ownContent',
+      )
+      .catch((err: unknown) =>
+        logWarn(this.logger, 'push selhal pro article', err),
+      );
+  }
 
   // R-RUN-03 (plný audit 2026-06-20) — odstraněn hardcoded `username === 'Tyky'`
   // backdoor (rename-útok: kdokoli přejmenovaný na „Tyky" by dostal admin).
@@ -437,6 +463,12 @@ export class IkarosArticlesService {
       'Článek schválen',
       `Tvůj článek "${article.title}" byl schválen.`,
     );
+    this.pushAuthor(
+      article.authorId,
+      'Článek schválen',
+      `Tvůj článek „${article.title}“ byl schválen.`,
+      id,
+    );
     return updated!;
   }
 
@@ -472,6 +504,7 @@ export class IkarosArticlesService {
       'Článek zamítnut',
       body,
     );
+    this.pushAuthor(article.authorId, 'Článek zamítnut', body, id);
     return updated!;
   }
 
@@ -558,6 +591,12 @@ export class IkarosArticlesService {
       text: text.trim(),
       createdAtUtc: new Date(),
     });
+    this.pushAuthor(
+      article.authorId,
+      'Nové hodnocení článku',
+      `${userName || 'Někdo'} ohodnotil „${article.title}“ (${stars}★)`,
+      id,
+    );
     return {
       averageRating: updated?.averageRating ?? 0,
       totalRatings: updated?.ratings.length ?? 0,

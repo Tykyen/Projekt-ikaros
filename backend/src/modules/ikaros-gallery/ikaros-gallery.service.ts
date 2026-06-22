@@ -1,11 +1,15 @@
 import {
   Injectable,
   Inject,
+  Optional,
   ForbiddenException,
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
+import { logWarn } from '../../common/logging/log-error.util';
+import { PushService } from '../push/push.service';
 import type { IIkarosGalleryRepository } from './interfaces/ikaros-gallery-repository.interface';
 import type { IkarosGalleryItem } from './interfaces/ikaros-gallery.interface';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
@@ -52,7 +56,30 @@ export class IkarosGalleryService {
     @Inject('UploadService') private readonly uploadService: UploadService,
     @Inject('GalleryCategoriesService')
     private readonly categoriesService: GalleryCategoriesService,
+    // 15.9 — push autorovi; @Optional pro starší testy bez PushModule.
+    @Optional()
+    private readonly pushService?: PushService,
   ) {}
+
+  private readonly logger = new Logger(IkarosGalleryService.name);
+
+  /** 15.9 — fire-and-forget push autorovi obsahu (kategorie `ownContent`). */
+  private pushAuthor(
+    authorId: string,
+    title: string,
+    body: string,
+    itemId: string,
+  ): void {
+    void this.pushService
+      ?.notify(
+        authorId,
+        { title, body: body.slice(0, 120), url: `/ikaros/galerie/${itemId}` },
+        'ownContent',
+      )
+      .catch((err: unknown) =>
+        logWarn(this.logger, 'push selhal pro gallery item', err),
+      );
+  }
 
   /** D-040 — batch enrich authorIsDeleted na gallery items. */
   private async enrichTombstoneAuthors(
@@ -340,6 +367,12 @@ export class IkarosGalleryService {
       'Obrázek schválen',
       `Tvůj obrázek "${item.title}" byl schválen.`,
     );
+    this.pushAuthor(
+      item.authorId,
+      'Obrázek schválen',
+      `Tvůj obrázek „${item.title}“ byl schválen.`,
+      id,
+    );
     return updated!;
   }
 
@@ -371,6 +404,12 @@ export class IkarosGalleryService {
       item.authorName,
       'Obrázek zamítnut',
       `Tvůj obrázek "${item.title}" byl zamítnut. Důvod: ${reason}`,
+    );
+    this.pushAuthor(
+      item.authorId,
+      'Obrázek zamítnut',
+      `Tvůj obrázek „${item.title}“ byl zamítnut. Důvod: ${reason}`,
+      id,
     );
     return updated!;
   }
@@ -406,6 +445,12 @@ export class IkarosGalleryService {
       text: text.trim(),
       createdAtUtc: new Date(),
     });
+    this.pushAuthor(
+      item.authorId,
+      'Nové hodnocení obrázku',
+      `${userName || 'Někdo'} ohodnotil „${item.title}“ (${stars}★)`,
+      id,
+    );
     return {
       averageRating: updated?.averageRating ?? 0,
       totalRatings: updated?.ratings.length ?? 0,

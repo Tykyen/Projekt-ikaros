@@ -1,12 +1,16 @@
 import {
   Injectable,
   Inject,
+  Optional,
   ForbiddenException,
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
+import { logWarn } from '../../common/logging/log-error.util';
+import { PushService } from '../push/push.service';
 import type { IIkarosDiscussionsRepository } from './interfaces/ikaros-discussions-repository.interface';
 import type { IIkarosDiscussionPostsRepository } from './interfaces/ikaros-discussion-posts-repository.interface';
 import type { IIkarosDiscussionReportsRepository } from './interfaces/ikaros-discussion-reports-repository.interface';
@@ -47,7 +51,12 @@ export class IkarosDiscussionsService {
     private readonly usersService: UsersService,
     @Inject('IkarosMessagesService')
     private readonly msgService: IkarosMessagesService,
+    // 15.9 — push autorovi diskuse; @Optional pro starší testy bez PushModule.
+    @Optional()
+    private readonly pushService?: PushService,
   ) {}
+
+  private readonly logger = new Logger(IkarosDiscussionsService.name);
 
   /** D-040 — batch enrich creatorIsDeleted na diskuze. */
   private async enrichTombstoneCreators(
@@ -529,6 +538,26 @@ export class IkarosDiscussionsService {
       createdAtUtc: new Date(),
     });
     await this.repo.adjustPostCount(discussionId, 1, true);
+    // 15.9 — push autorovi diskuse o novém příspěvku (ne když píše sám autor).
+    // Kategorie `ownDiscussion`. fire-and-forget.
+    if (discussion.creatorId !== authorId) {
+      void this.pushService
+        ?.notify(
+          discussion.creatorId,
+          {
+            title: 'Nový příspěvek ve tvé diskusi',
+            body: `${authorName} přispěl do „${discussion.title}“`.slice(
+              0,
+              120,
+            ),
+            url: `/ikaros/diskuze/${discussion.id}`,
+          },
+          'ownDiscussion',
+        )
+        .catch((err: unknown) =>
+          logWarn(this.logger, 'push selhal pro discussion post', err),
+        );
+    }
     return post;
   }
 

@@ -51,6 +51,8 @@ export class GameEventSchemaClass {
   @Prop({ type: [EventCommentSchema], default: [] })
   comments: EventCommentSchemaClass[];
   @Prop({ default: false }) reminderSent: boolean;
+  // 15.9 — připomínka 1h před začátkem (nezávislá na 24h reminderSent).
+  @Prop({ default: false }) reminder1hSent: boolean;
 }
 
 export const GameEventSchema =

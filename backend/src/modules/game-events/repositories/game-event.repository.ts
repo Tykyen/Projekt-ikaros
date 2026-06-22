@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { GameEventSchemaClass } from '../schemas/game-event.schema';
-import type { GameEvent } from '../interfaces/game-event.interface';
+import type {
+  GameEvent,
+  ReminderField,
+} from '../interfaces/game-event.interface';
 import type {
   IGameEventRepository,
   ListFilters,
@@ -47,11 +50,20 @@ export class MongoGameEventRepository
     return this.save(data);
   }
 
-  async findUpcoming(fromDate: Date, toDate: Date): Promise<GameEvent[]> {
+  async findUpcoming(
+    fromDate: Date,
+    toDate: Date,
+    reminderField: ReminderField = 'reminderSent',
+  ): Promise<GameEvent[]> {
     const from = fromDate.toISOString();
     const to = toDate.toISOString();
+    // $ne: true → matchne false, null i CHYBĚJÍCÍ pole (staré eventy bez
+    // reminder1hSent), na rozdíl od `=== false`.
     const docs = await this.model
-      .find({ date: { $gte: from, $lte: to }, reminderSent: false } as never)
+      .find({
+        date: { $gte: from, $lte: to },
+        [reminderField]: { $ne: true },
+      } as never)
       .lean()
       .exec();
     return docs.map((d) =>
@@ -80,10 +92,13 @@ export class MongoGameEventRepository
     );
   }
 
-  async markReminderSent(id: string): Promise<void> {
+  async markReminderSent(
+    id: string,
+    reminderField: ReminderField = 'reminderSent',
+  ): Promise<void> {
     if (!Types.ObjectId.isValid(id)) return;
     await this.model
-      .findByIdAndUpdate(id, { $set: { reminderSent: true } })
+      .findByIdAndUpdate(id, { $set: { [reminderField]: true } })
       .exec();
   }
 
@@ -111,6 +126,7 @@ export class MongoGameEventRepository
         reactions: c.reactions ?? {},
       })),
       reminderSent: (doc.reminderSent as boolean) ?? false,
+      reminder1hSent: (doc.reminder1hSent as boolean) ?? false,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

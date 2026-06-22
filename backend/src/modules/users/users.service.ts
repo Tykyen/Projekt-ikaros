@@ -23,6 +23,7 @@ import {
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import type { NotificationPreferences } from '../../common/notifications/notification-preferences';
 import { MailerService } from '../mailer/mailer.service';
 import { SecurityTokensService } from '../security-tokens/security-tokens.service';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -310,6 +311,36 @@ export class UsersService implements OnModuleInit {
 
     const merged = { ...(existing.themeSettings ?? {}), ...themeSettings };
     const updated = await this.repo.update(id, { themeSettings: merged });
+    if (!updated)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    return this.sanitize(updated);
+  }
+
+  /**
+   * 15.9 — delta merge notifikačních preferencí. Pošle se jen to, co se mění;
+   * ostatní pole zůstanou. `undefined` se neukládá → default z kódu zůstává živý.
+   */
+  async updateNotificationPreferences(
+    id: string,
+    partial: NotificationPreferences,
+  ): Promise<SanitizedUser> {
+    const existing = await this.repo.findById(id);
+    if (!existing)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+
+    const merged: NotificationPreferences = {
+      ...(existing.notificationPreferences ?? {}),
+      ...partial,
+    };
+    const updated = await this.repo.update(id, {
+      notificationPreferences: merged,
+    });
     if (!updated)
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',

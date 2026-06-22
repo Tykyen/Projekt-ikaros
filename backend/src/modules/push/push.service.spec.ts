@@ -25,6 +25,8 @@ const makeSub = (
 describe('PushService', () => {
   let service: PushService;
   let repo: jest.Mocked<IPushSubscriptionRepository>;
+  // 15.9 — push filtr čte notificationPreferences přes IUsersRepository.
+  let usersRepo: { findByIds: jest.Mock; findById: jest.Mock };
 
   beforeEach(async () => {
     repo = {
@@ -35,11 +37,16 @@ describe('PushService', () => {
       deleteByEndpointOnly: jest.fn(),
       deleteByIdAndUser: jest.fn(),
     };
+    usersRepo = {
+      findByIds: jest.fn().mockResolvedValue([]),
+      findById: jest.fn().mockResolvedValue(null),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
         PushService,
         { provide: 'IPushSubscriptionRepository', useValue: repo },
+        { provide: 'IUsersRepository', useValue: usersRepo },
         {
           provide: ConfigService,
           useValue: {
@@ -206,6 +213,88 @@ describe('PushService', () => {
     repo.deleteByEndpoint.mockResolvedValue(true);
     await service.unsubscribe('user1', 'https://...');
     expect(repo.deleteByEndpoint).toHaveBeenCalledWith('https://...', 'user1');
+  });
+
+  // ── 15.9 — filtr dle notificationPreferences ──────────────────────────
+  describe('filtr preferencí (kategorie)', () => {
+    it('notifyUsers s kategorií — zahodí příjemce, který má kategorii vypnutou', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      usersRepo.findByIds.mockResolvedValue([
+        { id: 'user1', notificationPreferences: { worldChat: true } },
+        { id: 'user2', notificationPreferences: { worldChat: false } },
+      ]);
+      await service.notifyUsers(
+        ['user1', 'user2'],
+        { title: 'T', body: 'B' },
+        'worldChat',
+      );
+      // jen user1 projde → findByUserId volán 1×
+      expect(repo.findByUserId).toHaveBeenCalledTimes(1);
+      expect(repo.findByUserId).toHaveBeenCalledWith('user1');
+    });
+
+    it('notifyUsers s kategorií — undefined preference → default (worldChat ZAP)', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      usersRepo.findByIds.mockResolvedValue([
+        { id: 'user1', notificationPreferences: undefined },
+      ]);
+      await service.notifyUsers(
+        ['user1'],
+        { title: 'T', body: 'B' },
+        'worldChat',
+      );
+      expect(repo.findByUserId).toHaveBeenCalledTimes(1);
+    });
+
+    it('notifyUsers s kategorií — Hospoda je opt-in (default VYP) → nic neodejde', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      usersRepo.findByIds.mockResolvedValue([
+        { id: 'user1', notificationPreferences: undefined },
+      ]);
+      await service.notifyUsers(
+        ['user1'],
+        { title: 'T', body: 'B' },
+        'hospoda',
+      );
+      expect(repo.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('notifyUsers s kategorií — pushEnabled:false vypne vše', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      usersRepo.findByIds.mockResolvedValue([
+        {
+          id: 'user1',
+          notificationPreferences: { pushEnabled: false, worldChat: true },
+        },
+      ]);
+      await service.notifyUsers(
+        ['user1'],
+        { title: 'T', body: 'B' },
+        'worldChat',
+      );
+      expect(repo.findByUserId).not.toHaveBeenCalled();
+    });
+
+    it('notifyAll s kategorií — profiltruje subscriptions dle preferencí', async () => {
+      repo.findAll.mockResolvedValue([
+        makeSub({ userId: 'user1', endpoint: 'e1' }),
+        makeSub({ userId: 'user2', endpoint: 'e2' }),
+      ]);
+      usersRepo.findByIds.mockResolvedValue([
+        { id: 'user1', notificationPreferences: { ikarosNews: true } },
+        { id: 'user2', notificationPreferences: { ikarosNews: false } },
+      ]);
+      await service.notifyAll({ title: 'T', body: 'B' }, 'ikarosNews');
+      // jen user1 subscription → 1 odeslání
+      expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('bez kategorie — zpětná kompatibilita, žádný filtr (findByIds se nevolá)', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      await service.notifyUsers(['user1'], { title: 'T', body: 'B' });
+      expect(usersRepo.findByIds).not.toHaveBeenCalled();
+      expect(repo.findByUserId).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('getSubscriptions — vrátí vlastní zařízení BEZ kryptografických klíčů [D-030]', async () => {

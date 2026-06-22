@@ -126,10 +126,13 @@ export class IkarosNewsService {
     });
 
     void this.pushService
-      .notifyAll({
-        title: 'Nová novinka na Ikarosu',
-        body: item.title.slice(0, 100),
-      })
+      .notifyAll(
+        {
+          title: 'Nová novinka na Ikarosu',
+          body: item.title.slice(0, 100),
+        },
+        'ikarosNews',
+      )
       .catch((err: unknown) =>
         logWarn(this.logger, 'notifyAll selhal pro Ikaros novinku', err),
       );

@@ -5,6 +5,7 @@ import type {
   AdminPermissions,
   DeletionPromotion,
 } from '../interfaces/user.interface';
+import type { NotificationPreferences } from '../../../common/notifications/notification-preferences';
 
 export type UserDocument = HydratedDocument<UserSchemaClass>;
 
@@ -148,6 +149,23 @@ export class UserSchemaClass {
   @Prop({ type: [String], default: [] }) backupCodeHashes?: string[];
   @Prop({ type: Date }) totpEnabledAt?: Date;
   @Prop({ type: String, default: 'totp' }) twoFactorMethod?: string;
+
+  // 15.9 — notifikační preference (push). BEZ default: nenastavené pole zůstává
+  // undefined → toEntity ho neukládá a `wantsPush` použije default z kódu.
+  @Prop({
+    type: {
+      pushEnabled: { type: Boolean },
+      worldChat: { type: Boolean },
+      worldEvent: { type: Boolean },
+      ownDiscussion: { type: Boolean },
+      ownContent: { type: Boolean },
+      worldNews: { type: Boolean },
+      ikarosNews: { type: Boolean },
+      hospoda: { type: Boolean },
+    },
+    _id: false,
+  })
+  notificationPreferences?: NotificationPreferences;
 }
 
 export const UserSchema = SchemaFactory.createForClass(UserSchemaClass);

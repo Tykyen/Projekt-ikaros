@@ -1,3 +1,5 @@
+import type { NotificationPreferences } from '../../../common/notifications/notification-preferences';
+
 export enum UserRole {
   Superadmin = 1,
   Admin = 2,
@@ -139,6 +141,9 @@ export interface User {
   backupCodeHashes?: string[];
   totpEnabledAt?: Date;
   twoFactorMethod?: string;
+
+  // 15.9 — notifikační preference (push). undefined = použij defaulty z kódu.
+  notificationPreferences?: NotificationPreferences;
 }
 
 /**

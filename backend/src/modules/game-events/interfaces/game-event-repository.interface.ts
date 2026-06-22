@@ -1,4 +1,4 @@
-import type { GameEvent } from './game-event.interface';
+import type { GameEvent, ReminderField } from './game-event.interface';
 
 export interface ListFilters {
   worldId: string;
@@ -21,11 +21,16 @@ export interface IGameEventRepository {
   ): Promise<GameEvent | null>;
   delete(id: string): Promise<boolean>;
 
-  findUpcoming(fromDate: Date, toDate: Date): Promise<GameEvent[]>;
+  // 15.9 — `reminderField` vybírá okno (24h `reminderSent` default / 1h `reminder1hSent`).
+  findUpcoming(
+    fromDate: Date,
+    toDate: Date,
+    reminderField?: ReminderField,
+  ): Promise<GameEvent[]>;
   findUpcomingForWorlds(
     worldIds: string[],
     fromDate: string,
     limit: number,
   ): Promise<GameEvent[]>;
-  markReminderSent(id: string): Promise<void>;
+  markReminderSent(id: string, reminderField?: ReminderField): Promise<void>;
 }

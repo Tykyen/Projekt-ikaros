@@ -384,6 +384,12 @@ export class MongoUsersRepository
       backupCodeHashes: (doc.backupCodeHashes as string[]) ?? [],
       totpEnabledAt: doc.totpEnabledAt as Date | undefined,
       twoFactorMethod: (doc.twoFactorMethod as string | undefined) ?? 'totp',
+
+      // 15.9 — notifikační preference. Bez fallbacku na {}: undefined necháváme,
+      // ať `wantsPush`/`resolvePref` dosadí defaulty z kódu (ne zamrazené v DB).
+      notificationPreferences: doc.notificationPreferences as
+        | User['notificationPreferences']
+        | undefined,
     };
   }
 
