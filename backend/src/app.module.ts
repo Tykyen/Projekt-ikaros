@@ -59,6 +59,7 @@ import { SecurityTokensModule } from './modules/security-tokens/security-tokens.
 import { WorldElevationsModule } from './modules/world-elevations/world-elevations.module';
 import { MailerModule } from './modules/mailer/mailer.module';
 import { SeoModule } from './modules/seo/seo.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -116,6 +117,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     SearchModule,
     StatsModule,
     SeoModule,
+    AnalyticsModule,
     AdminModule,
     FriendshipsModule,
     DataExportModule,
