@@ -35,6 +35,8 @@ export interface ChatMessage {
   isDeleted: boolean;
   /** Systémová zpráva (příchod/odchod uživatele) — FE ji renderuje jinak. */
   isSystem?: boolean;
+  /** Spec 15.8 — zpráva od hosta (anonyma) v Hospodě (odznak „host" na FE). */
+  isAnonymous?: boolean;
   rpDate?: string;
   replyToId?: string;
   replyToPreview?: string;

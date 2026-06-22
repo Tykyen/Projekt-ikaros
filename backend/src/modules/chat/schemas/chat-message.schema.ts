@@ -19,6 +19,9 @@ export class ChatMessageSchemaClass {
   @Prop({ default: false }) isEdited: boolean;
   @Prop({ default: false }) isDeleted: boolean;
   @Prop({ default: false }) isSystem: boolean;
+  /** Spec 15.8 — zpráva od hosta (anonyma) v Hospodě. FE rendruje odznak „host"
+   *  + placeholder místo avataru. Default false (členské i historické zprávy). */
+  @Prop({ default: false }) isAnonymous: boolean;
   @Prop({ type: String }) rpDate?: string;
   @Prop({ type: String }) replyToId?: string;
   @Prop({ type: String }) replyToPreview?: string;

@@ -258,6 +258,7 @@ export class MongoChatMessageRepository
       isEdited: (doc.isEdited as boolean) ?? false,
       isDeleted: (doc.isDeleted as boolean) ?? false,
       isSystem: (doc.isSystem as boolean) ?? false,
+      isAnonymous: (doc.isAnonymous as boolean) ?? false,
       rpDate: doc.rpDate as string | undefined,
       replyToId: doc.replyToId as string | undefined,
       replyToPreview: doc.replyToPreview as string | undefined,

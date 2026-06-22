@@ -6,7 +6,7 @@ import {
   BadRequestException,
   Inject,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { v4 as uuid } from 'uuid';
@@ -646,6 +646,33 @@ export class AuthService {
       emailVerifiedAt: new Date(),
     });
     return { ok: true };
+  }
+
+  /**
+   * Spec 15.8 — vydá host (guest) session pro Hospodu po ověření captcha.
+   * Guest NEMÁ DB účet: identita žije jen v tokenu (`sub` = náhodné anon-id,
+   * `guest: true`, `role: UserRole.Guest`). Captcha je **fail-closed** — bez
+   * úspěšného ověření se token nevydá. TTL z `ANON_SESSION_TTL` (default 14 d).
+   */
+  async createAnonSession(
+    captchaToken: string | undefined,
+  ): Promise<{ token: string; anonName: string; anonId: string }> {
+    const captchaOk = await this.captcha.verify(captchaToken);
+    if (!captchaOk) {
+      throw new BadRequestException({
+        code: 'CAPTCHA_FAILED',
+        message: 'Ověření captcha selhalo.',
+      });
+    }
+    const anonId = `anon_${uuid()}`;
+    const anonName = `anonym${Math.floor(Math.random() * 9000) + 1000}`;
+    const ttl = this.config.get<string>('ANON_SESSION_TTL') ?? '14d';
+    const token = this.jwtService.sign(
+      { sub: anonId, guest: true, username: anonName, role: UserRole.Guest },
+      // `ttl` je env string (např. '14d'); jwtService chce StringValue → cast.
+      { expiresIn: ttl } as JwtSignOptions,
+    );
+    return { token, anonName, anonId };
   }
 
   private async generateTokenPair(

@@ -10,4 +10,10 @@ export interface RequestUser {
    * admin nemá world bypass — viz `worldAdminBypass` a spec-world-admin-elevation.
    */
   elevatedWorldIds?: string[];
+  /**
+   * Spec 15.8 — host (anonym) z guest JWT bez DB účtu. `role` je
+   * `UserRole.Guest` (sentinel). Hospoda handlery podle toho volí anon identitu;
+   * GuestOrMemberGuard pustí guesta jen na Hospodu (jinde 403).
+   */
+  isGuest?: boolean;
 }

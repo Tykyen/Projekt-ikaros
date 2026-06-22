@@ -11,6 +11,14 @@ export enum UserRole {
   SpravceClanku = 10,
   SpravceGalerie = 11,
   SpravceDiskuzi = 12,
+  /**
+   * Spec 15.8 — host (anonym) z guest JWT, BEZ DB účtu. Sentinel mimo řadu
+   * 1–12: gating jede přes „nižší číslo = vyšší práva" (`role <= X`), takže 99
+   * nikdy neprojde žádný gate ani `@Roles(...)` → guest se nikam mimo Hospodu
+   * nedostane automaticky (druhá pojistka vedle GuestOrMemberGuard). NENÍ to
+   * přiřaditelná DB role — žije jen v guest tokenu / `RequestUser`.
+   */
+  Guest = 99,
 }
 
 export interface AdminPermissions {

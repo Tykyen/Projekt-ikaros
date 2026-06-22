@@ -1091,4 +1091,30 @@ describe('AuthService', () => {
       });
     });
   });
+
+  describe('createAnonSession (15.8)', () => {
+    it('captcha selže → BadRequest (fail-closed)', async () => {
+      mockCaptcha.verify.mockResolvedValueOnce(false);
+      await expect(service.createAnonSession('bad')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('captcha OK → guest JWT (guest:true, role Guest) + anonName', async () => {
+      mockCaptcha.verify.mockResolvedValueOnce(true);
+      mockJwt.sign.mockReturnValueOnce('signed.guest.jwt');
+      const res = await service.createAnonSession('ok');
+      expect(res.anonName).toMatch(/^anonym\d{4}$/);
+      expect(res.token).toBe('signed.guest.jwt');
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sub: res.anonId,
+          guest: true,
+          username: res.anonName,
+          role: UserRole.Guest,
+        }),
+        expect.objectContaining({ expiresIn: '14d' }),
+      );
+    });
+  });
 });

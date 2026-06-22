@@ -31,6 +31,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { LoginTotpDto } from './dto/login-totp.dto';
 import { RegisterDto } from './dto/register.dto';
+import { AnonSessionDto } from './dto/anon-session.dto';
 import { RefreshDto } from './dto/refresh.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -64,6 +65,16 @@ export class AuthController {
     const result = await this.authService.register(dto);
     setRefreshCookie(res, result.refreshToken); // PC-18
     return result;
+  }
+
+  // 15.8 — host (anonym) získá guest session pro Hospodu po captcha.
+  @Post('anon-session')
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Vydá guest session pro Hospodu (host) po captcha' })
+  @ApiResponse({ status: 201, description: 'Guest token + jméno anonym{N}' })
+  @ApiResponse({ status: 400, description: 'Captcha selhala (fail-closed)' })
+  createAnonSession(@Body() dto: AnonSessionDto) {
+    return this.authService.createAnonSession(dto.captchaToken);
   }
 
   @Post('login')
