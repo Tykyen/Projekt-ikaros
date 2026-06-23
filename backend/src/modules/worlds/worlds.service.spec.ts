@@ -429,6 +429,140 @@ describe('WorldsService', () => {
       );
       expect(result.diceVisibility).toEqual(dto.diceVisibility);
     });
+
+    // Bug-fix (sdílený motiv) — theme pole smí měnit jen vedení (PomocnyPJ+).
+    it('Korektor NESMÍ měnit sdílený motiv (themeId) → 403', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mem-kor',
+        userId: 'user1',
+        worldId: 'world1',
+        role: WorldRole.Korektor,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      await expect(
+        service.update('world1', { themeId: 'cyberpunk' }, mockRequester),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockWorldsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('Korektor SMÍ měnit ne-theme pole (jméno) i bez theme guardu', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mem-kor',
+        userId: 'user1',
+        worldId: 'world1',
+        role: WorldRole.Korektor,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      mockWorldsRepo.update.mockResolvedValue({ ...mockWorld, name: 'Nové' });
+      const result = await service.update(
+        'world1',
+        { name: 'Nové' },
+        mockRequester,
+      );
+      expect(result.name).toBe('Nové');
+    });
+
+    it('PomocnyPJ SMÍ měnit sdílený motiv (themeId)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mem-ppj',
+        userId: 'user1',
+        worldId: 'world1',
+        role: WorldRole.PomocnyPJ,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      mockWorldsRepo.update.mockResolvedValue({
+        ...mockWorld,
+        themeId: 'cyberpunk',
+      });
+      const result = await service.update(
+        'world1',
+        { themeId: 'cyberpunk' },
+        mockRequester,
+      );
+      expect(result.themeId).toBe('cyberpunk');
+    });
+  });
+
+  // 5.9b — per-člen vlastní motiv + pozadí v „Můj vzhled" (jen pro sebe).
+  describe('updateMyTheme — per-člen motiv/pozadí (5.9b)', () => {
+    const memberMembership = {
+      id: 'mem-me',
+      userId: 'user1',
+      worldId: 'world1',
+      role: WorldRole.Hrac,
+      joinedAt: new Date(),
+      akj: 0,
+    };
+
+    it('non-member → 403 NOT_A_MEMBER', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.updateMyTheme(
+          'world1',
+          { themeId: 'cyberpunk' },
+          mockRequester,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('uloží vlastní motiv + pozadí na MEMBERSHIP (ne World)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(memberMembership);
+      mockMembershipRepo.update.mockImplementation((id, patch) =>
+        Promise.resolve({ ...memberMembership, id, ...patch }),
+      );
+      const result = await service.updateMyTheme(
+        'world1',
+        { themeId: 'cyberpunk', themeBackgroundUrl: 'https://x/bg.webp' },
+        mockRequester,
+      );
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith(
+        'mem-me',
+        expect.objectContaining({
+          themeId: 'cyberpunk',
+          themeBackgroundUrl: 'https://x/bg.webp',
+        }),
+      );
+      // World repo se NESMÍ dotknout — žádný propsání motivu všem.
+      expect(mockWorldsRepo.update).not.toHaveBeenCalled();
+      expect(result.themeId).toBe('cyberpunk');
+    });
+
+    it("prázdný řetězec ('') = clear → null (zpět na vzhled PJ)", async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(memberMembership);
+      mockMembershipRepo.update.mockImplementation((id, patch) =>
+        Promise.resolve({ ...memberMembership, id, ...patch }),
+      );
+      await service.updateMyTheme(
+        'world1',
+        { themeId: '', themeBackgroundUrl: '' },
+        mockRequester,
+      );
+      expect(mockMembershipRepo.update).toHaveBeenCalledWith(
+        'mem-me',
+        expect.objectContaining({ themeId: null, themeBackgroundUrl: null }),
+      );
+    });
+
+    it('backward-compat: bez motiv/pozadí polí je nezahrne do patche', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(memberMembership);
+      mockMembershipRepo.update.mockImplementation((id, patch) =>
+        Promise.resolve({ ...memberMembership, id, ...patch }),
+      );
+      await service.updateMyTheme(
+        'world1',
+        { themeAdjust: { brightness: 1.1 }, themeUserOverrides: {} },
+        mockRequester,
+      );
+      const patch = mockMembershipRepo.update.mock.calls[0][1];
+      expect(patch).not.toHaveProperty('themeId');
+      expect(patch).not.toHaveProperty('themeBackgroundUrl');
+    });
   });
 
   describe('updateMemberRole — DI-05 playerCount auto-count', () => {

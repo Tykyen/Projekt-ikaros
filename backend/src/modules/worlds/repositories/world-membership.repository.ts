@@ -229,6 +229,10 @@ export class MongoWorldMembershipRepository
       themeUserOverrides: doc.themeUserOverrides as
         | Record<string, string>
         | undefined,
+      // 5.9b — per-člen vlastní motiv + pozadí (whitelist mapper: nutno zde,
+      // jinak schema/zápis funguje, ale GET pole tiše zahodí).
+      themeId: doc.themeId as string | null | undefined,
+      themeBackgroundUrl: doc.themeBackgroundUrl as string | null | undefined,
       chatColor: (doc.chatColor as string | null | undefined) ?? null,
       chatFont: (doc.chatFont as string | null | undefined) ?? null,
       chatFontSize: (doc.chatFontSize as string | null | undefined) ?? null,

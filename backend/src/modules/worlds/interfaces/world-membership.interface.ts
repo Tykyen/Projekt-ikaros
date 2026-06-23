@@ -41,6 +41,16 @@ export interface WorldMembership {
   /** Krok 5.9 — per-uživatel per-svět doladění vzhledu (přístupnost). */
   themeAdjust?: WorldThemeAdjust;
   themeUserOverrides?: Record<string, string>;
+  /**
+   * 5.9b — per-člen vlastní motiv světa (override sdíleného `world.themeId`;
+   * jen pro mě). Absent/null = dědí motiv PJ. Reverze 5.9 §5.
+   */
+  themeId?: string | null;
+  /**
+   * 5.9b — per-člen vlastní pozadí světa (override `world.themeBackgroundUrl`).
+   * Absent/null = pozadí ze sdíleného/zvoleného motivu.
+   */
+  themeBackgroundUrl?: string | null;
   /** Krok 6.2f — per-svět barva textu zprávy v chatu (hex; null = dědit). */
   chatColor?: string | null;
   /** Krok 6.2f — per-svět font zprávy v chatu (klíč z CHAT_FONT_KEYS; null = dědit). */

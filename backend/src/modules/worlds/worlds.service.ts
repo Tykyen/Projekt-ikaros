@@ -537,6 +537,24 @@ export class WorldsService implements OnApplicationBootstrap {
       });
     }
 
+    // Bug-fix (sdílený motiv): theme pole (themeId/overrides/pozadí) = brand
+    // světa pro všechny členy → editace jen vedení (PomocnyPJ+), ne Korektor.
+    // Dřív stačil canEditWorldData (Korektor+) → člen přepsal motiv všem včetně
+    // PJ. Per-člen personalizace jde přes PUT /members/me/theme, ne sem.
+    const touchesTheme =
+      dto.themeId !== undefined ||
+      dto.themeOverrides !== undefined ||
+      dto.themeBackgroundUrl !== undefined;
+    if (
+      touchesTheme &&
+      !this.canManageMembers(requester, world, membership ?? undefined)
+    ) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Vzhled světa smí měnit jen vedení světa.',
+      });
+    }
+
     // Krok 7d: archive + re-seed při změně system
     // 8.5-BE-2 oprava: nyní zachovává integritu tabulky verzí —
     //   1. archivuje stávající aktivní verzi (set archivedAt)
@@ -1544,14 +1562,17 @@ export class WorldsService implements OnApplicationBootstrap {
   }
 
   /**
-   * Krok 5.9 — uložení vlastního doladění vzhledu světa. Člen edituje jen
-   * své vlastní membership (přístupnost — jas / kontrast / barvy).
+   * Krok 5.9 / 5.9b — uložení vlastního doladění vzhledu světa. Člen edituje jen
+   * své vlastní membership (jas / kontrast / barvy + 5.9b vlastní motiv a pozadí).
+   * Nikdy se nepropisuje do World — platí jen tomuto členovi v tomto světě.
    */
   async updateMyTheme(
     worldId: string,
     dto: {
       themeAdjust?: Record<string, number>;
       themeUserOverrides?: Record<string, string>;
+      themeId?: string | null;
+      themeBackgroundUrl?: string | null;
     },
     requester: RequestUser,
   ): Promise<WorldMembership> {
@@ -1565,10 +1586,18 @@ export class WorldsService implements OnApplicationBootstrap {
         message: 'Nejsi členem světa',
       });
 
-    const updated = await this.membershipRepo.update(membership.id, {
+    const patch: Partial<WorldMembership> = {
       themeAdjust: dto.themeAdjust,
       themeUserOverrides: dto.themeUserOverrides,
-    });
+    };
+    // 5.9b — motiv/pozadí: '' z FE normalizuj na null (= clear → zpět na vzhled
+    // PJ). `$set: null` uloží clear; `undefined` Mongoose stripne (pole beze
+    // změny → backward-compat se staršími klienty, co posílají jen adjust).
+    if (dto.themeId !== undefined) patch.themeId = dto.themeId || null;
+    if (dto.themeBackgroundUrl !== undefined)
+      patch.themeBackgroundUrl = dto.themeBackgroundUrl || null;
+
+    const updated = await this.membershipRepo.update(membership.id, patch);
     if (!updated)
       throw new NotFoundException({
         code: 'WORLD_NOT_FOUND',

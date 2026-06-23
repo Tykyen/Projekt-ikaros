@@ -7,6 +7,8 @@ import {
   Max,
   IsBoolean,
   IsObject,
+  MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import { WorldRole } from '../interfaces/world-membership.interface';
 
@@ -35,10 +37,28 @@ export class UpdateMemberFreeDto {
   @IsBoolean() isFree: boolean;
 }
 
-/** Krok 5.9 — vlastní doladění vzhledu světa (přístupnost). */
+/** Krok 5.9 / 5.9b — vlastní doladění vzhledu světa (jen pro mě). */
 export class UpdateMemberThemeDto {
   @IsOptional() @IsObject() themeAdjust?: Record<string, number>;
   @IsOptional() @IsObject() themeUserOverrides?: Record<string, string>;
+  /**
+   * 5.9b — vlastní motiv (override world.themeId). `null`/`''` = zpět na motiv PJ.
+   * Validace stejně volná jako world DTO (`@IsString`, ne `@IsIn(THEME_IDS)`) —
+   * vyhne se dual-source 400 pasti; FE `getTheme` má fallback na neznámé id.
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsString()
+  @MaxLength(40)
+  themeId?: string | null;
+  /**
+   * 5.9b — vlastní pozadí (override world.themeBackgroundUrl). `null`/`''` = bez
+   * vlastního pozadí (dědí ze zvoleného motivu). Vzor jako world DTO.
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsString()
+  themeBackgroundUrl?: string | null;
 }
 
 /** 6.8-followup — self-service avatar vedení (PJ/Pomocný PJ). `null` = odebrat. */

@@ -26,6 +26,18 @@ export class WorldMembershipSchemaClass {
   /** Krok 5.9 — uživatelské doladění vzhledu světa (přístupnost). */
   @Prop({ type: Object }) themeAdjust?: Record<string, number>;
   @Prop({ type: Object }) themeUserOverrides?: Record<string, string>;
+  /**
+   * 5.9b — per-člen vlastní MOTIV světa (override sdíleného `world.themeId`).
+   * Platí JEN tomuto členovi, nikdy se nepropisuje do World. Absent/null =
+   * dědí sdílený motiv PJ. Reverze 5.9 §5 (dřív skin uživatel neměnil).
+   */
+  @Prop({ type: String, default: undefined }) themeId?: string;
+  /**
+   * 5.9b — per-člen vlastní POZADÍ světa (override `world.themeBackgroundUrl`).
+   * Funguje i samostatně (vlastní pozadí nad sdíleným motivem). Absent/null =
+   * pozadí ze sdíleného motivu / vlastního zvoleného skinu.
+   */
+  @Prop({ type: String, default: undefined }) themeBackgroundUrl?: string;
   /** Krok 6.2f — per-svět barva chatu (hex; null = dědit z globálního profilu). */
   @Prop({ type: String, default: null }) chatColor: string | null;
   /** Krok 6.2f — per-svět font chatu (klíč CHAT_FONT_KEYS; null = system fallback). */
