@@ -1573,6 +1573,7 @@ export class WorldsService implements OnApplicationBootstrap {
       themeUserOverrides?: Record<string, string>;
       themeId?: string | null;
       themeBackgroundUrl?: string | null;
+      diarySkin?: string | null;
     },
     requester: RequestUser,
   ): Promise<WorldMembership> {
@@ -1596,6 +1597,8 @@ export class WorldsService implements OnApplicationBootstrap {
     if (dto.themeId !== undefined) patch.themeId = dto.themeId || null;
     if (dto.themeBackgroundUrl !== undefined)
       patch.themeBackgroundUrl = dto.themeBackgroundUrl || null;
+    // 16.2c — per-člen skin deníku; '' → null (clear → default dle systému).
+    if (dto.diarySkin !== undefined) patch.diarySkin = dto.diarySkin || null;
 
     const updated = await this.membershipRepo.update(membership.id, patch);
     if (!updated)

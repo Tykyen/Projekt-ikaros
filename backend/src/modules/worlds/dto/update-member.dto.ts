@@ -59,6 +59,22 @@ export class UpdateMemberThemeDto {
   @ValidateIf((_, v) => v !== null && v !== '')
   @IsString()
   themeBackgroundUrl?: string | null;
+  /**
+   * 16.2c — vlastní skin deníku (per uživatel×svět). `null`/`''` = dědí default
+   * dle systému světa. Whitelist 7 stylů (fixní sada z FE registru skinů).
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== '')
+  @IsIn([
+    'scifi',
+    'fantasy',
+    'horror',
+    'steampunk',
+    'nature',
+    'minimal',
+    'retro',
+  ])
+  diarySkin?: string | null;
 }
 
 /** 6.8-followup — self-service avatar vedení (PJ/Pomocný PJ). `null` = odebrat. */

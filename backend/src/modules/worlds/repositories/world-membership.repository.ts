@@ -233,6 +233,8 @@ export class MongoWorldMembershipRepository
       // jinak schema/zápis funguje, ale GET pole tiše zahodí).
       themeId: doc.themeId as string | null | undefined,
       themeBackgroundUrl: doc.themeBackgroundUrl as string | null | undefined,
+      // 16.2c — per-člen skin deníku (whitelist mapper: jinak GET tiše zahodí).
+      diarySkin: doc.diarySkin as string | null | undefined,
       chatColor: (doc.chatColor as string | null | undefined) ?? null,
       chatFont: (doc.chatFont as string | null | undefined) ?? null,
       chatFontSize: (doc.chatFontSize as string | null | undefined) ?? null,

@@ -563,6 +563,34 @@ describe('WorldsService', () => {
       expect(patch).not.toHaveProperty('themeId');
       expect(patch).not.toHaveProperty('themeBackgroundUrl');
     });
+
+    it("16.2c — uloží diarySkin; '' = clear → null; absence nezahrne", async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(memberMembership);
+      mockMembershipRepo.update.mockImplementation((id, patch) =>
+        Promise.resolve({ ...memberMembership, id, ...patch }),
+      );
+      // uloží
+      const r = await service.updateMyTheme(
+        'world1',
+        { diarySkin: 'fantasy' },
+        mockRequester,
+      );
+      expect(r.diarySkin).toBe('fantasy');
+      // '' = clear → null
+      await service.updateMyTheme('world1', { diarySkin: '' }, mockRequester);
+      expect(mockMembershipRepo.update).toHaveBeenLastCalledWith(
+        'mem-me',
+        expect.objectContaining({ diarySkin: null }),
+      );
+      // absence → nezahrne do patche
+      await service.updateMyTheme(
+        'world1',
+        { themeAdjust: { brightness: 1 } },
+        mockRequester,
+      );
+      const lastPatch = mockMembershipRepo.update.mock.calls.at(-1)?.[1];
+      expect(lastPatch).not.toHaveProperty('diarySkin');
+    });
   });
 
   describe('updateMemberRole — DI-05 playerCount auto-count', () => {

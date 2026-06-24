@@ -51,6 +51,11 @@ export interface WorldMembership {
    * Absent/null = pozadí ze sdíleného/zvoleného motivu.
    */
   themeBackgroundUrl?: string | null;
+  /**
+   * 16.2c — per-člen skin deníku (per uživatel×svět; 7 stylů). Absent/null =
+   * dědí default dle `world.system`.
+   */
+  diarySkin?: string | null;
   /** Krok 6.2f — per-svět barva textu zprávy v chatu (hex; null = dědit). */
   chatColor?: string | null;
   /** Krok 6.2f — per-svět font zprávy v chatu (klíč z CHAT_FONT_KEYS; null = dědit). */

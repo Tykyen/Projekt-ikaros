@@ -38,6 +38,12 @@ export class WorldMembershipSchemaClass {
    * pozadí ze sdíleného motivu / vlastního zvoleného skinu.
    */
   @Prop({ type: String, default: undefined }) themeBackgroundUrl?: string;
+  /**
+   * 16.2c — per-člen skin deníku (per uživatel×svět). 7 stylů (sci-fi/fantasy/
+   * horror/steampunk/nature/minimal/retro). Absent/undefined = dědí default dle
+   * `world.system`. Self-service (vlastník membership).
+   */
+  @Prop({ type: String, default: undefined }) diarySkin?: string;
   /** Krok 6.2f — per-svět barva chatu (hex; null = dědit z globálního profilu). */
   @Prop({ type: String, default: null }) chatColor: string | null;
   /** Krok 6.2f — per-svět font chatu (klíč CHAT_FONT_KEYS; null = system fallback). */
