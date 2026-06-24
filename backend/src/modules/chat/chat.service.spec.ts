@@ -191,6 +191,74 @@ describe('ChatService', () => {
     jest.clearAllMocks();
   });
 
+  describe('combat roster (16.1e)', () => {
+    const channel = {
+      id: 'c1',
+      worldId: 'world1',
+      isDeleted: false,
+      accessMode: 'all',
+      allowedRoles: [],
+      allowedMemberIds: [],
+      combatants: [
+        {
+          id: 'x1',
+          kind: 'bestie',
+          bestieId: 'b',
+          name: 'Skřet',
+          systemStats: { 'health.current': 3 },
+          abilities: [{ name: 'Kyj', description: '5' }],
+          notes: 'tajné',
+          initiative: 5,
+          inCombat: true,
+          createdAt: new Date(),
+        },
+      ],
+      combat: { active: false, round: 0 },
+      chatCombatConfig: { showHpBestie: false },
+    };
+    const pjReq = { id: 'user1', role: UserRole.Hrac, username: 'pj' };
+    const hracReq = { id: 'user2', role: UserRole.Hrac, username: 'hrac' };
+
+    it('addCombatant: hráč (ne-PJ) → Forbidden, nic se nepřidá', async () => {
+      mockChannelRepo.findById.mockResolvedValue(channel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      await expect(
+        service.addCombatant(
+          'c1',
+          { kind: 'character', characterSlug: 'abi' },
+          hracReq,
+        ),
+      ).rejects.toThrow();
+      expect(mockChannelRepo.addCombatant).not.toHaveBeenCalled();
+    });
+
+    it('getCombatants: hráč u skryté bestie (showHpBestie=false) nedostane staty/poznámky', async () => {
+      mockChannelRepo.findById.mockResolvedValue(channel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockWorldsService.getSettings.mockResolvedValue(null);
+      const out = await service.getCombatants('c1', hracReq);
+      const b = out.combatants[0] as unknown as Record<string, unknown>;
+      expect(b.systemStats).toEqual({});
+      expect(b.abilities).toEqual([]);
+      expect(b.notes).toBe('');
+      expect(out.config.showHpBestie).toBe(false);
+    });
+
+    it('getCombatants: PJ vidí plné staty bestie', async () => {
+      mockChannelRepo.findById.mockResolvedValue(channel);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+      mockWorldsService.getSettings.mockResolvedValue(null);
+      const out = await service.getCombatants('c1', pjReq);
+      const b = out.combatants[0] as unknown as Record<string, unknown>;
+      expect(b.systemStats).toEqual({ 'health.current': 3 });
+      expect(b.notes).toBe('tajné');
+    });
+  });
+
   describe('getFeed (13.2a — souhrn chatů cross-world)', () => {
     const baseMsg = {
       id: 'm',
