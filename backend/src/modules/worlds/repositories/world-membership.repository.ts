@@ -240,6 +240,11 @@ export class MongoWorldMembershipRepository
       chatFontSize: (doc.chatFontSize as string | null | undefined) ?? null,
       // 16.1d — per-člen skin chatu (whitelist mapper: jinak GET tiše zahodí).
       chatSkin: (doc.chatSkin as string | null | undefined) ?? null,
+      // 16.1f — čtenářský font override (whitelist mapper: jinak GET tiše zahodí).
+      readerFontOverride:
+        (doc.readerFontOverride as boolean | undefined) ?? false,
+      readerFont: (doc.readerFont as string | null | undefined) ?? null,
+      readerFontSize: (doc.readerFontSize as string | null | undefined) ?? null,
       diceSkinMapping:
         (doc.diceSkinMapping as Record<string, string> | null | undefined) ??
         null,

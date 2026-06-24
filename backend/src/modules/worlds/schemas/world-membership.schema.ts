@@ -56,6 +56,15 @@ export class WorldMembershipSchemaClass {
    */
   @Prop({ type: String, default: null }) chatSkin: string | null;
   /**
+   * 16.1f — čtenářský font override (per uživatel×svět). Když `readerFontOverride`,
+   * vykreslí klient VŠECHNY zprávy ve streamu fontem `readerFont` + velikostí
+   * `readerFontSize` místo fontu odesílatele (čitelnost na přání). `readerFont`
+   * null = systémový fallback, `readerFontSize` null = 1×. Self-service (vlastník).
+   */
+  @Prop({ type: Boolean, default: false }) readerFontOverride: boolean;
+  @Prop({ type: String, default: null }) readerFont: string | null;
+  @Prop({ type: String, default: null }) readerFontSize: string | null;
+  /**
    * Krok 6.3e — per-svět volba skinu kostek per typ
    * (`{ default: 'core-obsidian', '1d20': 'elemental-flame' }`).
    * `null` = default fallback (`core-obsidian`) pro všechny typy.

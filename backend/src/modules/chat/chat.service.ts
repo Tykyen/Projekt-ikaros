@@ -2264,6 +2264,9 @@ export class ChatService implements OnApplicationBootstrap {
     chatFont: string | null;
     chatFontSize: string | null;
     chatSkin: string | null;
+    readerFontOverride: boolean;
+    readerFont: string | null;
+    readerFontSize: string | null;
     diceSkinMapping: Record<string, string> | null;
     jailedDiceSkins: string[];
   }> {
@@ -2282,6 +2285,9 @@ export class ChatService implements OnApplicationBootstrap {
       chatFont: membership.chatFont ?? null,
       chatFontSize: membership.chatFontSize ?? null,
       chatSkin: membership.chatSkin ?? null,
+      readerFontOverride: membership.readerFontOverride ?? false,
+      readerFont: membership.readerFont ?? null,
+      readerFontSize: membership.readerFontSize ?? null,
       diceSkinMapping: membership.diceSkinMapping ?? null,
       jailedDiceSkins: membership.jailedDiceSkins ?? [],
     };
@@ -2296,6 +2302,9 @@ export class ChatService implements OnApplicationBootstrap {
     chatFont: string | null;
     chatFontSize: string | null;
     chatSkin: string | null;
+    readerFontOverride: boolean;
+    readerFont: string | null;
+    readerFontSize: string | null;
     diceSkinMapping: Record<string, string> | null;
     jailedDiceSkins: string[];
   }> {
@@ -2314,6 +2323,11 @@ export class ChatService implements OnApplicationBootstrap {
     if (dto.chatFont !== undefined) patch.chatFont = dto.chatFont;
     if (dto.chatFontSize !== undefined) patch.chatFontSize = dto.chatFontSize;
     if (dto.chatSkin !== undefined) patch.chatSkin = dto.chatSkin;
+    if (dto.readerFontOverride !== undefined)
+      patch.readerFontOverride = dto.readerFontOverride;
+    if (dto.readerFont !== undefined) patch.readerFont = dto.readerFont;
+    if (dto.readerFontSize !== undefined)
+      patch.readerFontSize = dto.readerFontSize;
     if (dto.diceSkinMapping !== undefined)
       patch.diceSkinMapping = dto.diceSkinMapping;
     if (dto.jailedDiceSkins !== undefined)
@@ -2324,6 +2338,9 @@ export class ChatService implements OnApplicationBootstrap {
       chatFont: updated?.chatFont ?? null,
       chatFontSize: updated?.chatFontSize ?? null,
       chatSkin: updated?.chatSkin ?? null,
+      readerFontOverride: updated?.readerFontOverride ?? false,
+      readerFont: updated?.readerFont ?? null,
+      readerFontSize: updated?.readerFontSize ?? null,
       diceSkinMapping: updated?.diceSkinMapping ?? null,
       jailedDiceSkins: updated?.jailedDiceSkins ?? [],
     };

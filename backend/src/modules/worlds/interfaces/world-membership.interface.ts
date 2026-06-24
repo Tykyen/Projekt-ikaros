@@ -65,6 +65,15 @@ export interface WorldMembership {
   /** 16.1d — per-svět skin chatu (= motiv světa, WORLD_THEME_IDS; null = auto). */
   chatSkin?: string | null;
   /**
+   * 16.1f — čtenářský font override (per uživatel×svět). Když zapnuto, klient
+   * vykreslí všechny zprávy fontem `readerFont` + velikostí `readerFontSize`
+   * místo fontu odesílatele. `readerFont` null = systémový, `readerFontSize`
+   * null = 1×.
+   */
+  readerFontOverride?: boolean;
+  readerFont?: string | null;
+  readerFontSize?: string | null;
+  /**
    * Krok 6.3e — per-svět volba skinu kostek per typ
    * (`{ default: 'core-obsidian', '1d20': 'elemental-flame' }`).
    * Klíč `default` = fallback pro všechny typy, které nemají explicitní volbu.

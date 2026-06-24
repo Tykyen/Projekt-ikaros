@@ -6,6 +6,7 @@ import {
   IsObject,
   IsArray,
   IsString,
+  IsBoolean,
 } from 'class-validator';
 import { CHAT_FONT_KEYS, CHAT_FONT_SIZE_KEYS } from '../constants/chat-fonts';
 import { WORLD_THEME_IDS } from '../../users/constants/theme-ids';
@@ -40,6 +41,26 @@ export class UpdateAppearanceDto {
   @ValidateIf((_, v) => v !== null)
   @IsIn(WORLD_THEME_IDS)
   chatSkin?: string | null;
+
+  /**
+   * 16.1f — čtenářský font override (per uživatel×svět). `readerFontOverride`
+   * zapne přepsání fontu všech zpráv na čtenářův `readerFont` + `readerFontSize`.
+   * Whitelist sdílí s `chatFont`/`chatFontSize` (jakýkoli platný klíč; FE nabízí
+   * jen kurátorskou podmnožinu). `null` = systémový fallback / 1×.
+   */
+  @IsOptional()
+  @IsBoolean()
+  readerFontOverride?: boolean;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(CHAT_FONT_KEYS)
+  readerFont?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(CHAT_FONT_SIZE_KEYS)
+  readerFontSize?: string | null;
 
   /**
    * Krok 6.3e — per-svět volba skinu kostek per typ
