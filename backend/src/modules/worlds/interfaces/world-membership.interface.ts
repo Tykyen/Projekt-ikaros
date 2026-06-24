@@ -62,6 +62,8 @@ export interface WorldMembership {
   chatFont?: string | null;
   /** Krok 6.2f — per-svět velikost písma zprávy (klíč z CHAT_FONT_SIZE_KEYS; null = 1×). */
   chatFontSize?: string | null;
+  /** 16.1d — per-svět skin chatu (= motiv světa, WORLD_THEME_IDS; null = auto). */
+  chatSkin?: string | null;
   /**
    * Krok 6.3e — per-svět volba skinu kostek per typ
    * (`{ default: 'core-obsidian', '1d20': 'elemental-flame' }`).

@@ -43,3 +43,23 @@ export const THEME_IDS = [
   'moderni',
   'western',
 ] as const;
+
+/**
+ * 16.1d — podmnožina pro skin chatu (`WorldMembership.chatSkin`). Jen SVĚTOVÉ
+ * vzhledy (motivy světa) — skin chatu = motiv světa. Canonical FE
+ * `listThemes('world')`. Při změně světových motivů aktualizuj i tady.
+ */
+export const WORLD_THEME_IDS = [
+  'ikaros',
+  'fantasy',
+  'dark-fantasy',
+  'vesmir',
+  'cyberpunk',
+  'steampunk',
+  'apokalypsa',
+  'horor',
+  'mystery',
+  'historie',
+  'moderni',
+  'western',
+] as const;

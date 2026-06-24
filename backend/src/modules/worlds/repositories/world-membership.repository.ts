@@ -238,6 +238,8 @@ export class MongoWorldMembershipRepository
       chatColor: (doc.chatColor as string | null | undefined) ?? null,
       chatFont: (doc.chatFont as string | null | undefined) ?? null,
       chatFontSize: (doc.chatFontSize as string | null | undefined) ?? null,
+      // 16.1d — per-člen skin chatu (whitelist mapper: jinak GET tiše zahodí).
+      chatSkin: (doc.chatSkin as string | null | undefined) ?? null,
       diceSkinMapping:
         (doc.diceSkinMapping as Record<string, string> | null | undefined) ??
         null,

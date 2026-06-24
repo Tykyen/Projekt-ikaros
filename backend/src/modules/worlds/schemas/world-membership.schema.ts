@@ -51,6 +51,11 @@ export class WorldMembershipSchemaClass {
   /** Krok 6.2f — per-svět velikost písma chatu (klíč CHAT_FONT_SIZE_KEYS; null = 1×). */
   @Prop({ type: String, default: null }) chatFontSize: string | null;
   /**
+   * 16.1d — per-člen skin chatu (= motiv světa). Whitelist `WORLD_THEME_IDS`.
+   * null = auto (dědí efektivní motiv světa). Self-service (vlastník membership).
+   */
+  @Prop({ type: String, default: null }) chatSkin: string | null;
+  /**
    * Krok 6.3e — per-svět volba skinu kostek per typ
    * (`{ default: 'core-obsidian', '1d20': 'elemental-flame' }`).
    * `null` = default fallback (`core-obsidian`) pro všechny typy.

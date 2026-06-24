@@ -8,6 +8,7 @@ import {
   IsString,
 } from 'class-validator';
 import { CHAT_FONT_KEYS, CHAT_FONT_SIZE_KEYS } from '../constants/chat-fonts';
+import { WORLD_THEME_IDS } from '../../users/constants/theme-ids';
 
 /**
  * Krok 6.2f / 6.3e — per-svět vzhled mé zprávy v chatu + skiny kostek.
@@ -30,6 +31,15 @@ export class UpdateAppearanceDto {
   @ValidateIf((_, v) => v !== null)
   @IsIn(CHAT_FONT_SIZE_KEYS)
   chatFontSize?: string | null;
+
+  /**
+   * 16.1d — per-svět skin chatu (= motiv světa). Whitelist `WORLD_THEME_IDS`.
+   * `null` = auto (dědí efektivní motiv světa).
+   */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsIn(WORLD_THEME_IDS)
+  chatSkin?: string | null;
 
   /**
    * Krok 6.3e — per-svět volba skinu kostek per typ

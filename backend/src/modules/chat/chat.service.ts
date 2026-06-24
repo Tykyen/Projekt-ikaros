@@ -1972,6 +1972,7 @@ export class ChatService implements OnApplicationBootstrap {
     chatColor: string | null;
     chatFont: string | null;
     chatFontSize: string | null;
+    chatSkin: string | null;
     diceSkinMapping: Record<string, string> | null;
     jailedDiceSkins: string[];
   }> {
@@ -1989,6 +1990,7 @@ export class ChatService implements OnApplicationBootstrap {
       chatColor: membership.chatColor ?? null,
       chatFont: membership.chatFont ?? null,
       chatFontSize: membership.chatFontSize ?? null,
+      chatSkin: membership.chatSkin ?? null,
       diceSkinMapping: membership.diceSkinMapping ?? null,
       jailedDiceSkins: membership.jailedDiceSkins ?? [],
     };
@@ -2002,6 +2004,7 @@ export class ChatService implements OnApplicationBootstrap {
     chatColor: string | null;
     chatFont: string | null;
     chatFontSize: string | null;
+    chatSkin: string | null;
     diceSkinMapping: Record<string, string> | null;
     jailedDiceSkins: string[];
   }> {
@@ -2019,6 +2022,7 @@ export class ChatService implements OnApplicationBootstrap {
     if (dto.chatColor !== undefined) patch.chatColor = dto.chatColor;
     if (dto.chatFont !== undefined) patch.chatFont = dto.chatFont;
     if (dto.chatFontSize !== undefined) patch.chatFontSize = dto.chatFontSize;
+    if (dto.chatSkin !== undefined) patch.chatSkin = dto.chatSkin;
     if (dto.diceSkinMapping !== undefined)
       patch.diceSkinMapping = dto.diceSkinMapping;
     if (dto.jailedDiceSkins !== undefined)
@@ -2028,6 +2032,7 @@ export class ChatService implements OnApplicationBootstrap {
       chatColor: updated?.chatColor ?? null,
       chatFont: updated?.chatFont ?? null,
       chatFontSize: updated?.chatFontSize ?? null,
+      chatSkin: updated?.chatSkin ?? null,
       diceSkinMapping: updated?.diceSkinMapping ?? null,
       jailedDiceSkins: updated?.jailedDiceSkins ?? [],
     };
