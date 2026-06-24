@@ -38,6 +38,8 @@ import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { UpdateAppearanceDto } from './dto/update-appearance.dto';
 import { UpdateChatPrefsDto } from './dto/update-chat-prefs.dto';
+import { AddCombatantDto, UpdateCombatantDto } from './dto/combatant-ops.dto';
+import { CombatOpDto } from './dto/combat-op.dto';
 import { UploadService } from '../upload/upload.service';
 
 /** Max velikost přílohy chatu — 10 MB (sjednoceno s globálním chatem). */
@@ -176,6 +178,72 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.chatService.deleteChannel(channelId, user);
+  }
+
+  // ─── 16.1e — combat roster konverzace ─────────────────────────────────────
+
+  @Get('channels/:channelId/combatants')
+  @ApiOperation({
+    summary: '16.1e — roster boje konverzace (filtrovaný dle role)',
+  })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  getCombatants(
+    @Param('channelId') channelId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.getCombatants(channelId, user);
+  }
+
+  @Post('channels/:channelId/combatants')
+  @ApiOperation({ summary: '16.1e — přidat bojovníka do rosteru (PJ+)' })
+  @ApiResponse({ status: 201, description: 'Vytvořeno' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  addCombatant(
+    @Param('channelId') channelId: string,
+    @Body() dto: AddCombatantDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.addCombatant(channelId, dto, user);
+  }
+
+  @Patch('channels/:channelId/combatants/:combatantId')
+  @ApiOperation({
+    summary: '16.1e — úprava bojovníka (HP/iniciativa/inCombat) (PJ+)',
+  })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  updateCombatant(
+    @Param('channelId') channelId: string,
+    @Param('combatantId') combatantId: string,
+    @Body() dto: UpdateCombatantDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.updateCombatant(channelId, combatantId, dto, user);
+  }
+
+  @Delete('channels/:channelId/combatants/:combatantId')
+  @ApiOperation({ summary: '16.1e — odebrat bojovníka z rosteru (PJ+)' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  removeCombatant(
+    @Param('channelId') channelId: string,
+    @Param('combatantId') combatantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.removeCombatant(channelId, combatantId, user);
+  }
+
+  @Patch('channels/:channelId/combat')
+  @ApiOperation({ summary: '16.1e — stav boje: start/turn/end (R6, PJ+)' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  combatOp(
+    @Param('channelId') channelId: string,
+    @Body() dto: CombatOpDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.combatOp(channelId, dto, user);
   }
 
   // ─── Osobní prefs sidebaru (6.7b/c) ───────────────────────────────────────

@@ -336,6 +336,16 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  // 16.1e — combat roster se změnil. Leak-safe signál účastníkům konverzace
+  // (room `chat:{channelId}`, kde sedí přes `chat:channel:join`); klient
+  // refetchne `GET .../combatants` se server-side access+visibility filtrem.
+  @OnEvent('chat.combat.updated')
+  handleCombatUpdated(payload: { channelId: string; worldId: string }): void {
+    this.server
+      .to(`chat:${payload.channelId}`)
+      .emit('chat:combat:updated', { channelId: payload.channelId });
+  }
+
   // ─── Group events ────────────────────────────────────────────────────────
 
   // W-4 — viz channel created/updated: leak-safe signál místo celého objektu.

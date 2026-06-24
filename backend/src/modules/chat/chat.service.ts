@@ -15,8 +15,18 @@ import type { IChatChannelRepository } from './interfaces/chat-channel-repositor
 import type { IChatMessageRepository } from './interfaces/chat-message-repository.interface';
 import type { IChannelReadStatusRepository } from './interfaces/channel-read-status-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import { randomUUID } from 'crypto';
 import type { ChatGroup } from './interfaces/chat-group.interface';
-import type { ChatChannel } from './interfaces/chat-channel.interface';
+import type {
+  ChatChannel,
+  ChatCombatant,
+  ChatCombatState,
+} from './interfaces/chat-channel.interface';
+import type {
+  AddCombatantDto,
+  UpdateCombatantDto,
+} from './dto/combatant-ops.dto';
+import type { CombatOpDto } from './dto/combat-op.dto';
 import type {
   ChatMessage,
   ChatFeedItem,
@@ -597,6 +607,258 @@ export class ChatService implements OnApplicationBootstrap {
       groupId: channel.groupId!,
     });
     return { message: 'Kanál smazán' };
+  }
+
+  // ─── 16.1e — combat roster konverzace ─────────────────────────────────────
+
+  /** Najde world kanál + ověří PJ/PomocnyPJ+ (mutace rosteru). Vrací kanál. */
+  private async assertChannelManager(
+    channelId: string,
+    requester: RequestUser,
+  ): Promise<ChatChannel & { worldId: string }> {
+    const channel = await this.channelRepo.findById(channelId);
+    if (!channel || channel.isDeleted)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    this.assertWorldChannel(channel);
+    if (!(await this.canManageChat(requester, channel.worldId))) {
+      throw new ForbiddenException({
+        code: 'CHAT_FORBIDDEN',
+        message: 'Nedostatečná oprávnění',
+      });
+    }
+    return channel;
+  }
+
+  /** Resolved viditelnost HP per typ (R3). Per-konverzace ?? world default (16.1e-E) ?? true. */
+  private resolveCombatConfig(channel: ChatChannel): {
+    showHpPc: boolean;
+    showHpNpc: boolean;
+    showHpBestie: boolean;
+  } {
+    const c = channel.chatCombatConfig ?? {};
+    // TODO 16.1e-E: doplnit world default mezi `c.showHp*` a `true`.
+    return {
+      showHpPc: c.showHpPc ?? true,
+      showHpNpc: c.showHpNpc ?? true,
+      showHpBestie: c.showHpBestie ?? true,
+    };
+  }
+
+  /**
+   * GET roster — server-filtrovaný dle role + R3. PJ vidí vše; hráč u typu se
+   * skrytým HP nedostane staty bestie (jen portrét/jméno/iniciativa). PC/NPC HP
+   * žije v deníku → tady jen reference; FE respektuje `config` při renderu HP.
+   */
+  async getCombatants(
+    channelId: string,
+    requester: RequestUser,
+  ): Promise<{
+    combatants: ChatCombatant[];
+    combat: ChatCombatState;
+    config: { showHpPc: boolean; showHpNpc: boolean; showHpBestie: boolean };
+  }> {
+    const channel = await this.channelRepo.findById(channelId);
+    if (!channel || channel.isDeleted)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    this.assertWorldChannel(channel);
+    if (!(await this.hasChannelAccess(channel, requester.id))) {
+      throw new ForbiddenException({
+        code: 'CHAT_FORBIDDEN',
+        message: 'Tahle konverzace ti není přístupná.',
+      });
+    }
+    const isManager = await this.canManageChat(requester, channel.worldId);
+    const config = this.resolveCombatConfig(channel);
+    const all = channel.combatants ?? [];
+    const combatants = isManager
+      ? all
+      : all.map((c) => this.stripForPlayer(c, config));
+    return {
+      combatants,
+      combat: channel.combat ?? { active: false, round: 0 },
+      config,
+    };
+  }
+
+  /** Hráčská redakce: u bestie se skrytým HP odstraní staty (info advantage PJ). */
+  private stripForPlayer(
+    c: ChatCombatant,
+    config: { showHpPc: boolean; showHpNpc: boolean; showHpBestie: boolean },
+  ): ChatCombatant {
+    if (c.kind === 'bestie' && !config.showHpBestie) {
+      return {
+        ...c,
+        systemStats: {},
+        abilities: [],
+        notes: '',
+      };
+    }
+    return c;
+  }
+
+  async addCombatant(
+    channelId: string,
+    dto: AddCombatantDto,
+    requester: RequestUser,
+  ): Promise<ChatChannel> {
+    const channel = await this.assertChannelManager(channelId, requester);
+    const base = {
+      id: randomUUID(),
+      initiative: dto.initiative ?? 0,
+      inCombat: dto.inCombat ?? true,
+      isNpc: dto.isNpc,
+      createdAt: new Date(),
+    };
+    let combatant: ChatCombatant;
+    if (dto.kind === 'character') {
+      if (!dto.characterSlug)
+        throw new BadRequestException({
+          code: 'CHAT_COMBATANT_INVALID',
+          message: 'characterSlug je povinný pro kind=character',
+        });
+      combatant = {
+        ...base,
+        kind: 'character',
+        characterSlug: dto.characterSlug,
+      };
+    } else {
+      if (!dto.bestieId || !dto.name)
+        throw new BadRequestException({
+          code: 'CHAT_COMBATANT_INVALID',
+          message: 'bestieId a name jsou povinné pro kind=bestie',
+        });
+      if (dto.systemStats && typeof dto.systemStats !== 'object')
+        throw new BadRequestException({
+          code: 'CHAT_COMBATANT_INVALID',
+          message: 'systemStats musí být objekt',
+        });
+      combatant = {
+        ...base,
+        kind: 'bestie',
+        bestieId: dto.bestieId,
+        name: dto.name,
+        imageUrl: dto.imageUrl,
+        systemStats: dto.systemStats ?? {},
+        abilities: dto.abilities ?? [],
+        notes: dto.notes ?? '',
+      };
+    }
+    const updated = await this.channelRepo.addCombatant(channelId, combatant);
+    if (!updated)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    this.emitCombatUpdated(channelId, channel.worldId);
+    return updated;
+  }
+
+  async updateCombatant(
+    channelId: string,
+    combatantId: string,
+    dto: UpdateCombatantDto,
+    requester: RequestUser,
+  ): Promise<ChatChannel> {
+    const channel = await this.assertChannelManager(channelId, requester);
+    // Whitelist patch — jen povolená pole (DTO už filtruje, ale buďme explicitní).
+    const patch: Record<string, unknown> = {};
+    for (const k of [
+      'initiative',
+      'inCombat',
+      'isNpc',
+      'name',
+      'imageUrl',
+      'systemStats',
+      'abilities',
+      'notes',
+    ] as const) {
+      if (dto[k] !== undefined) patch[k] = dto[k];
+    }
+    if (Object.keys(patch).length === 0) {
+      throw new BadRequestException({
+        code: 'CHAT_COMBATANT_EMPTY_PATCH',
+        message: 'Prázdný patch',
+      });
+    }
+    const updated = await this.channelRepo.updateCombatant(
+      channelId,
+      combatantId,
+      patch,
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    this.emitCombatUpdated(channelId, channel.worldId);
+    return updated;
+  }
+
+  async removeCombatant(
+    channelId: string,
+    combatantId: string,
+    requester: RequestUser,
+  ): Promise<ChatChannel> {
+    const channel = await this.assertChannelManager(channelId, requester);
+    const updated = await this.channelRepo.removeCombatant(
+      channelId,
+      combatantId,
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    // Pokud zmizel ten „na tahu", vyčisti pointer (FE jinak ukazuje ducha).
+    if (updated.combat?.currentCombatantId === combatantId) {
+      await this.channelRepo.setCombat(channelId, {
+        ...updated.combat,
+        currentCombatantId: undefined,
+      });
+    }
+    this.emitCombatUpdated(channelId, channel.worldId);
+    return updated;
+  }
+
+  /** Stav boje (R6): start / turn / end. FE řídí pořadí + wrap (jako mapa). */
+  async combatOp(
+    channelId: string,
+    dto: CombatOpDto,
+    requester: RequestUser,
+  ): Promise<ChatChannel> {
+    const channel = await this.assertChannelManager(channelId, requester);
+    let next: ChatCombatState;
+    if (dto.op === 'start') {
+      const first = dto.orderCombatantIds?.[0];
+      next = { active: true, round: 1, currentCombatantId: first };
+    } else if (dto.op === 'turn') {
+      next = {
+        active: true,
+        round: dto.round ?? channel.combat?.round ?? 1,
+        currentCombatantId: dto.combatantId,
+      };
+    } else {
+      next = { active: false, round: 0, currentCombatantId: undefined };
+    }
+    const updated = await this.channelRepo.setCombat(channelId, next);
+    if (!updated)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    this.emitCombatUpdated(channelId, channel.worldId);
+    return updated;
+  }
+
+  /** Leak-safe WS signál účastníkům konverzace → refetch rosteru s access checkem. */
+  private emitCombatUpdated(channelId: string, worldId: string): void {
+    this.eventEmitter.emit('chat.combat.updated', { channelId, worldId });
   }
 
   /**

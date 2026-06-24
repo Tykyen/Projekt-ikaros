@@ -3,7 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { ChatChannelSchemaClass } from '../schemas/chat-channel.schema';
-import type { ChatChannel } from '../interfaces/chat-channel.interface';
+import type {
+  ChatChannel,
+  ChatCombatant,
+  ChatCombatState,
+  ChatCombatConfig,
+} from '../interfaces/chat-channel.interface';
 import type { IChatChannelRepository } from '../interfaces/chat-channel-repository.interface';
 import type { WorldRole } from '../../worlds/interfaces/world-membership.interface';
 
@@ -74,6 +79,88 @@ export class MongoChatChannelRepository
       .exec();
   }
 
+  // ─── 16.1e — atomické operace nad combat rosterem ───────────────────────
+  // Per-instance `$push`/`$set arrayFilters`/`$pull`, NE full-array replace
+  // (race-safe při paralelní editaci HP — viz spec 4.2 / D-040 vzor mapy).
+
+  async addCombatant(
+    channelId: string,
+    combatant: ChatCombatant,
+  ): Promise<ChatChannel | null> {
+    if (!this.isId(channelId)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(
+        channelId,
+        { $push: { combatants: combatant } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  async updateCombatant(
+    channelId: string,
+    combatantId: string,
+    patch: Record<string, unknown>,
+  ): Promise<ChatChannel | null> {
+    if (!this.isId(channelId)) return null;
+    // `combatants.$[c].<key>` per klíč → nepřepíše paralelní změnu jiné položky.
+    const set: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(patch)) {
+      set[`combatants.$[c].${k}`] = v;
+    }
+    const doc = await this.model
+      .findByIdAndUpdate(
+        channelId,
+        { $set: set },
+        { new: true, arrayFilters: [{ 'c.id': combatantId }] },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  async removeCombatant(
+    channelId: string,
+    combatantId: string,
+  ): Promise<ChatChannel | null> {
+    if (!this.isId(channelId)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(
+        channelId,
+        { $pull: { combatants: { id: combatantId } } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  async setCombat(
+    channelId: string,
+    combat: ChatCombatState,
+  ): Promise<ChatChannel | null> {
+    if (!this.isId(channelId)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(channelId, { $set: { combat } }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  private isId(id: string): boolean {
+    return /^[0-9a-fA-F]{24}$/.test(id);
+  }
+
   /** Krok 6.5b — bulk update `order` přes jednu `bulkWrite`. */
   async bulkUpdateOrders(
     items: { id: string; order: number }[],
@@ -106,6 +193,15 @@ export class MongoChatChannelRepository
       type: (doc.type as string) ?? 'all',
       imageUrl: doc.imageUrl as string | undefined,
       linkedMemberUserId: doc.linkedMemberUserId as string | undefined,
+      // 16.1e — bez whitelistu by GET zahodil roster (field-drift past D-066).
+      combatants: (doc.combatants as ChatCombatant[] | undefined) ?? [],
+      combat:
+        (doc.combat as ChatCombatState | undefined) &&
+        Object.keys(doc.combat as object).length > 0
+          ? (doc.combat as ChatCombatState)
+          : { active: false, round: 0 },
+      chatCombatConfig:
+        (doc.chatCombatConfig as ChatCombatConfig | undefined) ?? {},
       createdAt: doc.createdAt as Date,
     };
   }

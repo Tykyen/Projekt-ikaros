@@ -1,4 +1,8 @@
-import type { ChatChannel } from './chat-channel.interface';
+import type {
+  ChatChannel,
+  ChatCombatant,
+  ChatCombatState,
+} from './chat-channel.interface';
 
 export interface IChatChannelRepository {
   findById(id: string): Promise<ChatChannel | null>;
@@ -14,4 +18,22 @@ export interface IChatChannelRepository {
   restoreByWorldId(worldId: string): Promise<void>;
   /** Krok 6.5b — bulk update pořadí konverzací (jedna `bulkWrite`). */
   bulkUpdateOrders(items: { id: string; order: number }[]): Promise<void>;
+  // 16.1e — atomické operace nad combat rosterem (race-safe per-instance).
+  addCombatant(
+    channelId: string,
+    combatant: ChatCombatant,
+  ): Promise<ChatChannel | null>;
+  updateCombatant(
+    channelId: string,
+    combatantId: string,
+    patch: Record<string, unknown>,
+  ): Promise<ChatChannel | null>;
+  removeCombatant(
+    channelId: string,
+    combatantId: string,
+  ): Promise<ChatChannel | null>;
+  setCombat(
+    channelId: string,
+    combat: ChatCombatState,
+  ): Promise<ChatChannel | null>;
 }

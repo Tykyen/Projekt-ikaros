@@ -72,6 +72,10 @@ describe('GlobalChatService', () => {
       softDeleteByWorldId: jest.fn(),
       restoreByWorldId: jest.fn(),
       bulkUpdateOrders: jest.fn(),
+      addCombatant: jest.fn(),
+      updateCombatant: jest.fn(),
+      removeCombatant: jest.fn(),
+      setCombat: jest.fn(),
     };
 
     messageRepo = {

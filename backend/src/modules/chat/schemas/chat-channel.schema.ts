@@ -26,6 +26,23 @@ export class ChatChannelSchemaClass {
    * Idempotence auto-zakládání hledá konverzaci podle tohoto pole v kanálu „Postavy".
    */
   @Prop({ type: String }) linkedMemberUserId?: string;
+  /**
+   * 16.1e — combat roster konverzace. Raw `[Object]` (per-system `systemStats`
+   * + discriminated union character|bestie); tvar validuje DTO/service, ne
+   * Mongoose subschema (parita s mapovými tokeny). Atomická editace přes
+   * `$push`/`$set arrayFilters`/`$pull` v repository.
+   */
+  @Prop({ type: [Object], default: [] }) combatants: unknown[];
+  /** 16.1e — stav boje (R6): { active, round, currentCombatantId }. */
+  @Prop({ type: Object, default: { active: false, round: 0 } }) combat: Record<
+    string,
+    unknown
+  >;
+  /** 16.1e — per-konverzace viditelnost HP hráčům (R3). */
+  @Prop({ type: Object, default: {} }) chatCombatConfig: Record<
+    string,
+    unknown
+  >;
 }
 
 export const ChatChannelSchema = SchemaFactory.createForClass(

@@ -111,6 +111,10 @@ describe('ChatService', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -1894,6 +1898,10 @@ describe('sendMessage — new fields', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2159,6 +2167,10 @@ describe('toggleReaction', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2322,6 +2334,10 @@ describe('sendMessage — character mentions', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const savedMessages: Array<Record<string, unknown>> = [];
   const mockMessageRepo = {
@@ -2534,6 +2550,10 @@ describe('sendMessage — attachments', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2670,6 +2690,10 @@ describe('findChannelForUpload', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2812,6 +2836,10 @@ describe('getMessages — whisper filtering', () => {
     softDeleteByWorldId: jest.fn(),
     restoreByWorldId: jest.fn(),
     bulkUpdateOrders: jest.fn(),
+    addCombatant: jest.fn(),
+    updateCombatant: jest.fn(),
+    removeCombatant: jest.fn(),
+    setCombat: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
