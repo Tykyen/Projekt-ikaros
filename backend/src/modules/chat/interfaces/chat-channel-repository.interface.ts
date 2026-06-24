@@ -2,6 +2,7 @@ import type {
   ChatChannel,
   ChatCombatant,
   ChatCombatState,
+  ChatCombatConfig,
 } from './chat-channel.interface';
 
 export interface IChatChannelRepository {
@@ -35,5 +36,9 @@ export interface IChatChannelRepository {
   setCombat(
     channelId: string,
     combat: ChatCombatState,
+  ): Promise<ChatChannel | null>;
+  setCombatConfig(
+    channelId: string,
+    config: ChatCombatConfig,
   ): Promise<ChatChannel | null>;
 }

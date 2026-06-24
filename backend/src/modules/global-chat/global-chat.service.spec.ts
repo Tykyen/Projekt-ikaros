@@ -76,6 +76,7 @@ describe('GlobalChatService', () => {
       updateCombatant: jest.fn(),
       removeCombatant: jest.fn(),
       setCombat: jest.fn(),
+      setCombatConfig: jest.fn(),
     };
 
     messageRepo = {

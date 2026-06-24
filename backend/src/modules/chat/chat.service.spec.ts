@@ -115,6 +115,7 @@ describe('ChatService', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -1902,6 +1903,7 @@ describe('sendMessage — new fields', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2171,6 +2173,7 @@ describe('toggleReaction', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2338,6 +2341,7 @@ describe('sendMessage — character mentions', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const savedMessages: Array<Record<string, unknown>> = [];
   const mockMessageRepo = {
@@ -2554,6 +2558,7 @@ describe('sendMessage — attachments', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2694,6 +2699,7 @@ describe('findChannelForUpload', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),
@@ -2840,6 +2846,7 @@ describe('getMessages — whisper filtering', () => {
     updateCombatant: jest.fn(),
     removeCombatant: jest.fn(),
     setCombat: jest.fn(),
+    setCombatConfig: jest.fn(),
   };
   const mockMessageRepo = {
     findById: jest.fn(),

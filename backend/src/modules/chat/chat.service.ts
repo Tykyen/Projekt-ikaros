@@ -633,17 +633,25 @@ export class ChatService implements OnApplicationBootstrap {
   }
 
   /** Resolved viditelnost HP per typ (R3). Per-konverzace ?? world default (16.1e-E) ?? true. */
-  private resolveCombatConfig(channel: ChatChannel): {
+  private resolveCombatConfig(
+    channel: ChatChannel,
+    worldDefaults?: {
+      showHpPc?: boolean;
+      showHpNpc?: boolean;
+      showHpBestie?: boolean;
+    } | null,
+  ): {
     showHpPc: boolean;
     showHpNpc: boolean;
     showHpBestie: boolean;
   } {
+    // Per-konverzace override ?? world default (16.1e-E) ?? true.
     const c = channel.chatCombatConfig ?? {};
-    // TODO 16.1e-E: doplnit world default mezi `c.showHp*` a `true`.
+    const d = worldDefaults ?? {};
     return {
-      showHpPc: c.showHpPc ?? true,
-      showHpNpc: c.showHpNpc ?? true,
-      showHpBestie: c.showHpBestie ?? true,
+      showHpPc: c.showHpPc ?? d.showHpPc ?? true,
+      showHpNpc: c.showHpNpc ?? d.showHpNpc ?? true,
+      showHpBestie: c.showHpBestie ?? d.showHpBestie ?? true,
     };
   }
 
@@ -674,7 +682,11 @@ export class ChatService implements OnApplicationBootstrap {
       });
     }
     const isManager = await this.canManageChat(requester, channel.worldId);
-    const config = this.resolveCombatConfig(channel);
+    const settings = await this.worldsService.getSettings(channel.worldId);
+    const config = this.resolveCombatConfig(
+      channel,
+      settings?.chatCombatDefaults,
+    );
     const all = channel.combatants ?? [];
     const combatants = isManager
       ? all
@@ -847,6 +859,23 @@ export class ChatService implements OnApplicationBootstrap {
       next = { active: false, round: 0, currentCombatantId: undefined };
     }
     const updated = await this.channelRepo.setCombat(channelId, next);
+    if (!updated)
+      throw new NotFoundException({
+        code: 'CHAT_CHANNEL_NOT_FOUND',
+        message: 'Kanál nenalezen',
+      });
+    this.emitCombatUpdated(channelId, channel.worldId);
+    return updated;
+  }
+
+  /** Per-konverzace viditelnost HP per typ (R3 override; PJ+). */
+  async setCombatConfig(
+    channelId: string,
+    config: { showHpPc?: boolean; showHpNpc?: boolean; showHpBestie?: boolean },
+    requester: RequestUser,
+  ): Promise<ChatChannel> {
+    const channel = await this.assertChannelManager(channelId, requester);
+    const updated = await this.channelRepo.setCombatConfig(channelId, config);
     if (!updated)
       throw new NotFoundException({
         code: 'CHAT_CHANNEL_NOT_FOUND',

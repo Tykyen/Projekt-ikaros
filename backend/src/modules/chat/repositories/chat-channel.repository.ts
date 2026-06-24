@@ -157,6 +157,24 @@ export class MongoChatChannelRepository
       : null;
   }
 
+  async setCombatConfig(
+    channelId: string,
+    config: ChatCombatConfig,
+  ): Promise<ChatChannel | null> {
+    if (!this.isId(channelId)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(
+        channelId,
+        { $set: { chatCombatConfig: config } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   private isId(id: string): boolean {
     return /^[0-9a-fA-F]{24}$/.test(id);
   }

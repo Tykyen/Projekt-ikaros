@@ -95,6 +95,17 @@ export interface MapDefaults {
   allowPlayerDrawing?: boolean;
 }
 
+/**
+ * 16.1e — výchozí viditelnost HP v combat rosteru CHATU (per typ). Samostatné
+ * od `MapDefaults` (chat ≠ mapa). Per-konverzace `ChatChannel.chatCombatConfig`
+ * to může přebít; chybí-li obojí → `true` (viditelné).
+ */
+export interface ChatCombatDefaults {
+  showHpPc?: boolean;
+  showHpNpc?: boolean;
+  showHpBestie?: boolean;
+}
+
 export interface WorldSettings {
   id: string;
   worldId: string;
@@ -123,6 +134,8 @@ export interface WorldSettings {
   pjChatPersona?: PjChatPersona | null;
   /** 15.4 (E) — výchozí nastavení map (seed nové scény). `null` = nenastaveno. */
   mapDefaults?: MapDefaults | null;
+  /** 16.1e — výchozí viditelnost HP v combat rosteru chatu. `null` = nenastaveno (→ true). */
+  chatCombatDefaults?: ChatCombatDefaults | null;
   /**
    * 9.4 dluh #1 — in-game date pro advance-day mechanism.
    * `null` = nezahájen herní čas (advance-day se inicializuje z `new Date()`).

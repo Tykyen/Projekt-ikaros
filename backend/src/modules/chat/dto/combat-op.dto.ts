@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -21,4 +22,11 @@ export class CombatOpDto {
   orderCombatantIds?: string[];
   @IsOptional() @IsString() combatantId?: string;
   @IsOptional() @IsNumber() @Min(1) round?: number;
+}
+
+/** 16.1e — per-konverzace viditelnost HP hráčům per typ (R3 override). */
+export class CombatConfigDto {
+  @IsOptional() @IsBoolean() showHpPc?: boolean;
+  @IsOptional() @IsBoolean() showHpNpc?: boolean;
+  @IsOptional() @IsBoolean() showHpBestie?: boolean;
 }

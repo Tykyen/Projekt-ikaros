@@ -185,4 +185,10 @@ export class UpdateWorldSettingsDto {
   @ValidateIf((_o, v) => v !== null)
   @IsObject()
   mapDefaults?: Record<string, unknown> | null;
+
+  // 16.1e — výchozí viditelnost HP v combat rosteru chatu (volný objekt). `null` = reset.
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsObject()
+  chatCombatDefaults?: Record<string, unknown> | null;
 }

@@ -72,6 +72,9 @@ export class WorldSettingsSchemaClass {
   // 15.4 (E) — výchozí nastavení map světa (seed nové scény). `null` = nenastaveno.
   @Prop({ type: Object, default: null, _id: false, required: false })
   mapDefaults?: Record<string, unknown> | null;
+  // 16.1e — výchozí viditelnost HP v combat rosteru chatu. `null` = nenastaveno.
+  @Prop({ type: Object, default: null, _id: false, required: false })
+  chatCombatDefaults?: Record<string, unknown> | null;
   @Prop({ default: Date.now }) updatedAt: Date;
 }
 

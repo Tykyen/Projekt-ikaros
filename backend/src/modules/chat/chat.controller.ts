@@ -39,7 +39,7 @@ import { UpdateMessageDto } from './dto/update-message.dto';
 import { UpdateAppearanceDto } from './dto/update-appearance.dto';
 import { UpdateChatPrefsDto } from './dto/update-chat-prefs.dto';
 import { AddCombatantDto, UpdateCombatantDto } from './dto/combatant-ops.dto';
-import { CombatOpDto } from './dto/combat-op.dto';
+import { CombatOpDto, CombatConfigDto } from './dto/combat-op.dto';
 import { UploadService } from '../upload/upload.service';
 
 /** Max velikost přílohy chatu — 10 MB (sjednoceno s globálním chatem). */
@@ -244,6 +244,18 @@ export class ChatController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.chatService.combatOp(channelId, dto, user);
+  }
+
+  @Patch('channels/:channelId/combat-config')
+  @ApiOperation({ summary: '16.1e — viditelnost HP hráčům per typ (R3, PJ+)' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  setCombatConfig(
+    @Param('channelId') channelId: string,
+    @Body() dto: CombatConfigDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.chatService.setCombatConfig(channelId, dto, user);
   }
 
   // ─── Osobní prefs sidebaru (6.7b/c) ───────────────────────────────────────

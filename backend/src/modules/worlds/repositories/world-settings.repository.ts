@@ -79,6 +79,9 @@ export class MongoWorldSettingsRepository implements IWorldSettingsRepository {
       currentInGameDate: (doc.currentInGameDate as Date | null) ?? null,
       // 15.4 (E) — výchozí nastavení map (volný objekt, passthrough).
       mapDefaults: (doc.mapDefaults as WorldSettings['mapDefaults']) ?? null,
+      // 16.1e — výchozí viditelnost HP v combat rosteru chatu (passthrough).
+      chatCombatDefaults:
+        (doc.chatCombatDefaults as WorldSettings['chatCombatDefaults']) ?? null,
       updatedAt: doc.updatedAt as Date,
     };
   }
