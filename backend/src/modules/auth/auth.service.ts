@@ -690,7 +690,9 @@ export class AuthService {
     const jti = uuid();
     const family = familyId ?? uuid();
     const ttlDays = Number(
-      this.config.get<string>('JWT_REFRESH_TTL_DAYS') ?? '3',
+      // Fallback 60 (ne 3): bez env proměnné NESMÍ tiše degradovat na krátké okno
+      // odhlašující řídce používaná zařízení. Musí sedět s auth-cookie.ts ttlMs.
+      this.config.get<string>('JWT_REFRESH_TTL_DAYS') ?? '60',
     );
     const expiresAt = new Date(Date.now() + ttlDays * DAY_MS);
 

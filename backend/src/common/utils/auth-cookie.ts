@@ -19,9 +19,11 @@ function isProd(): boolean {
 
 function ttlMs(): number {
   // Sliding session: refresh token se při každém /auth/refresh razí znovu s touto
-  // expirací od TEĎ → aktivní uživatel se neodhlásí; 3 dny nečinnosti = logout.
-  const days = Number(process.env.JWT_REFRESH_TTL_DAYS ?? 3);
-  const safe = Number.isFinite(days) && days >= 1 ? days : 3;
+  // expirací od TEĎ → aktivní uživatel se neodhlásí; 60 dní nečinnosti = logout.
+  // Fallback 60 (ne 3): bez env proměnné NESMÍ tiše degradovat na krátké okno,
+  // které odhlašuje řídce používaná zařízení (mobil).
+  const days = Number(process.env.JWT_REFRESH_TTL_DAYS ?? 60);
+  const safe = Number.isFinite(days) && days >= 1 ? days : 60;
   return safe * 24 * 60 * 60 * 1000;
 }
 
