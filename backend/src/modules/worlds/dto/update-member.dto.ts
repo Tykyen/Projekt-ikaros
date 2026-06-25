@@ -61,7 +61,7 @@ export class UpdateMemberThemeDto {
   themeBackgroundUrl?: string | null;
   /**
    * 16.2c — vlastní skin deníku (per uživatel×svět). `null`/`''` = dědí default
-   * dle systému světa. Whitelist 7 stylů (fixní sada z FE registru skinů).
+   * dle systému světa. Whitelist 8 stylů (fixní sada z FE registru skinů).
    */
   @IsOptional()
   @ValidateIf((_, v) => v !== null && v !== '')
@@ -73,6 +73,7 @@ export class UpdateMemberThemeDto {
     'nature',
     'minimal',
     'retro',
+    'anime',
   ])
   diarySkin?: string | null;
 }
