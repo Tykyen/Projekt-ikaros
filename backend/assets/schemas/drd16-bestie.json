@@ -1,0 +1,155 @@
+{
+  "systemId": "drd16",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "hp",
+          "label": "Životy",
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Životy bestie (DrD 1.6). Na taktické mapě slouží jako HP."
+        },
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bestie — název + číslo (ÚČ). Lze přidat víc útoků.",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Číslo (ÚČ)", "type": "number", "default": 0 }
+          ]
+        },
+        {
+          "key": "defense",
+          "label": "Obranné číslo",
+          "type": "number",
+          "default": 0,
+          "description": "Obranné číslo (OČ)."
+        },
+        {
+          "key": "resilience",
+          "label": "Odolnost",
+          "type": "number",
+          "default": 0
+        }
+      ]
+    },
+    {
+      "key": "body",
+      "label": "Tělo a pohyb",
+      "fields": [
+        {
+          "key": "size",
+          "label": "Velikost",
+          "type": "string",
+          "description": "Velikostní kategorie (písmeno A/B/C…)."
+        },
+        {
+          "key": "combativeness",
+          "label": "Bojovnost",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "vulnerability",
+          "label": "Zranitelnost",
+          "type": "string",
+          "description": "Kategorie zranitelnosti (např. zvíře)."
+        },
+        {
+          "key": "movement",
+          "label": "Pohyblivost",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Pohyblivost — dosah pohybu na mapě."
+        },
+        {
+          "key": "movementMode",
+          "label": "Způsob pohybu",
+          "type": "string",
+          "description": "Způsob pohybu (hmyz, plaz…)."
+        },
+        {
+          "key": "endurance",
+          "label": "Vytrvalost",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "maneuver",
+          "label": "Manévrovatelnost",
+          "type": "number",
+          "default": 0
+        }
+      ]
+    },
+    {
+      "key": "mind",
+      "label": "Mysl",
+      "fields": [
+        {
+          "key": "intelligence",
+          "label": "Inteligence",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "charisma",
+          "label": "Charisma",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "mindForce",
+          "label": "ZSM (Zákl. síla mysli)",
+          "type": "number",
+          "default": 0
+        },
+        {
+          "key": "alignment",
+          "label": "Přesvědčení",
+          "type": "enum",
+          "default": "N",
+          "enumValues": ["ZkD", "ZmD", "N", "ZmZ", "ZkZ"],
+          "description": "Přesvědčení DrD: ZkD / ZmD / N / ZmZ / ZkZ."
+        }
+      ]
+    },
+    {
+      "key": "reward",
+      "label": "Odměna",
+      "fields": [
+        {
+          "key": "treasure",
+          "label": "Poklady",
+          "type": "string",
+          "description": "Poklady (např. nic)."
+        },
+        {
+          "key": "experience",
+          "label": "Zkušenost",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Zkušenost (XP) za poražení."
+        },
+        {
+          "key": "taming",
+          "label": "Ochočení",
+          "type": "number",
+          "default": 0
+        }
+      ]
+    }
+  ]
+}
