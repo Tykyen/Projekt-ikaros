@@ -45,7 +45,9 @@ export class WorldMapsService {
       requester.id,
       worldId,
     );
-    return !!membership && membership.role >= WorldRole.PJ;
+    // D-NEW-INV-MAPS — atlas „Mapy" sjednocen na PomocnyPJ+ (jako taktická mapa /
+    // zvuky / deník PJ); dřív byl práh jen PJ (nejednotnost role-prahů).
+    return !!membership && membership.role >= WorldRole.PomocnyPJ;
   }
 
   async assertCanManage(

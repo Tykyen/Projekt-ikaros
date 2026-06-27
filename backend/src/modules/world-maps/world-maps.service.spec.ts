@@ -97,6 +97,15 @@ describe('WorldMapsService', () => {
       ).toBe(false);
     });
 
+    it('PomocnyPJ smí (D-NEW-INV-MAPS — sjednoceno na PomocnyPJ+)', async () => {
+      membershipRepo.findByUserAndWorld.mockResolvedValueOnce({
+        role: WorldRole.PomocnyPJ,
+      });
+      expect(
+        await service.canManage({ id: 'u', role: UserRole.Hrac }, 'w'),
+      ).toBe(true);
+    });
+
     it('assertCanManage hodí 403 bez oprávnění', async () => {
       membershipRepo.findByUserAndWorld.mockResolvedValueOnce({
         role: WorldRole.Hrac,
