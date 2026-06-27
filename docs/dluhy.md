@@ -8,7 +8,12 @@
 
 ## Otevřené
 
-_(žádné — account-cleanup cron vyřešen 2026-06-03, viz Vyřešené níže)_
+### D-029 — Drd16 bestie panel (mapa+chat) ignoruje skin deníku (hardcoded barvy)
+**Soubor:** `src/features/world/tactical-map/components/token-panel/system-panels/Drd16BestiePanel.module.css` + `chat/.../Drd16ChatBestiePanel.module.css` — bestie panel na taktické mapě a v chatu (DrD 1.6).
+**Problém:** Oba moduly mají barvy/fonty natvrdo (žádné `--dd-*` tokeny). Skiny deníku drd16 (16.2c: horror, steampunk, scifi a další) reskinují přes override `--dd-*` na wrapperu `[data-diary-system='drd16'][data-diary-skin='X']`; hashované modulové třídy nelze cílit globálně, takže bestie panel zůstane VŽDY fantasy pergamen bez ohledu na zvolený skin. `Drd16CombatPanel.module.css` je naproti tomu tokenizovaný a reskinuje se správně → vizuální nekonzistence (bojový panel postavy nese skin, bestie panel ne). CONTRACT.md (`c:/tmp/drd16-skins/CONTRACT.md`) oba soubory explicitně označuje „TOKENIZOVAT z hardcoded".
+**Dopad:** Střední — kosmetická nekonzistence, panel funguje; čím víc skinů přibude, tím viditelnější.
+**Řešení:** Tokenizovat oba moduly na `var(--dd-*, <fallback>)` podle vzoru `Drd16CombatPanel.module.css` (~30 hardcoded barev, jeden zátah). Společný dluh pro všechny drd16 skiny.
+**Kdy:** Při dokončování sady drd16 skinů (16.2c-drd16), nejpozději než se přidá další drd16 skin.
 
 ---
 
