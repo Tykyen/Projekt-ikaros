@@ -1,0 +1,93 @@
+{
+  "systemId": "drdplus",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "mez_zraneni",
+          "label": "Mez zranění",
+          "type": "number",
+          "default": 1,
+          "min": 1,
+          "combatBehavior": "damageable",
+          "description": "Mez zranění (kapacita jednoho pásma). Odvozuje HP tokenu."
+        },
+        {
+          "key": "postih",
+          "label": "Postih za zranění",
+          "type": "number",
+          "default": 0,
+          "description": "Aktuální postih (přičítá se k hodům; obvykle záporný)."
+        },
+        {
+          "key": "ochrana",
+          "label": "Ochrana",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer"
+        },
+        {
+          "key": "nezranitelnost",
+          "label": "Nezranitelnost",
+          "type": "string"
+        },
+        {
+          "key": "utoky",
+          "label": "Útoky",
+          "type": "list",
+          "listItemFields": [
+            { "key": "name", "label": "Název útoku", "type": "string", "required": true },
+            { "key": "bc", "label": "BČ", "type": "number", "default": 0 },
+            { "key": "uc", "label": "ÚČ", "type": "number", "default": 0 },
+            { "key": "oc", "label": "OČ", "type": "number", "default": 0 },
+            { "key": "zz", "label": "ZZ", "type": "number", "default": 0 },
+            { "key": "type", "label": "Typ", "type": "enum", "default": "B", "enumValues": ["B", "S", "D"] }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stats",
+      "label": "Vlastnosti",
+      "fields": [
+        { "key": "sil", "label": "Síla", "type": "number", "default": 0 },
+        { "key": "obr", "label": "Obratnost", "type": "number", "default": 0 },
+        { "key": "zrc", "label": "Zručnost", "type": "number", "default": 0 },
+        { "key": "vol", "label": "Vůle", "type": "number", "default": 0 },
+        { "key": "int", "label": "Inteligence", "type": "number", "default": 0 },
+        { "key": "chr", "label": "Charisma", "type": "number", "default": 0 }
+      ]
+    },
+    {
+      "key": "body",
+      "label": "Tělo a pohyb",
+      "fields": [
+        { "key": "odolnost", "label": "Odolnost", "type": "number", "default": 0 },
+        { "key": "vydrz", "label": "Výdrž", "type": "string" },
+        {
+          "key": "rychlost",
+          "label": "Rychlost",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "movement"
+        }
+      ]
+    },
+    {
+      "key": "senses",
+      "label": "Smysly",
+      "fields": [
+        { "key": "hmat", "label": "Hmat", "type": "number", "default": 0 },
+        { "key": "chut", "label": "Chuť", "type": "number", "default": 0 },
+        { "key": "cich", "label": "Čich", "type": "number", "default": 0 },
+        { "key": "sluch", "label": "Sluch", "type": "number", "default": 0 },
+        { "key": "zrak", "label": "Zrak", "type": "number", "default": 0 }
+      ]
+    }
+  ]
+}
