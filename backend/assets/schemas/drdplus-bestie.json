@@ -1,0 +1,154 @@
+{
+  "systemId": "drdplus",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "mez_zraneni",
+          "label": "Mez zranění",
+          "type": "number",
+          "default": 1,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Mez zranění = HP na taktické mapě. (Plný DrD+ 3řádkový pás zranění přijde později.)"
+        },
+        {
+          "key": "ochrana",
+          "label": "Ochrana",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer",
+          "description": "Tlumení každého zásahu (povrch těla / zbroj)."
+        },
+        {
+          "key": "nezranitelnost",
+          "label": "Nezranitelnost",
+          "type": "string",
+          "description": "Proti čemu je bytost odolná: B, S, D, Ψ, +O, −Vo, +Vz…"
+        },
+        {
+          "key": "utoky",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bytosti (kombinace). Lze přidat víc útoků.",
+          "listItemFields": [
+            { "key": "name", "label": "Název útoku", "type": "string", "required": true },
+            { "key": "bc", "label": "BČ", "type": "number", "default": 0 },
+            { "key": "uc", "label": "ÚČ", "type": "number", "default": 0 },
+            { "key": "oc", "label": "OČ", "type": "number", "default": 0 },
+            { "key": "zz", "label": "ZZ", "type": "number", "default": 0 },
+            {
+              "key": "type",
+              "label": "Typ",
+              "type": "enum",
+              "default": "B",
+              "enumValues": ["B", "S", "D"],
+              "description": "Typ zranění: B bodné / S sečné / D drtivé."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stats",
+      "label": "Vlastnosti",
+      "fields": [
+        { "key": "sil", "label": "Síla", "type": "number", "default": 0 },
+        { "key": "obr", "label": "Obratnost", "type": "number", "default": 0 },
+        { "key": "zrc", "label": "Zručnost", "type": "number", "default": 0 },
+        { "key": "vol", "label": "Vůle", "type": "number", "default": 0 },
+        { "key": "int", "label": "Inteligence", "type": "number", "default": 0 },
+        { "key": "chr", "label": "Charisma", "type": "number", "default": 0 }
+      ]
+    },
+    {
+      "key": "body",
+      "label": "Tělo a pohyb",
+      "fields": [
+        { "key": "odolnost", "label": "Odolnost", "type": "number", "default": 0 },
+        {
+          "key": "vydrz",
+          "label": "Výdrž",
+          "type": "string",
+          "description": "Výdrž; u magických bytostí „—“."
+        },
+        {
+          "key": "rychlost",
+          "label": "Rychlost",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "movement",
+          "description": "Rychlost pohybu — dosah na mapě."
+        },
+        {
+          "key": "velikost",
+          "label": "Velikost",
+          "type": "number",
+          "default": 0,
+          "description": "Velikostní třída (i záporná: −1, +5…)."
+        },
+        {
+          "key": "rozmery",
+          "label": "Rozměry",
+          "type": "string",
+          "description": "Výška / délka, např. „1,7 m / —“."
+        }
+      ]
+    },
+    {
+      "key": "senses",
+      "label": "Smysly",
+      "fields": [
+        { "key": "hmat", "label": "Hmat", "type": "number", "default": 0 },
+        { "key": "chut", "label": "Chuť", "type": "number", "default": 0 },
+        { "key": "cich", "label": "Čich", "type": "number", "default": 0 },
+        { "key": "sluch", "label": "Sluch", "type": "number", "default": 0 },
+        { "key": "zrak", "label": "Zrak", "type": "number", "default": 0 }
+      ]
+    },
+    {
+      "key": "ecology",
+      "label": "Výskyt a ekologie",
+      "fields": [
+        {
+          "key": "cetnost",
+          "label": "Četnost výskytu",
+          "type": "enum",
+          "default": "neobvyklý",
+          "enumValues": ["hojný", "běžný", "neobvyklý", "vzácný", "velmi vzácný"]
+        },
+        {
+          "key": "aktivita",
+          "label": "Aktivita",
+          "type": "enum",
+          "default": "den",
+          "enumValues": ["den", "noc", "šero", "stále"]
+        },
+        { "key": "misto_vyskytu", "label": "Místo výskytu", "type": "string" },
+        { "key": "organizace", "label": "Organizace", "type": "string" }
+      ]
+    },
+    {
+      "key": "abilities",
+      "label": "Schopnosti",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Schopnosti",
+          "type": "list",
+          "description": "Zvláštní schopnosti (název + hodnota / popis).",
+          "listItemFields": [
+            { "key": "label", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Hodnota", "type": "string" }
+          ]
+        }
+      ]
+    }
+  ]
+}
