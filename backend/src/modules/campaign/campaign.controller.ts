@@ -404,6 +404,14 @@ export class CampaignController {
     @Body() dto: CreateCampaignScenarioDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // D-NEW-INV-SEC: scénáře = PJ storyboard nástroj (ne hráčský) → role-floor
+    // na úrovni controlleru (HTTP vstup; service metody se volají i interně,
+    // gate v service by mohl způsobit regresi jako CH-011). Mirror createShopGroup.
+    if (worldRole < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
     return this.service.createScenario(
       user.id,
       user.username,

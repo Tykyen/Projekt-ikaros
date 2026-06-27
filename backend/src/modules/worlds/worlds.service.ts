@@ -1589,7 +1589,14 @@ export class WorldsService implements OnApplicationBootstrap {
 
     const patch: Partial<WorldMembership> = {
       themeAdjust: dto.themeAdjust,
-      themeUserOverrides: dto.themeUserOverrides,
+      // D-NEW-INV-SEC — self-scoped override teď projde STEJNÝM sanitizérem jako
+      // world-level theme (`--theme-*` prefix, max 200 zn., max 60 položek) →
+      // konzistentní, žádné cizí custom properties / CSS injection z přímého API.
+      // `undefined` zůstává `undefined` (Mongoose stripne → backward-compat).
+      themeUserOverrides:
+        dto.themeUserOverrides === undefined
+          ? undefined
+          : sanitizeThemeOverrides(dto.themeUserOverrides),
     };
     // 5.9b — motiv/pozadí: '' z FE normalizuj na null (= clear → zpět na vzhled
     // PJ). `$set: null` uloží clear; `undefined` Mongoose stripne (pole beze

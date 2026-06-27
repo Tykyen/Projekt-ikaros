@@ -17,7 +17,10 @@ export class RegisterDto {
   @Matches(/^[^@]+$/, { message: 'Přezdívka nesmí obsahovat @' })
   username: string;
 
-  @IsString() @MinLength(6) @MaxLength(128) password: string;
+  // D-NEW-INV-SEC: sjednoceno na 8 (reset/změna hesla už 8) — registrace nesmí
+  // povolit slabší heslo než reset. Existující účty neovlivněno (validuje jen
+  // NOVÉ heslo; re-auth `PasswordConfirmDto` zůstává 6 kvůli legacy heslům).
+  @IsString() @MinLength(8) @MaxLength(128) password: string;
 
   /**
    * F-03 (D-010 GDPR) — souhlas s podmínkami. FE ho vynucuje `refine(===true)`,

@@ -51,6 +51,15 @@ describe('UpdateUserDto — F-24 (displayName @MaxLength 32)', () => {
       'displayName',
     );
   });
+
+  it('D-NEW-INV-PROFILE — displayName se ořízne (whitespace-only → prázdné)', () => {
+    expect(
+      plainToInstance(UpdateUserDto, { displayName: '  John  ' }).displayName,
+    ).toBe('John');
+    expect(
+      plainToInstance(UpdateUserDto, { displayName: '   ' }).displayName,
+    ).toBe('');
+  });
 });
 
 describe('UpdateUserDto — F-28 (chatColor strict 6-hex)', () => {

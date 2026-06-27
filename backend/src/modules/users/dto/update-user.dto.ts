@@ -9,10 +9,19 @@ import {
   IsIn,
   IsBoolean,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { THEME_IDS } from '../constants/theme-ids';
 
 export class UpdateUserDto {
-  @IsOptional() @IsString() @MaxLength(32) displayName?: string;
+  // D-NEW-INV-PROFILE — trim na BE (transform:true): „jen mezery" → prázdné,
+  // ať přes přímý PATCH neprojde vizuálně prázdné, ale neprázdné jméno.
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @MaxLength(32)
+  displayName?: string;
   @IsOptional() @IsUrl() avatarUrl?: string;
   @IsOptional() @Matches(/^[a-z0-9-]+\/[a-z0-9-]+$/) characterPath?: string;
   // F-23 — sjednoceno s RegisterDto + RequestUsernameChangeDto
