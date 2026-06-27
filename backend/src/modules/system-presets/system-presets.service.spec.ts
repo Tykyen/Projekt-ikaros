@@ -83,4 +83,25 @@ describe('SystemPresetsService', () => {
       }
     });
   });
+
+  // D-NEW-SYS-PRESET-SEED-DRIFT — `world.system` (FE canonical) → BE preset id.
+  describe('findOne — alias normalizace world.system → preset', () => {
+    it('mapuje canonical id na BE preset id', () => {
+      expect(service.findOne('matrix')?.system).toBe('matrix-custom');
+      expect(service.findOne('coc')?.system).toBe('call-of-cthulhu');
+      expect(service.findOne('drdh')?.system).toBe('drd-hero');
+      expect(service.findOne('draci-hlidka')?.system).toBe('drd-hero');
+    });
+
+    it('je case-insensitive', () => {
+      expect(service.findOne('Matrix')?.system).toBe('matrix-custom');
+      expect(service.findOne('COC')?.system).toBe('call-of-cthulhu');
+    });
+
+    it('systémy bez BE presetu vracejí null (FE-canonical, soft-mode)', () => {
+      for (const sys of ['drd16', 'drd2', 'drdplus']) {
+        expect(service.findOne(sys)).toBeNull();
+      }
+    });
+  });
 });
