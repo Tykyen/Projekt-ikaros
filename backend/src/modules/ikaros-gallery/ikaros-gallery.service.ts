@@ -135,12 +135,12 @@ export class IkarosGalleryService {
   }
 
   private async notifyAdmins(subject: string, body: string): Promise<void> {
+    // D-NEW-INV-CLEANUP — Tyky je primární Superadmin ∈ ADMIN_ROLES, takže už je
+    // v `admins`; hardcoded `findByUsername('Tyky')` fallback byl redundantní
+    // (rename-útok řeší role, ne jméno — viz isAdmin R-RUN-03).
     const admins = await this.usersRepo.findByRoles(ADMIN_ROLES);
-    const tyky = await this.usersRepo.findByUsername('Tyky');
-    const recipients = [...admins];
-    if (tyky && !admins.some((a) => a.id === tyky.id)) recipients.push(tyky);
     await Promise.all(
-      recipients.map((r) =>
+      admins.map((r) =>
         this.msgService.create(
           { recipientId: r.id, recipientName: r.username, subject, body },
           SYSTEM_SENDER,

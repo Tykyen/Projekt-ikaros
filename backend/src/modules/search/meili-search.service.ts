@@ -87,7 +87,11 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
         providerKey: this.providerKey,
         providerName: this.displayName,
       }));
-    } catch {
+    } catch (err) {
+      // D-NEW-INV-CLEANUP — dřív tichý `return []` (PJ/uživatel netušil, že
+      // MeiliSearch neběží → vypadalo to jako „žádné výsledky"). Teď warning do
+      // logu (provozní viditelnost); API kontrakt zůstává — graceful degrade.
+      logWarn(this.logger, 'MeiliSearch dotaz selhal (běží MeiliSearch?)', err);
       return [];
     }
   }
