@@ -1,0 +1,234 @@
+{
+  "systemId": "jad",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "hlava",
+      "label": "Hlavní staty",
+      "fields": [
+        {
+          "key": "nebezpecnost",
+          "label": "Nebezpečnost (N)",
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "combatBehavior": "static",
+          "description": "N — stupeň nebezpečnosti."
+        },
+        {
+          "key": "presvedceni",
+          "label": "Přesvědčení (P)",
+          "type": "enum",
+          "enumValues": ["ZkD", "ZmD", "N", "ZkZ", "ZmZ"],
+          "default": "N",
+          "description": "P — Zákonně/Zmatečně Dobré, Neutrální, Zákonně/Zmatečně Zlé."
+        },
+        {
+          "key": "velikost",
+          "label": "Velikost (V)",
+          "type": "enum",
+          "enumValues": ["D", "M", "S", "V", "O", "N"],
+          "default": "S",
+          "description": "V — Drobná, Malá, Střední, Velká, Obrovská, Nestvůrná."
+        },
+        {
+          "key": "vydrz",
+          "label": "Výdrž / Životy (V)",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "V — body výdrže (životy); klesají zraněním na mapě."
+        },
+        {
+          "key": "obranne_cislo",
+          "label": "Obranné číslo / Zbroj (OČ)",
+          "type": "number",
+          "default": 12,
+          "min": 0,
+          "combatBehavior": "roll-target",
+          "description": "OČ — proti čemu se útočí."
+        },
+        {
+          "key": "rychlost",
+          "label": "Rychlost (R)",
+          "type": "number",
+          "default": 6,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "R — sáhy za tah (1 sáh = 5 stop)."
+        },
+        {
+          "key": "rychlost_text",
+          "label": "Rychlost (popis)",
+          "type": "string",
+          "default": "",
+          "description": "Detail — létání, plavání, šplhání, hrabání."
+        },
+        {
+          "key": "pasivni_vnimani",
+          "label": "Pasivní Vnímání (PV)",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "static",
+          "description": "PV — pasivní hodnota Vnímání."
+        }
+      ]
+    },
+    {
+      "key": "vlastnosti",
+      "label": "Vlastnosti",
+      "fields": [
+        { "key": "attributes.str", "label": "Síla (S)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        {
+          "key": "attributes.dex",
+          "label": "Obratnost (Ob)",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "max": 30,
+          "combatBehavior": "initiative",
+          "description": "Bonus z Obratnosti určuje iniciativu (k20 + Obr)."
+        },
+        { "key": "attributes.con", "label": "Odolnost (Od)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.int", "label": "Inteligence (I)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.wis", "label": "Moudrost (M)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.cha", "label": "Charisma (Ch)", "type": "number", "default": 10, "min": 1, "max": 30 }
+      ]
+    },
+    {
+      "key": "utoky",
+      "label": "Útoky",
+      "fields": [
+        {
+          "key": "utoky",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bestie — stejná struktura jako zbraně PC/NPC (na mapě klikací: bonus = k20, zásah = kostky).",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "bonus", "label": "Bonus k útoku", "type": "string" },
+            { "key": "zasah", "label": "Zásah (kostky)", "type": "string" },
+            { "key": "typ", "label": "Typ zásahu", "type": "string" },
+            { "key": "dosah", "label": "Dosah / dostřel", "type": "string" },
+            { "key": "efekt", "label": "Zvláštní efekt", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "zachrany_zdatnosti",
+      "label": "Záchrany a zdatnosti",
+      "collapsible": true,
+      "fields": [
+        {
+          "key": "zachrany",
+          "label": "Záchranné hody (ZH)",
+          "type": "list",
+          "description": "Bonus záchrany za vlastnost.",
+          "listItemFields": [
+            {
+              "key": "vlastnost",
+              "label": "Vlastnost",
+              "type": "enum",
+              "enumValues": ["Síla", "Obratnost", "Odolnost", "Inteligence", "Moudrost", "Charisma"],
+              "required": true
+            },
+            { "key": "bonus", "label": "Bonus", "type": "number", "default": 0 }
+          ]
+        },
+        {
+          "key": "zdatnosti",
+          "label": "Zdatnosti / dovednosti (ZD)",
+          "type": "list",
+          "description": "Bonus zdatnosti za dovednost.",
+          "listItemFields": [
+            {
+              "key": "dovednost",
+              "label": "Dovednost",
+              "type": "enum",
+              "enumValues": [
+                "Akrobacie", "Atletika", "Čachry", "Historie", "Klamání",
+                "Lékařství", "Mystika", "Náboženství", "Nenápadnost",
+                "Ovládání zvířat", "Pátrání", "Přesvědčování", "Přežití",
+                "Příroda", "Vhled", "Vnímání", "Vystupování", "Zastrašování"
+              ],
+              "required": true
+            },
+            { "key": "bonus", "label": "Bonus", "type": "number", "default": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "odolnosti",
+      "label": "Odolnosti, imunity, smysly",
+      "collapsible": true,
+      "fields": [
+        { "key": "zranitelnosti", "label": "Zranitelnosti (ZR)", "type": "string", "default": "", "description": "Typy zásahu, vůči nimž je zranitelná." },
+        { "key": "odolnosti", "label": "Odolání (OD)", "type": "string", "default": "", "description": "Typy zásahu, vůči nimž odolává (poloviční)." },
+        { "key": "imunity_zasah", "label": "Imunity vůči zásahu (IM)", "type": "string", "default": "" },
+        { "key": "imunity_stavy", "label": "Imunity vůči stavům", "type": "string", "default": "" },
+        { "key": "smysly", "label": "Smysly (SCH)", "type": "string", "default": "", "description": "Vidění ve tmě, slepecký zrak, chvění…" },
+        { "key": "jazyky", "label": "Jazyky", "type": "string", "default": "—" }
+      ]
+    },
+    {
+      "key": "schopnosti",
+      "label": "Schopnosti a akce",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Schopnosti",
+          "type": "list",
+          "description": "Jako u PC/NPC (název + popis); typ určuje, kam se ve statbloku zařadí (Akce / Reakce / Legendární akce jsou speciální schopnosti).",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            {
+              "key": "typ",
+              "label": "Typ",
+              "type": "enum",
+              "enumValues": [
+                "Schopnost",
+                "Akce",
+                "Bonusová akce",
+                "Reakce",
+                "Legendární akce"
+              ],
+              "default": "Schopnost"
+            },
+            { "key": "popis", "label": "Popis", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "kouzla",
+      "label": "Kouzla / Přirozená kouzla",
+      "collapsible": true,
+      "initiallyCollapsed": true,
+      "fields": [
+        { "key": "kouzla_vlastnost", "label": "Sesílací vlastnost", "type": "string", "default": "" },
+        { "key": "kouzla_so", "label": "SO záchrany kouzla", "type": "string", "default": "" },
+        { "key": "kouzla_utok", "label": "Bonus k útoku kouzlem", "type": "string", "default": "" },
+        {
+          "key": "kouzla",
+          "label": "Kouzla",
+          "type": "list",
+          "description": "Kouzla bestie — stejná struktura jako u PC/NPC.",
+          "listItemFields": [
+            { "key": "pripravene", "label": "Připravené", "type": "boolean", "default": false },
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "utok_so", "label": "Útok / SO", "type": "string" },
+            { "key": "doba", "label": "Doba sesílání", "type": "string" },
+            { "key": "dosah", "label": "Dosah", "type": "string" },
+            { "key": "trvani", "label": "Trvání", "type": "string" }
+          ]
+        }
+      ]
+    }
+  ]
+}
