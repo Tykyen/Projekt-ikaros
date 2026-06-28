@@ -1,38 +1,21 @@
 {
   "systemId": "drd2",
   "entityType": "bestie",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
-      "key": "main-stats",
-      "label": "Hlavní staty",
+      "key": "stav",
+      "label": "Stav a boj",
       "fields": [
         {
-          "key": "health.max",
-          "label": "MAX HP",
+          "key": "sudba",
+          "label": "Sudba",
           "type": "number",
-          "default": 10,
+          "default": 14,
           "min": 1,
           "required": true,
           "combatBehavior": "damageable",
-          "description": "Maximální zdraví bestie. Při damage se snižuje health.current."
-        },
-        {
-          "key": "armor",
-          "label": "Zbroj",
-          "type": "number",
-          "default": 0,
-          "min": 0,
-          "combatBehavior": "armor-reducer",
-          "description": "Bod-tlumení každého zásahu."
-        },
-        {
-          "key": "injury",
-          "label": "Zranění",
-          "type": "number",
-          "default": 0,
-          "min": 0,
-          "description": "Aktuální zranění (kumulativní). Reset při full heal."
+          "description": "Životnost bestie (osudové body) — klesá zraněním na mapě."
         },
         {
           "key": "movement",
@@ -49,7 +32,69 @@
           "type": "number",
           "default": 0,
           "combatBehavior": "initiative",
-          "description": "Základní iniciativa pro řazení v boji."
+          "description": "Základní iniciativa pro řazení v boji (bestie hází 2k6 + iniciativa)."
+        }
+      ]
+    },
+    {
+      "key": "hranice",
+      "label": "Hranice",
+      "fields": [
+        {
+          "key": "telo",
+          "label": "Tělo",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Hranice zdroje Tělo (reference, nehází se)."
+        },
+        {
+          "key": "duse",
+          "label": "Duše",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Hranice zdroje Duše (reference, nehází se)."
+        },
+        {
+          "key": "vliv",
+          "label": "Vliv",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "description": "Hranice zdroje Vliv (reference, nehází se)."
+        }
+      ]
+    },
+    {
+      "key": "charakteristiky",
+      "label": "Charakteristiky",
+      "fields": [
+        {
+          "key": "charakteristiky",
+          "label": "Charakteristiky",
+          "type": "list",
+          "description": "Schopnosti bestie s úrovní — na mapě klikací hod 2k6 + úroveň.",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "uroven", "label": "Úroveň", "type": "number", "default": 1, "min": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "schopnosti",
+      "label": "Zvláštní schopnosti",
+      "fields": [
+        {
+          "key": "zvlastni_schopnosti",
+          "label": "Zvláštní schopnosti",
+          "type": "list",
+          "description": "Pojmenované zvláštní schopnosti (poznámky).",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "popis", "label": "Popis", "type": "string" }
+          ]
         }
       ]
     }

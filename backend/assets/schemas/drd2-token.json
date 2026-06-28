@@ -76,6 +76,41 @@
           "description": "Základní iniciativa z postavy / bestie."
         }
       ]
+    },
+    {
+      "key": "drd2-bestie",
+      "label": "DrD II bestie",
+      "fields": [
+        {
+          "key": "sudba",
+          "label": "Sudba",
+          "type": "number",
+          "default": 14,
+          "min": 0,
+          "description": "Životnost bestie (osudové body) — odvozuje HP tokenu."
+        },
+        { "key": "telo", "label": "Tělo", "type": "number", "default": 0, "min": 0 },
+        { "key": "duse", "label": "Duše", "type": "number", "default": 0, "min": 0 },
+        { "key": "vliv", "label": "Vliv", "type": "number", "default": 0, "min": 0 },
+        {
+          "key": "charakteristiky",
+          "label": "Charakteristiky",
+          "type": "list",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "uroven", "label": "Úroveň", "type": "number", "default": 1, "min": 0 }
+          ]
+        },
+        {
+          "key": "zvlastni_schopnosti",
+          "label": "Zvláštní schopnosti",
+          "type": "list",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "popis", "label": "Popis", "type": "string" }
+          ]
+        }
+      ]
     }
   ]
 }
