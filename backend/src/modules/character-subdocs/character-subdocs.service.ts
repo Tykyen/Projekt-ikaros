@@ -99,11 +99,20 @@ export class CharacterSubdocsService {
     worldId: string,
     personalSchema?: CustomDiaryBlock[] | null,
   ): Promise<Set<string> | null> {
+    // 1. Personal override (per-postava) má přednost — explicitní volba PJ/hráče.
     if (personalSchema && personalSchema.length > 0) {
       return new Set(personalSchema.map((b) => b.id));
     }
     const active = await this.diaryVersionsRepo.findActive(worldId);
     if (!active || active.schema.length === 0) return null;
+    // 2. World-level whitelist platí JEN pro `generic` systém (PJ schema editor
+    //    8.5, kde klíče = PJ-definované bloky). Dedikované systémy (matrix / jad /
+    //    dnd5e / drd2 / …) mají vlastní FE sheet, který ukládá vlastní prefixované
+    //    klíče (`jad_*`, `matrix_*`); ty v generic-style schématu nejsou → filtr
+    //    by je TIŠE zahodil (data loss — JaD deník se vůbec neukládal). Pro ně
+    //    pass-through, symetricky s read-side pass-through v `getDiary` (FE sheet
+    //    čte jen svůj prefix, takže „cizí" klíče render neovlivní).
+    if (active.system !== 'generic') return null;
     return new Set(
       active.schema.map((b: SchemaBlock) => b.key).filter(Boolean),
     );

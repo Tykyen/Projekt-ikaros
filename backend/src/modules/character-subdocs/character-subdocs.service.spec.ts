@@ -604,7 +604,7 @@ describe('CharacterSubdocsService', () => {
       expect(result.customData).toEqual({ sila: 10 });
     });
 
-    it('personalDiarySchema=null + customData → coerce přes aktivní svět-level', async () => {
+    it('personalDiarySchema=null + customData → coerce přes aktivní svět-level (generic)', async () => {
       mockDiaryRepo.findByCharacterId.mockResolvedValue({
         ...mockDiary,
         worldId: 'w1',
@@ -617,7 +617,8 @@ describe('CharacterSubdocsService', () => {
         id: 'v1',
         worldId: 'w1',
         version: 2,
-        system: 'dnd5e',
+        // Whitelist customData platí jen pro `generic` (PJ schema editor).
+        system: 'generic',
         schema: [{ key: 'mana', label: 'Mana', type: 'number', order: 0 }],
         archivedAt: null,
       });
@@ -633,6 +634,46 @@ describe('CharacterSubdocsService', () => {
 
       // `hp` (z původního override) zahozeno; `mana` (svět-level) ponecháno.
       expect(result.customData).toEqual({ mana: 5 });
+    });
+
+    it('dedikovaný systém (jad) → world-level schema NEfiltruje (pass-through, neztratí jad_*)', async () => {
+      // Regrese: JaD svět měl naseedovaný generic-style stub schema (race/class/…),
+      // ale JaD sheet ukládá `jad_*` → whitelist je tiše zahazoval (200 OK, 0 uloženo).
+      mockDiaryRepo.findByCharacterId.mockResolvedValue({
+        ...mockDiary,
+        worldId: 'w1',
+        customData: {},
+      });
+      mockDiaryVersionsRepo.findActive.mockResolvedValue({
+        id: 'v1',
+        worldId: 'w1',
+        version: 1,
+        system: 'jad',
+        schema: [
+          { key: 'race', label: 'Rasa', type: 'text', order: 0 },
+          { key: 'class', label: 'Povolání', type: 'text', order: 1 },
+        ],
+        archivedAt: null,
+      });
+      mockDiaryRepo.updateWithCustomDataPatch.mockResolvedValue({
+        ...mockDiary,
+        customData: { jad_race: 'Elf', jad_classes: '[]', jad_abi_str: '16' },
+      });
+
+      await service.updateDiary('char1', {
+        customDataPatch: {
+          jad_race: 'Elf',
+          jad_classes: '[]',
+          jad_abi_str: '16',
+        },
+      });
+
+      // Žádný jad_* klíč se nezahodí — dedikovaný systém = pass-through.
+      expect(mockDiaryRepo.updateWithCustomDataPatch).toHaveBeenCalledWith(
+        'char1',
+        {},
+        { jad_race: 'Elf', jad_classes: '[]', jad_abi_str: '16' },
+      );
     });
   });
 
