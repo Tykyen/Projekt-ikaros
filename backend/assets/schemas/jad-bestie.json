@@ -27,10 +27,9 @@
         {
           "key": "velikost",
           "label": "Velikost (V)",
-          "type": "enum",
-          "enumValues": ["D", "M", "S", "V", "O", "N"],
-          "default": "S",
-          "description": "V — Drobná, Malá, Střední, Velká, Obrovská, Nestvůrná."
+          "type": "string",
+          "default": "",
+          "description": "V — velikostní kategorie (zapiš písmeno, např. A, B, C, D)."
         },
         {
           "key": "vydrz",
@@ -82,21 +81,18 @@
       "key": "vlastnosti",
       "label": "Vlastnosti",
       "fields": [
-        { "key": "attributes.str", "label": "Síla (S)", "type": "number", "default": 10, "min": 1, "max": 30 },
-        {
-          "key": "attributes.dex",
-          "label": "Obratnost (Ob)",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30,
-          "combatBehavior": "initiative",
-          "description": "Bonus z Obratnosti určuje iniciativu (k20 + Obr)."
-        },
+        { "key": "attributes.str", "label": "Síla (S)", "type": "number", "default": 10, "min": 1, "max": 30, "description": "Hodnota vlastnosti (např. 16)." },
+        { "key": "attributes.str_mod", "label": "S — bonus", "type": "computed", "formula": "floor((attributes.str - 10) / 2)", "description": "Bonus k hodům (automaticky z hodnoty)." },
+        { "key": "attributes.dex", "label": "Obratnost (Ob)", "type": "number", "default": 10, "min": 1, "max": 30, "combatBehavior": "initiative", "description": "Bonus z Obratnosti určuje iniciativu (k20 + Obr)." },
+        { "key": "attributes.dex_mod", "label": "Ob — bonus", "type": "computed", "formula": "floor((attributes.dex - 10) / 2)" },
         { "key": "attributes.con", "label": "Odolnost (Od)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.con_mod", "label": "Od — bonus", "type": "computed", "formula": "floor((attributes.con - 10) / 2)" },
         { "key": "attributes.int", "label": "Inteligence (I)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.int_mod", "label": "I — bonus", "type": "computed", "formula": "floor((attributes.int - 10) / 2)" },
         { "key": "attributes.wis", "label": "Moudrost (M)", "type": "number", "default": 10, "min": 1, "max": 30 },
-        { "key": "attributes.cha", "label": "Charisma (Ch)", "type": "number", "default": 10, "min": 1, "max": 30 }
+        { "key": "attributes.wis_mod", "label": "M — bonus", "type": "computed", "formula": "floor((attributes.wis - 10) / 2)" },
+        { "key": "attributes.cha", "label": "Charisma (Ch)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.cha_mod", "label": "Ch — bonus", "type": "computed", "formula": "floor((attributes.cha - 10) / 2)" }
       ]
     },
     {
