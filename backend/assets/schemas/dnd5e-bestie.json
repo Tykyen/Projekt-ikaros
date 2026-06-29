@@ -4,219 +4,224 @@
   "version": 1,
   "sections": [
     {
-      "key": "main-stats",
+      "key": "hlava",
       "label": "Hlavní staty",
       "fields": [
         {
-          "key": "health.max",
-          "label": "MAX HP",
+          "key": "nebezpecnost",
+          "label": "Nebezpečnost (N)",
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "combatBehavior": "static",
+          "description": "N — stupeň nebezpečnosti."
+        },
+        {
+          "key": "presvedceni",
+          "label": "Přesvědčení (P)",
+          "type": "enum",
+          "enumValues": ["ZkD", "ZmD", "N", "ZkZ", "ZmZ"],
+          "default": "N",
+          "description": "P — Zákonně/Zmatečně Dobré, Neutrální, Zákonně/Zmatečně Zlé."
+        },
+        {
+          "key": "velikost",
+          "label": "Velikost (V)",
+          "type": "string",
+          "default": "",
+          "description": "V — velikostní kategorie (zapiš písmeno, např. A, B, C, D)."
+        },
+        {
+          "key": "vydrz",
+          "label": "Výdrž / Životy (V)",
           "type": "number",
           "default": 10,
           "min": 1,
           "required": true,
           "combatBehavior": "damageable",
-          "description": "Životy bestie (Hit Points)."
+          "description": "V — body výdrže (životy); klesají zraněním na mapě."
         },
         {
-          "key": "hit_dice",
-          "label": "Hit Dice",
-          "type": "string",
-          "default": "2k8 + 2",
-          "description": "Kostky životů (např. 6k10 + 6)."
-        },
-        {
-          "key": "armor.class",
-          "label": "OČ (AC)",
+          "key": "obranne_cislo",
+          "label": "Obranné číslo / Zbroj (OČ)",
           "type": "number",
           "default": 12,
           "min": 0,
           "combatBehavior": "roll-target",
-          "description": "Obranné číslo / Armor Class — proti čemu se útočí."
+          "description": "OČ — proti čemu se útočí."
         },
         {
-          "key": "armor.type",
-          "label": "Typ zbroje",
-          "type": "string",
-          "default": "",
-          "description": "Slovní popis (přirozená zbroj, kožená, plátová, ...)."
-        },
-        {
-          "key": "speed",
-          "label": "Rychlost",
+          "key": "rychlost",
+          "label": "Rychlost (R)",
           "type": "number",
           "default": 6,
           "min": 0,
           "combatBehavior": "movement",
-          "description": "Rychlost v sázích za tah (1 sáh = 5 stop)."
+          "description": "R — sáhy za tah (1 sáh = 5 stop)."
         },
         {
-          "key": "speed_text",
+          "key": "rychlost_text",
           "label": "Rychlost (popis)",
           "type": "string",
           "default": "",
-          "description": "Detail (např. létání 12 sáhů, plavání 6 sáhů)."
+          "description": "Detail — létání, plavání, šplhání, hrabání."
+        },
+        {
+          "key": "pasivni_vnimani",
+          "label": "Pasivní Vnímání (PV)",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "static",
+          "description": "PV — pasivní hodnota Vnímání."
         }
       ]
     },
     {
-      "key": "attributes",
+      "key": "vlastnosti",
       "label": "Vlastnosti",
       "fields": [
-        {
-          "key": "attributes.str",
-          "label": "SÍL",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30
-        },
-        {
-          "key": "attributes.dex",
-          "label": "OBR",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30,
-          "combatBehavior": "initiative",
-          "description": "Bonus z OBR určuje iniciativu."
-        },
-        {
-          "key": "attributes.con",
-          "label": "ODL",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30
-        },
-        {
-          "key": "attributes.int",
-          "label": "INT",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30
-        },
-        {
-          "key": "attributes.wis",
-          "label": "MDR",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30
-        },
-        {
-          "key": "attributes.cha",
-          "label": "CHA",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 30
-        }
+        { "key": "attributes.str", "label": "Síla (S)", "type": "number", "default": 10, "min": 1, "max": 30, "description": "Hodnota vlastnosti (např. 16)." },
+        { "key": "attributes.str_mod", "label": "S — bonus", "type": "computed", "formula": "floor((attributes.str - 10) / 2)", "description": "Bonus k hodům (automaticky z hodnoty)." },
+        { "key": "attributes.dex", "label": "Obratnost (Ob)", "type": "number", "default": 10, "min": 1, "max": 30, "combatBehavior": "initiative", "description": "Bonus z Obratnosti určuje iniciativu (k20 + Obr)." },
+        { "key": "attributes.dex_mod", "label": "Ob — bonus", "type": "computed", "formula": "floor((attributes.dex - 10) / 2)" },
+        { "key": "attributes.con", "label": "Odolnost (Od)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.con_mod", "label": "Od — bonus", "type": "computed", "formula": "floor((attributes.con - 10) / 2)" },
+        { "key": "attributes.int", "label": "Inteligence (I)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.int_mod", "label": "I — bonus", "type": "computed", "formula": "floor((attributes.int - 10) / 2)" },
+        { "key": "attributes.wis", "label": "Moudrost (M)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.wis_mod", "label": "M — bonus", "type": "computed", "formula": "floor((attributes.wis - 10) / 2)" },
+        { "key": "attributes.cha", "label": "Charisma (Ch)", "type": "number", "default": 10, "min": 1, "max": 30 },
+        { "key": "attributes.cha_mod", "label": "Ch — bonus", "type": "computed", "formula": "floor((attributes.cha - 10) / 2)" }
       ]
     },
     {
-      "key": "combat",
-      "label": "Boj",
+      "key": "utoky",
+      "label": "Útoky",
       "fields": [
         {
-          "key": "proficiency_bonus",
-          "label": "Bonus zdatnosti",
-          "type": "number",
-          "default": 2,
-          "min": 0,
-          "description": "Proficiency bonus (PB) — typicky 2 + (CR/4)."
-        },
-        {
-          "key": "cr",
-          "label": "Nebezpečnost (CR)",
-          "type": "string",
-          "default": "1",
-          "combatBehavior": "static",
-          "description": "Challenge Rating — odpovídající XP řeší tabulka v MM."
-        },
-        {
-          "key": "saving_throws",
-          "label": "Záchranné hody",
-          "type": "string",
-          "default": "",
-          "description": "Např. Obr +7, Odl +15, Mdr +10, Cha +12."
-        },
-        {
-          "key": "skills",
-          "label": "Dovednosti",
-          "type": "string",
-          "default": "",
-          "description": "Např. Nenápadnost +17, Vnímání +17."
-        },
-        {
-          "key": "damage_resistances",
-          "label": "Odolání vůči zranění",
-          "type": "string",
-          "default": ""
-        },
-        {
-          "key": "damage_immunities",
-          "label": "Imunity vůči zranění",
-          "type": "string",
-          "default": ""
-        },
-        {
-          "key": "condition_immunities",
-          "label": "Imunity vůči stavům",
-          "type": "string",
-          "default": ""
-        },
-        {
-          "key": "senses",
-          "label": "Smysly",
-          "type": "string",
-          "default": "",
-          "description": "Např. vidění ve tmě 12 sáhů, pasivní Vnímání 11."
-        },
-        {
-          "key": "languages",
-          "label": "Jazyky",
-          "type": "string",
-          "default": "—"
+          "key": "utoky",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bestie — stejná struktura jako zbraně PC/NPC (na mapě klikací: bonus = k20, zásah = kostky).",
+          "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "bonus", "label": "Bonus k útoku", "type": "string" },
+            { "key": "zasah", "label": "Zásah (kostky)", "type": "string" },
+            { "key": "typ", "label": "Typ zásahu", "type": "string" },
+            { "key": "dosah", "label": "Dosah / dostřel", "type": "string" },
+            { "key": "efekt", "label": "Zvláštní efekt", "type": "string" }
+          ]
         }
       ]
     },
     {
-      "key": "abilities",
+      "key": "zachrany_zdatnosti",
+      "label": "Záchrany a zdatnosti",
+      "collapsible": true,
+      "fields": [
+        {
+          "key": "zachrany",
+          "label": "Záchranné hody (ZH)",
+          "type": "list",
+          "description": "Bonus záchrany za vlastnost.",
+          "listItemFields": [
+            {
+              "key": "vlastnost",
+              "label": "Vlastnost",
+              "type": "enum",
+              "enumValues": ["Síla", "Obratnost", "Odolnost", "Inteligence", "Moudrost", "Charisma"],
+              "required": true
+            },
+            { "key": "bonus", "label": "Bonus", "type": "number", "default": 0 }
+          ]
+        },
+        {
+          "key": "zdatnosti",
+          "label": "Zdatnosti / dovednosti (ZD)",
+          "type": "list",
+          "description": "Bonus zdatnosti za dovednost.",
+          "listItemFields": [
+            {
+              "key": "dovednost",
+              "label": "Dovednost",
+              "type": "enum",
+              "enumValues": [
+                "Akrobacie", "Atletika", "Čachry", "Historie", "Klamání",
+                "Lékařství", "Mystika", "Náboženství", "Nenápadnost",
+                "Ovládání zvířat", "Pátrání", "Přesvědčování", "Přežití",
+                "Příroda", "Vhled", "Vnímání", "Vystupování", "Zastrašování"
+              ],
+              "required": true
+            },
+            { "key": "bonus", "label": "Bonus", "type": "number", "default": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "odolnosti",
+      "label": "Odolnosti, imunity, smysly",
+      "collapsible": true,
+      "fields": [
+        { "key": "zranitelnosti", "label": "Zranitelnosti (ZR)", "type": "string", "default": "", "description": "Typy zásahu, vůči nimž je zranitelná." },
+        { "key": "odolnosti", "label": "Odolání (OD)", "type": "string", "default": "", "description": "Typy zásahu, vůči nimž odolává (poloviční)." },
+        { "key": "imunity_zasah", "label": "Imunity vůči zásahu (IM)", "type": "string", "default": "" },
+        { "key": "imunity_stavy", "label": "Imunity vůči stavům", "type": "string", "default": "" },
+        { "key": "smysly", "label": "Smysly (SCH)", "type": "string", "default": "", "description": "Vidění ve tmě, slepecký zrak, chvění…" },
+        { "key": "jazyky", "label": "Jazyky", "type": "string", "default": "—" }
+      ]
+    },
+    {
+      "key": "schopnosti",
       "label": "Schopnosti a akce",
       "fields": [
         {
           "key": "abilities",
           "label": "Schopnosti",
           "type": "list",
-          "description": "Speciální schopnosti, akce, reakce, legendární akce.",
+          "description": "Jako u PC/NPC (název + popis); typ určuje, kam se ve statbloku zařadí (Akce / Reakce / Legendární akce jsou speciální schopnosti).",
           "listItemFields": [
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
             {
-              "key": "label",
-              "label": "Název",
-              "type": "string",
-              "required": true
-            },
-            {
-              "key": "type",
+              "key": "typ",
               "label": "Typ",
               "type": "enum",
               "enumValues": [
-                "trait",
-                "action",
-                "multiattack",
-                "bonus-action",
-                "reaction",
-                "legendary",
-                "lair"
+                "Schopnost",
+                "Akce",
+                "Bonusová akce",
+                "Reakce",
+                "Legendární akce"
               ],
-              "default": "action"
+              "default": "Schopnost"
             },
-            {
-              "key": "value",
-              "label": "Popis / kostky",
-              "type": "string"
-            }
+            { "key": "popis", "label": "Popis", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "kouzla",
+      "label": "Kouzla / Přirozená kouzla",
+      "collapsible": true,
+      "initiallyCollapsed": true,
+      "fields": [
+        { "key": "kouzla_vlastnost", "label": "Sesílací vlastnost", "type": "string", "default": "" },
+        { "key": "kouzla_so", "label": "SO záchrany kouzla", "type": "string", "default": "" },
+        { "key": "kouzla_utok", "label": "Bonus k útoku kouzlem", "type": "string", "default": "" },
+        {
+          "key": "kouzla",
+          "label": "Kouzla",
+          "type": "list",
+          "description": "Kouzla bestie — stejná struktura jako u PC/NPC.",
+          "listItemFields": [
+            { "key": "pripravene", "label": "Připravené", "type": "boolean", "default": false },
+            { "key": "nazev", "label": "Název", "type": "string", "required": true },
+            { "key": "utok_so", "label": "Útok / SO", "type": "string" },
+            { "key": "doba", "label": "Doba sesílání", "type": "string" },
+            { "key": "dosah", "label": "Dosah", "type": "string" },
+            { "key": "trvani", "label": "Trvání", "type": "string" }
           ]
         }
       ]
