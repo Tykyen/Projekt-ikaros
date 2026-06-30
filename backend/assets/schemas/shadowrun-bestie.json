@@ -1,0 +1,145 @@
+{
+  "systemId": "shadowrun",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "profil",
+      "label": "Profil & boj",
+      "fields": [
+        {
+          "key": "profile",
+          "label": "Typ / profil",
+          "type": "string",
+          "default": "",
+          "description": "Popis tvora — např. „Paranormální zvíře · Profil 4\" nebo „Firemní ostraha\"."
+        },
+        {
+          "key": "health.max",
+          "label": "Fyzický záznamník (max)",
+          "type": "number",
+          "default": 11,
+          "min": 1,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Počet boxů fyzického záznamníku (SR6: 8 + ⌈Tělo/2⌉). Při zranění na mapě klesá health.current."
+        },
+        {
+          "key": "stun_max",
+          "label": "Omráčení (max)",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "description": "Počet boxů záznamníku omráčení (SR6: 8 + ⌈Vůle/2⌉). Jen postih, neovlivňuje HP bar."
+        },
+        {
+          "key": "defense",
+          "label": "Obrana",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "static",
+          "description": "Obranné hodnocení (Defense Rating)."
+        },
+        {
+          "key": "armor",
+          "label": "Zbroj / HO",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer",
+          "description": "Zbroj / hodnocení odolnosti (soak). Tlumí zásah."
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Dosah pohybu v metrech / hexech za tah."
+        },
+        {
+          "key": "initiative.base",
+          "label": "Iniciativa (REA+INT)",
+          "type": "number",
+          "default": 7,
+          "min": 0,
+          "combatBehavior": "initiative",
+          "description": "Základ iniciativy (Reakce + Intuice). V boji se hází základ + 1k6 (součet)."
+        }
+      ]
+    },
+    {
+      "key": "atributy",
+      "label": "Atributy",
+      "fields": [
+        { "key": "attr_bod", "label": "Tělo (TĚL)", "type": "number", "default": 3, "min": 0, "max": 30 },
+        { "key": "attr_agi", "label": "Obratnost (OBR)", "type": "number", "default": 3, "min": 0, "max": 30 },
+        { "key": "attr_rea", "label": "Reakce (REA)", "type": "number", "default": 3, "min": 0, "max": 30 },
+        { "key": "attr_str", "label": "Síla (SÍL)", "type": "number", "default": 3, "min": 0, "max": 30 },
+        { "key": "attr_wil", "label": "Vůle (VŮL)", "type": "number", "default": 3, "min": 0, "max": 30 },
+        { "key": "attr_log", "label": "Logika (LOG)", "type": "number", "default": 2, "min": 0, "max": 30 },
+        { "key": "attr_int", "label": "Intuice (INT)", "type": "number", "default": 3, "min": 0, "max": 30 },
+        { "key": "attr_cha", "label": "Charisma (CHA)", "type": "number", "default": 3, "min": 0, "max": 30 }
+      ]
+    },
+    {
+      "key": "weapons",
+      "label": "Útoky",
+      "fields": [
+        {
+          "key": "weapons",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky tvora — klik na mapě/chatu = SR6 pool hod (úspěchy 5–6). Pool je zadán přímo.",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "type", "label": "Typ / dosah", "type": "string", "description": "Např. „Blízko\", „Pistole · 14 m\"." },
+            { "key": "dmg", "label": "Zranění (DV)", "type": "string", "description": "Např. „4P\", „5F\"." },
+            { "key": "pool", "label": "Pool (k6)", "type": "number", "default": 0, "min": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "skills",
+      "label": "Dovednosti",
+      "fields": [
+        {
+          "key": "skills",
+          "label": "Dovednosti",
+          "type": "list",
+          "description": "Dovednosti tvora — klik = SR6 pool hod. Pool zadán přímo.",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            {
+              "key": "attr",
+              "label": "Atribut",
+              "type": "enum",
+              "enumValues": ["TĚL", "OBR", "REA", "SÍL", "VŮL", "LOG", "INT", "CHA"],
+              "description": "Vázaný atribut (jen popisek chip)."
+            },
+            { "key": "pool", "label": "Pool (k6)", "type": "number", "default": 0, "min": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "powers",
+      "label": "Schopnosti",
+      "fields": [
+        {
+          "key": "powers",
+          "label": "Schopnosti",
+          "type": "list",
+          "description": "Kritter powers / kvality (Imunita, Regenerace, Zostřené smysly…). Bez hodu — jen popis.",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "desc", "label": "Popis", "type": "string" }
+          ]
+        }
+      ]
+    }
+  ]
+}
