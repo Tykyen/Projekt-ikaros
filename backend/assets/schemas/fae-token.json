@@ -1,7 +1,7 @@
 {
-  "systemId": "fate",
+  "systemId": "fae",
   "entityType": "token",
-  "version": 2,
+  "version": 1,
   "sections": [
     {
       "key": "stress",
@@ -52,7 +52,7 @@
           "type": "number",
           "default": 0,
           "combatBehavior": "initiative",
-          "description": "Aktuální pořadí v boji (hod Vnímání)."
+          "description": "Aktuální pořadí v boji (hod Rychle / Vnímání)."
         }
       ]
     }

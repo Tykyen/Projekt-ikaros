@@ -1,7 +1,7 @@
 {
-  "systemId": "fate",
+  "systemId": "fae",
   "entityType": "bestie",
-  "version": 2,
+  "version": 1,
   "sections": [
     {
       "key": "main-stats",
@@ -42,7 +42,7 @@
           "type": "number",
           "default": 0,
           "combatBehavior": "initiative",
-          "description": "Bonus k iniciativě (typicky hodnota dovednosti Vnímání)."
+          "description": "Bonus k iniciativě (typicky hodnota Rychle / Vnímání)."
         }
       ]
     },
@@ -68,19 +68,15 @@
       ]
     },
     {
-      "key": "skills",
-      "label": "Dovednosti",
+      "key": "approaches",
+      "label": "Přístupy",
       "fields": [
-        {
-          "key": "skills",
-          "label": "Dovednosti",
-          "type": "list",
-          "description": "Seznam dovedností s ratingem (žebříček −2…+8).",
-          "listItemFields": [
-            { "key": "label", "label": "Název dovednosti", "type": "string", "required": true },
-            { "key": "rating", "label": "Hodnota", "type": "number", "default": 0, "min": -2, "max": 8 }
-          ]
-        }
+        { "key": "appr_careful", "label": "Pečlivě", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_clever", "label": "Chytře", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_flashy", "label": "Oslnivě", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_forceful", "label": "Rázně", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_quick", "label": "Rychle", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_sneaky", "label": "Lstivě", "type": "number", "default": 0, "min": -2, "max": 8 }
       ]
     },
     {
