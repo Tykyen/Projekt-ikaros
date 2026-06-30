@@ -1,7 +1,7 @@
 {
   "systemId": "fate",
   "entityType": "token",
-  "version": 2,
+  "version": 3,
   "sections": [
     {
       "key": "stress",
@@ -9,12 +9,12 @@
       "fields": [
         {
           "key": "health.current",
-          "label": "Stres (zaškrtnuto)",
+          "label": "Stres (zbývající kapacita)",
           "type": "number",
-          "default": 0,
+          "default": 3,
           "min": 0,
           "combatBehavior": "damageable",
-          "description": "Kolik stress boxů je aktuálně vyplněno."
+          "description": "Zbývající kapacita stresu (max − zaškrtnuté boxy). Plno = bez stresu."
         },
         {
           "key": "health.max",
@@ -31,6 +31,14 @@
           "type": "number",
           "default": 3,
           "min": 0
+        },
+        {
+          "key": "fatePoints",
+          "label": "Body osudu",
+          "type": "number",
+          "default": 3,
+          "min": 0,
+          "description": "Aktuální zásoba bodů osudu (utrácí se na invoke)."
         }
       ]
     },
@@ -51,9 +59,62 @@
           "label": "Iniciativa",
           "type": "number",
           "default": 0,
-          "combatBehavior": "initiative",
-          "description": "Aktuální pořadí v boji (hod Vnímání)."
+          "combatBehavior": "initiative"
         }
+      ]
+    },
+    {
+      "key": "aspects",
+      "label": "Aspekty",
+      "fields": [
+        { "key": "highConcept", "label": "Hlavní koncept", "type": "string" },
+        {
+          "key": "aspects",
+          "label": "Další aspekty",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Aspekt", "type": "string", "required": true }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "skills",
+      "label": "Dovednosti",
+      "fields": [
+        {
+          "key": "skills",
+          "label": "Dovednosti",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Název dovednosti", "type": "string", "required": true },
+            { "key": "rating", "label": "Hodnota", "type": "number", "default": 0, "min": -2, "max": 8 }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "stunts",
+      "label": "Triky",
+      "fields": [
+        {
+          "key": "stunts",
+          "label": "Triky",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Popis efektu", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "consequences",
+      "label": "Následky",
+      "fields": [
+        { "key": "cons_mild", "label": "Drobný (2)", "type": "string" },
+        { "key": "cons_moderate", "label": "Mírný (4)", "type": "string" },
+        { "key": "cons_severe", "label": "Vážný (6)", "type": "string" }
       ]
     }
   ]

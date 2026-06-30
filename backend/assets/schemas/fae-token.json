@@ -1,7 +1,7 @@
 {
   "systemId": "fae",
   "entityType": "token",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "key": "stress",
@@ -9,12 +9,12 @@
       "fields": [
         {
           "key": "health.current",
-          "label": "Stres (zaškrtnuto)",
+          "label": "Stres (zbývající kapacita)",
           "type": "number",
-          "default": 0,
+          "default": 3,
           "min": 0,
           "combatBehavior": "damageable",
-          "description": "Kolik stress boxů je aktuálně vyplněno."
+          "description": "Zbývající kapacita stresu (max − zaškrtnuté boxy). Plno = bez stresu."
         },
         {
           "key": "health.max",
@@ -31,6 +31,14 @@
           "type": "number",
           "default": 3,
           "min": 0
+        },
+        {
+          "key": "fatePoints",
+          "label": "Body osudu",
+          "type": "number",
+          "default": 3,
+          "min": 0,
+          "description": "Aktuální zásoba bodů osudu (utrácí se na invoke)."
         }
       ]
     },
@@ -51,9 +59,59 @@
           "label": "Iniciativa",
           "type": "number",
           "default": 0,
-          "combatBehavior": "initiative",
-          "description": "Aktuální pořadí v boji (hod Rychle / Vnímání)."
+          "combatBehavior": "initiative"
         }
+      ]
+    },
+    {
+      "key": "aspects",
+      "label": "Aspekty",
+      "fields": [
+        { "key": "highConcept", "label": "Hlavní koncept", "type": "string" },
+        {
+          "key": "aspects",
+          "label": "Další aspekty",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Aspekt", "type": "string", "required": true }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "approaches",
+      "label": "Přístupy",
+      "fields": [
+        { "key": "appr_careful", "label": "Pečlivě", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_clever", "label": "Chytře", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_flashy", "label": "Oslnivě", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_forceful", "label": "Rázně", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_quick", "label": "Rychle", "type": "number", "default": 0, "min": -2, "max": 8 },
+        { "key": "appr_sneaky", "label": "Lstivě", "type": "number", "default": 0, "min": -2, "max": 8 }
+      ]
+    },
+    {
+      "key": "stunts",
+      "label": "Triky",
+      "fields": [
+        {
+          "key": "stunts",
+          "label": "Triky",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Popis efektu", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "consequences",
+      "label": "Následky",
+      "fields": [
+        { "key": "cons_mild", "label": "Drobný (2)", "type": "string" },
+        { "key": "cons_moderate", "label": "Mírný (4)", "type": "string" },
+        { "key": "cons_severe", "label": "Vážný (6)", "type": "string" }
       ]
     }
   ]
