@@ -89,6 +89,8 @@ export const DEFAULT_DICE_BY_SYSTEM: Record<string, readonly string[]> = {
   shadowrun: ['d6'],
   pi: ['d6'],
   jad: ['d6', 'd10'],
+  drdh: ['d6', 'd10'],
+  'draci-hlidka': ['d6', 'd10'],
   'call-of-cthulhu': ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100'],
   'matrix-custom': ['fate', 'd6', 'd20'],
 };
