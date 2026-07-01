@@ -1,0 +1,145 @@
+{
+  "systemId": "drdh",
+  "entityType": "token",
+  "version": 1,
+  "sections": [
+    {
+      "key": "health",
+      "label": "Zdraví",
+      "fields": [
+        {
+          "key": "health.current",
+          "label": "HP",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "combatBehavior": "damageable"
+        },
+        {
+          "key": "health.max",
+          "label": "MAX HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "required": true
+        },
+        {
+          "key": "health.base",
+          "label": "Base HP",
+          "type": "number",
+          "default": 10,
+          "min": 1,
+          "description": "Nezraněný stav. Buff může health.max přechodně zvednout."
+        }
+      ]
+    },
+    {
+      "key": "combat",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "armor",
+          "label": "Zbroj",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "armor-reducer"
+        },
+        {
+          "key": "injury",
+          "label": "Zranění",
+          "type": "number",
+          "default": 0,
+          "min": 0
+        },
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement"
+        },
+        {
+          "key": "initiative.current",
+          "label": "Init (aktuální)",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative",
+          "description": "Aktuální iniciativa v boji (může být modifikovaná buffy)."
+        },
+        {
+          "key": "initiative.base",
+          "label": "Init (base)",
+          "type": "number",
+          "default": 0,
+          "description": "Základní iniciativa z bestie."
+        }
+      ]
+    },
+    {
+      "key": "drdh-bestie",
+      "label": "Dračí Hlídka bestie",
+      "fields": [
+        {
+          "key": "hp",
+          "label": "Životy",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "description": "Životy bestie — odvozuje HP tokenu."
+        },
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "kind", "label": "Typ útoku", "type": "string" },
+            { "key": "uc", "label": "ÚČ", "type": "number", "default": 0 },
+            { "key": "dmg", "label": "Zranění", "type": "string" }
+          ]
+        },
+        { "key": "zo", "label": "ZO", "type": "number", "default": 0 },
+        { "key": "oc", "label": "OČ", "type": "number", "default": 0 },
+        { "key": "size", "label": "Velikost", "type": "string" },
+        { "key": "initiative", "label": "Iniciativa", "type": "number", "default": 0 },
+        { "key": "str", "label": "Síla", "type": "number", "default": 10 },
+        { "key": "dex", "label": "Obratnost", "type": "number", "default": 10 },
+        { "key": "con", "label": "Odolnost", "type": "number", "default": 10 },
+        { "key": "int", "label": "Inteligence", "type": "number", "default": 10 },
+        { "key": "cha", "label": "Charisma", "type": "number", "default": 10 },
+        {
+          "key": "resist",
+          "label": "Odolnosti",
+          "type": "list",
+          "listItemFields": [
+            {
+              "key": "kind",
+              "label": "Druh",
+              "type": "enum",
+              "default": "rez",
+              "enumValues": ["rez", "imu", "slab"]
+            },
+            { "key": "label", "label": "Popis", "type": "string" }
+          ]
+        },
+        { "key": "creature_type", "label": "Typ tvora", "type": "string" },
+        { "key": "level", "label": "Úroveň", "type": "number", "default": 1 },
+        { "key": "occurrence", "label": "Výskyt", "type": "string" },
+        { "key": "higher_power", "label": "Vyšší moc", "type": "string" },
+        { "key": "xp", "label": "Zkušenosti", "type": "number", "default": 0 },
+        {
+          "key": "abilities",
+          "label": "Zvláštní schopnosti",
+          "type": "list",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "desc", "label": "Popis", "type": "string" }
+          ]
+        },
+        { "key": "tactic", "label": "Taktika & popis", "type": "string" }
+      ]
+    }
+  ]
+}

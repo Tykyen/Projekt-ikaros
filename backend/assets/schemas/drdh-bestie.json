@@ -1,0 +1,195 @@
+{
+  "systemId": "drdh",
+  "entityType": "bestie",
+  "version": 1,
+  "sections": [
+    {
+      "key": "boj",
+      "label": "Boj",
+      "fields": [
+        {
+          "key": "hp",
+          "label": "Životy",
+          "type": "number",
+          "default": 10,
+          "min": 0,
+          "required": true,
+          "combatBehavior": "damageable",
+          "description": "Životy bestie (Dračí Hlídka). Na taktické mapě slouží jako HP."
+        },
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bestie — typ, ÚČ (finální číslo), zranění se znaménkem. Klik = ÚČ + k6+.",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "kind", "label": "Typ útoku", "type": "string" },
+            { "key": "uc", "label": "ÚČ", "type": "number", "default": 0 },
+            { "key": "dmg", "label": "Zranění", "type": "string" }
+          ]
+        },
+        {
+          "key": "zo",
+          "label": "ZO",
+          "type": "number",
+          "default": 0,
+          "description": "Základ obrany (ZO)."
+        },
+        {
+          "key": "oc",
+          "label": "OČ",
+          "type": "number",
+          "default": 0,
+          "description": "Obranné číslo (OČ)."
+        }
+      ]
+    },
+    {
+      "key": "telo",
+      "label": "Tělo",
+      "fields": [
+        {
+          "key": "movement",
+          "label": "Pohyb",
+          "type": "number",
+          "default": 5,
+          "min": 0,
+          "combatBehavior": "movement",
+          "description": "Dosah pohybu na mapě za tah."
+        },
+        {
+          "key": "size",
+          "label": "Velikost",
+          "type": "string",
+          "description": "Velikostní kategorie (písmeno A/B/C…)."
+        },
+        {
+          "key": "initiative",
+          "label": "Iniciativa",
+          "type": "number",
+          "default": 0,
+          "combatBehavior": "initiative",
+          "description": "Oprava OBR = iniciativa. Bestie hází k6 + iniciativa."
+        }
+      ]
+    },
+    {
+      "key": "atributy",
+      "label": "Atributy",
+      "fields": [
+        {
+          "key": "str",
+          "label": "Síla",
+          "type": "number",
+          "default": 10,
+          "description": "Stupeň Síly. Oprava se dopočítává (⌊st/2⌋−5)."
+        },
+        {
+          "key": "dex",
+          "label": "Obratnost",
+          "type": "number",
+          "default": 10,
+          "description": "Stupeň Obratnosti. Oprava se dopočítává (⌊st/2⌋−5)."
+        },
+        {
+          "key": "con",
+          "label": "Odolnost",
+          "type": "number",
+          "default": 10,
+          "description": "Stupeň Odolnosti. Oprava se dopočítává (⌊st/2⌋−5)."
+        },
+        {
+          "key": "int",
+          "label": "Inteligence",
+          "type": "number",
+          "default": 10,
+          "description": "Stupeň Inteligence. Oprava se dopočítává (⌊st/2⌋−5)."
+        },
+        {
+          "key": "cha",
+          "label": "Charisma",
+          "type": "number",
+          "default": 10,
+          "description": "Stupeň Charismatu. Oprava se dopočítává (⌊st/2⌋−5)."
+        }
+      ]
+    },
+    {
+      "key": "odolnosti",
+      "label": "Odolnosti",
+      "fields": [
+        {
+          "key": "resist",
+          "label": "Odolnosti",
+          "type": "list",
+          "description": "Rezistence / imunity / slabiny (typ + text).",
+          "listItemFields": [
+            {
+              "key": "kind",
+              "label": "Druh",
+              "type": "enum",
+              "default": "rez",
+              "enumValues": ["rez", "imu", "slab"]
+            },
+            { "key": "label", "label": "Popis", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "meta",
+      "label": "Meta",
+      "fields": [
+        {
+          "key": "creature_type",
+          "label": "Typ tvora",
+          "type": "string",
+          "description": "Kategorie tvora (Zvíře, Nemrtvý, Démon…)."
+        },
+        { "key": "level", "label": "Úroveň", "type": "number", "default": 1 },
+        {
+          "key": "occurrence",
+          "label": "Výskyt",
+          "type": "string",
+          "description": "Kde se tvor vyskytuje."
+        },
+        {
+          "key": "higher_power",
+          "label": "Vyšší moc",
+          "type": "string",
+          "description": "Vyšší moc (patron / zdroj), volitelné."
+        },
+        {
+          "key": "xp",
+          "label": "Zkušenosti",
+          "type": "number",
+          "default": 0,
+          "description": "Zkušenosti (XP) za poražení."
+        }
+      ]
+    },
+    {
+      "key": "popis",
+      "label": "Popis",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Zvláštní schopnosti",
+          "type": "list",
+          "description": "Pojmenované zvláštní schopnosti (název + popis).",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "desc", "label": "Popis", "type": "string" }
+          ]
+        },
+        {
+          "key": "tactic",
+          "label": "Taktika & popis",
+          "type": "string",
+          "description": "Chování v boji, vzhled, poznámka PJ."
+        }
+      ]
+    }
+  ]
+}
