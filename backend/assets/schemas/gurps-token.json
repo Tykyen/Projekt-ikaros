@@ -1,7 +1,7 @@
 {
   "systemId": "gurps",
   "entityType": "token",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "key": "health",
@@ -28,16 +28,21 @@
           "label": "FP",
           "type": "number",
           "default": 10,
-          "min": 0,
-          "description": "Fatigue Points (aktuální)."
-        },
-        {
-          "key": "fatigue.max",
-          "label": "MAX FP",
-          "type": "number",
-          "default": 10,
           "min": 0
-        }
+        },
+        { "key": "fatigue.max", "label": "MAX FP", "type": "number", "default": 10, "min": 0 }
+      ]
+    },
+    {
+      "key": "attributes",
+      "label": "Atributy",
+      "fields": [
+        { "key": "attributes.st", "label": "ST", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.dx", "label": "DX", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.iq", "label": "IQ", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.ht", "label": "HT", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.will", "label": "Will", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.per", "label": "Per", "type": "number", "default": 10, "min": 1 }
       ]
     },
     {
@@ -52,13 +57,11 @@
           "min": 0,
           "combatBehavior": "armor-reducer"
         },
-        {
-          "key": "dodge",
-          "label": "Úhyb",
-          "type": "number",
-          "default": 8,
-          "min": 0
-        },
+        { "key": "dodge", "label": "Úhyb", "type": "number", "default": 8, "min": 0 },
+        { "key": "parry", "label": "Kryt", "type": "number", "default": 0, "min": 0 },
+        { "key": "block", "label": "Blok", "type": "number", "default": 0, "min": 0 },
+        { "key": "damage_thrust", "label": "Zranění Thrust", "type": "string", "default": "1d-2" },
+        { "key": "damage_swing", "label": "Zranění Swing", "type": "string", "default": "1d" },
         {
           "key": "movement",
           "label": "Pohyb",
@@ -68,6 +71,14 @@
           "combatBehavior": "movement"
         },
         {
+          "key": "basic_speed",
+          "label": "Základní rychlost",
+          "type": "number",
+          "default": 5,
+          "min": 0
+        },
+        { "key": "size_modifier", "label": "SM", "type": "number", "default": 0 },
+        {
           "key": "initiative.current",
           "label": "Iniciativa (Basic Speed)",
           "type": "number",
@@ -75,6 +86,34 @@
           "combatBehavior": "initiative",
           "description": "Pořadí v boji = Basic Speed (vyšší jde dřív)."
         }
+      ]
+    },
+    {
+      "key": "profile",
+      "label": "Profil",
+      "fields": [
+        { "key": "creature_type", "label": "Typ tvora", "type": "string" },
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "skill", "label": "Zásah (dovednost)", "type": "number", "default": 10 },
+            { "key": "dmg", "label": "Zranění", "type": "string" },
+            { "key": "reach", "label": "Dosah", "type": "string" }
+          ]
+        },
+        {
+          "key": "abilities",
+          "label": "Zvláštní schopnosti",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Hodnota / popis", "type": "string" }
+          ]
+        },
+        { "key": "tactic", "label": "Taktika a popis", "type": "string" }
       ]
     }
   ]

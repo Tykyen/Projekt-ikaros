@@ -1,12 +1,18 @@
 {
   "systemId": "gurps",
   "entityType": "bestie",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "key": "main-stats",
       "label": "Hlavní staty",
       "fields": [
+        {
+          "key": "creature_type",
+          "label": "Typ tvora",
+          "type": "string",
+          "description": "Např. Nestvůra · strážce, Zvíře, Nemrtvý."
+        },
         {
           "key": "health.max",
           "label": "MAX HP",
@@ -57,48 +63,12 @@
       "key": "attributes",
       "label": "Atributy",
       "fields": [
-        {
-          "key": "attributes.st",
-          "label": "ST (Síla)",
-          "type": "number",
-          "default": 10,
-          "min": 1
-        },
-        {
-          "key": "attributes.dx",
-          "label": "DX (Obratnost)",
-          "type": "number",
-          "default": 10,
-          "min": 1
-        },
-        {
-          "key": "attributes.iq",
-          "label": "IQ (Inteligence)",
-          "type": "number",
-          "default": 10,
-          "min": 1
-        },
-        {
-          "key": "attributes.ht",
-          "label": "HT (Zdraví)",
-          "type": "number",
-          "default": 10,
-          "min": 1
-        },
-        {
-          "key": "attributes.will",
-          "label": "Will (Vůle)",
-          "type": "number",
-          "default": 10,
-          "min": 1
-        },
-        {
-          "key": "attributes.per",
-          "label": "Per (Vnímání)",
-          "type": "number",
-          "default": 10,
-          "min": 1
-        }
+        { "key": "attributes.st", "label": "ST (Síla)", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.dx", "label": "DX (Obratnost)", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.iq", "label": "IQ (Inteligence)", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.ht", "label": "HT (Zdraví)", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.will", "label": "Will (Vůle)", "type": "number", "default": 10, "min": 1 },
+        { "key": "attributes.per", "label": "Per (Vnímání)", "type": "number", "default": 10, "min": 1 }
       ]
     },
     {
@@ -117,9 +87,9 @@
           "key": "parry",
           "label": "Kryt (Parry)",
           "type": "number",
-          "default": 8,
+          "default": 0,
           "min": 0,
-          "description": "Parry = (DX nebo skill) / 2 + 3."
+          "description": "Parry = (DX nebo skill) / 2 + 3. 0 = nemá."
         },
         {
           "key": "block",
@@ -127,7 +97,7 @@
           "type": "number",
           "default": 0,
           "min": 0,
-          "description": "Block (vyžaduje štít) = (DX nebo Shield) / 2 + 3."
+          "description": "Block (vyžaduje štít) = (DX nebo Shield) / 2 + 3. 0 = nemá."
         },
         {
           "key": "dr",
@@ -155,27 +125,42 @@
       ]
     },
     {
+      "key": "attacks",
+      "label": "Útoky",
+      "fields": [
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Kousnutí, dráp, zbraň… Zásah = hod 3k6 ≤ dovednost.",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "skill", "label": "Zásah (dovednost)", "type": "number", "default": 10 },
+            { "key": "dmg", "label": "Zranění (např. 2k+1)", "type": "string" },
+            { "key": "reach", "label": "Dosah", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
       "key": "abilities",
-      "label": "Výhody, nevýhody, schopnosti",
+      "label": "Zvláštnosti a taktika",
       "fields": [
         {
           "key": "abilities",
-          "label": "Schopnosti",
+          "label": "Zvláštní schopnosti",
           "type": "list",
-          "description": "Advantages, disadvantages, quirks, special abilities.",
+          "description": "Výhody, nevýhody, smysly, speciální schopnosti.",
           "listItemFields": [
-            {
-              "key": "label",
-              "label": "Název",
-              "type": "string",
-              "required": true
-            },
-            {
-              "key": "value",
-              "label": "Hodnota / popis",
-              "type": "string"
-            }
+            { "key": "label", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Hodnota / popis", "type": "string" }
           ]
+        },
+        {
+          "key": "tactic",
+          "label": "Taktika a popis",
+          "type": "string",
+          "description": "Chování v boji, vzhled, poznámka PJ."
         }
       ]
     }
