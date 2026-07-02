@@ -13,6 +13,7 @@ import { Injectable } from '@nestjs/common';
 import { SchemaRegistryService } from './schema-registry.service';
 import type {
   SchemaField,
+  SystemEntitySchema,
   SystemEntityType,
   ValidationResult,
 } from './system-entity-schema.types';
@@ -34,6 +35,33 @@ export class SystemStatsValidatorService {
         filled: stats,
       };
     }
+    return this.validateForCreateWithSchema(stats, schema);
+  }
+
+  validateForPatch(
+    patch: Record<string, unknown>,
+    systemId: string,
+    entityType: SystemEntityType,
+  ): ValidationResult {
+    const schema = this.registry.get(systemId, entityType);
+    if (!schema) {
+      return {
+        valid: false,
+        errors: { _schema: `No schema for ${systemId}:${entityType}` },
+        filled: patch,
+      };
+    }
+    return this.validateForPatchWithSchema(patch, schema);
+  }
+
+  /**
+   * 16.2g F2 — validace proti PŘEDANÉMU schématu (world-scoped, z DB), ne z
+   * globálního registry. Pro „Vlastní Systém" bestie s per-svět schématem.
+   */
+  validateForCreateWithSchema(
+    stats: Record<string, unknown>,
+    schema: SystemEntitySchema,
+  ): ValidationResult {
     const errors: Record<string, string> = {};
     const filled: Record<string, unknown> = { ...stats };
 
@@ -50,19 +78,10 @@ export class SystemStatsValidatorService {
     };
   }
 
-  validateForPatch(
+  validateForPatchWithSchema(
     patch: Record<string, unknown>,
-    systemId: string,
-    entityType: SystemEntityType,
+    schema: SystemEntitySchema,
   ): ValidationResult {
-    const schema = this.registry.get(systemId, entityType);
-    if (!schema) {
-      return {
-        valid: false,
-        errors: { _schema: `No schema for ${systemId}:${entityType}` },
-        filled: patch,
-      };
-    }
     const errors: Record<string, string> = {};
     const knownKeys = new Set<string>();
     for (const section of schema.sections) {

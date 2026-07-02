@@ -19,6 +19,8 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BestiaeRepository } from './repositories/bestiae.repository';
 import { SystemStatsValidatorService } from '../maps/schemas/system-entity-schema/system-stats-validator.service';
+import type { ValidationResult } from '../maps/schemas/system-entity-schema/system-entity-schema.types';
+import { EntitySchemaVersionsService } from '../entity-schema-versions/entity-schema-versions.service';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { CreateBestieDto } from './dto/create-bestie.dto';
 import type { UpdateBestieDto } from './dto/update-bestie.dto';
@@ -48,7 +50,34 @@ export class BestiaeService {
     @Inject('IWorldMembershipRepository')
     private readonly memberRepo: IWorldMembershipRepository,
     private readonly eventEmitter: EventEmitter2,
+    private readonly entitySchemas: EntitySchemaVersionsService,
   ) {}
+
+  /**
+   * 16.2g F2 — validace `systemStats`. World-scoped bestie ve světě s vlastní
+   * šablonou bestie (`entity_schema_versions`) se validuje proti ní; jinak
+   * fallback na registry (assets). Soft-mode (`_schema`) řeší volající.
+   */
+  private async validateStats(
+    stats: Record<string, unknown>,
+    bestie: { scope: string; systemId: string; worldId?: string },
+    mode: 'create' | 'patch',
+  ): Promise<ValidationResult> {
+    if (bestie.scope === 'world' && bestie.worldId) {
+      const worldSchema = await this.entitySchemas.getActiveSchema(
+        bestie.worldId,
+        'bestie',
+      );
+      if (worldSchema) {
+        return mode === 'create'
+          ? this.statsValidator.validateForCreateWithSchema(stats, worldSchema)
+          : this.statsValidator.validateForPatchWithSchema(stats, worldSchema);
+      }
+    }
+    return mode === 'create'
+      ? this.statsValidator.validateForCreate(stats, bestie.systemId, 'bestie')
+      : this.statsValidator.validateForPatch(stats, bestie.systemId, 'bestie');
+  }
 
   /**
    * C-34 — leak-safe signál „bestiář se změnil" pro daný scope. Klient
@@ -111,10 +140,10 @@ export class BestiaeService {
     // Soft mode (konzistentní s token ops C12): pokud BE nemá schema pro
     // daný systém (errors._schema), validaci přeskočíme a důvěřujeme FE —
     // jinak by šlo tvořit bestie jen pro systémy s exportovaným schématem.
-    const result = this.statsValidator.validateForCreate(
+    const result = await this.validateStats(
       dto.systemStats,
-      dto.systemId,
-      'bestie',
+      { scope: dto.scope, systemId: dto.systemId, worldId: dto.worldId },
+      'create',
     );
     if (!result.valid && !result.errors._schema) {
       throw new BadRequestException({
@@ -151,10 +180,14 @@ export class BestiaeService {
 
     if (dto.systemStats) {
       // Soft mode: schema chybí → skip (viz create).
-      const result = this.statsValidator.validateForPatch(
+      const result = await this.validateStats(
         dto.systemStats,
-        existing.systemId,
-        'bestie',
+        {
+          scope: existing.scope,
+          systemId: existing.systemId,
+          worldId: existing.worldId,
+        },
+        'patch',
       );
       if (!result.valid && !result.errors._schema) {
         throw new BadRequestException({

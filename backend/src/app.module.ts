@@ -35,6 +35,7 @@ import { CampaignModule } from './modules/campaign/campaign.module';
 import { WorldGmNotesModule } from './modules/world-gm-notes/world-gm-notes.module';
 import { MapsModule } from './modules/maps/maps.module';
 import { BestiaeModule } from './modules/bestiae/bestiae.module';
+import { EntitySchemaVersionsModule } from './modules/entity-schema-versions/entity-schema-versions.module';
 import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
 import { IkarosNewsModule } from './modules/ikaros-news/ikaros-news.module';
 import { IkarosEventsModule } from './modules/ikaros-events/ikaros-events.module';
@@ -103,6 +104,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     WorldGmNotesModule,
     MapsModule,
     BestiaeModule,
+    EntitySchemaVersionsModule,
     DungeonMapsModule,
     IkarosNewsModule,
     IkarosEventsModule,
