@@ -14,7 +14,10 @@ export interface Bestie {
   imageFocalY?: number | null;
   imageZoom?: number | null;
   imageFit?: 'cover' | 'contain' | null;
+  /** GM poznámky (jen PJ). */
   notes: string;
+  /** Veřejný popis bytosti (16.2h); vidí i hráč. */
+  description: string;
   // Schopnosti = `systemStats.abilities` (per-system schéma); top-level pole
   // `abilities` zrušeno (D-NEW-BESTIE-ABILITIES-DUP).
   systemStats: Record<string, unknown>;

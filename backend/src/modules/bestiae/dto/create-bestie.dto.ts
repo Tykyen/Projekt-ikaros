@@ -65,6 +65,12 @@ export class CreateBestieDto {
   @MaxLength(2000)
   notes?: string;
 
+  // Veřejný popis bytosti (16.2h) — oddělený od GM `notes`.
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  description?: string;
+
   // Schopnosti jsou součást `systemStats.abilities` (per-system schéma) —
   // top-level pole `abilities` zrušeno (D-NEW-BESTIE-ABILITIES-DUP).
   @IsObject()

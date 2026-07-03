@@ -163,6 +163,7 @@ export class BestiaeService {
       imageZoom: dto.imageZoom,
       imageFit: dto.imageFit,
       notes: dto.notes ?? '',
+      description: dto.description ?? '',
       systemStats: result.filled,
     });
     this.emitChanged(created);
@@ -250,6 +251,7 @@ export class BestiaeService {
       imageZoom: source.imageZoom,
       imageFit: source.imageFit,
       notes: source.notes,
+      description: source.description,
       // systemStats nese i schopnosti (`systemStats.abilities`) → klon je přebírá.
       systemStats: { ...source.systemStats },
       clonedFromId: source.id,

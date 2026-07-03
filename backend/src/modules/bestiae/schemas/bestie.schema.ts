@@ -27,7 +27,11 @@ export class BestieSchemaClass {
   @Prop({ type: Number, default: null }) imageFocalY?: number | null;
   @Prop({ type: Number, default: null }) imageZoom?: number | null;
   @Prop({ type: String, default: null }) imageFit?: 'cover' | 'contain' | null;
+  // GM poznámky (jen PJ). Popis bytosti je v `description`.
   @Prop({ default: '' }) notes!: string;
+
+  // Veřejný popis bytosti (jak vypadá / se chová) — 16.2h motivové vzhledy.
+  @Prop({ default: '' }) description!: string;
 
   // Schopnosti jsou součást `systemStats.abilities` (per-system schéma).
   // Top-level pole `abilities` zrušeno (D-NEW-BESTIE-ABILITIES-DUP) — editor do
