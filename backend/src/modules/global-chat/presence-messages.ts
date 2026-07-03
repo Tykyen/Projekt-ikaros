@@ -2,7 +2,7 @@ import type { RoomKey } from './global-chat.service';
 
 /**
  * Narativní hláška o příchodu/odchodu uživatele (krok 4.2d §2).
- * Hospoda má krčmářský tón, Rozcestí poutnický. Ukládá se jako systémová
+ * Hospoda má krčmářský tón, Camp poutnický. Ukládá se jako systémová
  * zpráva do kanálu — proto generuje text BE, ne FE.
  */
 export function presenceLine(

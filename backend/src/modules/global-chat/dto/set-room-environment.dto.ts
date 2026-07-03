@@ -1,6 +1,6 @@
 import { IsIn, IsString, Matches } from 'class-validator';
 
-/** Změna sdíleného prostředí Rozcestí — viz spec 4.2a §4.3. */
+/** Změna sdíleného prostředí Campu — viz spec 4.2a §4.3. */
 export class SetRoomEnvironmentDto {
   @IsIn(['fantasy', 'scifi', 'mystic'])
   style: 'fantasy' | 'scifi' | 'mystic';

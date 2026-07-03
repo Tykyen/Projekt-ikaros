@@ -99,33 +99,33 @@ describe('GlobalChatGateway', () => {
       ]);
     });
 
-    it('host nemůže joinnout Rozcestí (scope — jen Hospoda)', async () => {
+    it('host nemůže joinnout Camp (scope — jen Hospoda)', async () => {
       const sock = guestSock('sg2', 'anon_2', 'anonym5678');
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'x', userId: 'x' },
+        { room: 'camp-1', username: 'x', userId: 'x' },
         sock,
       );
       await flush();
-      expect(gateway.getPresence('rozcesti-1')).toEqual([]);
+      expect(gateway.getPresence('camp-1')).toEqual([]);
     });
   });
 
   describe('presence — multi-room (krok 4.2d §1)', () => {
     it('isolates presence between rooms', async () => {
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'gandalf', userId: 'u1' },
+        { room: 'camp-1', username: 'gandalf', userId: 'u1' },
         mockSocket('s1'),
       );
       gateway.handleRoomJoin(
-        { room: 'rozcesti-2', username: 'frodo', userId: 'u2' },
+        { room: 'camp-2', username: 'frodo', userId: 'u2' },
         mockSocket('s2'),
       );
       await flush();
 
-      expect(gateway.getPresence('rozcesti-1')).toEqual([
+      expect(gateway.getPresence('camp-1')).toEqual([
         { userId: 'u1', username: 'gandalf' },
       ]);
-      expect(gateway.getPresence('rozcesti-2')).toEqual([
+      expect(gateway.getPresence('camp-2')).toEqual([
         { userId: 'u2', username: 'frodo' },
       ]);
       expect(gateway.getPresence('hospoda')).toEqual([]);
@@ -133,11 +133,11 @@ describe('GlobalChatGateway', () => {
 
     it('ignores join with an unknown room key', async () => {
       gateway.handleRoomJoin(
-        { room: 'rozcesti-9', username: 'x', userId: 'ux' },
+        { room: 'camp-9', username: 'x', userId: 'ux' },
         mockSocket('s9'),
       );
       await flush();
-      expect(gateway.getPresence('rozcesti-1')).toEqual([]);
+      expect(gateway.getPresence('camp-1')).toEqual([]);
     });
 
     it('one socket can be present in several rooms at once', async () => {
@@ -145,26 +145,26 @@ describe('GlobalChatGateway', () => {
       gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
       await flush();
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'a', userId: 'u1' },
+        { room: 'camp-1', username: 'a', userId: 'u1' },
         sock,
       );
       await flush();
 
       expect(gateway.getPresence('hospoda')).toHaveLength(1);
-      expect(gateway.getPresence('rozcesti-1')).toHaveLength(1);
+      expect(gateway.getPresence('camp-1')).toHaveLength(1);
     });
 
     it('leave removes the socket from one room only', async () => {
       const sock = mockSocket('s1');
       gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'a', userId: 'u1' },
+        { room: 'camp-1', username: 'a', userId: 'u1' },
         sock,
       );
       await flush();
 
-      gateway.handleRoomLeave({ room: 'rozcesti-1' }, sock);
-      expect(gateway.getPresence('rozcesti-1')).toEqual([]);
+      gateway.handleRoomLeave({ room: 'camp-1' }, sock);
+      expect(gateway.getPresence('camp-1')).toEqual([]);
       expect(gateway.getPresence('hospoda')).toHaveLength(1);
 
       gateway.handleHospodaLeave(sock);
@@ -190,25 +190,25 @@ describe('GlobalChatGateway', () => {
       const sock = mockSocket('s1');
       gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'a', userId: 'u1' },
+        { room: 'camp-1', username: 'a', userId: 'u1' },
         sock,
       );
       await flush();
       expect(gateway.getRoomCounts()).toEqual({
         hospoda: 1,
-        'rozcesti-1': 1,
-        'rozcesti-2': 0,
-        'rozcesti-3': 0,
+        'camp-1': 1,
+        'camp-2': 0,
+        'camp-3': 0,
       });
 
       gateway.handleDisconnect(sock);
       expect(gateway.getPresence('hospoda')).toEqual([]);
-      expect(gateway.getPresence('rozcesti-1')).toEqual([]);
+      expect(gateway.getPresence('camp-1')).toEqual([]);
       expect(gateway.getRoomCounts()).toEqual({
         hospoda: 0,
-        'rozcesti-1': 0,
-        'rozcesti-2': 0,
-        'rozcesti-3': 0,
+        'camp-1': 0,
+        'camp-2': 0,
+        'camp-3': 0,
       });
     });
   });
@@ -220,11 +220,11 @@ describe('GlobalChatGateway', () => {
         characterAvatarUrl: 'aragorn.png',
       } as Awaited<ReturnType<UsersService['findById']>>);
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'tyky', userId: 'u1' },
+        { room: 'camp-1', username: 'tyky', userId: 'u1' },
         mockSocket('s1'),
       );
       await flush();
-      expect(gateway.getPresence('rozcesti-1')).toEqual([
+      expect(gateway.getPresence('camp-1')).toEqual([
         {
           userId: 'u1',
           username: 'tyky',
@@ -238,7 +238,7 @@ describe('GlobalChatGateway', () => {
   describe('room counts (krok 4.2c §4)', () => {
     it('getRoomCounts returns presence count per room', async () => {
       gateway.handleRoomJoin(
-        { room: 'rozcesti-1', username: 'a', userId: 'u1' },
+        { room: 'camp-1', username: 'a', userId: 'u1' },
         mockSocket('s1'),
       );
       gateway.handleHospodaJoin(
@@ -248,9 +248,9 @@ describe('GlobalChatGateway', () => {
       await flush();
       expect(gateway.getRoomCounts()).toEqual({
         hospoda: 1,
-        'rozcesti-1': 1,
-        'rozcesti-2': 0,
-        'rozcesti-3': 0,
+        'camp-1': 1,
+        'camp-2': 0,
+        'camp-3': 0,
       });
     });
 
@@ -312,17 +312,17 @@ describe('GlobalChatGateway', () => {
         const sock = mockSocket('s1');
         gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
         gateway.handleRoomJoin(
-          { room: 'rozcesti-1', username: 'a', userId: 'u1' },
+          { room: 'camp-1', username: 'a', userId: 'u1' },
           sock,
         );
         await flush();
         jest.advanceTimersByTime(70 * 60_000);
         expect(gateway.cleanupInactive(60 * 60_000)).toBe(1);
         expect(gateway.getPresence('hospoda')).toEqual([]);
-        expect(gateway.getPresence('rozcesti-1')).toEqual([]);
+        expect(gateway.getPresence('camp-1')).toEqual([]);
         expect(gateway.server.emit).toHaveBeenLastCalledWith(
           'chat:rooms:presence',
-          expect.objectContaining({ hospoda: 0, 'rozcesti-1': 0 }),
+          expect.objectContaining({ hospoda: 0, 'camp-1': 0 }),
         );
       } finally {
         jest.useRealTimers();
@@ -437,25 +437,25 @@ describe('GlobalChatGateway', () => {
 
   describe('environment', () => {
     it('defaults to fantasy / place 1', () => {
-      expect(gateway.getEnvironment('rozcesti-1')).toEqual({
+      expect(gateway.getEnvironment('camp-1')).toEqual({
         style: 'fantasy',
         placeId: '1',
       });
     });
 
     it('setEnvironment stores and broadcasts to the room channel', () => {
-      const result = gateway.setEnvironment('rozcesti-2', {
+      const result = gateway.setEnvironment('camp-2', {
         style: 'scifi',
         placeId: '7',
       });
       expect(result).toEqual({ style: 'scifi', placeId: '7' });
-      expect(gateway.getEnvironment('rozcesti-2')).toEqual({
+      expect(gateway.getEnvironment('camp-2')).toEqual({
         style: 'scifi',
         placeId: '7',
       });
-      expect(gateway.server.to).toHaveBeenCalledWith('chat:rozcesti-2-id');
+      expect(gateway.server.to).toHaveBeenCalledWith('chat:camp-2-id');
       expect(emit).toHaveBeenCalledWith('chat:room:environment', {
-        room: 'rozcesti-2',
+        room: 'camp-2',
         style: 'scifi',
         placeId: '7',
       });

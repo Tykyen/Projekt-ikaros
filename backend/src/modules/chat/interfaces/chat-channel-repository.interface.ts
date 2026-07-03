@@ -8,7 +8,7 @@ import type {
 export interface IChatChannelRepository {
   findById(id: string): Promise<ChatChannel | null>;
   findGlobal(): Promise<ChatChannel | null>;
-  /** Globální kanál podle `type` — rozlišuje Hospodu a Rozcestí I.–III. */
+  /** Globální kanál podle `type` — rozlišuje Hospodu a Camp I.–III. */
   findGlobalByType(type: string): Promise<ChatChannel | null>;
   findByGroupId(groupId: string): Promise<ChatChannel[]>;
   findByWorldId(worldId: string): Promise<ChatChannel[]>;

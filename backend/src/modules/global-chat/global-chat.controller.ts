@@ -45,7 +45,7 @@ import { UploadService } from '../upload/upload.service';
 /** Max velikost přílohy chatu — 10 MB (spec 4.3b). */
 const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
 
-/** Role s platformovou funkcí — smí měnit prostředí Rozcestí (spec 4.2a §4.3). */
+/** Role s platformovou funkcí — smí měnit prostředí Campu (spec 4.2a §4.3). */
 const ROOM_STAFF_ROLES = [
   UserRole.Superadmin,
   UserRole.Admin,
@@ -209,7 +209,7 @@ export class GlobalChatController {
     return this.anonBanService.ban(dto.anonId, admin.id);
   }
 
-  // ── Prostředí Rozcestí (krok 4.2a) ─────────────────────────────────────
+  // ── Prostředí Campu (krok 4.2a) ─────────────────────────────────────
   @Get('rooms/:room/environment')
   @ApiOperation({ summary: 'Aktuální prostředí místnosti (styl + lokace)' })
   @ApiResponse({ status: 200, description: 'Prostředí místnosti' })
@@ -221,7 +221,7 @@ export class GlobalChatController {
   @UseGuards(RolesGuard)
   @Roles(...ROOM_STAFF_ROLES)
   @ApiOperation({
-    summary: 'Změna prostředí Rozcestí (jen role s platformovou funkcí)',
+    summary: 'Změna prostředí Campu (jen role s platformovou funkcí)',
   })
   @ApiResponse({ status: 200, description: 'Prostředí změněno + WS broadcast' })
   @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })

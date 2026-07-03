@@ -28,7 +28,7 @@ interface PresenceRecord {
   userId: string;
   /** Avatar účtu — pro zobrazení v Hospodě. */
   avatarUrl?: string;
-  /** Postava z profilu — pro zobrazení v Rozcestí (§8). */
+  /** Postava z profilu — pro zobrazení v Campu (§8). */
   characterName?: string;
   characterAvatarUrl?: string;
   /** Místnosti, ve kterých je socket přítomný (multi-room, 4.2d §1). */
@@ -44,10 +44,10 @@ export interface PresenceUser {
   characterAvatarUrl?: string;
 }
 
-/** Styl prostředí Rozcestí. */
+/** Styl prostředí Campu. */
 export type RoomStyle = 'fantasy' | 'scifi' | 'mystic';
 
-/** Sdílené prostředí místnosti Rozcestí — viz spec 4.2a §4.3. */
+/** Sdílené prostředí místnosti Camp — viz spec 4.2a §4.3. */
 export interface RoomEnvironment {
   style: RoomStyle;
   placeId: string;
@@ -67,7 +67,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   /** socketId → presence záznam (multi-room, 4.2d §1). */
   private readonly connectedUsers = new Map<string, PresenceRecord>();
 
-  /** Sdílené prostředí jednotlivých Rozcestí (in-memory, reset při restartu). */
+  /** Sdílené prostředí jednotlivých Camp (in-memory, reset při restartu). */
   private readonly environments = new Map<RoomKey, RoomEnvironment>();
 
   constructor(
@@ -220,7 +220,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     void this.unregisterPresence(client, 'hospoda');
   }
 
-  // ── Presence — kanál-agnostické (Rozcestí, krok 4.2a) ──────────────────
+  // ── Presence — kanál-agnostické (Camp, krok 4.2a) ──────────────────
   @SubscribeMessage('chat:room:join')
   handleRoomJoin(
     @MessageBody()
@@ -235,7 +235,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
       anonName?: string;
     };
     if (!data.userId) return;
-    // 15.8 — host smí jen Hospodu; join Rozcestí ignorujeme.
+    // 15.8 — host smí jen Hospodu; join Camp ignorujeme.
     if (data.isGuest && payload.room !== 'hospoda') return;
     const username = data.isGuest
       ? (data.anonName ?? payload.username)
@@ -260,7 +260,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
 
   /**
    * Přidá socket do místnosti (4.2d §1 — multi-room). Při prvním joinu
-   * socketu dotáhne z profilu data postavy (pro zobrazení v Rozcestí, §8).
+   * socketu dotáhne z profilu data postavy (pro zobrazení v Campu, §8).
    */
   private async registerPresence(
     client: Socket,

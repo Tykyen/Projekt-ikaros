@@ -245,7 +245,7 @@ export class UploadService {
   }
 
   /**
-   * 4.3b — upload přílohy globálního chatu (Hospoda / Rozcestí). Oproti
+   * 4.3b — upload přílohy globálního chatu (Hospoda / Camp). Oproti
    * `uploadFile` nepřijímá `worldId` (globální kanály ho nemají) a povoluje
    * jen obrázky + dokumenty (`GLOBAL_CHAT_ALLOWED_MIME`, bez videa).
    * Folder `global-chat/<room>` — `publicId` v něm pak slouží jako důkaz

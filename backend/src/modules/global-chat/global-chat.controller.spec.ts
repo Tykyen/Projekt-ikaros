@@ -36,14 +36,14 @@ describe('GlobalChatController — guest scope (15.8)', () => {
     );
   });
 
-  it('host getRoomInfo na Rozcestí → 403', () => {
-    expect(() => controller.getRoomInfo(guest, 'rozcesti-1')).toThrow(
+  it('host getRoomInfo na Camp → 403', () => {
+    expect(() => controller.getRoomInfo(guest, 'camp-1')).toThrow(
       ForbiddenException,
     );
   });
 
-  it('host getMessages na Rozcestí → 403', () => {
-    expect(() => controller.getMessages(guest, 'rozcesti-1')).toThrow(
+  it('host getMessages na Camp → 403', () => {
+    expect(() => controller.getMessages(guest, 'camp-1')).toThrow(
       ForbiddenException,
     );
   });
@@ -57,9 +57,9 @@ describe('GlobalChatController — guest scope (15.8)', () => {
     );
   });
 
-  it('host sendMessage na Rozcestí → 403', () => {
+  it('host sendMessage na Camp → 403', () => {
     expect(() =>
-      controller.sendMessage({ content: 'x' }, guest, 'rozcesti-2'),
+      controller.sendMessage({ content: 'x' }, guest, 'camp-2'),
     ).toThrow(ForbiddenException);
   });
 
@@ -69,10 +69,10 @@ describe('GlobalChatController — guest scope (15.8)', () => {
     ).toThrow(ForbiddenException);
   });
 
-  it('člen na Rozcestí → projde (deleguje na service)', () => {
-    void controller.getMessages(member, 'rozcesti-1');
+  it('člen na Camp → projde (deleguje na service)', () => {
+    void controller.getMessages(member, 'camp-1');
     expect(service.getMessages).toHaveBeenCalledWith(
-      'rozcesti-1',
+      'camp-1',
       'u1',
       expect.anything(),
     );

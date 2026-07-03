@@ -95,8 +95,8 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 ## 3. GlobalChatGateway
 
 Řídí přítomnost uživatelů v globálních místnostech a whisper zprávy. Místnosti
-(`room`, krok 4.2a): `hospoda` (Hospoda) + `rozcesti-1` / `rozcesti-2` / `rozcesti-3`
-(Rozcestí I.–III.). Každá je samostatný kanál — presence i historie jsou per-místnost.
+(`room`, krok 4.2a): `hospoda` (Hospoda) + `camp-1` / `camp-2` / `camp-3`
+(Camp I.–III.). Každá je samostatný kanál — presence i historie jsou per-místnost.
 
 ### Příchozí eventy
 
@@ -104,7 +104,7 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 |---|---|---|---|
 | `chat:hospoda:join` | `{ username: string; userId: string }` | ne | Registrace presence v Hospodě + vstup do `user:{userId}` roomu (krok 4.1, beze změny) |
 | `chat:hospoda:leave` | `{ username: string }` | ne | Odregistrace presence z Hospody |
-| `chat:room:join` | `{ room: RoomKey; username: string; userId: string }` | ne | Registrace presence v dané místnosti (Rozcestí); `room` mimo povolené hodnoty se ignoruje |
+| `chat:room:join` | `{ room: RoomKey; username: string; userId: string }` | ne | Registrace presence v dané místnosti (Camp); `room` mimo povolené hodnoty se ignoruje |
 | `chat:room:leave` | `{ room: RoomKey; username: string }` | ne | Odregistrace presence z místnosti |
 | `ikaros:whisper` | `{ toUserId: string; content?: string; color?: string; room?: RoomKey; replyToId?: string; attachments?: ChatAttachment[] }` | ne | Šeptaná zpráva (vyžaduje předchozí `join`); `color` = hex barva textu; `room` určuje kanál uložení (default = místnost odesílatele); `replyToId` = ID zprávy, na kterou se odpovídá (krok 4.3a); `attachments` = přílohy nahrané přes `POST /global-chat/upload` (krok 4.3b — `content` smí být prázdné, má-li whisper přílohu) |
 | `chat:heartbeat` | `{}` | ne | Udržuje presence „naživu" — obnovuje `lastSeen` socketu (krok 4.2c §5). FE posílá ~á 5 min; výpadek (zavřená/uspaná záložka) > 60 min → auto-odhlášení |
@@ -114,14 +114,14 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 
 | Event | Payload | Room | Popis |
 |---|---|---|---|
-| `chat:presence` | `{ userId?: string; username: string; avatarUrl?: string; characterName?: string; characterAvatarUrl?: string; action: 'join' \| 'leave'; reason?: 'timeout' \| 'disconnect' \| 'explicit' }` | `chat:{channelId}` | Broadcast příchodu/odchodu uživatele — `server.to` (i samotnému joinerovi). `avatarUrl` = avatar účtu (Hospoda), `characterName`/`characterAvatarUrl` = postava (Rozcestí, 4.2d §8). `reason` u `leave`: `timeout` (60min cleanup — FE ukáže overlay auto-odhlášení), `disconnect` (zavření/reload socketu), `explicit` (tlačítko Odejít) |
+| `chat:presence` | `{ userId?: string; username: string; avatarUrl?: string; characterName?: string; characterAvatarUrl?: string; action: 'join' \| 'leave'; reason?: 'timeout' \| 'disconnect' \| 'explicit' }` | `chat:{channelId}` | Broadcast příchodu/odchodu uživatele — `server.to` (i samotnému joinerovi). `avatarUrl` = avatar účtu (Hospoda), `characterName`/`characterAvatarUrl` = postava (Camp, 4.2d §8). `reason` u `leave`: `timeout` (60min cleanup — FE ukáže overlay auto-odhlášení), `disconnect` (zavření/reload socketu), `explicit` (tlačítko Odejít) |
 | `chat:message` | `ChatMessage` | `chat:{channelId}` nebo `user:{userId}` | Nová globální zpráva nebo whisper |
 | `chat:message:deleted` | `{ messageId: string; channelId: string }` | `chat:{channelId}` | Smazaná globální zpráva |
 | `chat:message:reaction` | `{ messageId: string; channelId: string; reactions: Record<string, string[]> }` | `chat:{channelId}` nebo `user:{userId}` | Změna emoji reakcí zprávy (krok 4.3a). `reactions` = emoji → pole `userId`. Whisper jde jen účastníkům (`user:` room) |
-| `chat:room:environment` | `{ room: RoomKey; style: 'fantasy'\|'scifi'\|'mystic'; placeId: string }` | `chat:{channelId}` | Změna sdíleného prostředí Rozcestí (styl + lokace); emituje BE po REST `PUT /global-chat/rooms/:room/environment` |
+| `chat:room:environment` | `{ room: RoomKey; style: 'fantasy'\|'scifi'\|'mystic'; placeId: string }` | `chat:{channelId}` | Změna sdíleného prostředí Campu (styl + lokace); emituje BE po REST `PUT /global-chat/rooms/:room/environment` |
 | `chat:rooms:presence` | `Record<RoomKey, number>` | *(broadcast všem)* | Počet přítomných pro každou místnost — pro odznak v navigaci. Emituje BE po každém join/leave/cleanup. Initial stav přes REST `GET /global-chat/rooms/presence` |
 
-> `RoomKey` = `'hospoda' | 'rozcesti-1' | 'rozcesti-2' | 'rozcesti-3'`.
+> `RoomKey` = `'hospoda' | 'camp-1' | 'camp-2' | 'camp-3'`.
 > Auto-odhlášení (krok 4.2c §5): cron á 5 min odebere z presence socket s `lastSeen`
 > starším 60 min. Socket se **neodpojuje** (je sdílený celou aplikací) — jen padne
 > `chat:presence` `leave` a `chat:rooms:presence`.

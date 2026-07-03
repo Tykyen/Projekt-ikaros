@@ -700,7 +700,7 @@ describe('UsersService', () => {
       expect(result.lastLoginAt).toBe(loginDate.toISOString());
     });
 
-    it('vrátí veřejná profilová pole + postavu v Rozcestí', async () => {
+    it('vrátí veřejná profilová pole + postavu v Campu', async () => {
       mockRepo.findById.mockResolvedValue({
         ...baseUser,
         bio: 'O mně',

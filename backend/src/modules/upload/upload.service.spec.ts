@@ -324,14 +324,14 @@ describe('UploadService', () => {
           expect(opts.resource_type).toBe('raw');
           cb(null, {
             secure_url: 'https://cdn/d.pdf',
-            public_id: 'global-chat/rozcesti-1/d',
+            public_id: 'global-chat/camp-1/d',
           });
           return mockWritable;
         },
       );
       const result = await service.uploadGlobalChatFile(
         makeFile('application/pdf'),
-        'rozcesti-1',
+        'camp-1',
       );
       expect(result.type).toBe('document');
     });

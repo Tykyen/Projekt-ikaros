@@ -79,7 +79,7 @@ ChatMessageSchema.index({ channelId: 1, visibleTo: 1 });
 ChatMessageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 // 6.2h — idempotentní retry: dva sendy se stejným nonce jsou jedna zpráva.
 // Unique JEN když je clientNonce string (world chat posílá UUID). Global chat
-// (Hospoda/Rozcestí) clientNonce neposílá → null; `sparse` ho v KOMPOZITNÍM
+// (Hospoda/Camp) clientNonce neposílá → null; `sparse` ho v KOMPOZITNÍM
 // indexu nevyřadí (channelId je vždy přítomný), takže 2. global zpráva v kanálu
 // kolidovala na (channelId, null) → E11000 → 409. `partialFilterExpression`
 // indexuje jen reálné string nonce, null/global se neindexují.

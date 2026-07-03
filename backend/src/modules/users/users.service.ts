@@ -520,7 +520,7 @@ export class UsersService implements OnModuleInit {
       defaultAvatarType: user.defaultAvatarType,
       worldsCount,
       lastSeenAt,
-      // 1.3a — veřejná profilová pole + postava v Rozcestí (FE: veřejný
+      // 1.3a — veřejná profilová pole + postava v Campu (FE: veřejný
       // profil 1.4 + detail postavy v chatu).
       bio: user.bio,
       city: user.city,

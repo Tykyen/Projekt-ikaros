@@ -25,15 +25,15 @@ import { UsersService } from '../users/users.service';
 import { AnonBanService } from './anon-ban.service';
 import { HOUR_MS } from '../../common/constants/time.constants';
 
-/** Klíč globální chat místnosti — Hospoda + tři Rozcestí (krok 4.2a). */
-export type RoomKey = 'hospoda' | 'rozcesti-1' | 'rozcesti-2' | 'rozcesti-3';
+/** Klíč globální chat místnosti — Hospoda + tři Camp (krok 4.2a). */
+export type RoomKey = 'hospoda' | 'camp-1' | 'camp-2' | 'camp-3';
 
 /** Pořadí a názvy globálních kanálů. `type` v `chatchannels` = RoomKey. */
 const ROOM_DEFS: { key: RoomKey; name: string }[] = [
   { key: 'hospoda', name: 'Interdimenzionální hospoda' },
-  { key: 'rozcesti-1', name: 'Rozcestí I.' },
-  { key: 'rozcesti-2', name: 'Rozcestí II.' },
-  { key: 'rozcesti-3', name: 'Rozcestí III.' },
+  { key: 'camp-1', name: 'Camp I.' },
+  { key: 'camp-2', name: 'Camp II.' },
+  { key: 'camp-3', name: 'Camp III.' },
 ];
 
 export const ROOM_KEYS: RoomKey[] = ROOM_DEFS.map((r) => r.key);
@@ -89,7 +89,7 @@ export class GlobalChatService implements OnModuleInit {
 
   /**
    * Identita autora zprávy (4.2e §1) — snapshot v okamžiku odeslání. Hospoda
-   * vystupuje účtem, Rozcestí postavou z profilu (fallback účet, když postavu
+   * vystupuje účtem, Camp postavou z profilu (fallback účet, když postavu
    * nevyplnil). Zdroj je autoritativní profil z DB — klient nic neposílá, aby
    * nemohl lhát o cizí identitě. Snapshot (ne render-time): roleplay zpráva si
    * natrvalo pamatuje, za koho byla psána, i když autor postavu později změní.
@@ -178,6 +178,18 @@ export class GlobalChatService implements OnModuleInit {
       // (krok 4.1). Najdeme ji přes findGlobal() a doplníme type.
       if (!channel && key === 'hospoda') {
         const legacy = await this.channelRepo.findGlobal();
+        if (legacy) {
+          channel =
+            (await this.channelRepo.update(legacy.id, { type: key })) ?? legacy;
+        }
+      }
+
+      // Rename Rozcestí→Camp: dřívější kanály měly type 'rozcesti-N'. Najdeme je
+      // podle starého typu a přeznačíme na 'camp-N' — zachová channelId
+      // (a tím i běžící zprávy s 1h TTL) místo osiření + založení duplikátu.
+      if (!channel && key.startsWith('camp-')) {
+        const legacyType = key.replace('camp-', 'rozcesti-');
+        const legacy = await this.channelRepo.findGlobalByType(legacyType);
         if (legacy) {
           channel =
             (await this.channelRepo.update(legacy.id, { type: key })) ?? legacy;
@@ -330,8 +342,8 @@ export class GlobalChatService implements OnModuleInit {
     });
 
     // 15.9 — push JEN z Hospody, a to opt-in (kategorie `hospoda`, default VYP).
-    // Rozcestí push negeneruje vůbec (dřív sdílená notifyAll spamovala všechny
-    // i ze zpráv z Rozcestí). fire-and-forget — nečekáme na výsledek.
+    // Camp push negeneruje vůbec (dřív sdílená notifyAll spamovala všechny
+    // i ze zpráv z Campu). fire-and-forget — nečekáme na výsledek.
     if (room === 'hospoda') {
       void this.pushService
         .notifyAll(

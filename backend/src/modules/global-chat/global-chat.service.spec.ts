@@ -154,12 +154,12 @@ describe('GlobalChatService', () => {
       await initAllChannels();
       expect(channelRepo.save).not.toHaveBeenCalled();
       expect(service.getChannelId('hospoda')).toBe('global-ch-id');
-      expect(service.getChannelId('rozcesti-1')).toBe('rozcesti-1-id');
-      expect(service.getChannelId('rozcesti-2')).toBe('rozcesti-2-id');
-      expect(service.getChannelId('rozcesti-3')).toBe('rozcesti-3-id');
+      expect(service.getChannelId('camp-1')).toBe('camp-1-id');
+      expect(service.getChannelId('camp-2')).toBe('camp-2-id');
+      expect(service.getChannelId('camp-3')).toBe('camp-3-id');
     });
 
-    it('creates missing Rozcestí channels', async () => {
+    it('creates missing Camp channels', async () => {
       channelRepo.findGlobalByType.mockImplementation((type: string) =>
         Promise.resolve(type === 'hospoda' ? mockChannel : null),
       );
@@ -168,7 +168,7 @@ describe('GlobalChatService', () => {
       );
       await service.onModuleInit();
       expect(channelRepo.save).toHaveBeenCalledTimes(3);
-      expect(service.getChannelId('rozcesti-1')).toBe('rozcesti-1-id');
+      expect(service.getChannelId('camp-1')).toBe('camp-1-id');
     });
 
     it('migrates legacy Hospoda channel (type "all") by setting type', async () => {
@@ -231,11 +231,11 @@ describe('GlobalChatService', () => {
       });
     });
 
-    it('isolates channels — Rozcestí I. queries its own channelId', async () => {
+    it('isolates channels — Camp I. queries its own channelId', async () => {
       messageRepo.findByChannelId.mockResolvedValue([]);
-      await service.getMessages('rozcesti-1', 'u1', {});
+      await service.getMessages('camp-1', 'u1', {});
       expect(messageRepo.findByChannelId).toHaveBeenCalledWith(
-        'rozcesti-1-id',
+        'camp-1-id',
         expect.any(Object),
       );
     });
@@ -259,10 +259,10 @@ describe('GlobalChatService', () => {
 
     it('emits chat.global.message.created with the room channelId', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
-      await service.sendMessage('rozcesti-2', { content: 'hello' }, mockUser);
+      await service.sendMessage('camp-2', { content: 'hello' }, mockUser);
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'chat.global.message.created',
-        expect.objectContaining({ channelId: 'rozcesti-2-id' }),
+        expect.objectContaining({ channelId: 'camp-2-id' }),
       );
     });
 
@@ -289,9 +289,9 @@ describe('GlobalChatService', () => {
     });
 
     // 4.2e §1 — snapshot identity dle místnosti.
-    it('Rozcestí: ukládá jméno + avatar postavy z profilu', async () => {
+    it('Camp: ukládá jméno + avatar postavy z profilu', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
-      await service.sendMessage('rozcesti-1', { content: 'ahoj' }, mockUser);
+      await service.sendMessage('camp-1', { content: 'ahoj' }, mockUser);
       const call = messageRepo.save.mock.calls[0][0];
       expect(call.senderName).toBe('Aragorn');
       expect(call.senderAvatarUrl).toBe('aragorn.webp');
@@ -305,10 +305,10 @@ describe('GlobalChatService', () => {
       expect(call.senderAvatarUrl).toBe('acc.webp');
     });
 
-    it('Rozcestí bez postavy: fallback na účet (username + avatarUrl)', async () => {
+    it('Camp bez postavy: fallback na účet (username + avatarUrl)', async () => {
       usersService.findById.mockResolvedValue({ avatarUrl: 'acc.webp' });
       messageRepo.save.mockResolvedValue(makeMsg());
-      await service.sendMessage('rozcesti-2', { content: 'ahoj' }, mockUser);
+      await service.sendMessage('camp-2', { content: 'ahoj' }, mockUser);
       const call = messageRepo.save.mock.calls[0][0];
       expect(call.senderName).toBe('gandalf');
       expect(call.senderAvatarUrl).toBe('acc.webp');
@@ -360,7 +360,7 @@ describe('GlobalChatService', () => {
     it('profil nenačten: zpráva projde, avatar undefined', async () => {
       usersService.findById.mockRejectedValue(new NotFoundException({}));
       messageRepo.save.mockResolvedValue(makeMsg());
-      await service.sendMessage('rozcesti-1', { content: 'ahoj' }, mockUser);
+      await service.sendMessage('camp-1', { content: 'ahoj' }, mockUser);
       const call = messageRepo.save.mock.calls[0][0];
       expect(call.senderName).toBe('gandalf');
       expect(call.senderAvatarUrl).toBeUndefined();
@@ -398,19 +398,19 @@ describe('GlobalChatService', () => {
     it('saves whisper into the requested room channel', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
       await service.sendWhisper(
-        'rozcesti-3',
+        'camp-3',
         { id: 'u1', username: 'gandalf' },
         'u2',
         'pst',
       );
-      expect(messageRepo.save.mock.calls[0][0].channelId).toBe('rozcesti-3-id');
+      expect(messageRepo.save.mock.calls[0][0].channelId).toBe('camp-3-id');
     });
 
-    // 4.2e §1 — whisper v Rozcestí nese identitu postavy (snapshot).
-    it('Rozcestí: whisper nese jméno + avatar postavy', async () => {
+    // 4.2e §1 — whisper v Campu nese identitu postavy (snapshot).
+    it('Camp: whisper nese jméno + avatar postavy', async () => {
       messageRepo.save.mockResolvedValue(makeMsg());
       await service.sendWhisper(
-        'rozcesti-1',
+        'camp-1',
         { id: 'u1', username: 'gandalf' },
         'u2',
         'pst',
@@ -426,21 +426,18 @@ describe('GlobalChatService', () => {
 
     it('uloží systémovou zprávu s isSystem=true a emitne ji', async () => {
       messageRepo.save.mockResolvedValue(makeMsg({ isSystem: true }));
-      await service.saveSystemMessage(
-        'rozcesti-1',
-        'Na rozcestí se objevuje X.',
-      );
+      await service.saveSystemMessage('camp-1', 'Na rozcestí se objevuje X.');
       const call = messageRepo.save.mock.calls[0][0];
       expect(call.isSystem).toBe(true);
       expect(call.content).toBe('Na rozcestí se objevuje X.');
-      expect(call.channelId).toBe('rozcesti-1-id');
+      expect(call.channelId).toBe('camp-1-id');
       expect(call.visibleTo).toEqual([]);
       // senderId/senderName musí být neprázdné — schema má `required: true`.
       expect(call.senderId).toBeTruthy();
       expect(call.senderName).toBeTruthy();
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'chat.global.message.created',
-        expect.objectContaining({ channelId: 'rozcesti-1-id' }),
+        expect.objectContaining({ channelId: 'camp-1-id' }),
       );
     });
   });
