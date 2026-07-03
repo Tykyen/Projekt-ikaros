@@ -299,6 +299,50 @@ export class UploadService {
   }
 
   /**
+   * 20.5 — upload sdíleného PDF admin chatu. Jen PDF, `resource_type: 'raw'`,
+   * folder `platform-docs`. Vrací `ChatAttachment` (url/publicId pro sklad).
+   */
+  async uploadPlatformDocument(
+    file: Express.Multer.File,
+  ): Promise<ChatAttachment> {
+    if (file.mimetype !== 'application/pdf') {
+      throw new UnsupportedMediaTypeException('Povolené jsou jen PDF soubory');
+    }
+    assertMagicBytes(file); // UM-07
+    let result: { secure_url: string; public_id: string };
+    try {
+      result = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            { folder: 'platform-docs', resource_type: 'raw' },
+            (err, res) => {
+              if (err || !res)
+                reject(
+                  err instanceof Error
+                    ? err
+                    : new Error(err?.message ?? 'Cloudinary: no response'),
+                );
+              else resolve(res);
+            },
+          )
+          .end(file.buffer);
+      });
+    } catch {
+      throw new BadGatewayException(
+        'Chyba při nahrávání souboru na Cloudinary',
+      );
+    }
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      type: 'document',
+      mimeType: file.mimetype,
+      filename: file.originalname,
+      size: file.size,
+    };
+  }
+
+  /**
    * 6.2b — upload přílohy světového chatu (`/svet/:slug/chat`). Stejné MIME a
    * limity jako globální chat, ale folder `world-chat/<worldId>/` — oddělený
    * od globálního uploadu (snadný cleanup při smazání světa).

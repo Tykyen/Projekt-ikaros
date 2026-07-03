@@ -61,6 +61,7 @@ import { WorldElevationsModule } from './modules/world-elevations/world-elevatio
 import { MailerModule } from './modules/mailer/mailer.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PlatformChatModule } from './modules/platform-chat/platform-chat.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -120,6 +121,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     StatsModule,
     SeoModule,
     AnalyticsModule,
+    PlatformChatModule,
     AdminModule,
     FriendshipsModule,
     DataExportModule,

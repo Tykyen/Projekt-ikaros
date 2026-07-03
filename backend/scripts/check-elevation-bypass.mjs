@@ -32,6 +32,7 @@ const PLATFORM_WHITELIST = [
   'friendships',
   'presence',
   'global-chat',
+  'platform-chat',
   'ikaros-news',
   'ikaros-articles',
   'ikaros-gallery',
