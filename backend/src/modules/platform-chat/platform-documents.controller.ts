@@ -2,8 +2,10 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Delete,
   Param,
+  Body,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -21,6 +23,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { PlatformDocumentsService } from './platform-documents.service';
+import { RenameDocumentDto } from './dto/rename-document.dto';
 
 /** 20.5 — sdílené PDF admin chatu. Čtení/upload = všichni admini; mazání gate v service. */
 @ApiTags('platform-documents')
@@ -55,6 +58,15 @@ export class PlatformDocumentsController {
       });
     }
     return this.service.upload(file, user);
+  }
+
+  @Patch(':id')
+  rename(
+    @Param('id') id: string,
+    @Body() dto: RenameDocumentDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.rename(id, dto.filename, user);
   }
 
   @Delete(':id')

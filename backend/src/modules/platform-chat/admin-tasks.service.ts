@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Inject,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,10 +9,19 @@ import { Model } from 'mongoose';
 import { AdminTaskSchemaClass } from './schemas/admin-task.schema';
 import type { AdminTask } from './interfaces/admin-task.interface';
 import { UsersService } from '../users/users.service';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type { CreateAdminTaskDto } from './dto/create-admin-task.dto';
 import type { UpdateAdminTaskDto } from './dto/update-admin-task.dto';
+
+/** Člen týmu správy pro panel úkolů. */
+export interface StaffMember {
+  id: string;
+  username: string;
+  avatarUrl?: string;
+  role: UserRole;
+}
 
 /**
  * 20.5 — úkoly týmu správy. Veřejné mezi adminy (list vrací všechny). Vlastní
@@ -24,7 +34,23 @@ export class AdminTasksService {
     @InjectModel(AdminTaskSchemaClass.name)
     private readonly model: Model<AdminTaskSchemaClass>,
     private readonly usersService: UsersService,
+    @Inject('IUsersRepository')
+    private readonly usersRepo: IUsersRepository,
   ) {}
+
+  /** Seznam všech členů týmu správy (Superadmin + Admin) — i bez úkolů. */
+  async listStaff(): Promise<StaffMember[]> {
+    const users = await this.usersRepo.findByRoles([
+      UserRole.Superadmin,
+      UserRole.Admin,
+    ]);
+    return users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      avatarUrl: u.avatarUrl,
+      role: u.role,
+    }));
+  }
 
   private toEntity(doc: Record<string, unknown>): AdminTask {
     return {

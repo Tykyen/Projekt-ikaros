@@ -36,6 +36,12 @@ export class AdminTasksController {
     return this.service.list();
   }
 
+  /** Seznam členů týmu správy (i bez úkolů) — pro panel „Úkoly týmu". */
+  @Get('staff')
+  listStaff() {
+    return this.service.listStaff();
+  }
+
   @Post()
   create(@Body() dto: CreateAdminTaskDto, @CurrentUser() user: RequestUser) {
     return this.service.create(dto, user);

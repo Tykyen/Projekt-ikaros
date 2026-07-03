@@ -60,6 +60,45 @@ export class PlatformDocumentsService {
     );
   }
 
+  /** Přejmenovat smí Superadmin nebo ten, kdo dokument nahrál. */
+  async rename(
+    id: string,
+    filename: string,
+    user: RequestUser,
+  ): Promise<PlatformDocument> {
+    const doc = await this.model.findById(id).lean().exec();
+    if (!doc) {
+      throw new NotFoundException({
+        code: 'PLATFORM_DOC_NOT_FOUND',
+        message: 'Dokument neexistuje',
+      });
+    }
+    const uploaderId = String(
+      (doc as unknown as Record<string, unknown>).uploaderId,
+    );
+    if (user.role !== UserRole.Superadmin && uploaderId !== user.id) {
+      throw new ForbiddenException({
+        code: 'PLATFORM_DOC_FORBIDDEN',
+        message: 'Přejmenovat může jen nahravatel nebo superadmin',
+      });
+    }
+    const updated = await this.model
+      .findByIdAndUpdate(
+        id,
+        { $set: { filename: filename.trim() } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    if (!updated) {
+      throw new NotFoundException({
+        code: 'PLATFORM_DOC_NOT_FOUND',
+        message: 'Dokument neexistuje',
+      });
+    }
+    return this.toEntity(updated as unknown as Record<string, unknown>);
+  }
+
   /** Smazat smí Superadmin nebo ten, kdo dokument nahrál. */
   async delete(id: string, user: RequestUser): Promise<void> {
     const doc = await this.model.findById(id).lean().exec();
