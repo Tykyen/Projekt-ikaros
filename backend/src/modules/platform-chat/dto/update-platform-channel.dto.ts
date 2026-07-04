@@ -1,4 +1,10 @@
-import { IsString, MaxLength, IsOptional, IsArray } from 'class-validator';
+import {
+  IsString,
+  MaxLength,
+  IsOptional,
+  IsArray,
+  IsBoolean,
+} from 'class-validator';
 
 /** 20.5 — úprava konverzace (přejmenování / správa členů; jen Superadmin). */
 export class UpdatePlatformChannelDto {
@@ -6,6 +12,11 @@ export class UpdatePlatformChannelDto {
   @IsString()
   @MaxLength(80)
   name?: string;
+
+  /** true = přepnout na „všichni admini" (accessMode 'all'). */
+  @IsOptional()
+  @IsBoolean()
+  allMembers?: boolean;
 
   @IsOptional()
   @IsArray()

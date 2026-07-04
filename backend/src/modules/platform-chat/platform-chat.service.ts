@@ -187,13 +187,16 @@ export class PlatformChatService implements OnModuleInit {
     dto: CreatePlatformChannelDto,
     user: RequestUser,
   ): Promise<ChatChannel> {
-    const members = Array.from(new Set([user.id, ...(dto.memberIds ?? [])]));
+    const all = dto.allMembers === true;
+    const members = all
+      ? []
+      : Array.from(new Set([user.id, ...(dto.memberIds ?? [])]));
     const channel = await this.channelRepo.save({
       name: dto.name.trim(),
       worldId: null,
       groupId: STAFF_GROUP_ID,
       isGlobal: true,
-      accessMode: 'members',
+      accessMode: all ? 'all' : 'members',
       allowedRoles: [],
       allowedMemberIds: members,
       order: Date.now(),
@@ -211,9 +214,15 @@ export class PlatformChatService implements OnModuleInit {
     const channel = await this.loadStaffChannel(channelId);
     const patch: Partial<ChatChannel> = {};
     if (dto.name !== undefined) patch.name = dto.name.trim();
-    // Seed konverzace jsou `accessMode:'all'` (viditelné všem) → členství se nemění.
-    if (dto.memberIds !== undefined && !this.isSeed(channel)) {
-      patch.allowedMemberIds = Array.from(new Set(dto.memberIds));
+    // Seed konverzace (Hlavní/Vedení) mají zamčené členství = všichni admini.
+    if (!this.isSeed(channel)) {
+      if (dto.allMembers === true) {
+        patch.accessMode = 'all';
+        patch.allowedMemberIds = [];
+      } else if (dto.memberIds !== undefined) {
+        patch.accessMode = 'members';
+        patch.allowedMemberIds = Array.from(new Set(dto.memberIds));
+      }
     }
     const updated = await this.channelRepo.update(channelId, patch);
     this.eventEmitter.emit('platform-chat.channel.changed', {});
