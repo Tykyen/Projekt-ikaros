@@ -64,7 +64,7 @@ export class PlatformDocumentsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 20 * 1024 * 1024 },
+      limits: { fileSize: 30 * 1024 * 1024 },
     }),
   )
   upload(

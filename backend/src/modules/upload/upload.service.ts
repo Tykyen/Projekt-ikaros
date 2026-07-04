@@ -313,8 +313,16 @@ export class UploadService {
     try {
       result = await new Promise((resolve, reject) => {
         cloudinary.uploader
-          .upload_stream(
-            { folder: 'platform-docs', resource_type: 'raw' },
+          // 20.5 — `upload_chunked_stream` (po částech) obchází ~10 MB limit
+          // Cloudinary na jedno nahrání; multer strop je 30 MB, takže PDF do
+          // 30 MB projde (5 dílů). `chunk_size` < 10 MB → každý díl pod limitem.
+          // Malý soubor = jediný díl (žádná regrese proti `upload_stream`).
+          .upload_chunked_stream(
+            {
+              folder: 'platform-docs',
+              resource_type: 'raw',
+              chunk_size: 6_000_000,
+            },
             (err, res) => {
               if (err || !res)
                 reject(
