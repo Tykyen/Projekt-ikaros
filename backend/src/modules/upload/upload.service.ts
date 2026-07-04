@@ -327,10 +327,20 @@ export class UploadService {
           )
           .end(file.buffer);
       });
-    } catch {
-      throw new BadGatewayException(
-        'Chyba při nahrávání souboru na Cloudinary',
+    } catch (err) {
+      // 20.5 — DŘÍV `catch {}` zahazoval skutečnou Cloudinary chybu → klient
+      // dostal jen mlhavé „502" a nešlo poznat proč (velikost / typ / nastavení
+      // účtu). Zalogujeme plný error a vrátíme konkrétní hlášku (admin-only).
+      logError(
+        this.logger,
+        'uploadPlatformDocument: Cloudinary raw selhal',
+        err,
       );
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new BadGatewayException({
+        code: 'PLATFORM_DOC_UPLOAD_FAILED',
+        message: `Nahrání selhalo (Cloudinary): ${detail}`,
+      });
     }
     return {
       url: result.secure_url,
