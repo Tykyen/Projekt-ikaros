@@ -337,7 +337,9 @@ export class UploadService {
       publicId: result.public_id,
       type: 'document',
       mimeType: file.mimetype,
-      filename: file.originalname,
+      // 20.5 — multer čte multipart `originalname` jako latin1; české názvy
+      // se pak uloží jako mojibake (`prÃ¡vnÃ­`). Překódujeme zpět na UTF-8.
+      filename: Buffer.from(file.originalname, 'latin1').toString('utf8'),
       size: file.size,
     };
   }
