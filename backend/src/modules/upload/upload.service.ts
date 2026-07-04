@@ -418,6 +418,62 @@ export class UploadService {
   }
 
   /**
+   * 20.5 — upload přílohy admin chatu (`/admin-chat`). Stejné MIME a limity jako
+   * globální chat (obrázky + dokumenty, bez videa), folder
+   * `platform-chat/<channelId>` — oddělený sklad + důkaz původu při validaci
+   * zprávy (`assertAttachmentsOrigin`).
+   */
+  async uploadPlatformChatFile(
+    file: Express.Multer.File,
+    channelId: string,
+  ): Promise<ChatAttachment> {
+    const type = GLOBAL_CHAT_ALLOWED_MIME[file.mimetype];
+    if (!type) {
+      throw new UnsupportedMediaTypeException(
+        `Nepodporovaný typ souboru: ${file.mimetype}`,
+      );
+    }
+
+    assertMagicBytes(file); // UM-07
+    const resourceType: 'image' | 'raw' = type === 'image' ? 'image' : 'raw';
+    let result: { secure_url: string; public_id: string };
+    try {
+      result = await new Promise((resolve, reject) => {
+        cloudinary.uploader
+          .upload_stream(
+            {
+              folder: `platform-chat/${channelId}`,
+              resource_type: resourceType,
+            },
+            (err, res) => {
+              if (err || !res)
+                reject(
+                  err instanceof Error
+                    ? err
+                    : new Error(err?.message ?? 'Cloudinary: no response'),
+                );
+              else resolve(res);
+            },
+          )
+          .end(file.buffer);
+      });
+    } catch {
+      throw new BadGatewayException(
+        'Chyba při nahrávání souboru na Cloudinary',
+      );
+    }
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      type,
+      mimeType: file.mimetype,
+      filename: file.originalname,
+      size: file.size,
+    };
+  }
+
+  /**
    * Sdílené jádro pro image upload do Cloudinary. Validuje MIME (jen image/*),
    * nahraje do zadané `folder`, vrací `{ url, publicId, width, height }`.
    *
@@ -714,6 +770,17 @@ export class UploadService {
    */
   @OnEvent('chat.global.message.deleted')
   async handleGlobalMessageDeleted(payload: {
+    attachments?: ChatAttachment[];
+  }): Promise<void> {
+    await this.deleteAttachments(payload.attachments);
+  }
+
+  /**
+   * 20.5 — smazaná zpráva admin chatu (platform-chat) → úklid příloh na
+   * Cloudinary (jinak by osiřely, `platform-chat.service` je z DB nuluje).
+   */
+  @OnEvent('platform-chat.message.deleted')
+  async handlePlatformChatMessageDeleted(payload: {
     attachments?: ChatAttachment[];
   }): Promise<void> {
     await this.deleteAttachments(payload.attachments);

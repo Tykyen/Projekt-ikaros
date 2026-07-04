@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Optional,
   OnModuleInit,
   ForbiddenException,
   NotFoundException,
@@ -13,8 +14,12 @@ import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-rep
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import type { ChatChannel } from '../chat/interfaces/chat-channel.interface';
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
+import type { ChatAttachment } from '../chat/interfaces/chat-attachment.interface';
 import { UsersService } from '../users/users.service';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+import { PushService } from '../push/push.service';
+import { UploadService } from '../upload/upload.service';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type { CreatePlatformMessageDto } from './dto/create-platform-message.dto';
 import type { CreatePlatformChannelDto } from './dto/create-platform-channel.dto';
@@ -46,6 +51,11 @@ export class PlatformChatService implements OnModuleInit {
     private readonly messageRepo: IChatMessageRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly usersService: UsersService,
+    @Inject('IUsersRepository')
+    private readonly usersRepo: IUsersRepository,
+    private readonly uploadService: UploadService,
+    @Optional()
+    private readonly pushService?: PushService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -137,14 +147,20 @@ export class PlatformChatService implements OnModuleInit {
     dto: CreatePlatformMessageDto,
     user: RequestUser,
   ): Promise<ChatMessage> {
-    await this.assertAccess(channelId, user);
-    const content = dto.content.trim();
-    if (!content) {
+    const channel = await this.assertAccess(channelId, user);
+    const content = dto.content?.trim() ?? '';
+    const attachments = dto.attachments ?? [];
+    // Zpráva musí mít text NEBO aspoň jednu přílohu.
+    if (!content && attachments.length === 0) {
       throw new BadRequestException({
         code: 'PLATFORM_CHAT_EMPTY',
         message: 'Zpráva nesmí být prázdná',
       });
     }
+    // UM-08 — ověř, že přílohy pocházejí z našeho uploadu (ne cizí URL).
+    this.uploadService.assertAttachmentsOrigin(attachments, ['platform-chat/']);
+    // Reply — dohledej cíl (tichý fallback když chybí / jiný kanál / smazaný).
+    const replyFields = await this.resolveReply(channelId, dto.replyToId);
     let senderAvatarUrl: string | undefined;
     try {
       const profile = await this.usersService.findById(user.id);
@@ -162,23 +178,159 @@ export class PlatformChatService implements OnModuleInit {
       senderId: user.id,
       senderName: user.username,
       senderAvatarUrl,
-      content,
+      content: content || null,
       isEdited: false,
       isDeleted: false,
       reactions: {},
-      attachments: [],
+      attachments,
       visibleTo: [],
+      ...replyFields,
       // Bez `expiresAt` = perzistentní (admin chat není TTL jako Hospoda).
     });
     await this.channelRepo.update(channelId, {
       lastMessageAt: new Date(),
-      lastMessagePreview: content.slice(0, 80),
+      lastMessagePreview: (content || '📎 Příloha').slice(0, 80),
     });
     this.eventEmitter.emit('platform-chat.message.created', {
       channelId,
       message,
     });
+    // Notifikace ostatních adminů (push + in-app badge) — fire-and-forget,
+    // aby chyba doručení neshodila odeslání zprávy.
+    void this.notifyRecipients(channelId, channel, message, user).catch(
+      (err: unknown) =>
+        logWarn(this.logger, 'Notifikace admin chatu selhala', err),
+    );
     return message;
+  }
+
+  /**
+   * Ověří cíl reply (stejný kanál, nesmazaný, nesystémový) a vrátí pole
+   * `replyTo*` k uložení. Tichý fallback `{}` když cíl chybí — reply degraduje
+   * na běžnou zprávu (vzor `global-chat.service.resolveReply`).
+   */
+  private async resolveReply(
+    channelId: string,
+    replyToId?: string,
+  ): Promise<Partial<ChatMessage>> {
+    if (!replyToId) return {};
+    const target = await this.messageRepo.findById(replyToId);
+    if (
+      !target ||
+      target.channelId !== channelId ||
+      target.isDeleted ||
+      target.isSystem
+    ) {
+      return {};
+    }
+    return {
+      replyToId: target.id,
+      replyToPreview: (target.content ?? '').slice(0, 120),
+      replyToSenderName: target.senderName,
+    };
+  }
+
+  /**
+   * Soft-delete zprávy. Smí ji smazat Superadmin NEBO její odesílatel. Emituje
+   * `platform-chat.message.deleted` (WS broadcast smazání + úklid příloh na
+   * Cloudinary v `UploadService`).
+   */
+  async deleteMessage(
+    channelId: string,
+    messageId: string,
+    user: RequestUser,
+  ): Promise<void> {
+    await this.assertAccess(channelId, user);
+    const message = await this.messageRepo.findById(messageId);
+    if (!message || message.channelId !== channelId || message.isDeleted) {
+      throw new NotFoundException({
+        code: 'PLATFORM_CHAT_MSG_NOT_FOUND',
+        message: 'Zpráva nenalezena',
+      });
+    }
+    const isOwner = message.senderId === user.id;
+    const isSuperadmin = user.role === UserRole.Superadmin;
+    if (!isOwner && !isSuperadmin) {
+      throw new ForbiddenException({
+        code: 'PLATFORM_CHAT_MSG_FORBIDDEN',
+        message: 'Zprávu smí smazat jen její autor nebo Superadmin',
+      });
+    }
+    await this.messageRepo.update(messageId, {
+      isDeleted: true,
+      content: null,
+      attachments: [],
+    });
+    // `attachments` v eventu → `UploadService` smaže Cloudinary assety.
+    this.eventEmitter.emit('platform-chat.message.deleted', {
+      channelId,
+      messageId,
+      attachments: message.attachments ?? [],
+    });
+  }
+
+  /**
+   * Upload přílohy admin chatu — ověří přístup do kanálu (admin + membership),
+   * pak nahraje soubor do `platform-chat/<channelId>`. Vrací `ChatAttachment`.
+   */
+  async uploadFile(
+    channelId: string,
+    file: Express.Multer.File,
+    user: RequestUser,
+  ): Promise<ChatAttachment> {
+    await this.assertAccess(channelId, user);
+    return this.uploadService.uploadPlatformChatFile(file, channelId);
+  }
+
+  /** Příjemci notifikace kanálu (admini/členové mimo odesílatele). */
+  private async resolveRecipients(
+    channel: ChatChannel,
+    senderId: string,
+  ): Promise<string[]> {
+    let ids: string[];
+    if (channel.accessMode === 'all') {
+      const admins = await this.usersRepo.findByRoles([
+        UserRole.Superadmin,
+        UserRole.Admin,
+      ]);
+      ids = admins.map((u) => u.id);
+    } else {
+      // members: uvedení členové + všichni Superadmini (mají přístup vždy).
+      const supers = await this.usersRepo.findByRoles([UserRole.Superadmin]);
+      ids = [...channel.allowedMemberIds, ...supers.map((u) => u.id)];
+    }
+    return Array.from(new Set(ids)).filter((id) => id !== senderId);
+  }
+
+  /**
+   * Web push (PWA, kategorie `adminChat`) + WS signál `platform-chat.activity`
+   * (in-app badge i bez otevřeného chatu) ostatním adminům. Fire-and-forget.
+   */
+  private async notifyRecipients(
+    channelId: string,
+    channel: ChatChannel,
+    message: ChatMessage,
+    sender: RequestUser,
+  ): Promise<void> {
+    const recipientIds = await this.resolveRecipients(channel, sender.id);
+    if (recipientIds.length === 0) return;
+    this.eventEmitter.emit('platform-chat.activity', {
+      recipientIds,
+      channelId,
+    });
+    await this.pushService?.notifyUsers(
+      recipientIds,
+      {
+        title: channel.name,
+        body: `${sender.username}: ${message.content || '📎 Příloha'}`.slice(
+          0,
+          120,
+        ),
+        url: '/admin/chat',
+        tag: `admin-chat-${channelId}`,
+      },
+      'adminChat',
+    );
   }
 
   // ── Správa konverzací (gate na Superadmin je na controlleru) ────────────
@@ -239,6 +391,16 @@ export class PlatformChatService implements OnModuleInit {
     }
     await this.channelRepo.update(channelId, { isDeleted: true });
     this.eventEmitter.emit('platform-chat.channel.changed', {});
+  }
+
+  /** WS typing — dohledá zobrazované jméno uživatele pro broadcast. */
+  async getUsername(userId: string): Promise<string | null> {
+    try {
+      const profile = await this.usersService.findById(userId);
+      return profile.displayName ?? profile.username ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /** WS join gate — ověří, že uživatel je admin a má do kanálu přístup. */

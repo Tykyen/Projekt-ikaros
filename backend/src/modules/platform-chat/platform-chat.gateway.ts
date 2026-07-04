@@ -48,4 +48,50 @@ export class PlatformChatGateway {
       .to(`platform-chat:${payload.channelId}`)
       .emit('platform-chat:message', payload.message);
   }
+
+  /** Smazaná zpráva → broadcast do room kanálu (FE tombstone / odstranění). */
+  @OnEvent('platform-chat.message.deleted')
+  onMessageDeleted(payload: { channelId: string; messageId: string }): void {
+    this.server
+      .to(`platform-chat:${payload.channelId}`)
+      .emit('platform-chat:message:deleted', {
+        messageId: payload.messageId,
+        channelId: payload.channelId,
+      });
+  }
+
+  /**
+   * Typing indikátor — broadcast ostatním v room kanálu (ne sobě). Jméno
+   * dohledáme přes service (identitu bere z `client.data.userId`, ne z payloadu).
+   */
+  @SubscribeMessage('platform-chat:typing')
+  async handleTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { channelId?: string; isTyping?: boolean },
+  ): Promise<void> {
+    const userId = (client.data as { userId?: string })?.userId;
+    const channelId = data?.channelId;
+    if (!userId || !channelId) return;
+    const username = await this.service.getUsername(userId);
+    if (!username) return;
+    client.to(`platform-chat:${channelId}`).emit('platform-chat:typing', {
+      channelId,
+      username,
+      isTyping: data?.isTyping === true,
+    });
+  }
+
+  /**
+   * In-app signál o nové zprávě do per-uživatelských roomů příjemců (adminů) —
+   * badge/notifikace i bez otevřené konverzace. `platform-chat:message` (výše)
+   * míří jen do room kanálu, takže mimo `/admin/chat` by nedorazil.
+   */
+  @OnEvent('platform-chat.activity')
+  onActivity(payload: { recipientIds: string[]; channelId: string }): void {
+    for (const userId of payload.recipientIds) {
+      this.server
+        .to(`user:${userId}`)
+        .emit('platform-chat:activity', { channelId: payload.channelId });
+    }
+  }
 }

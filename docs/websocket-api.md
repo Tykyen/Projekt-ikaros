@@ -200,11 +200,35 @@ Při `handleConnection` gateway ověří JWT z `handshake.auth.token` a přidá 
 
 ---
 
+## 8. PlatformChatGateway
+
+Interní chat správy platformy (`/admin/chat`, 20.5). Sdílí socket server; room `platform-chat:{channelId}` je gated přes admin roli + členství (viz `PlatformChatService.canUserAccessChannel`).
+
+### Příchozí eventy
+
+| Event | Payload | Popis |
+|---|---|---|
+| `platform-chat:join` | `{ channelId }` | Vstup do room konverzace (BE ověří admin + přístup) |
+| `platform-chat:leave` | `{ channelId }` | Opuštění room |
+| `platform-chat:typing` | `{ channelId, isTyping }` | „Píše…" — BE broadcastuje ostatním v room (identita z `client.data.userId`) — 2026-07-04 |
+
+### Odchozí eventy
+
+| Event | Payload | Room | Popis |
+|---|---|---|---|
+| `platform-chat:message` | `ChatMessage` | `platform-chat:{channelId}` | Nová zpráva do otevřené konverzace |
+| `platform-chat:activity` | `{ channelId }` | `user:{recipientId}` | In-app signál o nové zprávě příjemcům (badge i bez otevřeného chatu) — 2026-07-04 |
+| `platform-chat:message:deleted` | `{ messageId, channelId }` | `platform-chat:{channelId}` | Zpráva smazána (Superadmin nebo odesílatel) — 2026-07-04 |
+| `platform-chat:typing` | `{ channelId, username, isTyping }` | `platform-chat:{channelId}` | Kdo právě píše (broadcast ostatním, ne sobě) — 2026-07-04 |
+
+---
+
 ## Rooms — přehled
 
 | Room pattern | Kdo vstupuje | Popis |
 |---|---|---|
 | `chat:{channelId}` | klient (AppGateway `room:join`) | Chat kanál |
+| `platform-chat:{channelId}` | klient (`platform-chat:join`, admin+člen) | Admin chat konverzace (20.5) |
 | `world:{worldId}` | klient (AppGateway `room:join`) | Svět — globální eventy |
 | `user:{userId}` | server automaticky nebo `chat:hospoda:join` | Privátní eventy pro konkrétního uživatele |
 | `{sceneId}` | klient přes `map:join` | Mapa scény |

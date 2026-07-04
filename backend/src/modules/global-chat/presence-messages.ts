@@ -2,8 +2,9 @@ import type { RoomKey } from './global-chat.service';
 
 /**
  * Narativní hláška o příchodu/odchodu uživatele (krok 4.2d §2).
- * Hospoda má krčmářský tón, Camp poutnický. Ukládá se jako systémová
- * zpráva do kanálu — proto generuje text BE, ne FE.
+ * Putyka (room `hospoda`) má krčmářský tón, Camp scénický (neutrální
+ * napříč žánry scén). Ukládá se jako systémová zpráva do kanálu —
+ * proto generuje text BE, ne FE.
  */
 export function presenceLine(
   room: RoomKey,
@@ -16,6 +17,6 @@ export function presenceLine(
       : `${name} dopíjí a opouští krčmu.`;
   }
   return action === 'join'
-    ? `Na rozcestí se objevuje ${name}.`
+    ? `Na scéně se objevuje ${name}.`
     : `${name} se vydává dál a mizí v dáli.`;
 }
