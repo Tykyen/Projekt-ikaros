@@ -9,13 +9,18 @@ import { randomUUID } from 'crypto';
 import type { IWorldMapsRepository } from './interfaces/world-maps-repository.interface';
 import type { IWorldMapFoldersRepository } from './interfaces/world-map-folders-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import type { WorldMapEntry } from './interfaces/world-map.interface';
+import type {
+  WorldMapEntry,
+  WorldMapPin,
+} from './interfaces/world-map.interface';
 import type { WorldMapFolder } from './interfaces/world-map-folder.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type { CreateMapDto } from './dto/create-map.dto';
 import type { UpdateMapDto } from './dto/update-map.dto';
+import type { CreatePinDto } from './dto/create-pin.dto';
+import type { UpdatePinDto } from './dto/update-pin.dto';
 import type { CreateFolderDto } from './dto/create-folder.dto';
 import type { UpdateFolderDto } from './dto/update-folder.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -115,7 +120,29 @@ export class WorldMapsService {
             (userId !== null && m.visibleToPlayerIds.includes(userId))) &&
           (m.folderId === null || visibleFolders.has(m.folderId)),
       )
-      .map((m) => ({ ...m, visibleToPlayerIds: [] }));
+      .map((m) => this.stripForPlayer(m, userId));
+  }
+
+  /**
+   * 16.5 — leak-safe očištění mapy pro hráče: smaže `visibleToPlayerIds` mapy i
+   * pinů a **odfiltruje tajné vlaječky** (pin viditelný jen když
+   * `isPublic || visibleToPlayerIds.includes(userId)`).
+   */
+  private stripForPlayer(
+    map: WorldMapEntry,
+    userId: string | null,
+  ): WorldMapEntry {
+    return {
+      ...map,
+      visibleToPlayerIds: [],
+      pins: map.pins
+        .filter(
+          (p) =>
+            p.isPublic ||
+            (userId !== null && p.visibleToPlayerIds.includes(userId)),
+        )
+        .map((p) => ({ ...p, visibleToPlayerIds: [] })),
+    };
   }
 
   async create(worldId: string, dto: CreateMapDto): Promise<WorldMapEntry> {
@@ -130,6 +157,8 @@ export class WorldMapsService {
       order: maps.length,
       isPublic: dto.isPublic ?? false,
       visibleToPlayerIds: dto.visibleToPlayerIds ?? [],
+      pins: [],
+      linkedSceneId: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -156,6 +185,8 @@ export class WorldMapsService {
     if (dto.visibleToPlayerIds !== undefined)
       patch.visibleToPlayerIds = dto.visibleToPlayerIds;
     if (dto.folderId !== undefined) patch.folderId = dto.folderId;
+    if (dto.linkedSceneId !== undefined)
+      patch.linkedSceneId = dto.linkedSceneId;
 
     const updated = await this.repo.updateMap(worldId, mapId, patch);
     if (!updated)
@@ -194,6 +225,101 @@ export class WorldMapsService {
     orderedIds: string[],
   ): Promise<WorldMapEntry[]> {
     return this.repo.reorder(worldId, orderedIds);
+  }
+
+  // ── Vlaječky (16.5) ─────────────────────────────────────────────────────────
+  /** Přidá vlaječku na mapu; vrací aktualizovanou mapu (PJ pohled, plné piny). */
+  async createPin(
+    worldId: string,
+    mapId: string,
+    dto: CreatePinDto,
+  ): Promise<WorldMapEntry> {
+    const pin: WorldMapPin = {
+      id: randomUUID(),
+      x: dto.x,
+      y: dto.y,
+      label: dto.label?.trim() || 'Bez názvu',
+      info: dto.info?.trim() ?? '',
+      targetType: (dto.targetType as WorldMapPin['targetType']) ?? 'none',
+      targetSlug: dto.targetSlug ?? null,
+      targetMapId: dto.targetMapId ?? null,
+      icon: dto.icon ?? 'marker',
+      color: dto.color ?? 'cyan',
+      isPublic: dto.isPublic ?? true,
+      visibleToPlayerIds: dto.visibleToPlayerIds ?? [],
+    };
+    const updated = await this.repo.addPin(
+      worldId,
+      mapId,
+      pin,
+      new Date().toISOString(),
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'WORLD_MAP_NOT_FOUND',
+        message: 'Mapa nenalezena',
+      });
+    return updated;
+  }
+
+  async updatePin(
+    worldId: string,
+    mapId: string,
+    pinId: string,
+    dto: UpdatePinDto,
+  ): Promise<WorldMapEntry> {
+    const patch: Partial<WorldMapPin> = {};
+    if (dto.x !== undefined) patch.x = dto.x;
+    if (dto.y !== undefined) patch.y = dto.y;
+    if (dto.label !== undefined) patch.label = dto.label.trim();
+    if (dto.info !== undefined) patch.info = dto.info.trim();
+    if (dto.targetType !== undefined)
+      patch.targetType = dto.targetType as WorldMapPin['targetType'];
+    if (dto.targetSlug !== undefined) patch.targetSlug = dto.targetSlug;
+    if (dto.targetMapId !== undefined) patch.targetMapId = dto.targetMapId;
+    if (dto.icon !== undefined) patch.icon = dto.icon;
+    if (dto.color !== undefined) patch.color = dto.color;
+    if (dto.isPublic !== undefined) patch.isPublic = dto.isPublic;
+    if (dto.visibleToPlayerIds !== undefined)
+      patch.visibleToPlayerIds = dto.visibleToPlayerIds;
+
+    const updated = await this.repo.updatePin(
+      worldId,
+      mapId,
+      pinId,
+      patch,
+      new Date().toISOString(),
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'WORLD_MAP_NOT_FOUND',
+        message: 'Mapa nenalezena',
+      });
+    if (!updated.pins.some((p) => p.id === pinId))
+      throw new NotFoundException({
+        code: 'WORLD_MAP_PIN_NOT_FOUND',
+        message: 'Vlaječka nenalezena',
+      });
+    return updated;
+  }
+
+  async removePin(
+    worldId: string,
+    mapId: string,
+    pinId: string,
+  ): Promise<WorldMapEntry> {
+    const updated = await this.repo.removePin(
+      worldId,
+      mapId,
+      pinId,
+      new Date().toISOString(),
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'WORLD_MAP_NOT_FOUND',
+        message: 'Mapa nenalezena',
+      });
+    return updated;
   }
 
   // ── Složky ────────────────────────────────────────────────────────────────

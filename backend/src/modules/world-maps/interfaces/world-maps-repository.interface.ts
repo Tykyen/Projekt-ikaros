@@ -1,4 +1,4 @@
-import type { WorldMapEntry } from './world-map.interface';
+import type { WorldMapEntry, WorldMapPin } from './world-map.interface';
 
 export interface IWorldMapsRepository {
   /** Všechny mapy světa (nesetříděné). Prázdné pole když doc neexistuje. */
@@ -19,4 +19,28 @@ export interface IWorldMapsRepository {
     fromFolderId: string,
     toFolderId: string | null,
   ): Promise<void>;
+
+  // ── Vlaječky (16.5) — granulární ops nad `pins[]` ──────────────────────────
+  /** Přidá vlaječku; vrací aktualizovanou mapu (null když mapa neexistuje). */
+  addPin(
+    worldId: string,
+    mapId: string,
+    pin: WorldMapPin,
+    updatedAt: string,
+  ): Promise<WorldMapEntry | null>;
+  /** Upraví vlaječku (arrayFilters); vrací aktualizovanou mapu nebo null. */
+  updatePin(
+    worldId: string,
+    mapId: string,
+    pinId: string,
+    patch: Partial<WorldMapPin>,
+    updatedAt: string,
+  ): Promise<WorldMapEntry | null>;
+  /** Smaže vlaječku (`$pull`); vrací aktualizovanou mapu nebo null. */
+  removePin(
+    worldId: string,
+    mapId: string,
+    pinId: string,
+    updatedAt: string,
+  ): Promise<WorldMapEntry | null>;
 }

@@ -17,6 +17,13 @@ import { Type } from 'class-transformer';
 import { ChatAttachmentDto } from './chat-attachment.dto';
 import { CHAT_FONT_KEYS, CHAT_FONT_SIZE_KEYS } from '../constants/chat-fonts';
 
+/** 16.5c — reference na interaktivní mapu poslanou do chatu (odkaz, ne obrázek). */
+export class ChatMapRefDto {
+  @IsString() @MaxLength(64) worldMapId: string;
+  @IsString() @MaxLength(64) worldId: string;
+  @IsString() @MaxLength(200) title: string;
+}
+
 export class CreateMessageDto {
   @IsOptional()
   @IsString()
@@ -65,6 +72,12 @@ export class CreateMessageDto {
   @ArrayMaxSize(10)
   @Type(() => ChatAttachmentDto)
   attachments?: ChatAttachmentDto[];
+
+  // 16.5c — poslaná interaktivní mapa (odkaz na WorldMapEntry).
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ChatMapRefDto)
+  mapRef?: ChatMapRefDto;
 
   @IsOptional()
   @IsIn(CHAT_FONT_KEYS)

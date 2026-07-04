@@ -1216,7 +1216,11 @@ export class ChatService implements OnApplicationBootstrap {
       });
     }
 
-    if (!dto.content && (!dto.attachments || dto.attachments.length === 0)) {
+    if (
+      !dto.content &&
+      (!dto.attachments || dto.attachments.length === 0) &&
+      !dto.mapRef
+    ) {
       throw new BadRequestException({
         code: 'CHAT_MESSAGE_EMPTY',
         message: 'Zpráva musí obsahovat text nebo přílohu',
@@ -1370,6 +1374,8 @@ export class ChatService implements OnApplicationBootstrap {
       visibleTo,
       reactions: {},
       attachments: dto.attachments ?? [],
+      // 16.5c — reference na poslanou interaktivní mapu (odkaz, ne obrázek).
+      mapRef: dto.mapRef ?? null,
       customFont,
       customFontSize,
       color,

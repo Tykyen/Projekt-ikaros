@@ -4,7 +4,10 @@ import { WorldMapsService } from './world-maps.service';
 import type { IWorldMapsRepository } from './interfaces/world-maps-repository.interface';
 import type { IWorldMapFoldersRepository } from './interfaces/world-map-folders-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
-import type { WorldMapEntry } from './interfaces/world-map.interface';
+import type {
+  WorldMapEntry,
+  WorldMapPin,
+} from './interfaces/world-map.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 
@@ -18,8 +21,28 @@ function entry(over: Partial<WorldMapEntry> = {}): WorldMapEntry {
     order: 0,
     isPublic: false,
     visibleToPlayerIds: [],
+    pins: [],
+    linkedSceneId: null,
     createdAt: '2026-06-06T00:00:00.000Z',
     updatedAt: '2026-06-06T00:00:00.000Z',
+    ...over,
+  };
+}
+
+function pin(over: Partial<WorldMapPin> = {}): WorldMapPin {
+  return {
+    id: 'p1',
+    x: 0.5,
+    y: 0.5,
+    label: 'Přístav',
+    info: '',
+    targetType: 'page',
+    targetSlug: 'pristav',
+    targetMapId: null,
+    icon: 'anchor',
+    color: 'cyan',
+    isPublic: true,
+    visibleToPlayerIds: [],
     ...over,
   };
 }
@@ -38,6 +61,9 @@ describe('WorldMapsService', () => {
       removeMap: jest.fn(),
       reorder: jest.fn(),
       reparentMaps: jest.fn(),
+      addPin: jest.fn(),
+      updatePin: jest.fn(),
+      removePin: jest.fn(),
     };
     foldersRepo = {
       findByWorld: jest.fn().mockResolvedValue([]),
@@ -171,6 +197,90 @@ describe('WorldMapsService', () => {
     it('remove neexistující mapy → 404', async () => {
       repo.removeMap.mockResolvedValue(false);
       await expect(service.remove('w', 'nope')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('list — vlaječky (16.5)', () => {
+    it('hráč: tajný pin odfiltrován, visibleToPlayerIds pinů vymazané', async () => {
+      const map = entry({
+        id: 'a',
+        isPublic: true,
+        pins: [
+          pin({ id: 'pub', isPublic: true }),
+          pin({ id: 'mine', isPublic: false, visibleToPlayerIds: ['u1'] }),
+          pin({ id: 'secret', isPublic: false, visibleToPlayerIds: ['u2'] }),
+        ],
+      });
+      repo.findByWorld.mockResolvedValue([map]);
+      const res = await service.list('w', 'u1', false);
+      expect(res[0].pins.map((p) => p.id)).toEqual(['pub', 'mine']);
+      expect(res[0].pins.every((p) => p.visibleToPlayerIds.length === 0)).toBe(
+        true,
+      );
+    });
+
+    it('PJ vidí všechny piny včetně tajných a visibleToPlayerIds', async () => {
+      const map = entry({
+        id: 'a',
+        pins: [
+          pin({ id: 'pub', isPublic: true }),
+          pin({ id: 'secret', isPublic: false, visibleToPlayerIds: ['u2'] }),
+        ],
+      });
+      repo.findByWorld.mockResolvedValue([map]);
+      const res = await service.list('w', 'u9', true);
+      expect(res[0].pins.map((p) => p.id)).toEqual(['pub', 'secret']);
+      expect(res[0].pins[1].visibleToPlayerIds).toEqual(['u2']);
+    });
+  });
+
+  describe('pins CRUD (16.5)', () => {
+    it('createPin doplní id + defaulty, label trimne', async () => {
+      repo.addPin.mockImplementation((_w, _m, _p) =>
+        Promise.resolve(entry({ pins: [_p] })),
+      );
+      const res = await service.createPin('w', 'm1', {
+        x: 0.3,
+        y: 0.7,
+        label: '  Docky  ',
+        targetType: 'page',
+        targetSlug: 'docky',
+      });
+      const created = res.pins[0];
+      expect(created.id).toBeTruthy();
+      expect(created.label).toBe('Docky');
+      expect(created.icon).toBe('marker');
+      expect(created.color).toBe('cyan');
+      expect(created.isPublic).toBe(true);
+    });
+
+    it('createPin na neexistující mapě → 404', async () => {
+      repo.addPin.mockResolvedValue(null);
+      await expect(
+        service.createPin('w', 'nope', { x: 0, y: 0 }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updatePin: mapa existuje ale pin chybí → 404 PIN_NOT_FOUND', async () => {
+      repo.updatePin.mockResolvedValue(entry({ pins: [] }));
+      await expect(
+        service.updatePin('w', 'm1', 'ghost', { label: 'X' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updatePin OK vrací mapu s pinem', async () => {
+      repo.updatePin.mockResolvedValue(
+        entry({ pins: [pin({ id: 'p1', label: 'Nové' })] }),
+      );
+      const res = await service.updatePin('w', 'm1', 'p1', { label: 'Nové' });
+      expect(res.pins[0].label).toBe('Nové');
+    });
+
+    it('removePin na neexistující mapě → 404', async () => {
+      repo.removePin.mockResolvedValue(null);
+      await expect(service.removePin('w', 'nope', 'p1')).rejects.toThrow(
         NotFoundException,
       );
     });

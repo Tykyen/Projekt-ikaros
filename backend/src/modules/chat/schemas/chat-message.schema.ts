@@ -33,6 +33,9 @@ export class ChatMessageSchemaClass {
     default: (): Record<string, unknown>[] => [],
   })
   attachments: Record<string, unknown>[];
+  /** 16.5c — reference na interaktivní mapu poslanou do chatu (odkaz, ne obrázek). */
+  @Prop({ type: Object, default: null })
+  mapRef: Record<string, unknown> | null;
   @Prop({ type: Date }) expiresAt?: Date;
 
   @Prop({ type: String, default: null }) customFont: string | null;

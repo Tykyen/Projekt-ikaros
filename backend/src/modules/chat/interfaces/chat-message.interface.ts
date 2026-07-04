@@ -1,5 +1,17 @@
 import type { ChatAttachment } from './chat-attachment.interface';
 
+/**
+ * 16.5c — reference na interaktivní mapu atlasu poslanou do chatu. Neukládá
+ * obrázek ani piny — jen odkaz; FE dopočítá náhled/piny z živé mapy dle
+ * viditelnosti příjemce (leak-safe). `title` = snapshot pro fallback, když mapa
+ * zmizí / není dostupná.
+ */
+export interface ChatMapRef {
+  worldMapId: string;
+  worldId: string;
+  title: string;
+}
+
 /** Výsledek hledání ve zprávách (krok 6.6). */
 export interface ChatSearchResult {
   messageId: string;
@@ -44,6 +56,8 @@ export interface ChatMessage {
   visibleTo?: string[];
   reactions: Record<string, string[]>;
   attachments?: ChatAttachment[];
+  /** 16.5c — poslaná interaktivní mapa (odkaz, ne obrázek). */
+  mapRef?: ChatMapRef | null;
   expiresAt?: Date;
   customFont: string | null;
   /** Krok 6.2f — klíč CHAT_FONT_SIZE_KEYS (xs/sm/normal/lg/xl/xxl); null = 1×. */

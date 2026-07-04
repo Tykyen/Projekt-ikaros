@@ -18,6 +18,8 @@ import {
 import { WorldMapsService } from './world-maps.service';
 import { CreateMapDto } from './dto/create-map.dto';
 import { UpdateMapDto } from './dto/update-map.dto';
+import { CreatePinDto } from './dto/create-pin.dto';
+import { UpdatePinDto } from './dto/update-pin.dto';
 import { ReorderMapsDto } from './dto/reorder-maps.dto';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
@@ -102,6 +104,51 @@ export class WorldMapsController {
   ) {
     await this.service.assertCanManage(user, worldId);
     return this.service.reorder(worldId, dto.orderedIds);
+  }
+
+  // ── Vlaječky (16.5) ─────────────────────────────────────────────────────────
+
+  @Post(':worldId/maps/:mapId/pins')
+  @ApiOperation({ summary: 'Přidat vlaječku na mapu (PJ+)' })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 403 })
+  async createPin(
+    @Param('worldId') worldId: string,
+    @Param('mapId') mapId: string,
+    @Body() dto: CreatePinDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user, worldId);
+    return this.service.createPin(worldId, mapId, dto);
+  }
+
+  @Patch(':worldId/maps/:mapId/pins/:pinId')
+  @ApiOperation({ summary: 'Upravit vlaječku (PJ+)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  async updatePin(
+    @Param('worldId') worldId: string,
+    @Param('mapId') mapId: string,
+    @Param('pinId') pinId: string,
+    @Body() dto: UpdatePinDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user, worldId);
+    return this.service.updatePin(worldId, mapId, pinId, dto);
+  }
+
+  @Delete(':worldId/maps/:mapId/pins/:pinId')
+  @ApiOperation({ summary: 'Smazat vlaječku (PJ+)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  async removePin(
+    @Param('worldId') worldId: string,
+    @Param('mapId') mapId: string,
+    @Param('pinId') pinId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.assertCanManage(user, worldId);
+    return this.service.removePin(worldId, mapId, pinId);
   }
 
   // ── Složky (13.4b F2) ──────────────────────────────────────────────────────

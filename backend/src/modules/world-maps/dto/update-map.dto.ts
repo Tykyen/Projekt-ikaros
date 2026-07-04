@@ -22,4 +22,10 @@ export class UpdateMapDto {
   @ValidateIf((_, v) => v !== null)
   @IsString()
   folderId?: string | null;
+
+  /** 16.5b — propojení s taktickou scénou (1:1); `null` = odpojit. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  linkedSceneId?: string | null;
 }

@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { ChatMessageSchemaClass } from '../schemas/chat-message.schema';
-import type { ChatMessage } from '../interfaces/chat-message.interface';
+import type {
+  ChatMessage,
+  ChatMapRef,
+} from '../interfaces/chat-message.interface';
 import type { ChatAttachment } from '../interfaces/chat-attachment.interface';
 import type { IChatMessageRepository } from '../interfaces/chat-message-repository.interface';
 
@@ -266,6 +269,7 @@ export class MongoChatMessageRepository
       visibleTo: doc.visibleTo as string[] | undefined,
       reactions: (doc.reactions as Record<string, string[]>) ?? {},
       attachments: (doc.attachments as ChatAttachment[]) ?? [],
+      mapRef: (doc.mapRef as ChatMapRef | null | undefined) ?? null,
       expiresAt: doc.expiresAt as Date | undefined,
       customFont: (doc.customFont as string | null) ?? null,
       customFontSize: (doc.customFontSize as string | null) ?? null,
