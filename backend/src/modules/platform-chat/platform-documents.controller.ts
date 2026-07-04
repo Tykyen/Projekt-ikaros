@@ -11,7 +11,9 @@ import {
   UploadedFile,
   BadRequestException,
   HttpCode,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Throttle } from '@nestjs/throttler';
@@ -36,6 +38,24 @@ export class PlatformDocumentsController {
   @Get()
   list() {
     return this.service.list();
+  }
+
+  /**
+   * 20.5 — inline čtení PDF. Server stáhne soubor z Cloudinary a přebalí hlavičky
+   * (`application/pdf` + `inline` se správným názvem), aby prohlížeč otevřel
+   * čtečku místo stažení souboru bez přípony. `@Res()` = binární stream mimo
+   * Nest interceptory; guard/role (Sa+Admin) běží pořád na úrovni controlleru.
+   */
+  @Get(':id/view')
+  async view(@Param('id') id: string, @Res() res: Response) {
+    const { buffer, filename } = await this.service.getViewData(id);
+    const safe = encodeURIComponent(`${filename.replace(/\.pdf$/i, '')}.pdf`);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename*=UTF-8''${safe}`,
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
   }
 
   @Post()

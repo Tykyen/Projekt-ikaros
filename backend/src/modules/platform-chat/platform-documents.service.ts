@@ -2,6 +2,7 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  BadGatewayException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -39,6 +40,41 @@ export class PlatformDocumentsService {
     return docs.map((d) =>
       this.toEntity(d as unknown as Record<string, unknown>),
     );
+  }
+
+  /**
+   * Data pro inline čtení PDF (20.5). Cloudinary drží PDF jako `raw` bez přípony
+   * a s hlavičkou nutící stažení → prohlížeč soubor stáhne místo zobrazení a bez
+   * přípony ani nepozná typ. Proto ho čteme na serveru; controller přebalí
+   * hlavičky (`application/pdf` + `inline`), ať se otevře čtečka se správným
+   * názvem. Funguje i pro už nahrané dokumenty (nezávisí na uložení v Cloudinary).
+   */
+  async getViewData(id: string): Promise<{ buffer: Buffer; filename: string }> {
+    const doc = await this.model.findById(id).lean().exec();
+    if (!doc) {
+      throw new NotFoundException({
+        code: 'PLATFORM_DOC_NOT_FOUND',
+        message: 'Dokument neexistuje',
+      });
+    }
+    const rec = doc as unknown as Record<string, unknown>;
+    let resp: Awaited<ReturnType<typeof fetch>>;
+    try {
+      resp = await fetch(rec.url as string);
+    } catch {
+      throw new BadGatewayException({
+        code: 'PLATFORM_DOC_FETCH_FAILED',
+        message: 'Dokument se nepodařilo načíst',
+      });
+    }
+    if (!resp.ok) {
+      throw new BadGatewayException({
+        code: 'PLATFORM_DOC_FETCH_FAILED',
+        message: 'Dokument se nepodařilo načíst',
+      });
+    }
+    const buffer = Buffer.from(await resp.arrayBuffer());
+    return { buffer, filename: rec.filename as string };
   }
 
   async upload(
