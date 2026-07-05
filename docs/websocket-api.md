@@ -220,6 +220,7 @@ Interní chat správy platformy (`/admin/chat`, 20.5). Sdílí socket server; ro
 | `platform-chat:activity` | `{ channelId }` | `user:{recipientId}` | In-app signál o nové zprávě příjemcům (badge i bez otevřeného chatu) — 2026-07-04 |
 | `platform-chat:message:deleted` | `{ messageId, channelId }` | `platform-chat:{channelId}` | Zpráva smazána (Superadmin nebo odesílatel) — 2026-07-04 |
 | `platform-chat:typing` | `{ channelId, username, isTyping }` | `platform-chat:{channelId}` | Kdo právě píše (broadcast ostatním, ne sobě) — 2026-07-04 |
+| `platform-chat:message:updated` | `ChatMessage` | `platform-chat:{channelId}` | Změna zprávy (emoji reakce) — celá zpráva; REST toggle `PUT .../messages/:id/reactions/:emoji` — 2026-07-05 |
 
 ---
 

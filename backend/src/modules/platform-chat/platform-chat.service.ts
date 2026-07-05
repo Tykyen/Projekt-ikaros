@@ -231,6 +231,48 @@ export class PlatformChatService implements OnModuleInit {
   }
 
   /**
+   * Přepne emoji reakci uživatele na zprávě. Reagovat smí kdokoli s přístupem
+   * do kanálu (admin + membership). Broadcast celé aktualizované zprávy přes
+   * `platform-chat.message.updated` (WS `platform-chat:message:updated`).
+   */
+  async toggleReaction(
+    channelId: string,
+    messageId: string,
+    emoji: string,
+    user: RequestUser,
+  ): Promise<ChatMessage> {
+    await this.assertAccess(channelId, user);
+    if (!emoji || emoji.length > 16) {
+      throw new BadRequestException({
+        code: 'PLATFORM_CHAT_BAD_EMOJI',
+        message: 'Neplatná reakce',
+      });
+    }
+    const message = await this.messageRepo.findById(messageId);
+    if (!message || message.channelId !== channelId || message.isDeleted) {
+      throw new NotFoundException({
+        code: 'PLATFORM_CHAT_MSG_NOT_FOUND',
+        message: 'Zpráva nenalezena',
+      });
+    }
+    const has = (message.reactions[emoji] ?? []).includes(user.id);
+    const updated = has
+      ? await this.messageRepo.removeReaction(messageId, emoji, user.id)
+      : await this.messageRepo.addReaction(messageId, emoji, user.id);
+    if (!updated) {
+      throw new NotFoundException({
+        code: 'PLATFORM_CHAT_MSG_NOT_FOUND',
+        message: 'Zpráva nenalezena',
+      });
+    }
+    this.eventEmitter.emit('platform-chat.message.updated', {
+      channelId,
+      message: updated,
+    });
+    return updated;
+  }
+
+  /**
    * Soft-delete zprávy. Smí ji smazat Superadmin NEBO její odesílatel. Emituje
    * `platform-chat.message.deleted` (WS broadcast smazání + úklid příloh na
    * Cloudinary v `UploadService`).

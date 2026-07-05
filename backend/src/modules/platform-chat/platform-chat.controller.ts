@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Patch,
   Delete,
   Param,
@@ -74,6 +75,16 @@ export class PlatformChatController {
     @CurrentUser() user: RequestUser,
   ) {
     await this.service.deleteMessage(channelId, messageId, user);
+  }
+
+  @Put('channels/:channelId/messages/:messageId/reactions/:emoji')
+  toggleReaction(
+    @Param('channelId') channelId: string,
+    @Param('messageId') messageId: string,
+    @Param('emoji') emoji: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.toggleReaction(channelId, messageId, emoji, user);
   }
 
   @Post('channels/:channelId/upload')

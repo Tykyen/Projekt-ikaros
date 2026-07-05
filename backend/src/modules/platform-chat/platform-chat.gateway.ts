@@ -81,6 +81,14 @@ export class PlatformChatGateway {
     });
   }
 
+  /** Změna zprávy (reakce / edit) → broadcast celé zprávy do room kanálu. */
+  @OnEvent('platform-chat.message.updated')
+  onMessageUpdated(payload: { channelId: string; message: ChatMessage }): void {
+    this.server
+      .to(`platform-chat:${payload.channelId}`)
+      .emit('platform-chat:message:updated', payload.message);
+  }
+
   /**
    * In-app signál o nové zprávě do per-uživatelských roomů příjemců (adminů) —
    * badge/notifikace i bez otevřené konverzace. `platform-chat:message` (výše)
