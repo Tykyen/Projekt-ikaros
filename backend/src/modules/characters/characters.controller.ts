@@ -33,7 +33,19 @@ export class CharactersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Seznam postav světa' })
   @ApiResponse({ status: 200, description: 'OK' })
-  findAll(@Param('worldId') worldId: string) {
+  @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
+  async findAll(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // R-AUDIT — roster jen pro členy (private) / veřejně (public); dřív BEZ brány
+    // → přihlášený nečlen enumerací stáhl roster cizího/privátního světa.
+    await this.charactersService.assertCanViewDirectory(
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
     return this.charactersService.findByWorld(worldId);
   }
 
@@ -41,7 +53,18 @@ export class CharactersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Hráčské postavy světa (isNpc=false + userId set)' })
   @ApiResponse({ status: 200, description: 'OK' })
-  getPlayerCharacters(@Param('worldId') worldId: string) {
+  @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
+  async getPlayerCharacters(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    // R-AUDIT — PC roster nese userId↔postava (cross-tenant citlivé) → world-view brána.
+    await this.charactersService.assertCanViewDirectory(
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
     return this.charactersService.getPlayerCharacters(worldId);
   }
 

@@ -72,7 +72,13 @@ export class PagesController {
           .map((t) => t.trim())
           .filter(Boolean)
       : undefined;
-    return this.pagesService.findDirectory(worldId, types, user.id);
+    return this.pagesService.findDirectory(
+      worldId,
+      types,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
   }
 
   @Get('dataSlugs')

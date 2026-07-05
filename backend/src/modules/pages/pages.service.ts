@@ -556,7 +556,24 @@ export class PagesService {
       );
   }
 
-  async findDirectory(worldId: string, types?: string[], userId?: string) {
+  async findDirectory(
+    worldId: string,
+    types?: string[],
+    userId?: string,
+    platformRole?: UserRole,
+    elevatedWorldIds?: string[],
+  ) {
+    // R-AUDIT — world-view brána (jen s userId; interní/legacy callers bez usera
+    // skip). Bez ní přihlášený nečlen privátního světa viděl celý adresář stránek
+    // (id/slug/title/type/imageUrl + existence AKJ přes shieldedBy).
+    if (userId) {
+      await this.assertCanViewWorld(
+        worldId,
+        userId,
+        platformRole,
+        elevatedWorldIds,
+      );
+    }
     const entries = await this.pagesRepo.findDirectory(worldId, types);
     // D-062c — per-entry shieldedBy pro stub karty v listings. Membership +
     // akjSettings načteme JEDNOU (ne N+1 per stránka), a jen když je vůbec nějaká

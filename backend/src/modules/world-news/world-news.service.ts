@@ -85,13 +85,24 @@ export class WorldNewsService {
     return this.repo.count({ worldId: args.worldId, scope });
   }
 
-  async findById(id: string): Promise<WorldNewsItem> {
+  async findById(
+    id: string,
+    requester?: WorldNewsRequester,
+  ): Promise<WorldNewsItem> {
     const item = await this.repo.findById(id);
     if (!item)
       throw new NotFoundException({
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    // R-AUDIT — dřív BEZ brány: detail vracel i ARCHIVOVANÉ novinky komukoli
+    // (obchází scope gate listu). Aplikuj stejný scope gate dle stavu položky
+    // (active = veřejné jako list; archived = jen PomocnyPJ+ svého světa).
+    await this.assertCanReadScope(
+      item.archived ? 'archived' : 'active',
+      item.worldId ?? undefined,
+      requester,
+    );
     return item;
   }
 

@@ -83,11 +83,18 @@ export class WorldNewsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Detail novinky (anonymní)' })
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Detail novinky (aktivní anonymně; archiv jen PomocnyPJ+ světa)',
+  })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
   @ApiResponse({ status: 404 })
-  async findById(@Param('id') id: string): Promise<PublicWorldNews> {
-    return toPublic(await this.service.findById(id));
+  async findById(
+    @Param('id') id: string,
+    @CurrentUser() user?: RequestUser,
+  ): Promise<PublicWorldNews> {
+    return toPublic(await this.service.findById(id, user));
   }
 
   @Post()
