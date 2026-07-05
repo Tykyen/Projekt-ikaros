@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { BaseMongoRepository } from '../../../database/mongo/base-mongo.repository';
 import { PageSchemaClass } from '../schemas/page.schema';
-import { Page, PageType } from '../interfaces/page.interface';
+import { Page, normalizePageType } from '../interfaces/page.interface';
 import { normalizePageTable } from '../normalize-page-table';
 import type { IPagesRepository } from '../interfaces/pages-repository.interface';
 
@@ -137,7 +137,7 @@ export class MongoPagesRepository
       id: String(doc._id),
       slug: doc.slug,
       title: doc.title,
-      type: doc.type,
+      type: normalizePageType(doc.type),
       order: doc.order ?? 0,
       updatedAt: (doc as { updatedAt?: Date }).updatedAt as Date,
       imageUrl: (doc as { imageUrl?: string }).imageUrl,
@@ -214,7 +214,7 @@ export class MongoPagesRepository
     return docs.map((doc) => ({
       slug: doc.slug,
       title: doc.title,
-      type: doc.type,
+      type: normalizePageType(doc.type),
     }));
   }
 
@@ -237,7 +237,7 @@ export class MongoPagesRepository
       id: String(doc._id),
       slug: doc.slug as string,
       worldId: doc.worldId as string,
-      type: doc.type as PageType,
+      type: normalizePageType(doc.type),
       title: doc.title as string,
       content: (doc.content as string) ?? '',
       quickRef: (doc.quickRef as string) ?? '',

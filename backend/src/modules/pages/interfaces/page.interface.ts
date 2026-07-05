@@ -3,7 +3,10 @@ export const PAGE_TYPES = {
   Noviny: 'Noviny',
   Seznam: 'Seznam',
   Galerie: 'Galerie',
-  Rodokmen: 'Rodokmen',
+  // Dříve „Rodokmen" — layout velkého zoomovatelného obrázku. Přejmenováno na
+  // „Zoom" (7.x), aby se název „Rodokmen" uvolnil pro budoucí typ strom rodiny.
+  // Legacy dokumenty s type='Rodokmen' se čtou přes normalizePageType().
+  Zoom: 'Zoom',
   Obrazovka: 'Obrazovka',
   Ostatni: 'Ostatní',
   // Krok 9.1 — sjednocení Character → Page. PostavaHrace má `ownerUserId`,
@@ -14,6 +17,17 @@ export const PAGE_TYPES = {
 } as const;
 
 export type PageType = (typeof PAGE_TYPES)[keyof typeof PAGE_TYPES];
+
+/**
+ * Read-time normalizace typu stránky pro zpětnou kompatibilitu.
+ * Legacy hodnota `'Rodokmen'` (velký zoom obrázek) byla přejmenována na `'Zoom'`.
+ * Staré dokumenty v DB drží starý řetězec — mapujeme ho při čtení, takže
+ * fungují beze změny; při nejbližším uložení se přepíšou na `'Zoom'`.
+ */
+export function normalizePageType(raw: unknown): PageType {
+  if (raw === 'Rodokmen') return PAGE_TYPES.Zoom;
+  return raw as PageType;
+}
 
 export interface AccessRequirement {
   type: 'UserId' | 'AKJ' | 'Role' | 'AKJType';
