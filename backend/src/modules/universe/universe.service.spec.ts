@@ -60,14 +60,24 @@ describe('UniverseService', () => {
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
   };
+  const mockWorldsRepo = {
+    findById: jest.fn(),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // Default: public svět → read gate propustí; testy private brány si ho
+    // přepíšou na accessMode:'private'.
+    mockWorldsRepo.findById.mockResolvedValue({
+      id: 'world1',
+      accessMode: 'public',
+    });
     const module = await Test.createTestingModule({
       providers: [
         UniverseService,
         { provide: 'IUniverseRepository', useValue: mockRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
       ],
     }).compile();
     service = module.get(UniverseService);
@@ -87,6 +97,43 @@ describe('UniverseService', () => {
       const result = await service.findByWorld('other-world', null);
       expect(result.nodes).toHaveLength(0);
       expect(mockRepo.upsert).toHaveBeenCalledWith('other-world', [], []);
+    });
+
+    it('private svět + anon → ForbiddenException (leak fix)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'private',
+      });
+      await expect(service.findByWorld('world1', null)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('private svět + přihlášený nečlen → ForbiddenException', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'private',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findByWorld('world1', reqUser('u1', UserRole.Hrac)),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('private svět + člen → projde', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'private',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      mockRepo.findByWorld.mockResolvedValue(mockMap);
+      const result = await service.findByWorld(
+        'world1',
+        reqUser('player1', UserRole.Hrac),
+      );
+      expect(result).toBeDefined();
     });
   });
 

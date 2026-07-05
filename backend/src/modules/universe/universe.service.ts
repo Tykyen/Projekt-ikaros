@@ -8,6 +8,7 @@ import {
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IUniverseRepository } from './interfaces/universe-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type {
   UniverseMap,
   UniverseNode,
@@ -38,6 +39,8 @@ export class UniverseService {
     @Inject('IUniverseRepository') private readonly repo: IUniverseRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldsRepository')
+    private readonly worldsRepo: IWorldsRepository,
     @Optional() private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -74,6 +77,11 @@ export class UniverseService {
     worldId: string,
     requester: RequestUser | null,
   ): Promise<UniverseMap> {
+    // R-AUDIT — vesmírná mapa privátního světa jen pro členy/elevovaného admina.
+    // Dřív BEZ brány (controller ani neměl guard) → anon enumerací `?worldId=`
+    // stáhl isPublic uzly cizího privátního světa. Public/open/closed a
+    // neexistující svět beze změny.
+    await this.assertCanViewUniverse(worldId, requester);
     let map = await this.repo.findByWorld(worldId);
 
     if (!map) {
@@ -86,6 +94,28 @@ export class UniverseService {
     const isPjOrAdmin = await this.resolveIsWorldPjOrAdmin(requester, worldId);
     if (isPjOrAdmin) return map;
     return this.applyVisibilityFilter(map, requester?.id ?? null);
+  }
+
+  /** R-AUDIT — read brána vesmírné mapy: private svět jen pro členy/elevovaného admina. */
+  private async assertCanViewUniverse(
+    worldId: string,
+    requester: RequestUser | null,
+  ): Promise<void> {
+    const world = await this.worldsRepo.findById(worldId);
+    // neexistuje / public / open / closed → beze změny (žádný privacy leak)
+    if (!world || world.accessMode !== 'private') return;
+    if (requester && worldAdminBypass(requester, worldId)) return;
+    if (requester) {
+      const membership = await this.membershipRepo.findByUserAndWorld(
+        requester.id,
+        worldId,
+      );
+      if (membership) return;
+    }
+    throw new ForbiddenException({
+      code: 'WORLD_ACCESS_DENIED',
+      message: 'Vesmírná mapa je jen pro členy tohoto světa.',
+    });
   }
 
   async update(

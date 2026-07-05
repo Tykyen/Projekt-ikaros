@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import type { IWorldMapsRepository } from './interfaces/world-maps-repository.interface';
 import type { IWorldMapFoldersRepository } from './interfaces/world-map-folders-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type {
   WorldMapEntry,
   WorldMapPin,
@@ -34,6 +35,8 @@ export class WorldMapsService {
     private readonly foldersRepo: IWorldMapFoldersRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    @Inject('IWorldsRepository')
+    private readonly worldsRepo: IWorldsRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -63,6 +66,30 @@ export class WorldMapsService {
       throw new ForbiddenException({
         code: 'NOT_WORLD_PJ',
         message: 'Nedostatečná oprávnění',
+      });
+  }
+
+  /**
+   * R-AUDIT — read brána atlasu: private svět jen pro členy/elevovaného admina.
+   * Dřív list/listFolders BEZ ní → přihlášený nečlen enumerací `?worldId=` stáhl
+   * isPublic mapy/složky (title/description/imageUrl/piny) cizího privátního světa.
+   * Public/open/closed a neexistující svět beze změny (per-map isPublic řeší zbytek).
+   */
+  async assertCanViewAtlas(
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
+    worldId: string,
+  ): Promise<void> {
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world || world.accessMode !== 'private') return;
+    if (worldAdminBypass(requester, worldId)) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership)
+      throw new ForbiddenException({
+        code: 'WORLD_ACCESS_DENIED',
+        message: 'Atlas map je jen pro členy tohoto světa.',
       });
   }
 

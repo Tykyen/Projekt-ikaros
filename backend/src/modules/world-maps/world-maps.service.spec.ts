@@ -4,6 +4,7 @@ import { WorldMapsService } from './world-maps.service';
 import type { IWorldMapsRepository } from './interfaces/world-maps-repository.interface';
 import type { IWorldMapFoldersRepository } from './interfaces/world-map-folders-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type {
   WorldMapEntry,
   WorldMapPin,
@@ -51,6 +52,7 @@ describe('WorldMapsService', () => {
   let repo: jest.Mocked<IWorldMapsRepository>;
   let foldersRepo: jest.Mocked<IWorldMapFoldersRepository>;
   let membershipRepo: { findByUserAndWorld: jest.Mock };
+  let worldsRepo: { findById: jest.Mock };
   let service: WorldMapsService;
 
   beforeEach(() => {
@@ -74,10 +76,14 @@ describe('WorldMapsService', () => {
       reparentChildren: jest.fn(),
     };
     membershipRepo = { findByUserAndWorld: jest.fn() };
+    // R-AUDIT — default: nesledovaný svět (findById undefined → assertCanViewAtlas
+    // propustí; per-metoda list/listFolders worldsRepo nevolají).
+    worldsRepo = { findById: jest.fn() };
     service = new WorldMapsService(
       repo,
       foldersRepo,
       membershipRepo as unknown as IWorldMembershipRepository,
+      worldsRepo as unknown as IWorldsRepository,
       { emit: jest.fn() } as unknown as EventEmitter2,
     );
   });

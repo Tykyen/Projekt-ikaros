@@ -44,10 +44,12 @@ export class WorldMapsController {
   @Get()
   @ApiOperation({ summary: 'Atlas map světa (s visibility filtrem)' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
   async list(
     @Query('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.service.assertCanViewAtlas(user, worldId);
     const isPjOrAdmin = await this.service.canManage(user, worldId);
     return this.service.list(worldId, user.id, isPjOrAdmin);
   }
@@ -156,10 +158,12 @@ export class WorldMapsController {
   @Get('folders')
   @ApiOperation({ summary: 'Strom složek atlasu (s visibility filtrem)' })
   @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
   async listFolders(
     @Query('worldId') worldId: string,
     @CurrentUser() user: RequestUser,
   ) {
+    await this.service.assertCanViewAtlas(user, worldId);
     const isPjOrAdmin = await this.service.canManage(user, worldId);
     return this.service.listFolders(worldId, user.id, isPjOrAdmin);
   }

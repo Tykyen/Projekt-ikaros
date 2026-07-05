@@ -7,9 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
-  Req,
 } from '@nestjs/common';
-import type { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -20,6 +18,7 @@ import { UniverseService } from './universe.service';
 import { UpdateUniverseDto } from './dto/update-universe.dto';
 import { UpdateNodeVisibilityDto } from './dto/update-node-visibility.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 
@@ -30,12 +29,16 @@ export class UniverseController {
   constructor(private readonly service: UniverseService) {}
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary: 'Vesmírná mapa světa (uzly + spoje s visibility filtrem)',
   })
   @ApiResponse({ status: 200 })
-  async findByWorld(@Query('worldId') worldId: string, @Req() req: Request) {
-    const user = (req as Request & { user?: RequestUser }).user;
+  @ApiResponse({ status: 403 })
+  async findByWorld(
+    @Query('worldId') worldId: string,
+    @CurrentUser() user?: RequestUser,
+  ) {
     return this.service.findByWorld(worldId, user ?? null);
   }
 
