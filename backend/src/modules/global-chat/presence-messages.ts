@@ -18,5 +18,5 @@ export function presenceLine(
   }
   return action === 'join'
     ? `Na scéně se objevuje ${name}.`
-    : `${name} se vydává dál a mizí v dáli.`;
+    : `${name} se vydává na cestu a mizí v dáli.`;
 }
