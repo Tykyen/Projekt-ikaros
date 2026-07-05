@@ -13,6 +13,8 @@ import type {
   MapToken,
   MapEffect,
   MapDrawing,
+  MapWall,
+  MapLight,
   HexCoord,
   ScenePlayerState,
 } from '../interfaces/map-scene.interface';
@@ -364,6 +366,19 @@ export class MapOperationsService {
         return {
           type: 'scene.effects.replace',
           effects: scene.effects,
+        };
+
+      // 17.2 — inverse = snapshot zdí/světel před importem
+      case 'scene.walls.replace':
+        return {
+          type: 'scene.walls.replace',
+          walls: scene.walls ?? [],
+        };
+
+      case 'scene.lights.replace':
+        return {
+          type: 'scene.lights.replace',
+          lights: scene.lights ?? [],
         };
 
       case 'scene.npc-templates.replace':
@@ -926,6 +941,33 @@ export class MapOperationsService {
           {
             $set: {
               effects: op.effects as unknown as MapEffect[],
+              lastModified: now,
+            },
+          },
+        );
+        return;
+      }
+
+      // 17.2 — import UVTT: bulk replace zdí/světel
+      case 'scene.walls.replace': {
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $set: {
+              walls: op.walls as unknown as MapWall[],
+              lastModified: now,
+            },
+          },
+        );
+        return;
+      }
+
+      case 'scene.lights.replace': {
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $set: {
+              lights: op.lights as unknown as MapLight[],
               lastModified: now,
             },
           },

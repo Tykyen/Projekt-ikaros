@@ -91,6 +91,20 @@ export class SceneEffectsReplaceOpDto {
   @IsArray() effects!: unknown[];
 }
 
+/**
+ * 17.2 — import UVTT: nahrazení zdí/světel scény (bulk replace, PJ-only).
+ * Vzor `scene.effects.replace`.
+ */
+export class SceneWallsReplaceOpDto {
+  @Equals('scene.walls.replace') type!: 'scene.walls.replace';
+  @IsArray() walls!: unknown[];
+}
+
+export class SceneLightsReplaceOpDto {
+  @Equals('scene.lights.replace') type!: 'scene.lights.replace';
+  @IsArray() lights!: unknown[];
+}
+
 export class SceneNpcTemplatesReplaceOpDto {
   @Equals('scene.npc-templates.replace')
   type!: 'scene.npc-templates.replace';

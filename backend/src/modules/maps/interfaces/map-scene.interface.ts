@@ -15,6 +15,12 @@ export interface HexConfig {
   showScale?: boolean;
   // 15.4 — smí hráč kreslit anotace na této scéně? undefined = false.
   allowPlayerDrawing?: boolean;
+  // 17.1 — zdroj mlhy: 'manual' (ruční štětec, BC) | 'dynamic' (auto LoS ze zdí).
+  visionMode?: 'manual' | 'dynamic';
+  // 17.1 — temná scéna: token vidí jen do dosvitu/světel. undefined = false.
+  darkness?: boolean;
+  // 17.1 — dosvit tokenu v buňkách (jen darkness).
+  visionRange?: number;
 }
 
 /**
@@ -50,6 +56,36 @@ export interface MapEffect {
   variant?: string;
   excludedHexes?: HexCoord[];
   barrierDC?: number;
+}
+
+/**
+ * 17.2 — zeď/dveře na scéně (import UVTT). `points` = map-space px páry
+ * `[x0,y0,x1,y1,...]`. `blocksSight` čte 17.1 (LoS). Mirror FE `MapWall`.
+ */
+export interface MapWall {
+  id: string;
+  points: number[];
+  type: 'wall' | 'door';
+  door?: {
+    open: boolean;
+    locked?: boolean;
+  };
+  blocksSight: boolean;
+  blocksMovement?: boolean;
+}
+
+/**
+ * 17.2 — bodový zdroj světla (import UVTT). Souřadnice a `range` v map-space
+ * px. Render řeší 17.1. Mirror FE `MapLight`.
+ */
+export interface MapLight {
+  id: string;
+  x: number;
+  y: number;
+  range: number;
+  intensity: number;
+  color: string;
+  shadows?: boolean;
 }
 
 export interface MapTokenAbility {
@@ -138,6 +174,10 @@ export interface MapScene {
   effects: MapEffect[];
   /** 15.4 — anotace (kresby) na scéně. Repo vždy vrací `[]` (read-time). */
   drawings?: MapDrawing[];
+  /** 17.2 — zdi/dveře (import UVTT; „spící data" pro 17.1 LoS). */
+  walls?: MapWall[];
+  /** 17.2 — zdroje světla (import UVTT; render až 17.1). */
+  lights?: MapLight[];
   fogEnabled: boolean;
   revealedHexes: HexCoord[];
   templateId?: string;

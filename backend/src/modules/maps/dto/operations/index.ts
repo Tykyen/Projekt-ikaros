@@ -20,6 +20,8 @@ import {
   SceneDeactivateOpDto,
   SceneFogReplaceOpDto,
   SceneEffectsReplaceOpDto,
+  SceneWallsReplaceOpDto,
+  SceneLightsReplaceOpDto,
   SceneNpcTemplatesReplaceOpDto,
   SceneTokensReplaceNpcOpDto,
   SceneSoundsSetOpDto,
@@ -90,6 +92,9 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   // 10.2c-edit-2 — load šablony sekvence
   'scene.fog.replace': SceneFogReplaceOpDto,
   'scene.effects.replace': SceneEffectsReplaceOpDto,
+  // 17.2 — import UVTT: zdi/světla
+  'scene.walls.replace': SceneWallsReplaceOpDto,
+  'scene.lights.replace': SceneLightsReplaceOpDto,
   'scene.npc-templates.replace': SceneNpcTemplatesReplaceOpDto,
   'scene.tokens.replace-npc': SceneTokensReplaceNpcOpDto,
   'scene.sounds.set': SceneSoundsSetOpDto,
@@ -146,6 +151,8 @@ export type MapOperationPayload =
   | SceneDeactivateOpDto
   | SceneFogReplaceOpDto
   | SceneEffectsReplaceOpDto
+  | SceneWallsReplaceOpDto
+  | SceneLightsReplaceOpDto
   | SceneNpcTemplatesReplaceOpDto
   | SceneTokensReplaceNpcOpDto
   | SceneSoundsSetOpDto

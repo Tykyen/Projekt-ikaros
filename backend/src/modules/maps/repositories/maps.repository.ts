@@ -10,6 +10,8 @@ import type {
   MapSceneNpc,
   MapEffect,
   MapDrawing,
+  MapWall,
+  MapLight,
   HexCoord,
   ScenePlayerState,
 } from '../interfaces/map-scene.interface';
@@ -141,6 +143,9 @@ export class MongoMapsRepository
       ),
       effects: (doc.effects as MapEffect[]) ?? [],
       drawings: (doc.drawings as MapDrawing[]) ?? [],
+      // 17.2 — walls/lights musí být ve whitelistu, jinak GET vrací [] (field-drift).
+      walls: (doc.walls as MapWall[]) ?? [],
+      lights: (doc.lights as MapLight[]) ?? [],
       fogEnabled: (doc.fogEnabled as boolean) ?? false,
       revealedHexes: (doc.revealedHexes as HexCoord[]) ?? [],
       templateId: doc.templateId as string | undefined,

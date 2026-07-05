@@ -36,6 +36,18 @@ export class MapSceneSchemaClass {
     default: (): Record<string, unknown>[] => [],
   })
   drawings: Record<string, unknown>[];
+  /** 17.2 — zdi/dveře (import UVTT). Tvar `MapWall`. */
+  @Prop({
+    type: [MixedArraySubSchema],
+    default: (): Record<string, unknown>[] => [],
+  })
+  walls: Record<string, unknown>[];
+  /** 17.2 — zdroje světla (import UVTT). Tvar `MapLight`. */
+  @Prop({
+    type: [MixedArraySubSchema],
+    default: (): Record<string, unknown>[] => [],
+  })
+  lights: Record<string, unknown>[];
   /**
    * 10.2j — persistovaná historie hodů scény. Cap 50 nejnovějších
    * (atomic `$push` + `$slice: -50` v applyAtomic). Tvar: MapDiceRoll
