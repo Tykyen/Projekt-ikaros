@@ -119,9 +119,15 @@ export class PagesController {
   getMeta(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.pagesService.findMeta(slug, worldId, user.id);
+    return this.pagesService.findMeta(
+      slug,
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
   }
 
   @Get(':slug')

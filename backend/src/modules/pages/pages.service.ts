@@ -698,10 +698,23 @@ export class PagesService {
     slug: string,
     worldId: string,
     userId?: string | null,
+    platformRole?: UserRole,
+    elevatedWorldIds?: string[],
   ): Promise<{
     isWoodWide: boolean;
     shieldedBy?: ShieldedRequirement[];
   }> {
+    // R-AUDIT — world-view brána (jen s userId; interní callers bez usera skip):
+    // dřív nečlen privátního světa mohl přes meta probovat existenci a shielding
+    // stránek.
+    if (userId) {
+      await this.assertCanViewWorld(
+        worldId,
+        userId,
+        platformRole,
+        elevatedWorldIds,
+      );
+    }
     const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page)
       throw new NotFoundException({
@@ -844,6 +857,15 @@ export class PagesService {
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
   ): Promise<Pick<Page, 'slug' | 'title' | 'type'>[]> {
+    // R-AUDIT — world-view brána: u NEchráněného targetu by nečlen privátního
+    // světa jinak přes backlinks viděl seznam odkazujících stránek (per-page
+    // assertAccess níže to samo nezachytí).
+    await this.assertCanViewWorld(
+      worldId,
+      userId,
+      platformRole,
+      elevatedWorldIds,
+    );
     const target = await this.pagesRepo.findBySlugAndWorld(targetSlug, worldId);
     if (!target)
       throw new NotFoundException({
