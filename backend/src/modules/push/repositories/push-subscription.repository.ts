@@ -51,9 +51,13 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
     };
     // undefined by Mongo přepsalo na null — nastavíme jen když UA dorazil.
     if (data.userAgent !== undefined) set.userAgent = data.userAgent;
+    // FIX-7 — filtr scoped i na `userId` (ne jen `endpoint`): útočník se
+    // známým cizím endpointem nesmí přepsat (hijacknout) cizí subscription
+    // na vlastní userId. Endpoint má unique index — cizí endpoint pod jinou
+    // userId proto insert odmítne (duplicate key), místo aby ho tiše převzal.
     const doc = await this.model
       .findOneAndUpdate(
-        { endpoint: data.endpoint },
+        { endpoint: data.endpoint, userId: data.userId },
         { $set: set },
         { upsert: true, new: true },
       )

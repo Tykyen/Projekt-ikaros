@@ -141,7 +141,7 @@ describe('PushService', () => {
       lastUsedAt: expect.any(Date),
     });
     // oldEndpoint se nepropisuje do upsertu (jen řídí cleanup).
-    expect(repo.deleteByEndpointOnly).not.toHaveBeenCalled();
+    expect(repo.deleteByEndpoint).not.toHaveBeenCalled();
   });
 
   it('subscribe — při rotaci smaže starý endpoint [push dedup]', async () => {
@@ -152,7 +152,8 @@ describe('PushService', () => {
       auth: 'a',
       oldEndpoint: 'https://old',
     });
-    expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith('https://old');
+    // FIX-7 — scoped na {endpoint, userId}, ne jen endpoint (hijack ochrana).
+    expect(repo.deleteByEndpoint).toHaveBeenCalledWith('https://old', 'user1');
     expect(repo.upsertByEndpoint).toHaveBeenCalledWith(
       expect.objectContaining({ endpoint: 'https://new' }),
     );
@@ -166,7 +167,7 @@ describe('PushService', () => {
       auth: 'a',
       oldEndpoint: 'https://same',
     });
-    expect(repo.deleteByEndpointOnly).not.toHaveBeenCalled();
+    expect(repo.deleteByEndpoint).not.toHaveBeenCalled();
   });
 
   it('TTL — default 4 h se předá jako option', async () => {

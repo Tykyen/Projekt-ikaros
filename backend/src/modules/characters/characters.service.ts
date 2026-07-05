@@ -236,7 +236,10 @@ export class CharactersService {
       name: c.name,
       slug: c.slug,
       isNpc: c.isNpc,
-      userId: c.userId,
+      // FIX-5 — Character.userId je teď `string | null | undefined` (`null`
+      // = explicitně odpojený vlastník); tenhle DTO kontrakt zná jen
+      // "undefined = bez ownera", proto coalesce na hranici.
+      userId: c.userId ?? undefined,
       imageUrl: imgBySlug.get(c.slug),
     }));
   }
@@ -416,8 +419,11 @@ export class CharactersService {
       });
 
     const toNpc = !dto.userId;
+    // FIX-5 — `undefined` v Mongoose `$set` klíč NEZMĚNÍ (stará userId by
+    // zůstala v DB), takže CP→NPC konverze reálně neodpojila vlastníka.
+    // `null` se zapíše a vlastníka skutečně odpojí.
     const updated = await this.charRepo.update(character.id, {
-      userId: toNpc ? undefined : dto.userId,
+      userId: toNpc ? null : dto.userId,
       isNpc: toNpc,
     });
 

@@ -51,8 +51,13 @@ export interface Character {
   slug: string;
   name: string;
   worldId: string;
-  /** PC má `userId` (hráč postavy); NPC nemá. */
-  userId?: string;
+  /**
+   * PC má `userId` (hráč postavy); NPC nemá.
+   * FIX-5 — `null` (ne jen `undefined`) musí být typově přípustné: Mongoose
+   * `$set` s `undefined` klíčem hodnotu NEZMĚNÍ (stará zůstane), `null` se
+   * zapíše a skutečně odpojí vlastníka (`convert` CP→NPC).
+   */
+  userId?: string | null;
   isNpc: boolean;
   /**
    * Spec 9.2 — `'persona'` = PostavaHrace/NPC (default, plné subdocs),

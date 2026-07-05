@@ -89,8 +89,12 @@ export class PushService implements OnModuleInit {
     const { oldEndpoint, ...sub } = data;
     // Rotace odběru (prohlížeč/OS změní endpoint): smaž starý záznam, ať se
     // notifikace neposílá na mrtvý i nový endpoint zároveň → duplicitní push.
+    // FIX-7 — scoped na `{endpoint, userId}` (vzor `deleteByEndpoint`), ne jen
+    // endpoint: útočník se známým cizím `oldEndpoint` nesmí smazat cizí
+    // subscription. `deleteByEndpointOnly` (bez userId) zůstává jen pro
+    // interní 404/410 cleanup v `sendToSubscriptions`, kde userId neznáme.
     if (oldEndpoint && oldEndpoint !== sub.endpoint) {
-      await this.repo.deleteByEndpointOnly(oldEndpoint);
+      await this.repo.deleteByEndpoint(oldEndpoint, userId);
     }
     return this.repo.upsertByEndpoint({
       userId,

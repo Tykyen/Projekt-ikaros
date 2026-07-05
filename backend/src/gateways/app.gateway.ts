@@ -41,6 +41,16 @@ export class AppGateway extends BaseGateway {
         return { error: 'Nedostatečná oprávnění' };
       }
     }
+    // FIX-1 — `user:{id}` room nese privátní per-user eventy (whispery,
+    // account transfery, friend requesty ap.). Bez gate mohl socket joinnout
+    // libovolný cizí `user:{id}` room a odposlouchávat cizí soukromé eventy.
+    // Identita z OVĚŘENÉHO `client.data.userId` (JWT handshake), ne z payloadu.
+    if (room.startsWith('user:')) {
+      const userId = (client.data as { userId?: string }).userId;
+      if (room !== `user:${userId}`) {
+        return { error: 'Nedostatečná oprávnění' };
+      }
+    }
     this.joinRoom(client, room);
     return { event: 'room:joined', data: room };
   }

@@ -167,14 +167,20 @@ export class ChatService implements OnApplicationBootstrap {
    * Vynucuje přístup **jen u world kanálů** (mají `worldId`). Globální kanál /
    * neznámé ID → `true` (generický join se ho netýká; globální chat má vlastní
    * access model přes GlobalChatGateway — neregresujeme ho).
+   *
+   * FIX-1B — `!userId` check MUSÍ běžet PŘED world/globální větví. Dřív byl
+   * až po ní, takže neautentizovaný socket (žádný JWT, ani guest anon session)
+   * dostal `true` na globální/smazaný/neznámý kanál. Guest MÁ `userId`
+   * nastavené (anon session sub z `createAnonSession`), takže guest tok touto
+   * podmínkou dál prochází beze změny — blokuje jen socket úplně bez identity.
    */
   async canJoinChannelRoom(
     channelId: string,
     userId?: string,
   ): Promise<boolean> {
+    if (!userId) return false; // neautentizovaný socket (ani guest) — nikdy nedostane přístup
     const channel = await this.channelRepo.findById(channelId);
     if (!channel || channel.isDeleted || !channel.worldId) return true;
-    if (!userId) return false; // world kanál vyžaduje ověřenou identitu
     return this.hasChannelAccess(channel, userId);
   }
 

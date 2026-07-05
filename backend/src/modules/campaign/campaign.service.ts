@@ -8,6 +8,7 @@ import {
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+import { escapeRegex } from '../../common/utils/escape-regex';
 // UserRole už není potřeba (getWorldRole bere requester: RequestUser).
 import type { ICampaignSubjectRepository } from './interfaces/campaign-subject-repository.interface';
 import type { ICampaignRelationshipRepository } from './interfaces/campaign-relationship-repository.interface';
@@ -156,7 +157,8 @@ export class CampaignService {
     const base = this.resolveScope(userId, worldRole, worldId);
     if (filters.type) base['type'] = filters.type;
     if (filters.status) base['status'] = filters.status;
-    if (filters.q) base['name'] = { $regex: filters.q, $options: 'i' };
+    if (filters.q)
+      base['name'] = { $regex: escapeRegex(filters.q), $options: 'i' };
     return this.subjectRepo.findMany(base);
   }
 

@@ -332,6 +332,13 @@ export class AuthService {
         code: 'DELETED',
         message: 'Účet byl smazán',
       });
+    // FIX-6 — stejný ban check jako `login`; bez něj zabanovaný uživatel
+    // v pending self-delete obešel ban prostou reaktivací účtu.
+    if (user.bannedAt)
+      throw new UnauthorizedException({
+        code: 'BANNED',
+        message: 'Účet byl zablokován',
+      });
     if (!user.deletionRequestedAt)
       throw new BadRequestException({
         code: 'NOT_PENDING_DELETION',
@@ -413,6 +420,21 @@ export class AuthService {
       throw new UnauthorizedException({
         code: 'USER_NOT_FOUND',
         message: 'Uživatel neexistuje',
+      });
+    }
+    // FIX-6 (defense-in-depth) — ban/delete se dřív kontroloval jen při
+    // loginu; existující refresh token dál vydával nové access tokeny i
+    // zabanovanému/smazanému účtu až do jeho expirace (~desítky dní).
+    if (user.isDeleted) {
+      throw new UnauthorizedException({
+        code: 'DELETED',
+        message: 'Účet byl smazán',
+      });
+    }
+    if (user.bannedAt) {
+      throw new UnauthorizedException({
+        code: 'BANNED',
+        message: 'Účet byl zablokován',
       });
     }
 

@@ -174,6 +174,9 @@ export class CampaignController {
     @Body() dto: CreateCampaignSubjectDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — `dto` (stejná třída jako create) nese `isShared` i sem; bez
+    // resolveIsShared šlo přes PUT propašovat isShared=true bez role-gate.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateSubject(
       id,
       user.id,
@@ -259,6 +262,8 @@ export class CampaignController {
     @Body() dto: CreateCampaignRelationshipDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateRelationship(
       id,
       user.id,
@@ -348,6 +353,8 @@ export class CampaignController {
     @Body() dto: CreateCampaignStorylineDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateStoryline(
       id,
       user.id,
@@ -433,6 +440,8 @@ export class CampaignController {
     @Body() dto: CreateCampaignScenarioDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateScenario(
       id,
       user.id,
@@ -515,6 +524,8 @@ export class CampaignController {
     @Body() dto: CreateCampaignQuickNoteDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateQuickNote(
       id,
       user.id,
@@ -572,6 +583,13 @@ export class CampaignController {
     @Body() dto: CreateCampaignShopItemDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — chyběl role-floor gate (mirror createShopGroup); bez něj mohl
+    // i Hráč vytvořit položku obchodu.
+    if (worldRole < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
     return this.service.createShopItem(
       user.id,
       user.username,
@@ -593,6 +611,8 @@ export class CampaignController {
     @Body() dto: CreateCampaignShopItemDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateShopItem(
       id,
       user.id,
@@ -662,6 +682,8 @@ export class CampaignController {
     @Body() dto: CreateCampaignShopGroupDto,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
+    dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
     return this.service.updateShopGroup(
       id,
       user.id,

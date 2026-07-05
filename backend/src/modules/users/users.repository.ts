@@ -8,6 +8,7 @@ import type {
   IUsersRepository,
   FindPublicPaginatedOpts,
 } from './interfaces/users-repository.interface';
+import { escapeRegex } from '../../common/utils/escape-regex';
 
 @Injectable()
 export class MongoUsersRepository
@@ -246,7 +247,7 @@ export class MongoUsersRepository
     const query: Record<string, unknown> = {};
     if (opts.role !== undefined) query.role = opts.role;
     if (opts.username)
-      query.username = { $regex: opts.username, $options: 'i' };
+      query.username = { $regex: escapeRegex(opts.username), $options: 'i' };
     const skip = (opts.page - 1) * opts.limit;
     const [docs, total] = await Promise.all([
       this.model
@@ -279,9 +280,10 @@ export class MongoUsersRepository
       filter.hiddenInDirectory = { $ne: true };
     }
     if (opts.q) {
+      const safeQ = escapeRegex(opts.q);
       filter.$or = [
-        { username: { $regex: opts.q, $options: 'i' } },
-        { displayName: { $regex: opts.q, $options: 'i' } },
+        { username: { $regex: safeQ, $options: 'i' } },
+        { displayName: { $regex: safeQ, $options: 'i' } },
       ];
     }
 

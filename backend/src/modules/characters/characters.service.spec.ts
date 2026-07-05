@@ -270,13 +270,15 @@ describe('CharactersService', () => {
       mockCharRepo.findBySlugAndWorld.mockResolvedValue(mockCharacter);
       mockCharRepo.update.mockResolvedValue({
         ...mockCharacter,
-        userId: undefined,
+        userId: null,
         isNpc: true,
       });
       await service.convert('medak', 'world1', {});
+      // FIX-5 — `null`, ne `undefined`: Mongoose `$set` s `undefined` klíčem
+      // hodnotu nezmění (stará userId by v DB zůstala), `null` ji zapíše.
       expect(mockCharRepo.update).toHaveBeenCalledWith(
         'char1',
-        expect.objectContaining({ userId: undefined, isNpc: true }),
+        expect.objectContaining({ userId: null, isNpc: true }),
       );
     });
 

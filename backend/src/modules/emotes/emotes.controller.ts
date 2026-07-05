@@ -16,9 +16,11 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { EmotesService } from './emotes.service';
-import type { CreateEmoteDto } from './dto/create-emote.dto';
-import type { UpdateEmoteDto } from './dto/update-emote.dto';
-import type { CopyEmoteDto } from './dto/copy-emote.dto';
+// FIX-2 — `import type` maže class-validator reflection metadata (design:type),
+// ValidationPipe pak DTO nedokáže instancovat/validovat → 400 na každý create.
+import { CreateEmoteDto } from './dto/create-emote.dto';
+import { UpdateEmoteDto } from './dto/update-emote.dto';
+import { CopyEmoteDto } from './dto/copy-emote.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';

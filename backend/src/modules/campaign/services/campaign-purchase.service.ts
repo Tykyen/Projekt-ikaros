@@ -101,7 +101,12 @@ export class CampaignPurchaseService {
       worldId,
       requester,
     );
-    if (!isStaff && character.userId !== buyerUserId)
+    // FIX-5 (defense-in-depth) — mirror vzoru z characters.service.ts
+    // (`isOwner = !character.isNpc && character.userId === requesterId`).
+    // NPC nesmí nakupovat, i kdyby jí kvůli stale-userId bugu (convert
+    // CP→NPC) zůstala userId shodná s buyerem.
+    const isOwner = !character.isNpc && character.userId === buyerUserId;
+    if (!isStaff && !isOwner)
       throw new ForbiddenException({
         code: 'NOT_YOUR_CHARACTER',
         message: 'Nakupovat smíš jen své postavě.',
@@ -428,7 +433,11 @@ export class CampaignPurchaseService {
       worldId,
       requester,
     );
-    if (!isStaff && character?.userId !== userId)
+    // FIX-5 (defense-in-depth) — viz `purchase`: NPC nesmí stornovat, i kdyby
+    // jí zůstala stale userId shodná s požadavkem.
+    const isOwner =
+      !!character && !character.isNpc && character.userId === userId;
+    if (!isStaff && !isOwner)
       throw new ForbiddenException({
         code: 'NOT_YOUR_CHARACTER',
         message: 'Storno smíš jen u svého nákupu.',
