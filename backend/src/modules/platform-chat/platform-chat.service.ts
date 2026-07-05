@@ -12,6 +12,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { logWarn } from '../../common/logging/log-error.util';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
+import type { IChannelReadStatusRepository } from '../chat/interfaces/channel-read-status-repository.interface';
 import type { ChatChannel } from '../chat/interfaces/chat-channel.interface';
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
 import type { ChatAttachment } from '../chat/interfaces/chat-attachment.interface';
@@ -49,6 +50,8 @@ export class PlatformChatService implements OnModuleInit {
     private readonly channelRepo: IChatChannelRepository,
     @Inject('IChatMessageRepository')
     private readonly messageRepo: IChatMessageRepository,
+    @Inject('IChannelReadStatusRepository')
+    private readonly readRepo: IChannelReadStatusRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly usersService: UsersService,
     @Inject('IUsersRepository')
@@ -191,6 +194,9 @@ export class PlatformChatService implements OnModuleInit {
       lastMessageAt: new Date(),
       lastMessagePreview: (content || '📎 Příloha').slice(0, 80),
     });
+    // 20.5b — odesílatel má vlastní zprávu rovnou přečtenou (jinak by si ji po
+    // reloadu viděl jako nepřečtenou v unread badge).
+    await this.readRepo.upsert(user.id, channelId, message.id);
     this.eventEmitter.emit('platform-chat.message.created', {
       channelId,
       message,
@@ -322,6 +328,49 @@ export class PlatformChatService implements OnModuleInit {
   ): Promise<ChatAttachment> {
     await this.assertAccess(channelId, user);
     return this.uploadService.uploadPlatformChatFile(file, channelId);
+  }
+
+  // ── Read status (20.5b — persistentní unread badge) ──────────────────────
+
+  /**
+   * Nepřečtené per přístupný admin kanál — reuse `channelreadstatus` kolekce
+   * (vzor `chat.service.getUnreadCounts`). Kanál bez read statusu = 0 (staré
+   * zprávy nezaplaví nováčka „vše nepřečteno"). Součet dělá FE (badge číslo).
+   */
+  async getUnreadCounts(
+    user: RequestUser,
+  ): Promise<{ channelId: string; count: number }[]> {
+    const channels = await this.listChannels(user);
+    const channelIds = channels.map((c) => c.id);
+    const readStatuses = await this.readRepo.findByUserAndChannels(
+      user.id,
+      channelIds,
+    );
+    const readMap = new Map(
+      readStatuses.map((r) => [r.channelId, r.lastReadMessageId]),
+    );
+    return Promise.all(
+      channels.map(async (channel) => {
+        const lastReadId = readMap.get(channel.id);
+        if (!lastReadId) return { channelId: channel.id, count: 0 };
+        const count = await this.messageRepo.countAfter(channel.id, lastReadId);
+        return { channelId: channel.id, count };
+      }),
+    );
+  }
+
+  /**
+   * Označí konverzaci přečtenou po poslední zprávu (vzor `chat.service.markAsRead`).
+   * Prázdný kanál = no-op.
+   */
+  async markChannelRead(channelId: string, user: RequestUser): Promise<void> {
+    await this.assertAccess(channelId, user);
+    const messages = await this.messageRepo.findByChannelId(channelId, {
+      limit: 1,
+    });
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    await this.readRepo.upsert(user.id, channelId, lastMessage.id);
   }
 
   /** Příjemci notifikace kanálu (admini/členové mimo odesílatele). */

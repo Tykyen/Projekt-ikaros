@@ -96,6 +96,7 @@ import { AuthModule } from '../auth/auth.module';
     'IChatGroupRepository', // 14.7c — world-export
     'IChatChannelRepository',
     'IChatMessageRepository',
+    'IChannelReadStatusRepository', // 20.5b — admin chat reuse read-state pro unread badge
   ],
 })
 export class ChatModule {}

@@ -45,6 +45,22 @@ export class PlatformChatController {
     return this.service.listChannels(user);
   }
 
+  /** 20.5b — nepřečtené per konverzace (badge „Chat správy" přežije reload). */
+  @Get('unread')
+  getUnread(@CurrentUser() user: RequestUser) {
+    return this.service.getUnreadCounts(user);
+  }
+
+  /** 20.5b — označit konverzaci přečtenou (po vstupu do ní). */
+  @Post('channels/:channelId/read')
+  @HttpCode(204)
+  async markRead(
+    @Param('channelId') channelId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    await this.service.markChannelRead(channelId, user);
+  }
+
   @Get('channels/:channelId/messages')
   getMessages(
     @Param('channelId') channelId: string,
