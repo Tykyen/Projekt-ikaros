@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   Query,
+  HttpCode,
   BadRequestException,
   ForbiddenException,
   UseGuards,
@@ -31,6 +32,7 @@ import {
 import { GlobalChatGateway } from './global-chat.gateway';
 import { CreateGlobalMessageDto } from './dto/create-global-message.dto';
 import { SetRoomEnvironmentDto } from './dto/set-room-environment.dto';
+import { SetRoomDefaultDto } from './dto/camp-defaults.dto';
 import { AnonBanDto } from './dto/anon-ban.dto';
 import { AnonBanService } from './anon-ban.service';
 import { GuestOrMemberGuard } from '../../common/guards/guest-or-member.guard';
@@ -87,6 +89,16 @@ export class GlobalChatController {
       throw new ForbiddenException({
         code: 'GUEST_HOSPODA_ONLY',
         message: 'Host (anonym) smí jen Hospodu.',
+      });
+    }
+  }
+
+  /** 16.6b — save/load/delete hry je jen pro přihlášené členy (host → 403). */
+  private assertMember(user: RequestUser): void {
+    if (user.isGuest) {
+      throw new ForbiddenException({
+        code: 'GUEST_NO_SAVED_GAME',
+        message: 'Host (anonym) nemůže ukládat ani načítat hru.',
       });
     }
   }
@@ -230,5 +242,67 @@ export class GlobalChatController {
     @Body() dto: SetRoomEnvironmentDto,
   ) {
     return this.globalChatGateway.setEnvironment(parseRoom(room), dto);
+  }
+
+  // ── Uložení / načtení hry v Campu (16.6b) ────────────────────────────
+  @Post('rooms/:room/save-game')
+  @ApiOperation({
+    summary: 'Uložit hru — snímek scény + posledních ~20 zpráv (1 slot/hráč)',
+  })
+  @ApiResponse({ status: 201, description: 'Uložená hra (CampSavedGame)' })
+  @ApiResponse({ status: 403, description: 'Host (anonym) nemá uložení hry' })
+  saveGame(@Param('room') room: string, @CurrentUser() user: RequestUser) {
+    this.assertMember(user);
+    return this.globalChatService.saveGame(user.id, parseRoom(room));
+  }
+
+  @Get('saved-game')
+  @ApiOperation({ summary: 'Moje uložená hra (nebo null)' })
+  @ApiResponse({ status: 200, description: 'CampSavedGame | null' })
+  getSavedGame(@CurrentUser() user: RequestUser) {
+    this.assertMember(user);
+    return this.globalChatService.getSavedGame(user.id);
+  }
+
+  @Post('saved-game/load')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Načíst mou uloženou hru — přepne scénu místnosti + publikuje „Tady jste skončili"',
+  })
+  @ApiResponse({ status: 200, description: 'Načtená hra (CampSavedGame)' })
+  @ApiResponse({ status: 404, description: 'Žádná uložená hra' })
+  loadGame(@CurrentUser() user: RequestUser) {
+    this.assertMember(user);
+    return this.globalChatService.loadGame(user.id, user.username);
+  }
+
+  @Delete('saved-game')
+  @ApiOperation({ summary: 'Smazat můj slot uložené hry' })
+  @ApiResponse({ status: 200, description: 'Smazáno' })
+  deleteSavedGame(@CurrentUser() user: RequestUser) {
+    this.assertMember(user);
+    return this.globalChatService.deleteSavedGame(user.id);
+  }
+
+  // ── Admin default žánru Campu (16.6a) ────────────────────────────────
+  @Get('rooms/defaults')
+  @ApiOperation({ summary: 'Efektivní default žánr každého Campu (čtení)' })
+  @ApiResponse({ status: 200, description: 'Mapa camp → styl' })
+  getRoomDefaults(@CurrentUser() user: RequestUser) {
+    this.assertMember(user);
+    return this.globalChatService.getRoomDefaults();
+  }
+
+  @Put('rooms/:room/default')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.Superadmin, UserRole.Admin)
+  @ApiOperation({
+    summary: 'Přepis default žánru Campu (trvalé, Admin/Superadmin)',
+  })
+  @ApiResponse({ status: 200, description: 'Nové defaulty (mapa camp → styl)' })
+  @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
+  setRoomDefault(@Param('room') room: string, @Body() dto: SetRoomDefaultDto) {
+    return this.globalChatService.setRoomDefault(parseRoom(room), dto.style);
   }
 }

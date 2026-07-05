@@ -8,7 +8,7 @@ import {
 } from '@nestjs/websockets';
 import { logWarn } from '../../common/logging/log-error.util';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Logger } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
 import type { ChatAttachmentDto } from './dto/chat-attachment.dto';
@@ -16,9 +16,12 @@ import { UsersService } from '../users/users.service';
 import {
   GlobalChatService,
   isRoomKey,
+  CAMP_DEFAULT_GENRE,
   ROOM_KEYS,
   type RoomKey,
+  type CampRoomKey,
 } from './global-chat.service';
+import type { SavedChatLine } from './schemas/camp-saved-game.schema';
 import { presenceLine } from './presence-messages';
 
 /** Presence záznam jednoho socketu — drží všechny místnosti, kde socket je. */
@@ -53,10 +56,16 @@ export interface RoomEnvironment {
   placeId: string;
 }
 
-const DEFAULT_ENVIRONMENT: RoomEnvironment = {
-  style: 'fantasy',
-  placeId: '1',
-};
+/**
+ * Spec 16.6b — sdílený in-memory stav „Tady jste skončili". Vzniká při načtení
+ * uložené hry (broadcast všem přítomným), mizí při dalším okně rotace (cron)
+ * nebo dalším load. Nese jen zobrazitelný snímek — žádné PII navíc nad log.
+ */
+export interface StartHere {
+  lines: SavedChatLine[];
+  byUserName: string;
+  at: Date;
+}
 
 // PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
 @WebSocketGateway({})
@@ -70,7 +79,12 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   /** Sdílené prostředí jednotlivých Camp (in-memory, reset při restartu). */
   private readonly environments = new Map<RoomKey, RoomEnvironment>();
 
+  /** 16.6b — sdílený „Tady jste skončili" per místnost (in-memory). */
+  private readonly startHere = new Map<RoomKey, StartHere>();
+
   constructor(
+    // 16.6 — cyklus service↔gateway (load hry) → forwardRef na obou stranách.
+    @Inject(forwardRef(() => GlobalChatService))
     private readonly globalChatService: GlobalChatService,
     private readonly usersService: UsersService,
   ) {}
@@ -153,6 +167,11 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     this.broadcastRoomCounts();
   }
 
+  /** Pošle SVÉMU socketu seznam místností, kde reálně je (FE sebeodečet v nav). */
+  private emitMyRooms(client: Socket, record: PresenceRecord): void {
+    client.emit('chat:my-rooms', Array.from(record.rooms));
+  }
+
   /** Seznam přítomných v dané místnosti — dedup dle userId (multi-tab). */
   getPresence(room: RoomKey): PresenceUser[] {
     const seen = new Set<string>();
@@ -171,9 +190,16 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     return result;
   }
 
-  /** Aktuální prostředí místnosti; default fantasy/1. */
+  /**
+   * Aktuální prostředí místnosti; fallback = default žánr Campu (16.6a) +
+   * lokace '1'. Po restartu BE (in-memory ztraceno) nejbližší okno rotace
+   * srovná na náhodnou lokaci.
+   */
   getEnvironment(room: RoomKey): RoomEnvironment {
-    return this.environments.get(room) ?? { ...DEFAULT_ENVIRONMENT };
+    const stored = this.environments.get(room);
+    if (stored) return stored;
+    const style = CAMP_DEFAULT_GENRE[room as CampRoomKey] ?? 'fantasy';
+    return { style, placeId: '1' };
   }
 
   /** Uloží prostředí a odbroadcastne ho všem v místnosti. Volá controller po REST změně. */
@@ -184,6 +210,47 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
       .to(`chat:${channelId}`)
       .emit('chat:room:environment', { room, ...env });
     return env;
+  }
+
+  // ── „Tady jste skončili" + rotace scény (16.6) ─────────────────────────
+
+  /** 16.6b — aktuální „Tady jste skončili" místnosti (nebo null). */
+  getStartHere(room: RoomKey): StartHere | null {
+    return this.startHere.get(room) ?? null;
+  }
+
+  /** 16.6b — nastaví „Tady jste skončili" a odbroadcastne všem v místnosti. */
+  setStartHere(room: RoomKey, data: StartHere): StartHere {
+    this.startHere.set(room, data);
+    this.broadcastStartHere(room, data);
+    return data;
+  }
+
+  /** 16.6b — smaže „Tady jste skončili" (rotace / nový load) + broadcast null. */
+  clearStartHere(room: RoomKey): void {
+    if (!this.startHere.delete(room)) return;
+    this.broadcastStartHere(room, null);
+  }
+
+  private broadcastStartHere(room: RoomKey, data: StartHere | null): void {
+    const channelId = this.globalChatService.getChannelId(room);
+    this.server
+      .to(`chat:${channelId}`)
+      .emit('chat:room:startHere', { room, startHere: data });
+  }
+
+  /**
+   * Spec 16.6a — rotace scény Campu (cron 12:00/00:00): default žánr (admin
+   * override → fallback `CAMP_DEFAULT_GENRE`) + náhodná lokace + reset
+   * „Tady jste skončili". Ruční staff/load override tím „dojede" do dalšího okna.
+   */
+  async applyRotation(room: CampRoomKey): Promise<void> {
+    const style = await this.globalChatService.getRoomDefault(room);
+    this.setEnvironment(room, {
+      style,
+      placeId: this.globalChatService.randomPlaceId(),
+    });
+    this.clearStartHere(room);
   }
 
   // ── Presence — Hospoda (krok 4.1) ──────────────────────────────────────
@@ -289,6 +356,10 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     record.rooms.add(room);
     record.lastSeen = new Date();
     void client.join(`user:${userId}`);
+    // Autoritativní „ve kterých místnostech tento socket je" → FE odečítá sebe
+    // z počtů dle reality BE, ne z efemérního klientského stavu (jinak
+    // přetrvávající členství v Putyce po navigaci vypadá jako cizí přítomnost).
+    this.emitMyRooms(client, record);
 
     // Data profilu (avatar účtu + postava) dotáhneme jen při prvním joinu
     // socketu. 15.8 — host (anonym) nemá DB účet → žádný lookup, bez avataru.
@@ -316,6 +387,12 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
       characterAvatarUrl: record.characterAvatarUrl,
       action: 'join',
     });
+    // 16.6b — nový příchozí dostane aktuální „Tady jste skončili" (jen jemu,
+    // ne re-broadcast celé místnosti), ať ví, kde parta skončila.
+    const startHere = this.startHere.get(room);
+    if (startHere) {
+      client.emit('chat:room:startHere', { room, startHere });
+    }
     void this.globalChatService
       .saveSystemMessage(room, presenceLine(room, 'join', username))
       .catch((err: unknown) =>
@@ -331,6 +408,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     const record = this.connectedUsers.get(client.id);
     if (!record || !record.rooms.has(room)) return;
     record.rooms.delete(room);
+    this.emitMyRooms(client, record);
     if (record.rooms.size === 0) this.connectedUsers.delete(client.id);
     const channelId = this.globalChatService.getChannelId(room);
     this.server.to(`chat:${channelId}`).emit('chat:presence', {

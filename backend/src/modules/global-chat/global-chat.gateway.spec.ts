@@ -15,6 +15,8 @@ const mockSocket = (id: string, userId = id.replace(/^s/, 'u')): Socket => {
     data: { userId },
     join: jest.fn(),
     leave: jest.fn(),
+    // client.emit (targeted, 16.6 startHere joinerovi) i to().emit sdílí mock.
+    emit,
     to: jest.fn(() => ({ emit })),
   } as unknown as Socket;
 };
@@ -30,7 +32,12 @@ describe('GlobalChatGateway', () => {
   let service: jest.Mocked<
     Pick<
       GlobalChatService,
-      'getChannelId' | 'saveSystemMessage' | 'toggleReaction' | 'sendWhisper'
+      | 'getChannelId'
+      | 'saveSystemMessage'
+      | 'toggleReaction'
+      | 'sendWhisper'
+      | 'getRoomDefault'
+      | 'randomPlaceId'
     >
   >;
   let users: jest.Mocked<Pick<UsersService, 'findById'>>;
@@ -42,6 +49,8 @@ describe('GlobalChatGateway', () => {
       saveSystemMessage: jest.fn().mockResolvedValue(undefined),
       toggleReaction: jest.fn().mockResolvedValue(undefined),
       sendWhisper: jest.fn().mockResolvedValue(undefined),
+      getRoomDefault: jest.fn().mockResolvedValue('scifi'),
+      randomPlaceId: jest.fn().mockReturnValue('13'),
     };
     users = {
       findById: jest.fn().mockResolvedValue({}),
@@ -436,9 +445,17 @@ describe('GlobalChatGateway', () => {
   });
 
   describe('environment', () => {
-    it('defaults to fantasy / place 1', () => {
+    it('default žánr per room (16.6a): camp-1 fantasy, camp-2 mystic, camp-3 scifi', () => {
       expect(gateway.getEnvironment('camp-1')).toEqual({
         style: 'fantasy',
+        placeId: '1',
+      });
+      expect(gateway.getEnvironment('camp-2')).toEqual({
+        style: 'mystic',
+        placeId: '1',
+      });
+      expect(gateway.getEnvironment('camp-3')).toEqual({
+        style: 'scifi',
         placeId: '1',
       });
     });
@@ -458,6 +475,99 @@ describe('GlobalChatGateway', () => {
         room: 'camp-2',
         style: 'scifi',
         placeId: '7',
+      });
+    });
+  });
+
+  describe('startHere (16.6b)', () => {
+    it('setStartHere uloží a odbroadcastne chat:room:startHere', () => {
+      const data = {
+        lines: [
+          {
+            senderName: 'Aragorn',
+            content: 'ahoj',
+            color: null,
+            createdAt: new Date(),
+          },
+        ],
+        byUserName: 'Aragorn',
+        at: new Date(),
+      };
+      gateway.setStartHere('camp-1', data);
+      expect(gateway.getStartHere('camp-1')).toEqual(data);
+      expect(gateway.server.to).toHaveBeenCalledWith('chat:camp-1-id');
+      expect(emit).toHaveBeenCalledWith('chat:room:startHere', {
+        room: 'camp-1',
+        startHere: data,
+      });
+    });
+
+    it('clearStartHere broadcastne null jen když stav existoval', () => {
+      // Prázdný stav → žádný broadcast.
+      gateway.clearStartHere('camp-2');
+      expect(emit).not.toHaveBeenCalledWith(
+        'chat:room:startHere',
+        expect.anything(),
+      );
+      // Po setu clear vyresetuje + broadcastne null.
+      gateway.setStartHere('camp-2', {
+        lines: [],
+        byUserName: 'X',
+        at: new Date(),
+      });
+      gateway.clearStartHere('camp-2');
+      expect(gateway.getStartHere('camp-2')).toBeNull();
+      expect(emit).toHaveBeenLastCalledWith('chat:room:startHere', {
+        room: 'camp-2',
+        startHere: null,
+      });
+    });
+
+    it('nový příchozí dostane aktuální startHere jen sobě', async () => {
+      gateway.setStartHere('camp-1', {
+        lines: [],
+        byUserName: 'Aragorn',
+        at: new Date(),
+      });
+      const sock = mockSocket('s1', 'u1');
+      gateway.handleRoomJoin(
+        { room: 'camp-1', username: 'tyky', userId: 'u1' },
+        sock,
+      );
+      await flush();
+      expect(sock.emit).toHaveBeenCalledWith(
+        'chat:room:startHere',
+        expect.objectContaining({ room: 'camp-1' }),
+      );
+    });
+  });
+
+  describe('applyRotation (16.6a)', () => {
+    it('nastaví default žánr + náhodnou lokaci a vyresetuje startHere', async () => {
+      // Předtím tam byl startHere (po loadu).
+      gateway.setStartHere('camp-3', {
+        lines: [],
+        byUserName: 'X',
+        at: new Date(),
+      });
+      await gateway.applyRotation('camp-3');
+
+      expect(service.getRoomDefault).toHaveBeenCalledWith('camp-3');
+      expect(service.randomPlaceId).toHaveBeenCalled();
+      expect(gateway.getEnvironment('camp-3')).toEqual({
+        style: 'scifi', // z mocku getRoomDefault
+        placeId: '13', // z mocku randomPlaceId
+      });
+      expect(gateway.getStartHere('camp-3')).toBeNull();
+      // Broadcast prostředí i reset startHere.
+      expect(emit).toHaveBeenCalledWith('chat:room:environment', {
+        room: 'camp-3',
+        style: 'scifi',
+        placeId: '13',
+      });
+      expect(emit).toHaveBeenCalledWith('chat:room:startHere', {
+        room: 'camp-3',
+        startHere: null,
       });
     });
   });

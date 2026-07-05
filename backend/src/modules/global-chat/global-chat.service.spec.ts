@@ -1,16 +1,32 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { GlobalChatService } from './global-chat.service';
+import {
+  GlobalChatService,
+  genreLabel,
+  CAMP_DEFAULT_GENRE,
+} from './global-chat.service';
+import { GlobalChatGateway } from './global-chat.gateway';
 import { PushService } from '../push/push.service';
 import { UploadService } from '../upload/upload.service';
 import { UsersService } from '../users/users.service';
 import { AnonBanService } from './anon-ban.service';
+import { CampSavedGameSchemaClass } from './schemas/camp-saved-game.schema';
+import { CampRoomConfigSchemaClass } from './schemas/camp-room-config.schema';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import type { ChatChannel } from '../chat/interfaces/chat-channel.interface';
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
 import { UserRole } from '../users/interfaces/user.interface';
+
+/** Mongoose chainable mock — `.exec()` i `.lean().exec()` vrátí `value`. */
+const chain = (value: unknown) => ({
+  exec: jest.fn().mockResolvedValue(value),
+  lean: jest.fn().mockReturnValue({
+    exec: jest.fn().mockResolvedValue(value),
+  }),
+});
 
 const mockChannel: ChatChannel = {
   id: 'global-ch-id',
@@ -58,6 +74,21 @@ describe('GlobalChatService', () => {
   let eventEmitter: jest.Mocked<EventEmitter2>;
   let usersService: { findById: jest.Mock };
   let anonBan: { isBanned: jest.Mock };
+  let savedGameModel: {
+    findOne: jest.Mock;
+    findOneAndUpdate: jest.Mock;
+    deleteOne: jest.Mock;
+  };
+  let roomConfigModel: {
+    findOne: jest.Mock;
+    find: jest.Mock;
+    updateOne: jest.Mock;
+  };
+  let gateway: {
+    getEnvironment: jest.Mock;
+    setEnvironment: jest.Mock;
+    setStartHere: jest.Mock;
+  };
 
   beforeEach(async () => {
     channelRepo = {
@@ -111,6 +142,25 @@ describe('GlobalChatService', () => {
     // 15.8 — default: host není zabanovaný (testy si přepíšou).
     anonBan = { isBanned: jest.fn().mockResolvedValue(false) };
 
+    // 16.6 — modely + gateway (testy si návratové hodnoty přepíšou).
+    savedGameModel = {
+      findOne: jest.fn().mockReturnValue(chain(null)),
+      findOneAndUpdate: jest.fn().mockReturnValue(chain(null)),
+      deleteOne: jest.fn().mockReturnValue(chain({ deletedCount: 1 })),
+    };
+    roomConfigModel = {
+      findOne: jest.fn().mockReturnValue(chain(null)),
+      find: jest.fn().mockReturnValue(chain([])),
+      updateOne: jest.fn().mockReturnValue(chain({})),
+    };
+    gateway = {
+      getEnvironment: jest
+        .fn()
+        .mockReturnValue({ style: 'fantasy', placeId: '7' }),
+      setEnvironment: jest.fn(),
+      setStartHere: jest.fn(),
+    };
+
     const module = await Test.createTestingModule({
       providers: [
         GlobalChatService,
@@ -131,6 +181,15 @@ describe('GlobalChatService', () => {
         },
         { provide: UsersService, useValue: usersService },
         { provide: AnonBanService, useValue: anonBan },
+        {
+          provide: getModelToken(CampSavedGameSchemaClass.name),
+          useValue: savedGameModel,
+        },
+        {
+          provide: getModelToken(CampRoomConfigSchemaClass.name),
+          useValue: roomConfigModel,
+        },
+        { provide: GlobalChatGateway, useValue: gateway },
       ],
     }).compile();
 
@@ -742,6 +801,206 @@ describe('GlobalChatService', () => {
       expect(eventEmitter.emit).toHaveBeenCalledWith(
         'chat.global.message.deleted',
         expect.objectContaining({ attachments: [att] }),
+      );
+    });
+  });
+
+  // ── Camp 16.6 — žánr, rotace, uložení/načtení hry ────────────────────
+  describe('genreLabel / CAMP_DEFAULT_GENRE (16.6a)', () => {
+    it('název Campu odpovídá žánru', () => {
+      expect(genreLabel('fantasy')).toBe('Fantasy camp');
+      expect(genreLabel('mystic')).toBe('Mystery camp');
+      expect(genreLabel('scifi')).toBe('Sci-fi camp');
+    });
+
+    it('default žánr: camp-1 fantasy, camp-2 mystic, camp-3 scifi', () => {
+      expect(CAMP_DEFAULT_GENRE).toEqual({
+        'camp-1': 'fantasy',
+        'camp-2': 'mystic',
+        'camp-3': 'scifi',
+      });
+    });
+  });
+
+  describe('randomPlaceId (16.6a)', () => {
+    it('vrací string 1..20', () => {
+      for (let i = 0; i < 200; i++) {
+        const n = Number(service.randomPlaceId());
+        expect(Number.isInteger(n)).toBe(true);
+        expect(n).toBeGreaterThanOrEqual(1);
+        expect(n).toBeLessThanOrEqual(20);
+      }
+    });
+  });
+
+  describe('admin defaults (16.6a)', () => {
+    it('getRoomDefaults bez override = konstanty', async () => {
+      roomConfigModel.find.mockReturnValue(chain([]));
+      expect(await service.getRoomDefaults()).toEqual({
+        'camp-1': 'fantasy',
+        'camp-2': 'mystic',
+        'camp-3': 'scifi',
+      });
+    });
+
+    it('getRoomDefaults respektuje DB override', async () => {
+      roomConfigModel.find.mockReturnValue(
+        chain([{ room: 'camp-1', style: 'scifi' }]),
+      );
+      expect(await service.getRoomDefaults()).toEqual({
+        'camp-1': 'scifi',
+        'camp-2': 'mystic',
+        'camp-3': 'scifi',
+      });
+    });
+
+    it('getRoomDefault: override → styl; jinak konstanta', async () => {
+      roomConfigModel.findOne.mockReturnValue(chain({ style: 'mystic' }));
+      expect(await service.getRoomDefault('camp-3')).toBe('mystic');
+      roomConfigModel.findOne.mockReturnValue(chain(null));
+      expect(await service.getRoomDefault('camp-3')).toBe('scifi');
+    });
+
+    it('setRoomDefault upsertuje dle room', async () => {
+      await service.setRoomDefault('camp-1', 'scifi');
+      const [filter, update] = roomConfigModel.updateOne.mock.calls[0];
+      expect(filter).toEqual({ room: 'camp-1' });
+      expect(update).toEqual({ $set: { room: 'camp-1', style: 'scifi' } });
+    });
+
+    it('setRoomDefault na Hospodu → 400 (jen Camp)', async () => {
+      await expect(
+        service.setRoomDefault('hospoda', 'fantasy'),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('saveGame (16.6b)', () => {
+    beforeEach(initAllChannels);
+
+    const plain = (i: number): ChatMessage =>
+      makeMsg({
+        id: `p${i}`,
+        content: `line ${i}`,
+        senderName: 'Aragorn',
+        color: null,
+        createdAt: new Date(2020, 0, 1, 0, i),
+      });
+
+    it('snímek = posledních 20 veřejných zpráv (bez system + whisper), upsert dle userId', async () => {
+      const msgs: ChatMessage[] = [];
+      for (let i = 0; i < 22; i++) msgs.push(plain(i));
+      msgs.push(makeMsg({ id: 'sys', isSystem: true, content: 'joined' }));
+      msgs.push(
+        makeMsg({
+          id: 'wh',
+          senderId: 'u1',
+          visibleTo: ['u1', 'u2'],
+          content: 'secret',
+        }),
+      );
+      messageRepo.findByChannelId.mockResolvedValue(msgs);
+      savedGameModel.findOneAndUpdate.mockImplementation(
+        (_f: unknown, u: { $set: Record<string, unknown> }) => chain(u.$set),
+      );
+
+      const view = await service.saveGame('u1', 'camp-1');
+
+      const [filter, update] = savedGameModel.findOneAndUpdate.mock.calls[0];
+      expect(filter).toEqual({ userId: 'u1' });
+      const saved = update.$set.messages as { content: string }[];
+      // 20 kotevních řádků, žádný systémový ani whisper.
+      expect(saved).toHaveLength(20);
+      expect(saved.some((l) => l.content === 'joined')).toBe(false);
+      expect(saved.some((l) => l.content === 'secret')).toBe(false);
+      // Poslední řádek = nejnovější veřejná zpráva (line 21).
+      expect(saved[saved.length - 1].content).toBe('line 21');
+      // Scéna ze snapshotu gateway env.
+      expect(update.$set.style).toBe('fantasy');
+      expect(update.$set.placeId).toBe('7');
+      expect(gateway.getEnvironment).toHaveBeenCalledWith('camp-1');
+      expect(view.messages).toHaveLength(20);
+    });
+
+    it('save na Hospodu → 400 (jen Camp)', async () => {
+      await expect(service.saveGame('u1', 'hospoda')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('getSavedGame / deleteSavedGame (16.6b)', () => {
+    it('getSavedGame vrací null bez slotu', async () => {
+      savedGameModel.findOne.mockReturnValue(chain(null));
+      expect(await service.getSavedGame('u1')).toBeNull();
+    });
+
+    it('getSavedGame vrací pohled na slot', async () => {
+      savedGameModel.findOne.mockReturnValue(
+        chain({
+          room: 'camp-2',
+          style: 'scifi',
+          placeId: '3',
+          messages: [],
+          savedAt: new Date(),
+        }),
+      );
+      const view = await service.getSavedGame('u1');
+      expect(view).toMatchObject({
+        room: 'camp-2',
+        style: 'scifi',
+        placeId: '3',
+      });
+    });
+
+    it('deleteSavedGame maže dle userId', async () => {
+      await service.deleteSavedGame('u1');
+      expect(savedGameModel.deleteOne).toHaveBeenCalledWith({ userId: 'u1' });
+    });
+  });
+
+  describe('loadGame (16.6b)', () => {
+    beforeEach(initAllChannels);
+
+    it('nastaví env + startHere a vrátí pohled', async () => {
+      const doc = {
+        room: 'camp-2',
+        style: 'scifi',
+        placeId: '3',
+        messages: [
+          {
+            senderName: 'Aragorn',
+            content: 'ahoj',
+            color: null,
+            createdAt: new Date(2020, 0, 1),
+          },
+        ],
+        savedAt: new Date(2020, 0, 2),
+      };
+      savedGameModel.findOne.mockReturnValue(chain(doc));
+
+      const view = await service.loadGame('u1', 'gandalf');
+
+      expect(gateway.setEnvironment).toHaveBeenCalledWith('camp-2', {
+        style: 'scifi',
+        placeId: '3',
+      });
+      expect(gateway.setStartHere).toHaveBeenCalledWith(
+        'camp-2',
+        expect.objectContaining({
+          byUserName: 'Aragorn', // Camp identita z profilu (characterName)
+          lines: expect.arrayContaining([
+            expect.objectContaining({ content: 'ahoj' }),
+          ]),
+        }),
+      );
+      expect(view.room).toBe('camp-2');
+    });
+
+    it('bez slotu → 404', async () => {
+      savedGameModel.findOne.mockReturnValue(chain(null));
+      await expect(service.loadGame('u1', 'gandalf')).rejects.toThrow(
+        NotFoundException,
       );
     });
   });

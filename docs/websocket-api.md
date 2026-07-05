@@ -118,7 +118,8 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `chat:message` | `ChatMessage` | `chat:{channelId}` nebo `user:{userId}` | Nová globální zpráva nebo whisper |
 | `chat:message:deleted` | `{ messageId: string; channelId: string }` | `chat:{channelId}` | Smazaná globální zpráva |
 | `chat:message:reaction` | `{ messageId: string; channelId: string; reactions: Record<string, string[]> }` | `chat:{channelId}` nebo `user:{userId}` | Změna emoji reakcí zprávy (krok 4.3a). `reactions` = emoji → pole `userId`. Whisper jde jen účastníkům (`user:` room) |
-| `chat:room:environment` | `{ room: RoomKey; style: 'fantasy'\|'scifi'\|'mystic'; placeId: string }` | `chat:{channelId}` | Změna sdíleného prostředí Campu (styl + lokace); emituje BE po REST `PUT /global-chat/rooms/:room/environment` |
+| `chat:room:environment` | `{ room: RoomKey; style: 'fantasy'\|'scifi'\|'mystic'; placeId: string }` | `chat:{channelId}` | Změna sdíleného prostředí Campu (styl + lokace); emituje BE po REST `PUT /global-chat/rooms/:room/environment`, při načtení hry (`POST /global-chat/saved-game/load`) i při cron rotaci (16.6) |
+| `chat:room:startHere` | `{ room: RoomKey; startHere: { lines: SavedChatLine[]; byUserName: string; at: string } \| null }` | `chat:{channelId}` (broadcast) nebo jen joinerovi | 16.6b — sdílený blok „Tady jste skončili". `startHere` populován při načtení uložené hry (`POST /global-chat/saved-game/load`); `null` znamená reset (cron rotace 12:00/00:00 nebo nový load). Nový příchozí do místnosti dostane aktuální stav jen sobě (targeted emit) při `chat:room:join`. `SavedChatLine = { senderName: string; content: string; color: string\|null; createdAt: string }` |
 | `chat:rooms:presence` | `Record<RoomKey, number>` | *(broadcast všem)* | Počet přítomných pro každou místnost — pro odznak v navigaci. Emituje BE po každém join/leave/cleanup. Initial stav přes REST `GET /global-chat/rooms/presence` |
 
 > `RoomKey` = `'hospoda' | 'camp-1' | 'camp-2' | 'camp-3'`.
@@ -133,7 +134,12 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 > `OnGatewayDisconnect` — odebere socket ze všech jeho místností.
 > Příchod/odchod se navíc ukládá jako systémová zpráva (`isSystem: true`) a
 > doručuje běžným `chat:message` — vidí ji i pozdější příchozí (TTL 1 h).
-> Prostředí (`chat:room:environment`) je in-memory na BE — restart serveru ho resetuje
+> Rotace scény (16.6a): cron `0 0,12 * * *` (12:00 a 00:00) v každém Campu nastaví
+> default žánr (admin override z DB → fallback `CAMP_DEFAULT_GENRE`: camp-1 fantasy,
+> camp-2 mystic, camp-3 scifi) + náhodnou lokaci (`chat:room:environment`) a
+> vyresetuje `startHere` (`chat:room:startHere` s `null`). Ruční staff override i
+> načtení hry jsou dočasné — nejbližší okno je „dojede" zpět na default.
+> Prostředí (`chat:room:environment`) a `startHere` jsou in-memory na BE — restart serveru je resetuje
 >
 > Přílohy (krok 4.3b): soubor se nahraje přes REST `POST /global-chat/upload?room=`
 > (multipart `file`, max 10 MB, jen obrázky a dokumenty — bez videa) → vrátí

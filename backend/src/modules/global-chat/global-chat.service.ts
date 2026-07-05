@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  forwardRef,
   NotFoundException,
   BadRequestException,
   ForbiddenException,
@@ -10,6 +11,8 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { logWarn } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
@@ -24,22 +27,80 @@ import { UploadService } from '../upload/upload.service';
 import { UsersService } from '../users/users.service';
 import { AnonBanService } from './anon-ban.service';
 import { HOUR_MS } from '../../common/constants/time.constants';
+import { GlobalChatGateway, type RoomStyle } from './global-chat.gateway';
+import {
+  CampSavedGameSchemaClass,
+  type CampSavedGameDocument,
+  type SavedChatLine,
+} from './schemas/camp-saved-game.schema';
+import {
+  CampRoomConfigSchemaClass,
+  type CampRoomConfigDocument,
+} from './schemas/camp-room-config.schema';
 
 /** Klíč globální chat místnosti — Hospoda + tři Camp (krok 4.2a). */
 export type RoomKey = 'hospoda' | 'camp-1' | 'camp-2' | 'camp-3';
 
+/** Camp klíče se zamčeným default žánrem (Hospoda vynechána, spec 16.6a). */
+export type CampRoomKey = 'camp-1' | 'camp-2' | 'camp-3';
+
 /** Pořadí a názvy globálních kanálů. `type` v `chatchannels` = RoomKey. */
 const ROOM_DEFS: { key: RoomKey; name: string }[] = [
   { key: 'hospoda', name: 'Interdimenzionální hospoda' },
-  { key: 'camp-1', name: 'Camp I.' },
-  { key: 'camp-2', name: 'Camp II.' },
-  { key: 'camp-3', name: 'Camp III.' },
+  // 16.6 rename: „Camp I./II./III." → název = žánr Campu.
+  { key: 'camp-1', name: 'Fantasy camp' },
+  { key: 'camp-2', name: 'Mystery camp' },
+  { key: 'camp-3', name: 'Sci-fi camp' },
 ];
 
 export const ROOM_KEYS: RoomKey[] = ROOM_DEFS.map((r) => r.key);
 
+/** Camp místnosti se zamčeným žánrem (spec 16.6a). */
+export const CAMP_ROOM_KEYS: CampRoomKey[] = ['camp-1', 'camp-2', 'camp-3'];
+
+/**
+ * Spec 16.6a — default žánr per Camp (jediný zdroj pravdy na BE; FE zrcadlí).
+ * Admin smí přepsat perzistentně (`CampRoomConfig`), tady je fallback konstanta.
+ */
+export const CAMP_DEFAULT_GENRE: Record<CampRoomKey, RoomStyle> = {
+  'camp-1': 'fantasy',
+  'camp-2': 'mystic',
+  'camp-3': 'scifi',
+};
+
 export function isRoomKey(value: unknown): value is RoomKey {
   return typeof value === 'string' && ROOM_KEYS.includes(value as RoomKey);
+}
+
+export function isCampRoomKey(value: unknown): value is CampRoomKey {
+  return value === 'camp-1' || value === 'camp-2' || value === 'camp-3';
+}
+
+/**
+ * Spec 16.6a — název Campu odvozený z aktuálního žánru (zrcadlo `ROOM_DEFS`).
+ * Hlavička místnosti se řídí *aktuálním* žánrem (staff override → přepne se).
+ */
+export function genreLabel(style: RoomStyle): string {
+  switch (style) {
+    case 'fantasy':
+      return 'Fantasy camp';
+    case 'mystic':
+      return 'Mystery camp';
+    case 'scifi':
+      return 'Sci-fi camp';
+  }
+}
+
+/**
+ * Spec 16.6b — zobrazitelný pohled na uloženou hru (API kontrakt pro FE).
+ * `savedAt`/`createdAt` serializují do ISO stringu. Bez `_id`/`__v`.
+ */
+export interface CampSavedGameView {
+  room: RoomKey;
+  style: RoomStyle;
+  placeId: string;
+  messages: SavedChatLine[];
+  savedAt: Date;
 }
 
 @Injectable()
@@ -48,6 +109,8 @@ export class GlobalChatService implements OnModuleInit {
   /** Limit příloh na zprávu — zvlášť pro obrázky a dokumenty (spec 4.3b). */
   private static readonly MAX_IMAGE_ATTACHMENTS = 10;
   private static readonly MAX_DOC_ATTACHMENTS = 4;
+  /** Spec 16.6b — počet veřejných zpráv ve snímku uložené hry (kotva). */
+  private static readonly SAVED_GAME_LINES = 20;
   private readonly logger = new Logger(GlobalChatService.name);
   /** RoomKey → channelId v `chatchannels`. */
   private readonly channels = new Map<RoomKey, string>();
@@ -85,6 +148,15 @@ export class GlobalChatService implements OnModuleInit {
     private readonly uploadService: UploadService,
     private readonly usersService: UsersService,
     private readonly anonBan: AnonBanService,
+    // 16.6b — uložené hry (1 slot/hráč) + admin default žánru Campu.
+    @InjectModel(CampSavedGameSchemaClass.name)
+    private readonly savedGameModel: Model<CampSavedGameDocument>,
+    @InjectModel(CampRoomConfigSchemaClass.name)
+    private readonly roomConfigModel: Model<CampRoomConfigDocument>,
+    // 16.6 — load hry mění sdílené in-memory prostředí + startHere na gateway.
+    // Cyklus service↔gateway → forwardRef na obou stranách.
+    @Inject(forwardRef(() => GlobalChatGateway))
+    private readonly gateway: GlobalChatGateway,
   ) {}
 
   /**
@@ -209,6 +281,13 @@ export class GlobalChatService implements OnModuleInit {
           isDeleted: false,
           type: key,
         });
+      }
+
+      // 16.6 rename — sladit název existujícího kanálu s aktuálním ROOM_DEFS,
+      // ať v DB nezůstane starý „Camp I." (prosakoval by do souhrnů chatů).
+      if (channel.name !== name) {
+        const renamed = await this.channelRepo.update(channel.id, { name });
+        if (renamed) channel = renamed;
       }
 
       this.channels.set(key, channel.id);
@@ -501,5 +580,156 @@ export class GlobalChatService implements OnModuleInit {
       reactions,
       visibleTo,
     });
+  }
+
+  // ── Camp 16.6 — rotace scény, uložení/načtení hry ──────────────────────
+
+  /** Spec 16.6a — náhodné ID lokace '1'..'20' (rotace scény). */
+  randomPlaceId(): string {
+    return String(Math.floor(Math.random() * 20) + 1);
+  }
+
+  /** Save/load/default jen pro Camp; Hospoda scénu nemá → 400. */
+  private assertCampRoom(room: RoomKey): asserts room is CampRoomKey {
+    if (!isCampRoomKey(room)) {
+      throw new BadRequestException({
+        code: 'CAMP_ROOM_ONLY',
+        message: 'Tuhle akci lze provést jen v Campu.',
+      });
+    }
+  }
+
+  /**
+   * Spec 16.6a — efektivní default žánr Campu: admin override z DB, jinak
+   * fallback konstanta `CAMP_DEFAULT_GENRE`. Čte cron rotace i gateway.
+   */
+  async getRoomDefault(room: CampRoomKey): Promise<RoomStyle> {
+    const cfg = await this.roomConfigModel.findOne({ room }).lean().exec();
+    return (cfg?.style as RoomStyle | undefined) ?? CAMP_DEFAULT_GENRE[room];
+  }
+
+  /** Spec 16.6a — efektivní defaulty všech Campů (GET rooms/defaults). */
+  async getRoomDefaults(): Promise<Record<CampRoomKey, RoomStyle>> {
+    const configs = await this.roomConfigModel.find().lean().exec();
+    const overrides = new Map(
+      configs.map((c) => [c.room, c.style as RoomStyle]),
+    );
+    const result = {} as Record<CampRoomKey, RoomStyle>;
+    for (const room of CAMP_ROOM_KEYS) {
+      result[room] = overrides.get(room) ?? CAMP_DEFAULT_GENRE[room];
+    }
+    return result;
+  }
+
+  /**
+   * Spec 16.6a — admin přepíše default žánr Campu (perzistentní, upsert dle
+   * room). Rotace ho respektuje od dalšího okna. Vrací nové efektivní defaulty.
+   */
+  async setRoomDefault(
+    room: RoomKey,
+    style: RoomStyle,
+  ): Promise<Record<CampRoomKey, RoomStyle>> {
+    this.assertCampRoom(room);
+    await this.roomConfigModel
+      .updateOne({ room }, { $set: { room, style } }, { upsert: true })
+      .exec();
+    return this.getRoomDefaults();
+  }
+
+  /** Snímek doc → zobrazitelný pohled (bez `_id`/`__v`). */
+  private toSavedGameView(doc: CampSavedGameDocument): CampSavedGameView {
+    return {
+      room: doc.room as RoomKey,
+      style: doc.style as RoomStyle,
+      placeId: doc.placeId,
+      messages: doc.messages.map((l) => ({
+        senderName: l.senderName,
+        content: l.content,
+        color: l.color ?? null,
+        createdAt: l.createdAt,
+      })),
+      savedAt: doc.savedAt,
+    };
+  }
+
+  /**
+   * Spec 16.6b — uloží „hru" hráče: snímek scény (z gateway env) + posledních
+   * ~20 VEŘEJNÝCH zpráv (bez systémových a bez whisperů). Upsert dle `userId`
+   * → 1 slot (druhé uložení přepíše). Načítáme širší okno a teprve pak filtr,
+   * ať kotvu tvoří skutečné zprávy, ne join/leave hlášky.
+   */
+  async saveGame(userId: string, room: RoomKey): Promise<CampSavedGameView> {
+    this.assertCampRoom(room);
+    const env = this.gateway.getEnvironment(room);
+    const recent = await this.getMessages(room, userId, { limit: 100 });
+    const messages: SavedChatLine[] = recent
+      .filter((m) => !m.isSystem && (!m.visibleTo || m.visibleTo.length === 0))
+      .slice(-GlobalChatService.SAVED_GAME_LINES)
+      .map((m) => ({
+        senderName: m.senderName,
+        content: m.content ?? '',
+        color: m.color ?? null,
+        createdAt: m.createdAt,
+      }));
+    const doc = await this.savedGameModel
+      .findOneAndUpdate(
+        { userId },
+        {
+          $set: {
+            room,
+            style: env.style,
+            placeId: env.placeId,
+            messages,
+            savedAt: new Date(),
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      )
+      .exec();
+    if (!doc) {
+      throw new InternalServerErrorException('Uložení hry selhalo');
+    }
+    return this.toSavedGameView(doc);
+  }
+
+  /** Spec 16.6b — uložená hra hráče, nebo `null` (žádný slot). */
+  async getSavedGame(userId: string): Promise<CampSavedGameView | null> {
+    const doc = await this.savedGameModel.findOne({ userId }).exec();
+    return doc ? this.toSavedGameView(doc) : null;
+  }
+
+  /**
+   * Spec 16.6b — načte hráčovu uloženou hru: přepne sdílené prostředí místnosti
+   * na uložené (styl+lokace, dočasný override do dalšího okna rotace) a
+   * publikuje `startHere` snímek všem přítomným (WS `chat:room:startHere`).
+   * Hráč smí načíst JEN svůj slot → není to obcházení staff gate.
+   */
+  async loadGame(userId: string, username: string): Promise<CampSavedGameView> {
+    const doc = await this.savedGameModel.findOne({ userId }).exec();
+    if (!doc) {
+      throw new NotFoundException({
+        code: 'CAMP_SAVED_GAME_NOT_FOUND',
+        message: 'Nemáš uloženou žádnou hru.',
+      });
+    }
+    const view = this.toSavedGameView(doc);
+    const room = view.room;
+    this.gateway.setEnvironment(room, {
+      style: view.style,
+      placeId: view.placeId,
+    });
+    // Kdo hru načetl — v Campu jméno postavy (fallback účet), jako u zpráv.
+    const identity = await this.resolveSenderIdentity(room, userId, username);
+    this.gateway.setStartHere(room, {
+      lines: view.messages,
+      byUserName: identity.senderName,
+      at: new Date(),
+    });
+    return view;
+  }
+
+  /** Spec 16.6b — smaže hráčův slot (idempotentní). */
+  async deleteSavedGame(userId: string): Promise<void> {
+    await this.savedGameModel.deleteOne({ userId }).exec();
   }
 }
