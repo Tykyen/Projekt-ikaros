@@ -150,8 +150,12 @@ describe('MapsService', () => {
 
   describe('deleteScene (CD-04 — dangling currentSceneId cleanup)', () => {
     it('po smazání scény vyčistí currentSceneId u členů, co na ní byli', async () => {
+      mockRepo.findById.mockResolvedValue(mockScene); // worldId: 'world1'
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
       mockRepo.delete.mockResolvedValue(true);
-      await service.deleteScene('scene1');
+      await service.deleteScene('scene1', { id: 'pj1', role: UserRole.Hrac });
       expect(mockRepo.delete).toHaveBeenCalledWith('scene1');
       expect(mockMembershipRepo.clearSceneForAll).toHaveBeenCalledWith(
         'scene1',
@@ -159,11 +163,25 @@ describe('MapsService', () => {
     });
 
     it('neexistující scéna → NotFound a žádný cleanup', async () => {
-      mockRepo.delete.mockResolvedValue(false);
-      await expect(service.deleteScene('nope')).rejects.toThrow(
-        NotFoundException,
-      );
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.deleteScene('nope', { id: 'pj1', role: UserRole.Hrac }),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepo.delete).not.toHaveBeenCalled();
       expect(mockMembershipRepo.clearSceneForAll).not.toHaveBeenCalled();
+    });
+
+    it('FIX-16 (cross-world IDOR) — PJ jiného světa nemůže smazat cizí scénu', async () => {
+      mockRepo.findById.mockResolvedValue(mockScene); // worldId: 'world1'
+      // requester je PJ ve 'worldA', ne ve 'world1' (scéna).
+      mockMembershipRepo.findByUserAndWorld.mockImplementation(
+        (_userId: string, worldId: string) =>
+          Promise.resolve(worldId === 'worldA' ? { role: WorldRole.PJ } : null),
+      );
+      await expect(
+        service.deleteScene('scene1', { id: 'pjA', role: UserRole.Hrac }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepo.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -265,17 +283,81 @@ describe('MapsService', () => {
 
   describe('setActive', () => {
     it('volá repo.setActive a vrátí scénu', async () => {
-      mockRepo.findById.mockResolvedValue(mockScene);
+      mockRepo.findById.mockResolvedValue(mockScene); // worldId: 'world1'
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
       mockRepo.setActive.mockResolvedValue(undefined);
-      await service.setActive('scene1', 'world1');
+      await service.setActive('scene1', { id: 'pj1', role: UserRole.Hrac });
       expect(mockRepo.setActive).toHaveBeenCalledWith('scene1', 'world1');
     });
 
     it('vyhodí NotFoundException pokud scéna neexistuje', async () => {
       mockRepo.findById.mockResolvedValue(null);
-      await expect(service.setActive('bad', 'world1')).rejects.toThrow(
-        NotFoundException,
+      await expect(
+        service.setActive('bad', { id: 'pj1', role: UserRole.Hrac }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('FIX-16 (cross-world IDOR) — PJ jiného světa nemůže aktivovat cizí scénu', async () => {
+      mockRepo.findById.mockResolvedValue(mockScene); // worldId: 'world1'
+      mockMembershipRepo.findByUserAndWorld.mockImplementation(
+        (_userId: string, worldId: string) =>
+          Promise.resolve(worldId === 'worldA' ? { role: WorldRole.PJ } : null),
       );
+      await expect(
+        service.setActive('scene1', { id: 'pjA', role: UserRole.Hrac }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepo.setActive).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('replace', () => {
+    it('PJ světa scény smí scénu nahradit', async () => {
+      mockRepo.findById.mockResolvedValue(mockScene); // worldId: 'world1'
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      mockRepo.replace.mockResolvedValue({ ...mockScene, name: 'Nová' });
+      const result = await service.replace(
+        'scene1',
+        { name: 'Nová' },
+        { id: 'pj1', role: UserRole.Hrac },
+      );
+      expect(mockRepo.replace).toHaveBeenCalledWith(
+        'scene1',
+        expect.objectContaining({ name: 'Nová', worldId: 'world1' }),
+      );
+      expect(result.name).toBe('Nová');
+    });
+
+    it('vyhodí NotFoundException pokud scéna neexistuje', async () => {
+      mockRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.replace(
+          'bad',
+          { name: 'X' },
+          { id: 'pj1', role: UserRole.Hrac },
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('FIX-16 (cross-world IDOR) — PJ jiného světa nemůže přepsat cizí scénu', async () => {
+      mockRepo.findById.mockResolvedValue(mockScene); // worldId: 'world1'
+      // requester je PJ ve 'worldA' (uvedeném v těle požadavku), ne ve 'world1'
+      // (skutečný svět scény) — dřív se autorizovalo proti tělu, ne proti DB.
+      mockMembershipRepo.findByUserAndWorld.mockImplementation(
+        (_userId: string, worldId: string) =>
+          Promise.resolve(worldId === 'worldA' ? { role: WorldRole.PJ } : null),
+      );
+      await expect(
+        service.replace(
+          'scene1',
+          { name: 'Hacknuto', worldId: 'worldA' },
+          { id: 'pjA', role: UserRole.Hrac },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepo.replace).not.toHaveBeenCalled();
     });
   });
 

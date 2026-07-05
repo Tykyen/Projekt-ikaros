@@ -132,13 +132,10 @@ export class MapsController {
   @Post(':id/active')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
-  async setActive(
-    @Param('id') id: string,
-    @Query('worldId') worldId: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    await this.service.assertCanManage(user, worldId);
-    await this.service.setActive(id, worldId);
+  async setActive(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    // FIX-16 (cross-world IDOR) — worldId se už nebere z Query (attacker mohl
+    // poslat svůj vlastní svět); service autorizuje proti scene.worldId z DB.
+    await this.service.setActive(id, user);
   }
 
   @ApiOperation({ summary: 'Aktualizace scény' })
@@ -152,13 +149,14 @@ export class MapsController {
     @Body() dto: CreateMapDto,
     @CurrentUser() user: RequestUser,
   ) {
-    const worldId = dto.worldId ?? '';
-    await this.service.assertCanManage(user, worldId);
+    // FIX-16 (cross-world IDOR) — worldId se už nebere z Body (attacker mohl
+    // poslat svůj vlastní svět); service autorizuje proti scene.worldId z DB.
     return this.service.replace(
       id,
       dto as unknown as Partial<
         import('./interfaces/map-scene.interface').MapScene
       >,
+      user,
     );
   }
 
@@ -262,12 +260,9 @@ export class MapsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
-  async delete(
-    @Param('id') id: string,
-    @Query('worldId') worldId: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    await this.service.assertCanManage(user, worldId);
-    await this.service.deleteScene(id);
+  async delete(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    // FIX-16 (cross-world IDOR) — worldId se už nebere z Query (attacker mohl
+    // poslat svůj vlastní svět); service autorizuje proti scene.worldId z DB.
+    await this.service.deleteScene(id, user);
   }
 }

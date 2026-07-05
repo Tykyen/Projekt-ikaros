@@ -171,7 +171,13 @@ export class CharacterSubdocsController {
       worldId,
       user.id,
     );
-    return this.subdocsService.updateFinance(character.id, body);
+    // FIX-12 — stejná NPC/Lokace brána jako getFinance.
+    return this.subdocsService.updateFinance(
+      character.id,
+      body,
+      character.isNpc,
+      character.kind,
+    );
   }
 
   @Post('finance/add-monthly')
@@ -245,7 +251,13 @@ export class CharacterSubdocsController {
       worldId,
       user.id,
     );
-    return this.subdocsService.updateInventory(character.id, body);
+    // FIX-12 — stejná NPC/Lokace brána jako getInventory.
+    return this.subdocsService.updateInventory(
+      character.id,
+      body,
+      character.isNpc,
+      character.kind,
+    );
   }
 
   @Get('notes')

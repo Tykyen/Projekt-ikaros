@@ -113,6 +113,9 @@ export class DungeonMapsService {
     const template = await this.templateRepo.create({
       name: dungeon.name,
       imageUrl,
+      // FIX-10 — MapTemplateSchema má `ownerId` required; bez něj create
+      // padal na Mongoose validaci (dungeon export šablony byl nefunkční).
+      ownerId: requester.id,
       config: {
         size: dungeon.cellSize,
         originX: 0,

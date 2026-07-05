@@ -140,7 +140,8 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findSubjectById(id, user.id, worldRole);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    return this.service.findSubjectById(id, user.id, worldRole, worldId);
   }
 
   @Post('subjects')
@@ -177,12 +178,14 @@ export class CampaignController {
     // FIX-3 — `dto` (stejná třída jako create) nese `isShared` i sem; bez
     // resolveIsShared šlo přes PUT propašovat isShared=true bez role-gate.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateSubject(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -196,7 +199,14 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    await this.service.deleteSubject(id, user.id, worldRole, user.username);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    await this.service.deleteSubject(
+      id,
+      user.id,
+      worldRole,
+      user.username,
+      worldId,
+    );
   }
 
   // ── Relationships ─────────────────────────────────────────────────────────
@@ -229,7 +239,8 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findRelationshipById(id, user.id, worldRole);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    return this.service.findRelationshipById(id, user.id, worldRole, worldId);
   }
 
   @Post('relationships')
@@ -264,12 +275,14 @@ export class CampaignController {
     const worldRole = await this.role(user, worldId);
     // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateRelationship(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -282,11 +295,13 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     await this.service.deleteRelationship(
       id,
       user.id,
       worldRole,
       user.username,
+      worldId,
     );
   }
 
@@ -320,7 +335,8 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findStorylineById(id, user.id, worldRole);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    return this.service.findStorylineById(id, user.id, worldRole, worldId);
   }
 
   @Post('storylines')
@@ -355,12 +371,14 @@ export class CampaignController {
     const worldRole = await this.role(user, worldId);
     // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateStoryline(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -373,7 +391,14 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    await this.service.deleteStoryline(id, user.id, worldRole, user.username);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    await this.service.deleteStoryline(
+      id,
+      user.id,
+      worldRole,
+      user.username,
+      worldId,
+    );
   }
 
   // ── Scenarios ─────────────────────────────────────────────────────────────
@@ -399,7 +424,8 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findScenarioById(id, user.id, worldRole);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    return this.service.findScenarioById(id, user.id, worldRole, worldId);
   }
 
   @Post('scenarios')
@@ -442,12 +468,14 @@ export class CampaignController {
     const worldRole = await this.role(user, worldId);
     // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateScenario(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -460,7 +488,14 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    await this.service.deleteScenario(id, user.id, worldRole, user.username);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    await this.service.deleteScenario(
+      id,
+      user.id,
+      worldRole,
+      user.username,
+      worldId,
+    );
   }
 
   // ── QuickNotes ────────────────────────────────────────────────────────────
@@ -491,7 +526,8 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findQuickNoteById(id, user.id, worldRole);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    return this.service.findQuickNoteById(id, user.id, worldRole, worldId);
   }
 
   @Post('quicknotes')
@@ -526,12 +562,14 @@ export class CampaignController {
     const worldRole = await this.role(user, worldId);
     // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateQuickNote(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -544,7 +582,14 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    await this.service.deleteQuickNote(id, user.id, worldRole, user.username);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    await this.service.deleteQuickNote(
+      id,
+      user.id,
+      worldRole,
+      user.username,
+      worldId,
+    );
   }
 
   // ── ShopItems ─────────────────────────────────────────────────────────────
@@ -571,7 +616,8 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    return this.service.findShopItemById(id, user.id, worldRole);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    return this.service.findShopItemById(id, user.id, worldRole, worldId);
   }
 
   @Post('shopitems')
@@ -613,12 +659,14 @@ export class CampaignController {
     const worldRole = await this.role(user, worldId);
     // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateShopItem(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -631,7 +679,14 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    await this.service.deleteShopItem(id, user.id, worldRole, user.username);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    await this.service.deleteShopItem(
+      id,
+      user.id,
+      worldRole,
+      user.username,
+      worldId,
+    );
   }
 
   // ── ShopGroups (typy / skupiny) ───────────────────────────────────────────
@@ -684,12 +739,14 @@ export class CampaignController {
     const worldRole = await this.role(user, worldId);
     // FIX-3 — viz updateSubject: gate isShared i na update, ne jen create.
     dto.isShared = this.resolveIsShared(worldRole, dto.isShared);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
     return this.service.updateShopGroup(
       id,
       user.id,
       user.username,
       worldRole,
       dto,
+      worldId,
     );
   }
 
@@ -703,7 +760,14 @@ export class CampaignController {
     @Param('id') id: string,
   ) {
     const worldRole = await this.role(user, worldId);
-    await this.service.deleteShopGroup(id, user.id, worldRole, user.username);
+    // FIX-15 (cross-world IDOR) — worldId musí do service pro ověření entity.worldId.
+    await this.service.deleteShopGroup(
+      id,
+      user.id,
+      worldRole,
+      user.username,
+      worldId,
+    );
   }
 
   // ── Nákup / storno (11.3 N1) ──────────────────────────────────────────────

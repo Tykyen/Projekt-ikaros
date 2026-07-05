@@ -571,12 +571,15 @@ export class CharacterAccountsService {
       let toUpdated: CharacterAccount | null = null;
       try {
         await session.withTransaction(async () => {
-          fromUpdated = await this.accountsRepo.appendTransaction(
+          // FIX-13 — debet zdroje musí projít krytím (vzor debitIfSufficient),
+          // jinak transfer strhne účet do záporu bez kontroly.
+          fromUpdated = await this.accountsRepo.appendTransactionIfSufficient(
             from.id,
             txOut,
+            input.amount,
             session,
           );
-          if (!fromUpdated) throw new Error('FROM_NOT_FOUND');
+          if (!fromUpdated) throw new Error('INSUFFICIENT_FUNDS');
           toUpdated = await this.accountsRepo.appendTransaction(
             to.id,
             txIn,
@@ -640,14 +643,17 @@ export class CharacterAccountsService {
     txIn: FinanceTransaction,
     input: TransferInput,
   ): Promise<{ from: CharacterAccount; to: CharacterAccount }> {
-    const fromUpdated = await this.accountsRepo.appendTransaction(
+    // FIX-13 — debet zdroje musí projít krytím (vzor debitIfSufficient),
+    // jinak transfer strhne účet do záporu bez kontroly.
+    const fromUpdated = await this.accountsRepo.appendTransactionIfSufficient(
       from.id,
       txOut,
+      input.amount,
     );
     if (!fromUpdated)
-      throw new NotFoundException({
-        code: 'ACCOUNT_NOT_FOUND',
-        message: 'Zdrojový účet nenalezen',
+      throw new ConflictException({
+        code: 'INSUFFICIENT_FUNDS',
+        message: 'Na účtu není dostatek prostředků.',
       });
     try {
       const toUpdated = await this.accountsRepo.appendTransaction(to.id, txIn);

@@ -253,14 +253,27 @@ describe('CampaignService', () => {
     it('deleteSubject vyhodí ForbiddenException pro cizího vlastníka', async () => {
       mockSubjectRepo.findById.mockResolvedValue(mockSubject);
       await expect(
-        service.deleteSubject('sub1', 'user2', WorldRole.Hrac, 'user2Name'),
+        service.deleteSubject(
+          'sub1',
+          'user2',
+          WorldRole.Hrac,
+          'user2Name',
+          'w1',
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('deleteSubject vyhodí NotFoundException pokud subjekt neexistuje', async () => {
       mockSubjectRepo.findById.mockResolvedValue(null);
       await expect(
-        service.deleteSubject('sub1', 'user1', WorldRole.PJ, 'pjName'),
+        service.deleteSubject('sub1', 'user1', WorldRole.PJ, 'pjName', 'w1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('FIX-15 — deleteSubject vyhodí NotFoundException pro entitu z jiného světa (cross-world IDOR)', async () => {
+      mockSubjectRepo.findById.mockResolvedValue(mockSubject); // worldId: 'w1'
+      await expect(
+        service.deleteSubject('sub1', 'pj1', WorldRole.PJ, 'pjName', 'w2'),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -289,7 +302,13 @@ describe('CampaignService', () => {
       mockShopRepo.delete.mockResolvedValue(true);
       mockShopRepo.pullLinkedItem.mockResolvedValue(undefined);
       mockLogRepo.append.mockResolvedValue(undefined);
-      await service.deleteShopItem('item1', 'user1', WorldRole.PJ, 'pjName');
+      await service.deleteShopItem(
+        'item1',
+        'user1',
+        WorldRole.PJ,
+        'pjName',
+        'w1',
+      );
       expect(mockShopRepo.pullLinkedItem).toHaveBeenCalledWith('w1', 'item1');
     });
   });
@@ -354,7 +373,7 @@ describe('CampaignService', () => {
       mockShopRepo.countByGroup.mockResolvedValue(3);
       mockShopGroupRepo.countChildren.mockResolvedValue(0);
       await expect(
-        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ'),
+        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ', 'w1'),
       ).rejects.toThrow(ConflictException);
       expect(mockShopGroupRepo.delete).not.toHaveBeenCalled();
     });
@@ -364,7 +383,7 @@ describe('CampaignService', () => {
       mockShopRepo.countByGroup.mockResolvedValue(0);
       mockShopGroupRepo.countChildren.mockResolvedValue(2);
       await expect(
-        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ'),
+        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ', 'w1'),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -374,7 +393,7 @@ describe('CampaignService', () => {
       mockShopGroupRepo.countChildren.mockResolvedValue(0);
       mockShopGroupRepo.delete.mockResolvedValue(true);
       mockLogRepo.append.mockResolvedValue(undefined);
-      await service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ');
+      await service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ', 'w1');
       expect(mockShopGroupRepo.delete).toHaveBeenCalledWith('g1');
     });
 
@@ -478,6 +497,274 @@ describe('CampaignService', () => {
       const result = await service.getPlayers('pj1', 'w1');
       expect(result).toHaveLength(2);
       expect(result.find((r) => r.userId === 'pj1')).toBeUndefined();
+    });
+  });
+
+  // ── FIX-15 — cross-world IDOR: entita se dřív autorizovala jen přes
+  // worldRole (odvozenou z query worldId), ale načítala se jen podle _id bez
+  // ověření entity.worldId === worldId. PJ světa A tak mohl uhodnutým ID
+  // číst/upravit/mazat entitu světa B. Ověřuje NotFoundException i pro PJ
+  // (worldRole samo o sobě nesmí stačit).
+  describe('FIX-15 — cross-world IDOR', () => {
+    it('findSubjectById: entita z jiného světa → 404', async () => {
+      mockSubjectRepo.findById.mockResolvedValue(mockSubject); // worldId 'w1'
+      await expect(
+        service.findSubjectById('sub1', 'pj1', WorldRole.PJ, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('updateSubject: entita z jiného světa → 404', async () => {
+      mockSubjectRepo.findById.mockResolvedValue(mockSubject); // worldId 'w1'
+      await expect(
+        service.updateSubject(
+          'sub1',
+          'pj1',
+          'pjName',
+          WorldRole.PJ,
+          { name: 'Nové jméno' },
+          'w2',
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockSubjectRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('findRelationshipById: entita z jiného světa → 404', async () => {
+      mockRelRepo.findById.mockResolvedValue({
+        id: 'rel1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        subjectAId: 'sub1',
+        subjectBId: 'sub2',
+      });
+      await expect(
+        service.findRelationshipById('rel1', 'pj1', WorldRole.PJ, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('findStorylineById: entita z jiného světa → 404', async () => {
+      mockStorylineRepo.findById.mockResolvedValue({
+        id: 'story1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Linka',
+      });
+      await expect(
+        service.findStorylineById('story1', 'pj1', WorldRole.PJ, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('findScenarioById: entita z jiného světa → 404', async () => {
+      mockScenarioRepo.findById.mockResolvedValue({
+        id: 'scene1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Scéna',
+      });
+      await expect(
+        service.findScenarioById('scene1', 'pj1', WorldRole.PJ, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('findQuickNoteById: entita z jiného světa → 404', async () => {
+      mockNoteRepo.findById.mockResolvedValue({
+        id: 'note1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Poznámka',
+      });
+      await expect(
+        service.findQuickNoteById('note1', 'pj1', WorldRole.PJ, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('findShopItemById: entita z jiného světa → 404', async () => {
+      mockShopRepo.findById.mockResolvedValue({
+        id: 'item1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        name: 'Meč',
+      });
+      await expect(
+        service.findShopItemById('item1', 'pj1', WorldRole.PJ, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    // FIX-15b — stejná díra i na WRITE metodách (update/delete). PJ světa A
+    // nesmí uhodnutým ID upravit/smazat entitu světa B; ověřuje se, že žádný
+    // repo write/delete NEproběhl.
+    it('updateRelationship: entita z jiného světa → 404', async () => {
+      mockRelRepo.findById.mockResolvedValue({
+        id: 'rel1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        subjectAId: 'a',
+        subjectBId: 'b',
+      });
+      await expect(
+        service.updateRelationship('rel1', 'pj1', 'PJ', WorldRole.PJ, {}, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRelRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('deleteRelationship: entita z jiného světa → 404', async () => {
+      mockRelRepo.findById.mockResolvedValue({
+        id: 'rel1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        subjectAId: 'a',
+        subjectBId: 'b',
+      });
+      await expect(
+        service.deleteRelationship('rel1', 'pj1', WorldRole.PJ, 'PJ', 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRelRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('updateStoryline: entita z jiného světa → 404', async () => {
+      mockStorylineRepo.findById.mockResolvedValue({
+        id: 'story1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Linka',
+      });
+      await expect(
+        service.updateStoryline('story1', 'pj1', 'PJ', WorldRole.PJ, {}, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockStorylineRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('deleteStoryline: entita z jiného světa → 404', async () => {
+      mockStorylineRepo.findById.mockResolvedValue({
+        id: 'story1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Linka',
+      });
+      await expect(
+        service.deleteStoryline('story1', 'pj1', WorldRole.PJ, 'PJ', 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockStorylineRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('updateScenario: entita z jiného světa → 404', async () => {
+      mockScenarioRepo.findById.mockResolvedValue({
+        id: 'scene1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Scéna',
+      });
+      await expect(
+        service.updateScenario('scene1', 'pj1', 'PJ', WorldRole.PJ, {}, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockScenarioRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('deleteScenario: entita z jiného světa → 404', async () => {
+      mockScenarioRepo.findById.mockResolvedValue({
+        id: 'scene1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Scéna',
+      });
+      await expect(
+        service.deleteScenario('scene1', 'pj1', WorldRole.PJ, 'PJ', 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockScenarioRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('updateQuickNote: entita z jiného světa → 404', async () => {
+      mockNoteRepo.findById.mockResolvedValue({
+        id: 'note1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Poznámka',
+      });
+      await expect(
+        service.updateQuickNote('note1', 'pj1', 'PJ', WorldRole.PJ, {}, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockNoteRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('deleteQuickNote: entita z jiného světa → 404', async () => {
+      mockNoteRepo.findById.mockResolvedValue({
+        id: 'note1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        title: 'Poznámka',
+      });
+      await expect(
+        service.deleteQuickNote('note1', 'pj1', WorldRole.PJ, 'PJ', 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockNoteRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('updateShopItem: entita z jiného světa → 404', async () => {
+      mockShopRepo.findById.mockResolvedValue({
+        id: 'item1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        name: 'Meč',
+      });
+      await expect(
+        service.updateShopItem('item1', 'pj1', 'PJ', WorldRole.PJ, {}, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockShopRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('deleteShopItem: entita z jiného světa → 404', async () => {
+      mockShopRepo.findById.mockResolvedValue({
+        id: 'item1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        name: 'Meč',
+      });
+      await expect(
+        service.deleteShopItem('item1', 'pj1', WorldRole.PJ, 'PJ', 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockShopRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('updateShopGroup: entita z jiného světa → 404', async () => {
+      mockShopGroupRepo.findById.mockResolvedValue({
+        id: 'g1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        name: 'Zbraně',
+      });
+      await expect(
+        service.updateShopGroup('g1', 'pj1', 'PJ', WorldRole.PJ, {}, 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockShopGroupRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('deleteShopGroup: entita z jiného světa → 404', async () => {
+      mockShopGroupRepo.findById.mockResolvedValue({
+        id: 'g1',
+        worldId: 'w1',
+        ownerId: 'pj1',
+        isShared: false,
+        name: 'Zbraně',
+      });
+      await expect(
+        service.deleteShopGroup('g1', 'pj1', WorldRole.PJ, 'PJ', 'w2'),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockShopGroupRepo.delete).not.toHaveBeenCalled();
     });
   });
 });

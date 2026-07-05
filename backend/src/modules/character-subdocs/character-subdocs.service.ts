@@ -437,7 +437,16 @@ export class CharacterSubdocsService {
   async updateFinance(
     characterId: string,
     data: Partial<CharacterFinance>,
+    isNpc: boolean,
+    kind: 'persona' | 'location',
   ): Promise<CharacterFinance> {
+    // FIX-12 — stejná brána jako getFinance; NPC/Lokace finance nemají.
+    if (isNpc || kind === 'location') {
+      throw new NotFoundException({
+        code: 'FINANCE_NOT_APPLICABLE',
+        message: 'Tato postava finance nemá',
+      });
+    }
     const updated = await this.financeRepo.update(characterId, data);
     if (!updated)
       throw new NotFoundException({
@@ -516,7 +525,16 @@ export class CharacterSubdocsService {
   async updateInventory(
     characterId: string,
     data: Partial<CharacterInventory>,
+    isNpc: boolean,
+    kind: 'persona' | 'location',
   ): Promise<CharacterInventory> {
+    // FIX-12 — stejná brána jako getInventory; NPC/Lokace výbavu nemají.
+    if (isNpc || kind === 'location') {
+      throw new NotFoundException({
+        code: 'INVENTORY_NOT_APPLICABLE',
+        message: 'Tato postava výbavu nemá',
+      });
+    }
     const updated = await this.inventoryRepo.update(characterId, data);
     if (!updated)
       throw new NotFoundException({

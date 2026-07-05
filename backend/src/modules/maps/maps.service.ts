@@ -225,23 +225,38 @@ export class MapsService {
     return this.repo.create(data);
   }
 
-  async setActive(id: string, worldId: string): Promise<void> {
+  async setActive(
+    id: string,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
+  ): Promise<void> {
     const scene = await this.repo.findById(id);
     if (!scene)
       throw new NotFoundException({
         code: 'MAP_SCENE_NOT_FOUND',
         message: 'Scéna nenalezena',
       });
-    await this.repo.setActive(id, worldId);
+    // FIX-16 (cross-world IDOR) — autorizace proti scene.worldId (vlastníkovi
+    // entity, načteno z DB), NE proti worldId z Query, který si volající může
+    // zvolit libovolně (PJ světa A jinak mohl aktivovat scénu světa B).
+    await this.assertCanManage(requester, scene.worldId);
+    await this.repo.setActive(id, scene.worldId);
   }
 
-  async replace(id: string, dto: Partial<MapScene>): Promise<MapScene> {
+  async replace(
+    id: string,
+    dto: Partial<MapScene>,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
+  ): Promise<MapScene> {
     const scene = await this.repo.findById(id);
     if (!scene)
       throw new NotFoundException({
         code: 'MAP_SCENE_NOT_FOUND',
         message: 'Scéna nenalezena',
       });
+    // FIX-16 (cross-world IDOR) — viz setActive; dřív se autorizovalo proti
+    // `dto.worldId` (tělo požadavku, attacker-controlled), takže PJ světa A
+    // mohl přepsat obsah scény světa B.
+    await this.assertCanManage(requester, scene.worldId);
     const updated = await this.repo.replace(id, {
       ...dto,
       worldId: scene.worldId,
@@ -338,8 +353,20 @@ export class MapsService {
     );
   }
 
-  async deleteScene(id: string): Promise<void> {
+  async deleteScene(
+    id: string,
+    requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
+  ): Promise<void> {
     const scene = await this.repo.findById(id);
+    if (!scene)
+      throw new NotFoundException({
+        code: 'MAP_SCENE_NOT_FOUND',
+        message: 'Scéna nenalezena',
+      });
+    // FIX-16 (cross-world IDOR) — viz setActive; dřív se autorizovalo proti
+    // Query worldId (attacker-controlled), takže PJ světa A mohl smazat
+    // libovolnou scénu světa B dle uhodnutého ID.
+    await this.assertCanManage(requester, scene.worldId);
     const deleted = await this.repo.delete(id);
     if (!deleted)
       throw new NotFoundException({

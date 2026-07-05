@@ -95,11 +95,18 @@ export class CharactersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Postavy konkrétního uživatele ve světě' })
   @ApiResponse({ status: 200, description: 'OK' })
-  findByUser(
+  async findByUser(
     @Param('worldId') worldId: string,
     @Param('userId') userId: string,
     @CurrentUser() user: RequestUser,
   ) {
+    // FIX-8 (IDOR) — bez brány mohl nečlen privátního světa enumerovat postavy.
+    await this.charactersService.assertCanViewDirectory(
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
     return this.charactersService.findByUser(userId, worldId, user.id);
   }
 
@@ -108,11 +115,18 @@ export class CharactersController {
   @ApiOperation({ summary: 'Detail postavy dle slugu' })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 404, description: 'Postava nenalezena' })
-  findOne(
+  async findOne(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
     @CurrentUser() user: RequestUser,
   ) {
+    // FIX-8 (IDOR) — bez brány mohl nečlen privátního světa enumerovat postavy.
+    await this.charactersService.assertCanViewDirectory(
+      worldId,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
+    );
     return this.charactersService.findBySlug(slug, worldId, user.id);
   }
 

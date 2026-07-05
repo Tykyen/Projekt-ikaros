@@ -283,6 +283,7 @@ describe('IkarosDiscussionsService', () => {
         id: 'user1',
         favoriteDiscussionIds: ['disc1'],
       });
+      mockRepo.findById.mockResolvedValue(mockDiscussion);
       const result = await service.toggleFavorite('disc1', 'user1');
       expect(result).toEqual({ isFavorite: true });
       expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', {
@@ -299,6 +300,7 @@ describe('IkarosDiscussionsService', () => {
         id: 'user1',
         favoriteDiscussionIds: [],
       });
+      mockRepo.findById.mockResolvedValue(mockDiscussion);
       const result = await service.toggleFavorite('disc1', 'user1');
       expect(result).toEqual({ isFavorite: false });
       expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', {
@@ -312,6 +314,7 @@ describe('IkarosDiscussionsService', () => {
         favoriteDiscussionIds: ['disc1'],
         pinnedDiscussionIds: ['disc1'],
       });
+      mockRepo.findById.mockResolvedValue(mockDiscussion);
       const result = await service.toggleFavorite('disc1', 'user1');
       expect(result).toEqual({ isFavorite: false });
       expect(mockUsersRepo.update).toHaveBeenCalledWith('user1', {

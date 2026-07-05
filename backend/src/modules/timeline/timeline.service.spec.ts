@@ -431,7 +431,7 @@ describe('TimelineService', () => {
     });
   });
 
-  describe('update — partial + immutable worldId + imageUrl null preserve', () => {
+  describe('update — partial + immutable worldId + imageUrl null delete (FIX-11)', () => {
     const Admin = {
       id: 'u2',
       role: 2,
@@ -446,7 +446,7 @@ describe('TimelineService', () => {
       expect(result.title).toBe('nový');
     });
 
-    it('imageUrl: null v body → zachová stávající (per parity)', async () => {
+    it('imageUrl: null v body → smaže obrázek (FIX-11, mirror game-events/world-news)', async () => {
       mockRepo.findById.mockResolvedValue(
         mockEvent({ imageUrl: 'https://cdn.example.com/img.png' }),
       );
@@ -458,7 +458,7 @@ describe('TimelineService', () => {
       );
       await service.update('ev1', { imageUrl: null }, Admin);
       const updateCall = mockRepo.update.mock.calls[0][1];
-      expect(updateCall.imageUrl).toBe('https://cdn.example.com/img.png');
+      expect(updateCall.imageUrl).toBe(null);
     });
 
     it('imageUrl: nový string → nahradí', async () => {
@@ -468,6 +468,30 @@ describe('TimelineService', () => {
       expect(mockRepo.update.mock.calls[0][1].imageUrl).toBe(
         'https://new.com/x',
       );
+    });
+
+    it('FIX-11b — smazání obrázku (null) uklidí starý blob (media.orphaned)', async () => {
+      mockRepo.findById.mockResolvedValue(
+        mockEvent({ imageUrl: 'https://cdn/old.jpg' }),
+      );
+      mockRepo.update.mockResolvedValue(mockEvent({ imageUrl: null }));
+      await service.update('ev1', { imageUrl: null }, Admin);
+      expect(mockEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: ['https://cdn/old.jpg'],
+      });
+    });
+
+    it('FIX-11b — výměna obrázku uklidí starý blob (media.orphaned)', async () => {
+      mockRepo.findById.mockResolvedValue(
+        mockEvent({ imageUrl: 'https://cdn/old.jpg' }),
+      );
+      mockRepo.update.mockResolvedValue(
+        mockEvent({ imageUrl: 'https://cdn/new.jpg' }),
+      );
+      await service.update('ev1', { imageUrl: 'https://cdn/new.jpg' }, Admin);
+      expect(mockEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: ['https://cdn/old.jpg'],
+      });
     });
 
     it('hour: null v body → smaže hodinu (uloží null do patche)', async () => {

@@ -252,7 +252,12 @@ export class IkarosDiscussionsService {
     const ids = user.favoriteDiscussionIds ?? [];
     if (ids.length === 0) return [];
     const discussions = await this.repo.findByIds(ids);
-    return this.enrichTombstoneCreators(discussions);
+    // FIX-9 (leak fix, vzor findById/findAll) — dřív žádný access filtr,
+    // takže přes toggle-favorite šlo číst cizí neschválené/uzavřené diskuze.
+    const visible = discussions.filter((d) =>
+      this.canAccessDiscussion(d, userId, user.role, user.username),
+    );
+    return this.enrichTombstoneCreators(visible);
   }
 
   async findById(
@@ -424,6 +429,13 @@ export class IkarosDiscussionsService {
       throw new NotFoundException({
         code: 'USER_NOT_FOUND',
         message: 'Uživatel nenalezen',
+      });
+    // FIX-9 — existence check před zápisem (vzor togglePin níže).
+    const discussion = await this.repo.findById(discussionId);
+    if (!discussion)
+      throw new NotFoundException({
+        code: 'DISCUSSION_NOT_FOUND',
+        message: 'Diskuze nenalezena',
       });
     const favorites = user.favoriteDiscussionIds ?? [];
     const isFavorite = favorites.includes(discussionId);

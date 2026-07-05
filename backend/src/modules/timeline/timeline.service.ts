@@ -201,7 +201,8 @@ export class TimelineService {
 
     await this.assertCanWrite(existing.worldId, requester);
 
-    // imageUrl: null v body znamená "zachovat stávající" (per parity).
+    // FIX-11 — imageUrl: null v body znamená "smazat obrázek" (mirror
+    // game-events.service.ts a world-news.service.ts), NE "zachovat stávající".
     // hour: null v body znamená "smazat hodinu" (uloží null do DB).
     const patch: Record<string, unknown> = {
       ...(dto.title !== undefined && { title: dto.title }),
@@ -221,7 +222,7 @@ export class TimelineService {
       }),
     };
     if (dto.imageUrl !== undefined) {
-      patch.imageUrl = dto.imageUrl === null ? existing.imageUrl : dto.imageUrl;
+      patch.imageUrl = dto.imageUrl;
     }
 
     const updated = await this.repo.update(id, patch);
@@ -230,10 +231,11 @@ export class TimelineService {
         code: 'EVENT_NOT_FOUND',
         message: 'Událost nenalezena',
       });
-    // CD-RUN-1 — výměna obrázku → úklid blobu starého (vzor game-events/world-news).
+    // CD-RUN-1 / FIX-11b — výměna I smazání obrázku → úklid blobu starého
+    // (vzor game-events/world-news, které `dto.imageUrl !== null` podmínku
+    // nemají). Dřív se při smazání na null blob needuklidil (leak).
     if (
       dto.imageUrl !== undefined &&
-      dto.imageUrl !== null &&
       existing.imageUrl &&
       existing.imageUrl !== dto.imageUrl
     ) {

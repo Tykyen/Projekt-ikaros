@@ -495,7 +495,27 @@ export class IkarosGalleryService {
     const ids = user.favoriteGalleryIds ?? [];
     if (ids.length === 0) return [];
     const items = await this.repo.findByIds(ids);
-    return this.enrichTombstoneAuthors(items);
+    // FIX-9 (leak fix, vzor ikaros-articles findMyFavorites) — status brána:
+    // dřív se vracel plný obsah bez filtru, takže přes toggle-favorite (které
+    // status neověřuje) šlo číst cizí Draft/Pending/Rejected. Published vidí
+    // každý; Pending navíc admin; Draft/Rejected jen autor.
+    const isAdmin = this.isAdmin(user.role, user.username);
+    const visible = items.filter((i) =>
+      this.canViewGalleryItem(i, userId, isAdmin),
+    );
+    return this.enrichTombstoneAuthors(visible);
+  }
+
+  /** FIX-9 — smí requester vidět plný obrázek (dle statusu/autorství)? */
+  private canViewGalleryItem(
+    item: IkarosGalleryItem,
+    userId: string,
+    isAdmin: boolean,
+  ): boolean {
+    if (item.status === 'Published') return true;
+    if (item.authorId === userId) return true;
+    if (item.status === 'Pending' && isAdmin) return true;
+    return false;
   }
 
   async toggleFavorite(

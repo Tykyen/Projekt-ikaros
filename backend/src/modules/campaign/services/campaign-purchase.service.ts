@@ -529,6 +529,12 @@ export class CampaignPurchaseService {
         ? { ...sec, items: sec.items.filter((it) => it.id !== itemId) }
         : sec,
     );
-    await this.subdocsService.updateInventory(character.id, { sections });
+    // FIX-12 — updateInventory nyní vyžaduje isNpc/kind (stejná brána jako getInventory).
+    await this.subdocsService.updateInventory(
+      character.id,
+      { sections },
+      character.isNpc,
+      character.kind,
+    );
   }
 }

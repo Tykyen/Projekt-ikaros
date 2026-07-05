@@ -530,9 +530,15 @@ describe('CharacterAccountsService', () => {
       mockAccountsRepo.findById
         .mockResolvedValueOnce(from)
         .mockResolvedValueOnce(to);
-      mockAccountsRepo.appendTransaction
-        .mockResolvedValueOnce({ ...from, balance: 700 })
-        .mockResolvedValueOnce({ ...to, balance: 800 });
+      // FIX-13 — debet zdroje jde přes appendTransactionIfSufficient (krytí).
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce({
+        ...from,
+        balance: 700,
+      });
+      mockAccountsRepo.appendTransaction.mockResolvedValueOnce({
+        ...to,
+        balance: 800,
+      });
 
       const result = await service.transfer(
         {
@@ -544,9 +550,9 @@ describe('CharacterAccountsService', () => {
         'user1',
       );
 
-      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledTimes(2);
-      expect(mockAccountsRepo.appendTransaction).toHaveBeenNthCalledWith(
-        1,
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).toHaveBeenCalledWith(
         'acc1',
         expect.objectContaining({
           delta: -300,
@@ -557,9 +563,9 @@ describe('CharacterAccountsService', () => {
           }),
           performedByUserId: 'user1',
         }),
+        300,
       );
-      expect(mockAccountsRepo.appendTransaction).toHaveBeenNthCalledWith(
-        2,
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
         'acc2',
         expect.objectContaining({
           delta: 300,
@@ -571,6 +577,37 @@ describe('CharacterAccountsService', () => {
       );
       expect(result.from.balance).toBe(700);
       expect(result.to.balance).toBe(800);
+    });
+
+    it('throw INSUFFICIENT_FUNDS (FIX-13) když zdroj nemá krytí', async () => {
+      const from = mockAccount({ id: 'acc1', balance: 100, currency: 'ZL' });
+      const to = mockAccount({
+        id: 'acc2',
+        primaryOwnerId: 'char2',
+        ownerCharacterIds: ['char2'],
+        balance: 500,
+        currency: 'ZL',
+      });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from)
+        .mockResolvedValueOnce(to);
+      // Nedostatek krytí → appendTransactionIfSufficient vrátí null.
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce(
+        null,
+      );
+
+      await expect(
+        service.transfer(
+          {
+            fromAccountId: 'acc1',
+            toAccountId: 'acc2',
+            amount: 300,
+            description: 'X',
+          },
+          'user1',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'INSUFFICIENT_FUNDS' } });
+      expect(mockAccountsRepo.appendTransaction).not.toHaveBeenCalled();
     });
 
     it('throw CURRENCY_MISMATCH když měny nesedí', async () => {
@@ -638,9 +675,12 @@ describe('CharacterAccountsService', () => {
       mockAccountsRepo.findById
         .mockResolvedValueOnce(from)
         .mockResolvedValueOnce(to);
-      // Krok 1 OK, krok 2 fail
+      // Krok 1 (debet, s krytím) OK, krok 2 (kredit cíle) fail
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce({
+        ...from,
+        balance: 700,
+      });
       mockAccountsRepo.appendTransaction
-        .mockResolvedValueOnce({ ...from, balance: 700 })
         .mockResolvedValueOnce(null) // simulate not found
         .mockResolvedValueOnce({ ...from, balance: 1000 }); // revert OK
 
@@ -656,8 +696,11 @@ describe('CharacterAccountsService', () => {
         ),
       ).rejects.toMatchObject({ response: { code: 'TRANSFER_FAILED' } });
 
-      // 3× volání: out + in + revert
-      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledTimes(3);
+      // krok 1 (debet s krytím) + krok 2 (kredit, fail) + revert
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).toHaveBeenCalledTimes(1);
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledTimes(2);
       // Revert má opačné znamení a "Revert: ..." popis
       expect(mockAccountsRepo.appendTransaction).toHaveBeenLastCalledWith(
         'acc1',
@@ -795,9 +838,14 @@ describe('CharacterAccountsService', () => {
       mockAccountsRepo.findById
         .mockResolvedValueOnce(from)
         .mockResolvedValueOnce(to);
-      mockAccountsRepo.appendTransaction
-        .mockResolvedValueOnce({ ...from, balance: 700 })
-        .mockResolvedValueOnce({ ...to, balance: 800 });
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce({
+        ...from,
+        balance: 700,
+      });
+      mockAccountsRepo.appendTransaction.mockResolvedValueOnce({
+        ...to,
+        balance: 800,
+      });
 
       await service.transfer(
         {

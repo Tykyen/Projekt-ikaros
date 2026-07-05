@@ -166,9 +166,13 @@ export class CampaignService {
     id: string,
     userId: string,
     worldRole: WorldRole,
+    worldId: string,
   ): Promise<CampaignSubject> {
     const entity = await this.subjectRepo.findById(id);
-    if (!entity)
+    // FIX-15 (cross-world IDOR) — entita se načítala jen podle _id; worldRole
+    // je odvozená z query worldId, ale bez ověření entity.worldId === worldId
+    // mohl PJ světa A číst/upravit entity světa B dle uhodnutého ID.
+    if (!entity || entity.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SUBJECT_NOT_FOUND',
         message: 'Subjekt nenalezen',
@@ -233,9 +237,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignSubject> {
     const existing = await this.subjectRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SUBJECT_NOT_FOUND',
         message: 'Subjekt nenalezen',
@@ -267,9 +273,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.subjectRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SUBJECT_NOT_FOUND',
         message: 'Subjekt nenalezen',
@@ -315,9 +323,11 @@ export class CampaignService {
     id: string,
     userId: string,
     worldRole: WorldRole,
+    worldId: string,
   ): Promise<CampaignRelationship> {
     const entity = await this.relRepo.findById(id);
-    if (!entity)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!entity || entity.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_RELATION_NOT_FOUND',
         message: 'Vztah nenalezen',
@@ -384,9 +394,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignRelationship> {
     const existing = await this.relRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_RELATION_NOT_FOUND',
         message: 'Vztah nenalezen',
@@ -418,9 +430,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.relRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_RELATION_NOT_FOUND',
         message: 'Vztah nenalezen',
@@ -460,9 +474,11 @@ export class CampaignService {
     id: string,
     userId: string,
     worldRole: WorldRole,
+    worldId: string,
   ): Promise<CampaignStoryline> {
     const entity = await this.storylineRepo.findById(id);
-    if (!entity)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!entity || entity.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_STORYLINE_NOT_FOUND',
         message: 'Storyline nenalezena',
@@ -535,9 +551,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignStoryline> {
     const existing = await this.storylineRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_STORYLINE_NOT_FOUND',
         message: 'Storyline nenalezena',
@@ -569,9 +587,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.storylineRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_STORYLINE_NOT_FOUND',
         message: 'Storyline nenalezena',
@@ -607,9 +627,11 @@ export class CampaignService {
     id: string,
     userId: string,
     worldRole: WorldRole,
+    worldId: string,
   ): Promise<CampaignScenario> {
     const entity = await this.scenarioRepo.findById(id);
-    if (!entity)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!entity || entity.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SCENE_NOT_FOUND',
         message: 'Scénář nenalezen',
@@ -673,9 +695,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignScenario> {
     const existing = await this.scenarioRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SCENE_NOT_FOUND',
         message: 'Scénář nenalezen',
@@ -707,9 +731,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.scenarioRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SCENE_NOT_FOUND',
         message: 'Scénář nenalezen',
@@ -748,9 +774,11 @@ export class CampaignService {
     id: string,
     userId: string,
     worldRole: WorldRole,
+    worldId: string,
   ): Promise<CampaignQuickNote> {
     const entity = await this.noteRepo.findById(id);
-    if (!entity)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!entity || entity.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_NOTE_NOT_FOUND',
         message: 'Poznámka nenalezena',
@@ -811,9 +839,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignQuickNote> {
     const existing = await this.noteRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_NOTE_NOT_FOUND',
         message: 'Poznámka nenalezena',
@@ -845,9 +875,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.noteRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_NOTE_NOT_FOUND',
         message: 'Poznámka nenalezena',
@@ -890,9 +922,11 @@ export class CampaignService {
     id: string,
     userId: string,
     worldRole: WorldRole,
+    worldId: string,
   ): Promise<CampaignShopItem> {
     const entity = await this.shopRepo.findById(id);
-    if (!entity)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!entity || entity.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_ITEM_NOT_FOUND',
         message: 'Položka nenalezena',
@@ -961,9 +995,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignShopItem> {
     const existing = await this.shopRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_ITEM_NOT_FOUND',
         message: 'Položka nenalezena',
@@ -995,9 +1031,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.shopRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_ITEM_NOT_FOUND',
         message: 'Položka nenalezena',
@@ -1074,9 +1112,11 @@ export class CampaignService {
         'id' | 'worldId' | 'ownerId' | 'isShared' | 'createdAt' | 'updatedAt'
       >
     >,
+    worldId: string,
   ): Promise<CampaignShopGroup> {
     const existing = await this.shopGroupRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SHOPGROUP_NOT_FOUND',
         message: 'Skupina nenalezena',
@@ -1108,9 +1148,11 @@ export class CampaignService {
     userId: string,
     worldRole: WorldRole,
     userName: string,
+    worldId: string,
   ): Promise<void> {
     const existing = await this.shopGroupRepo.findById(id);
-    if (!existing)
+    // FIX-15 (cross-world IDOR) — viz findSubjectById.
+    if (!existing || existing.worldId !== worldId)
       throw new NotFoundException({
         code: 'CAMPAIGN_SHOPGROUP_NOT_FOUND',
         message: 'Skupina nenalezena',
