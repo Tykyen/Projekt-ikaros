@@ -106,11 +106,12 @@ export class MongoWorldsRepository
   }
 
   async findAll(): Promise<World[]> {
-    // Veřejný přehled — jen objevitelné světy (public/open), nejnovější první.
-    // `private`/`closed` se sem nedostanou (private = privacy, closed = nelze
-    // vstoupit → nemá smysl v objevování). Detail closed je dál přístupný linkem.
+    // Vesmíry KATALOG (#3) — VŠECHNY aktivní světy (i private/closed), nejnovější
+    // první. Vstup je gated dle `accessMode` (world detail / entry brána):
+    // private/closed se v kartě ukazují zamčené, public/open umožní vstup/žádost.
+    // (Dřív jen public/open — přesun na model „katalog všech + gated vstup".)
     const docs = await this.model
-      .find({ isActive: true, accessMode: { $in: ['public', 'open'] } })
+      .find({ isActive: true })
       .sort({ createdAt: -1 })
       .lean()
       .exec();

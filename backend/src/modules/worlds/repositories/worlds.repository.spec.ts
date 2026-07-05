@@ -53,7 +53,7 @@ describe('MongoWorldsRepository', () => {
     expect(world).toBeNull();
   });
 
-  it('findAll vrací jen public/open světy, řazené createdAt sestupně', async () => {
+  it('findAll vrací VŠECHNY aktivní světy (katalog #3), řazené createdAt sestupně', async () => {
     const sort = jest.fn().mockReturnValue({
       lean: () => ({ exec: () => [mockWorld] }),
     });
@@ -63,7 +63,6 @@ describe('MongoWorldsRepository', () => {
 
     expect(mockModel.find).toHaveBeenCalledWith({
       isActive: true,
-      accessMode: { $in: ['public', 'open'] },
     });
     expect(sort).toHaveBeenCalledWith({ createdAt: -1 });
     expect(worlds).toHaveLength(1);
