@@ -47,6 +47,28 @@ export interface PresenceUser {
   characterAvatarUrl?: string;
 }
 
+/**
+ * 17.6 — účastník hlasového hovoru (Voice krčma). Interní záznam s multi-tab
+ * sockety: participant mizí až s posledním tabem téhož uživatele.
+ */
+interface VoiceParticipant {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  muted: boolean;
+  cam: boolean;
+  sockets: Set<string>;
+}
+
+/** 17.6 — účastník hovoru ve výpisu pro FE (bez interních socketů). */
+export interface VoiceParticipantView {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  muted: boolean;
+  cam: boolean;
+}
+
 /** Styl prostředí Campu. */
 export type RoomStyle = 'fantasy' | 'scifi' | 'mystic';
 
@@ -81,6 +103,16 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
 
   /** 16.6b — sdílený „Tady jste skončili" per místnost (in-memory). */
   private readonly startHere = new Map<RoomKey, StartHere>();
+
+  /**
+   * 17.6 — kdo je v hlasovém hovoru (Voice krčma), room → userId → participant.
+   * Odděleno od textové presence (connectedUsers): „být v místnosti" ≠ „být
+   * v hovoru". In-memory, reset při restartu BE.
+   */
+  private readonly voicePresence = new Map<
+    RoomKey,
+    Map<string, VoiceParticipant>
+  >();
 
   constructor(
     // 16.6 — cyklus service↔gateway (load hry) → forwardRef na obou stranách.
@@ -152,6 +184,16 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
    * → FE nezobrazí overlay auto-odhlášení (to je jen pro `'timeout'`).
    */
   handleDisconnect(client: Socket): void {
+    // 17.6 — voice cleanup nezávisle na chat presence (socket může být v hovoru
+    // i bez textové presence). Kopie klíčů kvůli mutaci mapy během iterace.
+    for (const [room, roster] of [...this.voicePresence.entries()]) {
+      for (const userId of [...roster.keys()]) {
+        if (!roster.get(userId)?.sockets.has(client.id)) continue;
+        if (this.removeVoiceParticipant(room, userId, client.id)) {
+          this.broadcastVoiceRoster(room);
+        }
+      }
+    }
     const record = this.connectedUsers.get(client.id);
     if (!record) return;
     this.connectedUsers.delete(client.id);
@@ -323,6 +365,136 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   ): void {
     if (!isRoomKey(payload.room)) return;
     void this.unregisterPresence(client, payload.room);
+  }
+
+  // ── Voice presence — kdo je v hlasovém hovoru (17.6, Voice krčma) ──────
+  // Kdo je „na mikrofonu" + jeho mute/cam stav. Samotné audio/video řeší Jitsi
+  // iframe (mimo náš server) — tady jen roster metadat. Klíč = userId,
+  // multi-tab dedup přes Set socketů. Identita VŽDY z ověřeného JWT (W-10).
+  @SubscribeMessage('voice:join')
+  handleVoiceJoin(
+    @MessageBody() payload: { room: string },
+    @ConnectedSocket() client: Socket,
+  ): void {
+    if (!isRoomKey(payload.room)) return;
+    const data = client.data as {
+      userId?: string;
+      isGuest?: boolean;
+      anonName?: string;
+    };
+    if (!data.userId) return;
+    // 15.8 — host smí do hovoru jen v Hospodě; Voice krčma i Camp = registrovaní.
+    if (data.isGuest && payload.room !== 'hospoda') return;
+    const rec = this.connectedUsers.get(client.id);
+    const username = rec?.username ?? data.anonName ?? 'Neznámý';
+    this.addVoiceParticipant(
+      payload.room,
+      data.userId,
+      username,
+      rec?.avatarUrl,
+      client.id,
+    );
+    this.broadcastVoiceRoster(payload.room);
+  }
+
+  @SubscribeMessage('voice:leave')
+  handleVoiceLeave(
+    @MessageBody() payload: { room: string },
+    @ConnectedSocket() client: Socket,
+  ): void {
+    if (!isRoomKey(payload.room)) return;
+    const data = client.data as { userId?: string };
+    if (!data.userId) return;
+    if (this.removeVoiceParticipant(payload.room, data.userId, client.id)) {
+      this.broadcastVoiceRoster(payload.room);
+    }
+  }
+
+  @SubscribeMessage('voice:state')
+  handleVoiceState(
+    @MessageBody() payload: { room: string; muted?: boolean; cam?: boolean },
+    @ConnectedSocket() client: Socket,
+  ): void {
+    if (!isRoomKey(payload.room)) return;
+    const data = client.data as { userId?: string };
+    if (!data.userId) return;
+    const participant = this.voicePresence.get(payload.room)?.get(data.userId);
+    if (!participant) return;
+    participant.muted = !!payload.muted;
+    participant.cam = !!payload.cam;
+    const channelId = this.globalChatService.getChannelId(payload.room);
+    this.server.to(`chat:${channelId}`).emit('chat:voice:state', {
+      room: payload.room,
+      userId: data.userId,
+      muted: participant.muted,
+      cam: participant.cam,
+    });
+  }
+
+  /** Roster hovoru pro FE (bez interních socketů). */
+  getVoiceRoster(room: RoomKey): VoiceParticipantView[] {
+    const roster = this.voicePresence.get(room);
+    if (!roster) return [];
+    return Array.from(roster.values()).map((p) => ({
+      userId: p.userId,
+      username: p.username,
+      avatarUrl: p.avatarUrl,
+      muted: p.muted,
+      cam: p.cam,
+    }));
+  }
+
+  private addVoiceParticipant(
+    room: RoomKey,
+    userId: string,
+    username: string,
+    avatarUrl: string | undefined,
+    socketId: string,
+  ): void {
+    let roster = this.voicePresence.get(room);
+    if (!roster) {
+      roster = new Map();
+      this.voicePresence.set(room, roster);
+    }
+    const existing = roster.get(userId);
+    if (existing) {
+      existing.sockets.add(socketId);
+      return;
+    }
+    roster.set(userId, {
+      userId,
+      username,
+      avatarUrl,
+      muted: false,
+      cam: false,
+      sockets: new Set([socketId]),
+    });
+  }
+
+  /**
+   * Odebere socket; participanta smaže až s posledním tabem téhož uživatele.
+   * Vrací true jen při skutečném odchodu (pak volající broadcastne roster).
+   */
+  private removeVoiceParticipant(
+    room: RoomKey,
+    userId: string,
+    socketId: string,
+  ): boolean {
+    const roster = this.voicePresence.get(room);
+    const participant = roster?.get(userId);
+    if (!roster || !participant) return false;
+    participant.sockets.delete(socketId);
+    if (participant.sockets.size > 0) return false;
+    roster.delete(userId);
+    if (roster.size === 0) this.voicePresence.delete(room);
+    return true;
+  }
+
+  private broadcastVoiceRoster(room: RoomKey): void {
+    const channelId = this.globalChatService.getChannelId(room);
+    this.server
+      .to(`chat:${channelId}`)
+      .emit('chat:voice:presence', { room, roster: this.getVoiceRoster(room) });
   }
 
   /**

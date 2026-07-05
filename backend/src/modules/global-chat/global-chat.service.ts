@@ -38,8 +38,13 @@ import {
   type CampRoomConfigDocument,
 } from './schemas/camp-room-config.schema';
 
-/** Klíč globální chat místnosti — Hospoda + tři Camp (krok 4.2a). */
-export type RoomKey = 'hospoda' | 'camp-1' | 'camp-2' | 'camp-3';
+/** Klíč globální chat místnosti — Hospoda + tři Camp (krok 4.2a) + Voice krčma (17.6). */
+export type RoomKey =
+  | 'hospoda'
+  | 'camp-1'
+  | 'camp-2'
+  | 'camp-3'
+  | 'voice-krcma';
 
 /** Camp klíče se zamčeným default žánrem (Hospoda vynechána, spec 16.6a). */
 export type CampRoomKey = 'camp-1' | 'camp-2' | 'camp-3';
@@ -51,6 +56,8 @@ const ROOM_DEFS: { key: RoomKey; name: string }[] = [
   { key: 'camp-1', name: 'Fantasy camp' },
   { key: 'camp-2', name: 'Mystery camp' },
   { key: 'camp-3', name: 'Sci-fi camp' },
+  // 17.6 — Voice krčma: globální hlasová místnost (Jitsi), jen registrovaní. Není Camp.
+  { key: 'voice-krcma', name: 'Voice krčma' },
 ];
 
 export const ROOM_KEYS: RoomKey[] = ROOM_DEFS.map((r) => r.key);
@@ -192,7 +199,8 @@ export class GlobalChatService implements OnModuleInit {
         err,
       );
     }
-    if (room === 'hospoda') {
+    // Hospoda i Voice krčma (17.6) = globální pokec pod účtem (ne postavou).
+    if (room === 'hospoda' || room === 'voice-krcma') {
       return { senderName: username, senderAvatarUrl: avatarUrl };
     }
     return {

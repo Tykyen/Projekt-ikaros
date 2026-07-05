@@ -96,7 +96,8 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 
 Řídí přítomnost uživatelů v globálních místnostech a whisper zprávy. Místnosti
 (`room`, krok 4.2a): `hospoda` (Hospoda) + `camp-1` / `camp-2` / `camp-3`
-(Camp I.–III.). Každá je samostatný kanál — presence i historie jsou per-místnost.
+(Camp I.–III.) + `voice-krcma` (Voice krčma, 17.6 — hlasový hovor přes Jitsi, jen
+registrovaní). Každá je samostatný kanál — presence i historie jsou per-místnost.
 
 ### Příchozí eventy
 
@@ -109,6 +110,9 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `ikaros:whisper` | `{ toUserId: string; content?: string; color?: string; room?: RoomKey; replyToId?: string; attachments?: ChatAttachment[] }` | ne | Šeptaná zpráva (vyžaduje předchozí `join`); `color` = hex barva textu; `room` určuje kanál uložení (default = místnost odesílatele); `replyToId` = ID zprávy, na kterou se odpovídá (krok 4.3a); `attachments` = přílohy nahrané přes `POST /global-chat/upload` (krok 4.3b — `content` smí být prázdné, má-li whisper přílohu) |
 | `chat:heartbeat` | `{}` | ne | Udržuje presence „naživu" — obnovuje `lastSeen` socketu (krok 4.2c §5). FE posílá ~á 5 min; výpadek (zavřená/uspaná záložka) > 60 min → auto-odhlášení |
 | `chat:reaction:toggle` | `{ room?: RoomKey; messageId: string; emoji: string }` | ne | Přepne emoji reakci odesílatele na zprávě (krok 4.3a). Druhá reakce stejným emoji ji odebere. U whisperu smí reagovat jen účastník. `emoji` max 16 znaků |
+| `voice:join` | `{ room: RoomKey }` | ano | 17.6 — vstup do hlasového hovoru (Voice krčma). Identita z ověřeného JWT (`client.data.userId`), NE z payloadu (W-10). Host smí jen `hospoda`; do `voice-krcma`/Campu se ignoruje. Multi-tab dedup (participant klíčován `userId`) |
+| `voice:leave` | `{ room: RoomKey }` | ano | 17.6 — odchod z hovoru; participant zmizí až s posledním tabem téhož uživatele |
+| `voice:state` | `{ room: RoomKey; muted?: boolean; cam?: boolean }` | ano | 17.6 — změna vlastního mikrofonu/kamery v hovoru; broadcastuje se jako `chat:voice:state` |
 
 ### Odchozí eventy
 
@@ -121,8 +125,10 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `chat:room:environment` | `{ room: RoomKey; style: 'fantasy'\|'scifi'\|'mystic'; placeId: string }` | `chat:{channelId}` | Změna sdíleného prostředí Campu (styl + lokace); emituje BE po REST `PUT /global-chat/rooms/:room/environment`, při načtení hry (`POST /global-chat/saved-game/load`) i při cron rotaci (16.6) |
 | `chat:room:startHere` | `{ room: RoomKey; startHere: { lines: SavedChatLine[]; byUserName: string; at: string } \| null }` | `chat:{channelId}` (broadcast) nebo jen joinerovi | 16.6b — sdílený blok „Tady jste skončili". `startHere` populován při načtení uložené hry (`POST /global-chat/saved-game/load`); `null` znamená reset (cron rotace 12:00/00:00 nebo nový load). Nový příchozí do místnosti dostane aktuální stav jen sobě (targeted emit) při `chat:room:join`. `SavedChatLine = { senderName: string; content: string; color: string\|null; createdAt: string }` |
 | `chat:rooms:presence` | `Record<RoomKey, number>` | *(broadcast všem)* | Počet přítomných pro každou místnost — pro odznak v navigaci. Emituje BE po každém join/leave/cleanup. Initial stav přes REST `GET /global-chat/rooms/presence` |
+| `chat:voice:presence` | `{ room: RoomKey; roster: VoiceParticipant[] }` | `chat:{channelId}` | 17.6 — kdo je v hlasovém hovoru (Voice krčma). Celý snapshot rosteru po každém voice join/leave. `VoiceParticipant = { userId: string; username: string; avatarUrl?: string; muted: boolean; cam: boolean }`. Ephemeral (nejde do historie). Odděleno od `chat:presence` (být v místnosti ≠ být v hovoru) |
+| `chat:voice:state` | `{ room: RoomKey; userId: string; muted: boolean; cam: boolean }` | `chat:{channelId}` | 17.6 — delta změny mikrofonu/kamery jednoho účastníka hovoru (po `voice:state`) |
 
-> `RoomKey` = `'hospoda' | 'camp-1' | 'camp-2' | 'camp-3'`.
+> `RoomKey` = `'hospoda' | 'camp-1' | 'camp-2' | 'camp-3' | 'voice-krcma'`.
 > Auto-odhlášení (krok 4.2c §5): cron á 5 min odebere z presence socket s `lastSeen`
 > starším 60 min. Socket se **neodpojuje** (je sdílený celou aplikací) — jen padne
 > `chat:presence` `leave` a `chat:rooms:presence`.

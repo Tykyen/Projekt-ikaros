@@ -95,6 +95,7 @@ describe('GlobalChatGateway', () => {
         id,
         data: { userId: anonId, isGuest: true, anonName },
         join: jest.fn(),
+        emit: jest.fn(),
       }) as unknown as Socket;
 
     it('host: jméno z tokenu (anonName), bez DB profilu, bez avataru', async () => {
@@ -208,6 +209,7 @@ describe('GlobalChatGateway', () => {
         'camp-1': 1,
         'camp-2': 0,
         'camp-3': 0,
+        'voice-krcma': 0,
       });
 
       gateway.handleDisconnect(sock);
@@ -218,6 +220,7 @@ describe('GlobalChatGateway', () => {
         'camp-1': 0,
         'camp-2': 0,
         'camp-3': 0,
+        'voice-krcma': 0,
       });
     });
   });
@@ -244,6 +247,116 @@ describe('GlobalChatGateway', () => {
     });
   });
 
+  describe('17.6 — voice presence (Voice krčma)', () => {
+    it('voice:join přidá uživatele do rosteru a broadcastne chat:voice:presence', async () => {
+      const sock = mockSocket('s1', 'u1');
+      // Realisticky: FE nejdřív joinne místnost (naplní presence jméno), pak hovor.
+      gateway.handleRoomJoin(
+        { room: 'voice-krcma', username: 'Tyky', userId: 'u1' },
+        sock,
+      );
+      await flush();
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([
+        {
+          userId: 'u1',
+          username: 'Tyky',
+          avatarUrl: undefined,
+          muted: false,
+          cam: false,
+        },
+      ]);
+      expect(gateway.server.to).toHaveBeenCalledWith('chat:voice-krcma-id');
+      expect(emit).toHaveBeenCalledWith('chat:voice:presence', {
+        room: 'voice-krcma',
+        roster: [
+          {
+            userId: 'u1',
+            username: 'Tyky',
+            avatarUrl: undefined,
+            muted: false,
+            cam: false,
+          },
+        ],
+      });
+    });
+
+    it('voice:leave odebere uživatele z rosteru', () => {
+      const sock = mockSocket('s1', 'u1');
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toHaveLength(1);
+      gateway.handleVoiceLeave({ room: 'voice-krcma' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([]);
+    });
+
+    it('voice:state změní muted/cam a broadcastne chat:voice:state', () => {
+      const sock = mockSocket('s1', 'u1');
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
+      gateway.handleVoiceState(
+        { room: 'voice-krcma', muted: true, cam: true },
+        sock,
+      );
+      expect(gateway.getVoiceRoster('voice-krcma')[0]).toMatchObject({
+        muted: true,
+        cam: true,
+      });
+      expect(emit).toHaveBeenCalledWith('chat:voice:state', {
+        room: 'voice-krcma',
+        userId: 'u1',
+        muted: true,
+        cam: true,
+      });
+    });
+
+    it('multi-tab: dva sockety téhož uživatele = jeden participant, odchod až s posledním', () => {
+      const s1 = mockSocket('s1', 'u1');
+      const s2 = mockSocket('s2', 'u1');
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, s1);
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, s2);
+      expect(gateway.getVoiceRoster('voice-krcma')).toHaveLength(1);
+      gateway.handleVoiceLeave({ room: 'voice-krcma' }, s1);
+      expect(gateway.getVoiceRoster('voice-krcma')).toHaveLength(1); // s2 stále drží
+      gateway.handleVoiceLeave({ room: 'voice-krcma' }, s2);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([]);
+    });
+
+    it('anti-spoof: socket bez ověřeného userId se do hovoru nedostane', () => {
+      const sock = {
+        id: 's1',
+        data: {},
+        join: jest.fn(),
+        emit: jest.fn(),
+      } as unknown as Socket;
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([]);
+    });
+
+    it('host (guest) se do Voice krčmy nedostane — jen registrovaní', () => {
+      const sock = {
+        id: 's1',
+        data: { userId: 'anon1', isGuest: true, anonName: 'anonym1' },
+        join: jest.fn(),
+        emit: jest.fn(),
+      } as unknown as Socket;
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([]);
+    });
+
+    it('disconnect odebere z hovoru', () => {
+      const sock = mockSocket('s1', 'u1');
+      gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toHaveLength(1);
+      gateway.handleDisconnect(sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([]);
+    });
+
+    it('neznámá místnost se ignoruje', () => {
+      const sock = mockSocket('s1', 'u1');
+      gateway.handleVoiceJoin({ room: 'neexistuje' }, sock);
+      expect(gateway.getVoiceRoster('voice-krcma')).toEqual([]);
+    });
+  });
+
   describe('room counts (krok 4.2c §4)', () => {
     it('getRoomCounts returns presence count per room', async () => {
       gateway.handleRoomJoin(
@@ -260,6 +373,7 @@ describe('GlobalChatGateway', () => {
         'camp-1': 1,
         'camp-2': 0,
         'camp-3': 0,
+        'voice-krcma': 0,
       });
     });
 

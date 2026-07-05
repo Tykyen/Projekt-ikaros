@@ -2,15 +2,20 @@ import type { RoomKey } from './global-chat.service';
 
 /**
  * Narativní hláška o příchodu/odchodu uživatele (krok 4.2d §2).
- * Putyka (room `hospoda`) má krčmářský tón, Camp scénický (neutrální
- * napříč žánry scén). Ukládá se jako systémová zpráva do kanálu —
- * proto generuje text BE, ne FE.
+ * Putyka (room `hospoda`) má krčmářský tón, Voice krčma (17.6) hlasový,
+ * Camp scénický (neutrální napříč žánry scén). Ukládá se jako systémová
+ * zpráva do kanálu — proto generuje text BE, ne FE.
  */
 export function presenceLine(
   room: RoomKey,
   action: 'join' | 'leave',
   name: string,
 ): string {
+  if (room === 'voice-krcma') {
+    return action === 'join'
+      ? `🎙️ ${name} usedá k mikrofonu.`
+      : `${name} odkládá mikrofon a odchází.`;
+  }
   if (room === 'hospoda') {
     return action === 'join'
       ? `🍺 Dveře krčmy zavrzaly — vchází ${name}.`

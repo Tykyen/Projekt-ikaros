@@ -209,16 +209,17 @@ describe('GlobalChatService', () => {
   };
 
   describe('onModuleInit', () => {
-    it('reuses existing channels for all 4 rooms — no save', async () => {
+    it('reuses existing channels for all rooms — no save', async () => {
       await initAllChannels();
       expect(channelRepo.save).not.toHaveBeenCalled();
       expect(service.getChannelId('hospoda')).toBe('global-ch-id');
       expect(service.getChannelId('camp-1')).toBe('camp-1-id');
       expect(service.getChannelId('camp-2')).toBe('camp-2-id');
       expect(service.getChannelId('camp-3')).toBe('camp-3-id');
+      expect(service.getChannelId('voice-krcma')).toBe('voice-krcma-id');
     });
 
-    it('creates missing Camp channels', async () => {
+    it('creates missing Camp + Voice krčma channels', async () => {
       channelRepo.findGlobalByType.mockImplementation((type: string) =>
         Promise.resolve(type === 'hospoda' ? mockChannel : null),
       );
@@ -226,8 +227,10 @@ describe('GlobalChatService', () => {
         Promise.resolve({ ...mockChannel, id: `${data.type}-id` }),
       );
       await service.onModuleInit();
-      expect(channelRepo.save).toHaveBeenCalledTimes(3);
+      // hospoda existuje → seedují se camp-1/2/3 + voice-krcma (17.6) = 4.
+      expect(channelRepo.save).toHaveBeenCalledTimes(4);
       expect(service.getChannelId('camp-1')).toBe('camp-1-id');
+      expect(service.getChannelId('voice-krcma')).toBe('voice-krcma-id');
     });
 
     it('migrates legacy Hospoda channel (type "all") by setting type', async () => {
