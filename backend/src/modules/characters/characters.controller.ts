@@ -75,8 +75,9 @@ export class CharactersController {
   findByUser(
     @Param('worldId') worldId: string,
     @Param('userId') userId: string,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.charactersService.findByUser(userId, worldId);
+    return this.charactersService.findByUser(userId, worldId, user.id);
   }
 
   @Get(':slug')

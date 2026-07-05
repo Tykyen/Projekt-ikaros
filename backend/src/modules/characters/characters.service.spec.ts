@@ -347,10 +347,33 @@ describe('CharactersService', () => {
   });
 
   describe('findByUser', () => {
-    it('vrátí CP hráče ve světě', async () => {
+    it('vlastník dostane plnou postavu (vč. diaryData)', async () => {
       mockCharRepo.findByUserAndWorld.mockResolvedValue(mockCharacter);
-      const result = await service.findByUser('user1', 'world1');
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findByUser('user1', 'world1', 'user1');
       expect(result?.slug).toBe('medak');
+      expect(result).toHaveProperty('diaryData');
+    });
+    it('štáb (PomocnyPJ+) dostane plnou postavu', async () => {
+      mockCharRepo.findByUserAndWorld.mockResolvedValue(mockCharacter);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockPomocnyPjMembership,
+      );
+      const result = await service.findByUser('user1', 'world1', 'staff1');
+      expect(result).toHaveProperty('diaryData');
+    });
+    it('cizí přihlášený (nečlen/nevlastník) → public view bez deníku (IDOR fix)', async () => {
+      mockCharRepo.findByUserAndWorld.mockResolvedValue(mockCharacter);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findByUser('user1', 'world1', 'stranger');
+      expect(result?.slug).toBe('medak');
+      expect(result).not.toHaveProperty('diaryData');
+      expect(result).not.toHaveProperty('customData');
+    });
+    it('postava neexistuje → null', async () => {
+      mockCharRepo.findByUserAndWorld.mockResolvedValue(null);
+      const result = await service.findByUser('user1', 'world1', 'stranger');
+      expect(result).toBeNull();
     });
   });
 

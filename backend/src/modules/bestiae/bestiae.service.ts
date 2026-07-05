@@ -99,6 +99,10 @@ export class BestiaeService {
     user: CurrentUser,
     worldId?: string,
   ): Promise<BestiarResponse> {
+    // R-AUDIT (IDOR fix) — world-scoped bestie jen pro členy světa; jinak
+    // enumerací `?worldId=` leakoval bestiář cizího/privátního světa. system/user
+    // scope řeší vlastní brána v assertCanRead.
+    if (worldId) await this.assertCanReadWorld(worldId, user);
     const items = await this.repo.findVisible({
       systemId,
       userId: user.id,
@@ -277,17 +281,26 @@ export class BestiaeService {
       return;
     }
     if (bestie.scope === 'world') {
-      if (worldAdminBypass(user, bestie.worldId!)) return;
-      const member = await this.memberRepo.findByUserAndWorld(
-        user.id,
-        bestie.worldId!,
-      );
-      if (!member)
-        throw new ForbiddenException({
-          code: 'NOT_A_MEMBER',
-          message: 'Do tohoto světa zatím nemáš přístup.',
-        });
+      await this.assertCanReadWorld(bestie.worldId!, user);
     }
+  }
+
+  /**
+   * R-AUDIT — read brána pro world-scoped bestiář: člen světa nebo elevovaný
+   * platform admin. Sdílená mezi `findById`/`clone` (per-bestie) a `list`
+   * (dřív `list` bránu neměl → enumerací `?worldId=` leak bestiáře cizího světa).
+   */
+  private async assertCanReadWorld(
+    worldId: string,
+    user: CurrentUser,
+  ): Promise<void> {
+    if (worldAdminBypass(user, worldId)) return;
+    const member = await this.memberRepo.findByUserAndWorld(user.id, worldId);
+    if (!member)
+      throw new ForbiddenException({
+        code: 'NOT_A_MEMBER',
+        message: 'Do tohoto světa zatím nemáš přístup.',
+      });
   }
 
   private async assertCanWrite(

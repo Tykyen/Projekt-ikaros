@@ -78,10 +78,7 @@ export class AdminStatsService {
       this.safe('users.pendingDeletion', () =>
         this.usersRepo.countPendingDeletion(),
       ),
-      this.safe('worlds.total', async () => {
-        const all = await this.worldsRepo.findAll();
-        return all.length;
-      }),
+      this.safe('worlds.total', () => this.worldsRepo.countAll()),
       this.safe('content.articles', () => this.articlesRepo.countAll()),
       this.safe('content.galleryImages', () => this.galleryRepo.countAll()),
       this.safe('content.discussions', () => this.discussionsRepo.countAll()),

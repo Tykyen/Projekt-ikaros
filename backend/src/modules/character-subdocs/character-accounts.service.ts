@@ -390,6 +390,7 @@ export class CharacterAccountsService {
     const character = await this.charactersService.findByUser(
       requester.id,
       account.worldId,
+      requester.id,
     );
     const isOwner =
       !!character && account.ownerCharacterIds.includes(character.id);
@@ -794,6 +795,7 @@ export class CharacterAccountsService {
     const character = await this.charactersService.findByUser(
       requester.id,
       account.worldId,
+      requester.id,
     );
     if (character && character.id === account.primaryOwnerId) return account;
     throw new ForbiddenException({
@@ -810,6 +812,7 @@ export class CharacterAccountsService {
     const character = await this.charactersService.findByUser(
       requester.id,
       account.worldId,
+      requester.id,
     );
     return !!character && account.ownerCharacterIds.includes(character.id);
   }

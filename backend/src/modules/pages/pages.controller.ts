@@ -90,10 +90,18 @@ export class PagesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Stránky dle počtu ?number=N' })
   @ApiResponse({ status: 200, description: 'OK' })
-  getData(@Param('worldId') worldId: string, @Query('number') number?: string) {
+  @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
+  getData(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('number') number?: string,
+  ) {
     return this.pagesService.findRandom(
       worldId,
       number ? parseInt(number, 10) : 5,
+      user.id,
+      user.role,
+      user.elevatedWorldIds,
     );
   }
 

@@ -639,8 +639,42 @@ export class PagesService {
     return visible;
   }
 
-  async findRandom(worldId: string, count: number): Promise<Page[]> {
-    return this.pagesRepo.findRandom(worldId, Math.max(1, Math.min(count, 50)));
+  async findRandom(
+    worldId: string,
+    count: number,
+    userId: string,
+    platformRole?: UserRole,
+    elevatedWorldIds?: string[],
+  ): Promise<Page[]> {
+    // R-AUDIT (IDOR fix) — dřív BEZ world-gate i BEZ per-page access → kdokoli
+    // přihlášený enumerací stáhl až 50 plných stránek privátního světa vč.
+    // AKJ-chráněných. Sjednoceno s findByWorld: world-level brána + per-page filtr.
+    await this.assertCanViewWorld(
+      worldId,
+      userId,
+      platformRole,
+      elevatedWorldIds,
+    );
+    const pages = await this.pagesRepo.findRandom(
+      worldId,
+      Math.max(1, Math.min(count, 50)),
+    );
+    const visible: Page[] = [];
+    for (const page of pages) {
+      try {
+        await this.assertAccess(
+          page,
+          userId,
+          worldId,
+          platformRole,
+          elevatedWorldIds,
+        );
+        visible.push(page);
+      } catch {
+        continue; // bez page-level přístupu — stránka se vynechá
+      }
+    }
+    return visible;
   }
 
   async findMeta(

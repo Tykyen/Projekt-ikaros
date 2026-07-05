@@ -196,8 +196,25 @@ export class CharactersService {
     return character;
   }
 
-  async findByUser(userId: string, worldId: string): Promise<Character | null> {
-    return this.charRepo.findByUserAndWorld(userId, worldId);
+  async findByUser(
+    userId: string,
+    worldId: string,
+    requesterId: string,
+  ): Promise<Character | CharacterPublicView | null> {
+    const character = await this.charRepo.findByUserAndWorld(userId, worldId);
+    if (!character) return null;
+    // R-AUDIT (IDOR fix) — deník/customData/extraBlocks jsou soukromé. Dřív tento
+    // endpoint vracel plnou postavu KOMUKOLI přihlášenému → leak deníku cizí
+    // postavy napříč světy (i privátními). Nově: plnou postavu jen štáb
+    // (PomocnyPJ+) nebo vlastník; ostatní redigovaný public view (vzor findBySlug).
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requesterId,
+      worldId,
+    );
+    const isStaff = membership && membership.role >= WorldRole.PomocnyPJ;
+    const isOwner = !character.isNpc && character.userId === requesterId;
+    if (isStaff || isOwner) return character;
+    return this.toPublicView(character);
   }
 
   /** N-24 — všechny PC postavy hráče ve světě (může jich mít víc). */

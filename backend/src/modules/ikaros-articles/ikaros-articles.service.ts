@@ -642,7 +642,27 @@ export class IkarosArticlesService {
     const ids = user.favoriteArticleIds ?? [];
     if (ids.length === 0) return [];
     const articles = await this.repo.findByIds(ids);
-    return this.enrichTombstoneAuthors(articles);
+    // R-AUDIT (leak fix) — status brána: dřív se vracel plný obsah bez filtru,
+    // takže přes toggle-favorite (které status neověřuje) šlo číst cizí
+    // Draft/Pending/Rejected. Published vidí každý; Pending navíc admin;
+    // Draft/Rejected jen autor.
+    const isAdmin = this.isAdmin(user.role, user.username);
+    const visible = articles.filter((a) =>
+      this.canViewArticle(a, userId, isAdmin),
+    );
+    return this.enrichTombstoneAuthors(visible);
+  }
+
+  /** R-AUDIT — smí requester vidět plný obsah článku (dle statusu/autorství)? */
+  private canViewArticle(
+    article: IkarosArticle,
+    userId: string,
+    isAdmin: boolean,
+  ): boolean {
+    if (article.status === 'Published') return true;
+    if (article.authorId === userId) return true;
+    if (article.status === 'Pending' && isAdmin) return true;
+    return false;
   }
 
   async toggleFavorite(

@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { BestiaeService } from './bestiae.service';
 import { BestiaeRepository } from './repositories/bestiae.repository';
 import { SystemStatsValidatorService } from '../maps/schemas/system-entity-schema/system-stats-validator.service';
+import { EntitySchemaVersionsService } from '../entity-schema-versions/entity-schema-versions.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { CreateBestieDto } from './dto/create-bestie.dto';
 
@@ -30,6 +31,11 @@ describe('BestiaeService', () => {
   const mockMemberRepo = { findByUserAndWorld: jest.fn() };
   // C-34 — service emituje 'bestiae.changed' po každé mutaci.
   const mockEventEmitter = { emit: jest.fn() };
+  // 16.2g F2 — world-scoped validace čte per-world bestie schema; default = žádné
+  // (→ fallback na registry validator).
+  const mockEntitySchemas = {
+    getActiveSchema: jest.fn().mockResolvedValue(null),
+  };
 
   const admin = { id: 'sa', role: UserRole.Superadmin };
   const hrac = { id: 'h', role: UserRole.Hrac };
@@ -56,6 +62,7 @@ describe('BestiaeService', () => {
         { provide: SystemStatsValidatorService, useValue: mockValidator },
         { provide: 'IWorldMembershipRepository', useValue: mockMemberRepo },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        { provide: EntitySchemaVersionsService, useValue: mockEntitySchemas },
       ],
     }).compile();
     service = module.get(BestiaeService);
@@ -79,6 +86,31 @@ describe('BestiaeService', () => {
         ForbiddenException,
       );
       expect(mockRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('list — world scope gate (IDOR fix)', () => {
+    it('člen světa dostane world-scoped bestie', async () => {
+      mockMemberRepo.findByUserAndWorld.mockResolvedValue({ role: 2 });
+      mockRepo.findVisible.mockResolvedValue([
+        { id: 'w1', scope: 'world', worldId: 'world1', systemId: 'matrix' },
+      ]);
+      const res = await service.list('matrix', hrac, 'world1');
+      expect(res.world).toHaveLength(1);
+    });
+
+    it('nečlen světa → ForbiddenException (dřív leak bestiáře cizího světa)', async () => {
+      mockMemberRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(service.list('matrix', hrac, 'world1')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockRepo.findVisible).not.toHaveBeenCalled();
+    });
+
+    it('bez worldId (system/user katalog) — world brána se nespustí', async () => {
+      mockRepo.findVisible.mockResolvedValue([]);
+      await service.list('matrix', hrac);
+      expect(mockMemberRepo.findByUserAndWorld).not.toHaveBeenCalled();
     });
   });
 

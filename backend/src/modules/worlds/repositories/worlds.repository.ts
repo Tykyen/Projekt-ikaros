@@ -119,6 +119,23 @@ export class MongoWorldsRepository
     );
   }
 
+  async findAllUnfiltered(): Promise<World[]> {
+    // R-AUDIT — startup maintenance (dice/theme backfill) potřebuje VŠECHNY
+    // nesmazané světy vč. private/closed. `findAll` je discovery filtr
+    // (public/open) → na backfill/počítání nepoužívat.
+    const docs = await this.model.find({ deletedAt: null }).lean().exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
+  }
+
+  async countAll(): Promise<number> {
+    // R-AUDIT — admin „Celkem světů": všechny nesmazané světy bez ohledu na
+    // accessMode. Dřív admin počítal přes discovery `findAll` (public/open) →
+    // podpočet (private/closed světy chyběly).
+    return this.model.countDocuments({ deletedAt: null }).exec();
+  }
+
   async findByOwnerId(ownerId: string): Promise<World[]> {
     const docs = await this.model
       .find({ ownerId, isActive: true })

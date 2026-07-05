@@ -546,9 +546,23 @@ describe('PagesService', () => {
   describe('findRandom', () => {
     it('vrátí N náhodných stránek s default 5', async () => {
       mockPagesRepo.findRandom = jest.fn().mockResolvedValue([mockPage]);
-      const result = await service.findRandom('world1', 5);
+      const result = await service.findRandom('world1', 5, 'user1');
       expect(mockPagesRepo.findRandom).toHaveBeenCalledWith('world1', 5);
       expect(result).toHaveLength(1);
+    });
+
+    it('nečlen privátního světa → ForbiddenException (IDOR fix)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+        accessMode: 'private',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockPagesRepo.findRandom = jest.fn().mockResolvedValue([mockPage]);
+      await expect(service.findRandom('world1', 5, 'stranger')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 

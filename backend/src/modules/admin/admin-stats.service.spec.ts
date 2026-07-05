@@ -20,7 +20,7 @@ describe('AdminStatsService', () => {
   let usernameRepo: jest.Mocked<
     Pick<IUsernameChangeRequestsRepository, 'listPaginated'>
   >;
-  let worldsRepo: jest.Mocked<Pick<IWorldsRepository, 'findAll'>>;
+  let worldsRepo: jest.Mocked<Pick<IWorldsRepository, 'countAll'>>;
   let articlesRepo: jest.Mocked<Pick<IIkarosArticlesRepository, 'countAll'>>;
   let galleryRepo: jest.Mocked<Pick<IIkarosGalleryRepository, 'countAll'>>;
   let discussionsRepo: jest.Mocked<
@@ -50,7 +50,7 @@ describe('AdminStatsService', () => {
       listPaginated: jest.fn().mockResolvedValue({ items: [], total: 3 }),
     };
     worldsRepo = {
-      findAll: jest.fn().mockResolvedValue([{}, {}, {}, {}]),
+      countAll: jest.fn().mockResolvedValue(4),
     };
     articlesRepo = { countAll: jest.fn().mockResolvedValue(10) };
     galleryRepo = { countAll: jest.fn().mockResolvedValue(20) };
@@ -83,7 +83,7 @@ describe('AdminStatsService', () => {
 
   it('robustnost: když jeden repo selže, metrika = 0 a odpověď nepadne', async () => {
     articlesRepo.countAll.mockRejectedValue(new Error('articles down'));
-    worldsRepo.findAll.mockRejectedValue(new Error('worlds down'));
+    worldsRepo.countAll.mockRejectedValue(new Error('worlds down'));
 
     const result = await build().getOverview();
 

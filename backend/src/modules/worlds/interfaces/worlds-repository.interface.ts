@@ -13,6 +13,10 @@ export interface IWorldsRepository {
   findDeleted(): Promise<World[]>;
   findExpiredDeleted(cutoff: Date): Promise<World[]>;
   findAll(): Promise<World[]>;
+  /** R-AUDIT — VŠECHNY nesmazané světy (i private/closed) pro startup backfill. */
+  findAllUnfiltered(): Promise<World[]>;
+  /** R-AUDIT — počet všech nesmazaných světů (admin „Celkem světů"). */
+  countAll(): Promise<number>;
   increment(id: string, field: string, by: number): Promise<void>;
   save(world: Partial<World>): Promise<World>;
   update(id: string, data: Partial<World>): Promise<World | null>;

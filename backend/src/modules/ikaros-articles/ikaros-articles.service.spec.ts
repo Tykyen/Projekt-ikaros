@@ -388,15 +388,38 @@ describe('IkarosArticlesService', () => {
   });
 
   describe('findMyFavorites', () => {
-    it('vrací články dle favoriteArticleIds', async () => {
+    it('vrací Published oblíbené (viditelné každému)', async () => {
       mockUsersRepo.findById.mockResolvedValue({
         id: 'u1',
         favoriteArticleIds: ['art1'],
       });
+      mockRepo.findByIds.mockResolvedValue([
+        { ...mockArticle, status: 'Published' },
+      ]);
+      const res = await service.findMyFavorites('u1');
+      expect(res).toHaveLength(1);
+      expect(res[0].id).toBe('art1');
+    });
+
+    it('cizí Draft/Pending se odfiltruje (leak fix)', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'u1',
+        favoriteArticleIds: ['art1'],
+      });
+      // mockArticle = Draft autora 'user1'; requester 'u1' není autor ani admin.
       mockRepo.findByIds.mockResolvedValue([mockArticle]);
       const res = await service.findMyFavorites('u1');
-      // D-040 — enrichment doplní authorIsDeleted: false (default).
-      expect(res).toEqual([{ ...mockArticle, authorIsDeleted: false }]);
+      expect(res).toEqual([]);
+    });
+
+    it('vlastní Draft vidí autor', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'user1',
+        favoriteArticleIds: ['art1'],
+      });
+      mockRepo.findByIds.mockResolvedValue([mockArticle]);
+      const res = await service.findMyFavorites('user1');
+      expect(res).toHaveLength(1);
     });
 
     it('prázdné pole → []', async () => {

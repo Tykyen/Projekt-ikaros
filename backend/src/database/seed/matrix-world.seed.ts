@@ -10,6 +10,8 @@ import type { IWorldsRepository } from '../../modules/worlds/interfaces/worlds-r
 import type { IUsersRepository } from '../../modules/users/interfaces/users-repository.interface';
 import { UserRole } from '../../modules/users/interfaces/user.interface';
 import type { IWorldSettingsRepository } from '../../modules/worlds/interfaces/world-settings-repository.interface';
+import type { IWorldMembershipRepository } from '../../modules/worlds/interfaces/world-membership-repository.interface';
+import { WorldRole } from '../../modules/worlds/interfaces/world-membership.interface';
 
 export const MATRIX_WORLD_ID = '6d6174726978000000000001';
 
@@ -27,6 +29,8 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
     @Inject('IWorldSettingsRepository')
     private readonly settingsRepo: IWorldSettingsRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
   ) {}
 
   async onApplicationBootstrap() {
@@ -45,6 +49,8 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
           });
           this.logger.log('Matrix World — vzhled a pozadí nastaveny.');
         }
+        // R-AUDIT — backfill owner membershipu i pro Matrix svět seedovaný před fixem.
+        await this.ensureOwnerMembership(MATRIX_WORLD_ID, existing.ownerId);
         return;
       }
 
@@ -77,8 +83,33 @@ export class MatrixWorldSeed implements OnApplicationBootstrap {
         ],
       });
       this.logger.log('Matrix World AKJ types seeded.');
+      await this.ensureOwnerMembership(MATRIX_WORLD_ID, superadmin.id);
     } catch (err) {
       logError(this.logger, 'Matrix World seed failed', err);
     }
+  }
+
+  /**
+   * R-AUDIT — Matrix svět dřív vznikal BEZ owner membershipu → owner (superadmin)
+   * měl na taktické mapě userRole=null a mizela mu orchestrace. Idempotentně
+   * zajistí ownerovi PJ membership (i pro světy seedované před tímto fixem).
+   */
+  private async ensureOwnerMembership(
+    worldId: string,
+    ownerId: string,
+  ): Promise<void> {
+    const existing = await this.membershipRepo.findByUserAndWorld(
+      ownerId,
+      worldId,
+    );
+    if (existing) return;
+    await this.membershipRepo.save({
+      userId: ownerId,
+      worldId,
+      role: WorldRole.PJ,
+      joinedAt: new Date(),
+      akj: 0,
+    });
+    this.logger.log('Matrix World — owner PJ membership zajištěn.');
   }
 }

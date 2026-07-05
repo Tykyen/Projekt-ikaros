@@ -40,6 +40,8 @@ describe('WorldsService', () => {
   let service: WorldsService;
   const mockWorldsRepo = {
     findAll: jest.fn(),
+    findAllUnfiltered: jest.fn(),
+    countAll: jest.fn(),
     findById: jest.fn(),
     findByIds: jest.fn(),
     findBySlug: jest.fn(),
@@ -1455,7 +1457,7 @@ describe('WorldsService', () => {
   // Krok 6.3 — backfill bootstrap pro existující světy s prázdným dice.
   describe('onApplicationBootstrap — dice backfill', () => {
     it('doplní default dice světu s dice: []', async () => {
-      mockWorldsRepo.findAll.mockResolvedValue([
+      mockWorldsRepo.findAllUnfiltered.mockResolvedValue([
         { id: 'W1', system: 'dnd5e', dice: [] },
         { id: 'W2', system: 'matrix', dice: [] },
       ]);
@@ -1473,7 +1475,7 @@ describe('WorldsService', () => {
     });
 
     it('idempotentní — světy s neprázdným dice se nepřepíší', async () => {
-      mockWorldsRepo.findAll.mockResolvedValue([
+      mockWorldsRepo.findAllUnfiltered.mockResolvedValue([
         { id: 'W1', system: 'dnd5e', dice: ['d20'] },
         { id: 'W2', system: 'matrix', dice: ['fate'] },
       ]);
@@ -1484,8 +1486,8 @@ describe('WorldsService', () => {
       expect(mockWorldsRepo.update).not.toHaveBeenCalled();
     });
 
-    it('chyba v findAll nevyhodí — jen zaloguje', async () => {
-      mockWorldsRepo.findAll.mockRejectedValue(new Error('DB down'));
+    it('chyba ve findAllUnfiltered nevyhodí — jen zaloguje', async () => {
+      mockWorldsRepo.findAllUnfiltered.mockRejectedValue(new Error('DB down'));
       await expect(service.onApplicationBootstrap()).resolves.toBeUndefined();
     });
   });

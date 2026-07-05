@@ -488,7 +488,7 @@ export class WorldsService implements OnApplicationBootstrap {
    */
   async onApplicationBootstrap(): Promise<void> {
     try {
-      const worlds = await this.worldsRepo.findAll();
+      const worlds = await this.worldsRepo.findAllUnfiltered();
       let updated = 0;
       for (const world of worlds) {
         if (!world.dice || world.dice.length === 0) {
