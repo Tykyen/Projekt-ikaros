@@ -428,18 +428,6 @@ describe('UsersService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 
-  // --- delete ---
-  it('delete: zavolá repo.delete s userId', async () => {
-    mockRepo.delete.mockResolvedValue(true);
-    await service.delete('1');
-    expect(mockRepo.delete).toHaveBeenCalledWith('1');
-  });
-
-  it('delete: neznámý user → NotFoundException', async () => {
-    mockRepo.delete.mockResolvedValue(false);
-    await expect(service.delete('x')).rejects.toThrow(NotFoundException);
-  });
-
   describe('changePassword event', () => {
     it('emituje "user.password.changed" po úspěšné změně hesla', async () => {
       mockRepo.findById.mockResolvedValue(mockUser);

@@ -7,10 +7,13 @@ import { BadRequestException, ValidationError } from '@nestjs/common';
  * Tato factory:
  *  - lokalizuje nejčastější constraint hlášky do češtiny,
  *  - přidá `code: 'VALIDATION'` (doménový — FE pozná validační chybu),
- *  - přidá `fields: { [pole]: string[] }` pro field-level mapping ve formuláři,
  *  - zachová `message: string[]` (zpětná kompatibilita s toast cestou / parseApiError).
  *
- * Výsledek projde HttpExceptionFilter → `{ error: { code:'VALIDATION', message, fields, timestamp } }`.
+ * FIX-24 — dřív navíc emitovala `fields: { [pole]: string[] }` pro field-level
+ * mapping ve formuláři; FE ho ale nikde nekonzumoval (0 výskytů `.error.fields`)
+ * — mrtvý kód, odstraněno spolu s propagací v `HttpExceptionFilter`.
+ *
+ * Výsledek projde HttpExceptionFilter → `{ error: { code:'VALIDATION', message, timestamp } }`.
  */
 
 function csMessage(
@@ -55,28 +58,17 @@ function csMessage(
   }
 }
 
-interface FieldErrors {
-  [property: string]: string[];
-}
-
-function collect(
-  errors: ValidationError[],
-  parentPath: string,
-  fields: FieldErrors,
-  flat: string[],
-): void {
+function collect(errors: ValidationError[], flat: string[]): void {
   for (const err of errors) {
-    const path = parentPath ? `${parentPath}.${err.property}` : err.property;
     if (err.constraints) {
       const msgs = Object.entries(err.constraints).map(
         ([constraint, fallback]) =>
           csMessage(constraint, err.property, fallback),
       );
-      fields[path] = (fields[path] ?? []).concat(msgs);
       flat.push(...msgs);
     }
     if (err.children?.length) {
-      collect(err.children, path, fields, flat);
+      collect(err.children, flat);
     }
   }
 }
@@ -84,13 +76,11 @@ function collect(
 export function validationExceptionFactory(
   errors: ValidationError[],
 ): BadRequestException {
-  const fields: FieldErrors = {};
   const flat: string[] = [];
-  collect(errors, '', fields, flat);
+  collect(errors, flat);
 
   return new BadRequestException({
     code: 'VALIDATION',
     message: flat.length ? flat : ['Neplatný vstup.'],
-    fields,
   });
 }

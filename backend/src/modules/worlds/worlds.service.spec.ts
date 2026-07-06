@@ -90,6 +90,10 @@ describe('WorldsService', () => {
     delete: jest.fn(),
     deleteByUserAndWorld: jest.fn(),
   };
+  // FIX-18 — updateMemberCharacter ověřuje vlastnictví Character při self-edit.
+  const mockCharactersRepo = {
+    findBySlugAndWorld: jest.fn(),
+  };
 
   const mockCurrenciesService = { seedForWorld: jest.fn() };
   const mockSystemPresetsService = { findOne: jest.fn(), findAll: jest.fn() };
@@ -138,6 +142,7 @@ describe('WorldsService', () => {
           provide: 'IWorldAccessRequestRepository',
           useValue: mockAccessRequestRepo,
         },
+        { provide: 'ICharactersRepository', useValue: mockCharactersRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: WorldCurrenciesService, useValue: mockCurrenciesService },
         { provide: SystemPresetsService, useValue: mockSystemPresetsService },

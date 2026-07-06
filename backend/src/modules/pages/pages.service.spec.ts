@@ -264,7 +264,41 @@ describe('PagesService', () => {
   });
 
   describe('create', () => {
-    it('vyhodí ConflictException pokud slug v světě existuje', async () => {
+    // FIX-21 — kolize slugu (jiná stránka NEBO reserved world route) se dřív
+    // řešila 409 reject; teď auto-suffix (`mapa` → `mapa-2` ...), aby stránka
+    // zůstala dosažitelná. Jméno (title) se nemění, jen skrytý slug.
+    it('FIX-21 — auto-suffixuje slug, když v světě už existuje (ne reject)', async () => {
+      mockPagesRepo.existsBySlugAndWorld
+        .mockResolvedValueOnce(true) // 'hlavni-lokace' obsazený
+        .mockResolvedValueOnce(false); // 'hlavni-lokace-2' volný
+      mockPagesRepo.save.mockResolvedValue({
+        ...mockPage,
+        slug: 'hlavni-lokace-2',
+      });
+      await service.create(
+        { slug: 'hlavni-lokace', type: 'Lokace', title: 'X' },
+        'world1',
+        adminRequester,
+      );
+      expect(mockPagesRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'hlavni-lokace-2' }),
+      );
+    });
+
+    it('FIX-21 — auto-suffixuje slug shodný s reserved world route (mapa → mapa-2)', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockPagesRepo.save.mockResolvedValue({ ...mockPage, slug: 'mapa-2' });
+      await service.create(
+        { slug: 'mapa', type: 'Lokace', title: 'Mapa pokladu' },
+        'world1',
+        adminRequester,
+      );
+      expect(mockPagesRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'mapa-2' }),
+      );
+    });
+
+    it('FIX-21 — vyhodí ConflictException, pokud se do 500 pokusů nenajde volný slug (safety cap)', async () => {
       mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(true);
       await expect(
         service.create(
@@ -413,6 +447,58 @@ describe('PagesService', () => {
           hracRequester,
         ),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update — FIX-21 slug rename', () => {
+    beforeEach(() => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
+      mockPagesRepo.findById.mockResolvedValue({ ...mockPage });
+    });
+
+    it('beze změny slugu (stejná hodnota) nevolá existsBySlugAndWorld', async () => {
+      mockPagesRepo.update.mockResolvedValue({ ...mockPage });
+      await service.update(
+        'page1',
+        'world1',
+        { slug: 'hlavni-lokace', title: 'Přejmenováno' },
+        adminRequester,
+      );
+      expect(mockPagesRepo.existsBySlugAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('auto-suffixuje nový slug, který koliduje s jinou stránkou', async () => {
+      mockPagesRepo.existsBySlugAndWorld
+        .mockResolvedValueOnce(true) // 'obsazeny' obsazený
+        .mockResolvedValueOnce(false); // 'obsazeny-2' volný
+      mockPagesRepo.update.mockResolvedValue({
+        ...mockPage,
+        slug: 'obsazeny-2',
+      });
+      await service.update(
+        'page1',
+        'world1',
+        { slug: 'obsazeny' },
+        adminRequester,
+      );
+      expect(mockPagesRepo.update).toHaveBeenCalledWith(
+        'page1',
+        expect.objectContaining({ slug: 'obsazeny-2' }),
+      );
+    });
+
+    it('auto-suffixuje nový slug shodný s reserved world route', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockPagesRepo.update.mockResolvedValue({ ...mockPage, slug: 'chat-2' });
+      await service.update('page1', 'world1', { slug: 'chat' }, adminRequester);
+      expect(mockPagesRepo.update).toHaveBeenCalledWith(
+        'page1',
+        expect.objectContaining({ slug: 'chat-2' }),
+      );
     });
   });
 

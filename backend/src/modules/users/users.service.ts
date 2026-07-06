@@ -379,15 +379,6 @@ export class UsersService implements OnModuleInit {
     this.eventEmitter.emit('user.password.changed', { userId });
   }
 
-  async delete(id: string): Promise<void> {
-    const deleted = await this.repo.delete(id);
-    if (!deleted)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
-  }
-
   // ── SP3 — Spec 1.4 ─────────────────────────────────────────────────
 
   async listPublic(

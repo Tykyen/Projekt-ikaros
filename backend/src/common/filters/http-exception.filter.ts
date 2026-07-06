@@ -27,15 +27,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const { status, code, message, fields } = this.resolve(exception);
+    const { status, code, message } = this.resolve(exception);
 
     const error: Record<string, unknown> = {
       code,
       message,
       timestamp: new Date().toISOString(),
     };
-    // F2: field-level validační chyby (od validationExceptionFactory) propustit pro field-mapping.
-    if (fields !== undefined) error.fields = fields;
 
     response.status(status).json({ error });
   }
@@ -44,7 +42,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
     status: number;
     code: string;
     message: unknown;
-    fields?: unknown;
   } {
     // 1) HttpException — vč. ValidationPipe (BadRequest) a ThrottlerException.
     if (exception instanceof HttpException) {
@@ -66,11 +63,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
           ? customCode
           : (HttpStatus[status] ?? 'UNKNOWN_ERROR');
 
-      const fields = isObject
-        ? (exceptionResponse as Record<string, unknown>).fields
-        : undefined;
-
-      return { status, code, message, fields };
+      return { status, code, message };
     }
 
     // 2) Multer (upload limity / typy) — sloučeno z bývalého MulterExceptionFilter (EC-10).

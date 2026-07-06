@@ -106,6 +106,43 @@ function sanitizeAkjTabs(
 }
 
 /**
+ * FIX-21 — statické first-segment world sub-routes z FE `src/app/router.tsx`
+ * (`/svet/:worldSlug/<segment>...`), které by page se shodným slugem natrvalo
+ * zastínily (route ji přebije dřív, než dorazí k catch-all `:slug` →
+ * PageViewerPage). Zdroj pravdy = router `children` pole world layoutu — při
+ * přidání nové world sub-route ji přidej i sem.
+ */
+export const RESERVED_PAGE_SLUGS: ReadonlySet<string> = new Set([
+  'chat',
+  'novinky',
+  'stranky',
+  'nova-stranka',
+  'edit', // `edit/:slug` (editor)
+  'postavy',
+  'postava', // `postava/:slug` (legacy redirect)
+  'moje-postava',
+  'mapa',
+  'mapy',
+  'takticka-mapa',
+  'bestiar',
+  'kalendar',
+  'timeline',
+  'pocasi',
+  'akce',
+  'pavucina',
+  'scenare',
+  'obchod',
+  'zvuky',
+  'prevodnik-men',
+  'nastaveni',
+  'hraci',
+  'pravidla',
+  'skupina', // `skupina/:groupKey`
+  'denik-pj',
+  'admin', // `admin/stranky`, `admin/kalendare`, `admin/headline`
+]);
+
+/**
  * „In-fiction" AKJ záložka, kterou hráč bez přístupu vidí ZAMČENOU (ne skrytou):
  * má aspoň jednu clearance podmínku (AKJ/AKJType) a žádnou Role. Role záložky
  * („PJ informace") a prázdné / jen-jmenovité („Soukromé") zůstávají skryté.
@@ -247,13 +284,14 @@ export class PagesService {
     requester: PagesRequester,
   ): Promise<Page> {
     await this.assertCanWrite(worldId, requester);
-    const slug = dto.slug.toLowerCase();
-    const exists = await this.pagesRepo.existsBySlugAndWorld(slug, worldId);
-    if (exists)
-      throw new ConflictException({
-        code: 'PAGE_SLUG_TAKEN',
-        message: 'Slug již existuje v tomto světě',
-      });
+    // FIX-21 — dřív reject (409 PAGE_SLUG_TAKEN) na kolizi. Uživatel chce
+    // dosažitelnou stránku, ne chybu → auto-suffix (`mapa` → `mapa-2` ...),
+    // dokud slug není volný ANI rezervovaný world route (RESERVED_PAGE_SLUGS).
+    // Jméno stránky (title) zůstává, mění se jen skrytý slug.
+    const slug = await this.ensureAvailableSlug(
+      dto.slug.toLowerCase(),
+      worldId,
+    );
     // D-NEW-html-sanitization (2026-05-21) — sanitize TipTap HTML před uložením.
     // Týká se page.content i obsahu jednotlivých sekcí (section.content).
     const safeContent = sanitizeRichText(dto.content ?? '');
@@ -355,6 +393,30 @@ export class PagesService {
     return savedPage;
   }
 
+  /**
+   * FIX-21 — vrátí `base`, pokud je volný (ani rezervovaný world route, ani
+   * obsazený jinou stránkou), jinak `base-2`, `base-3`, ... až do prvního
+   * volného. Cap na 500 pokusů jako pojistka proti nekonečné smyčce (extrémně
+   * nepravděpodobné v praxi) — pak radši 409 než zaseknutý request.
+   */
+  private async ensureAvailableSlug(
+    base: string,
+    worldId: string,
+  ): Promise<string> {
+    let candidate = base;
+    for (let attempt = 1; attempt <= 500; attempt++) {
+      const collision =
+        RESERVED_PAGE_SLUGS.has(candidate) ||
+        (await this.pagesRepo.existsBySlugAndWorld(candidate, worldId));
+      if (!collision) return candidate;
+      candidate = `${base}-${attempt + 1}`;
+    }
+    throw new ConflictException({
+      code: 'PAGE_SLUG_TAKEN',
+      message: 'Slug již existuje v tomto světě',
+    });
+  }
+
   async update(
     id: string,
     worldId: string,
@@ -401,6 +463,20 @@ export class PagesService {
     }));
     // 7.2k — expectedUpdatedAt je jen pro concurrency check, ne pro persist.
     const { expectedUpdatedAt: _ignored, ...persistDto } = dto;
+    // FIX-21 — `slug` je (přes PartialType) validní PATCH pole (editor umožňuje
+    // ruční rename slugu). Dřív šel zápisem rovnou do `patch` bez normalizace
+    // NEBO re-check kolize (jen syrový Mongo unique-index E11000 při shodě
+    // s JINOU stránkou, žádná kontrola RESERVED_PAGE_SLUGS). Auto-suffix stejně
+    // jako u create — jen když se slug fakticky mění (ne no-op PATCH).
+    if (
+      persistDto.slug !== undefined &&
+      persistDto.slug.toLowerCase() !== page.slug
+    ) {
+      persistDto.slug = await this.ensureAvailableSlug(
+        persistDto.slug.toLowerCase(),
+        worldId,
+      );
+    }
     // Resolved type prefer DTO, fallback na current page.type (PATCH bez `type`).
     const resolvedType = persistDto.type ?? page.type;
     const isPersona =

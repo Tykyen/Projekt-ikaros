@@ -18,6 +18,9 @@ import type { IWorldsRepository } from './interfaces/worlds-repository.interface
 import type { IWorldMembershipRepository } from './interfaces/world-membership-repository.interface';
 import type { IWorldSettingsRepository } from './interfaces/world-settings-repository.interface';
 import type { IWorldAccessRequestRepository } from './interfaces/world-access-request-repository.interface';
+// FIX-18 — self-edit ownership check v `updateMemberCharacter` (ne cizí
+// identita/spoofing). `characterPath` = Character.slug (viz onCharacterCreated).
+import type { ICharactersRepository } from '../characters/interfaces/characters-repository.interface';
 import { World } from './interfaces/world.interface';
 import {
   WorldMembership,
@@ -148,6 +151,9 @@ export class WorldsService implements OnApplicationBootstrap {
     @Inject(forwardRef(() => WorldCalendarConfigService))
     private readonly calendarConfigService: WorldCalendarConfigService,
     private readonly elevationService: WorldElevationsService,
+    // FIX-18 — ověření vlastnictví Character při self-assign (updateMemberCharacter).
+    @Inject('ICharactersRepository')
+    private readonly charactersRepo: ICharactersRepository,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
@@ -203,10 +209,32 @@ export class WorldsService implements OnApplicationBootstrap {
     return this.enrichElevation(scoped, requester);
   }
 
+  /**
+   * FIX-17 — soft-smazaný svět (`isActive:false` / `deletedAt` set) musí být
+   * pro BĚŽNÉ operace „neexistující" (404). `findById`/`worldsRepo.findById`
+   * to nefiltrují (na rozdíl od `findBySlug`, který `isActive:true` filtruje) —
+   * záměrně, protože `restore()` potřebuje najít PRÁVĚ smazaný svět a
+   * `listDeleted()` je na jiné repo metodě (`findDeleted`). Volej explicitně
+   * na začátku všech OSTATNÍCH cest, které čtou/mutují konkrétní svět.
+   * `=== false` (ne `!world.isActive`) — ať netrefí dokumenty/testy bez
+   * explicitně nastaveného `isActive` (schema default je `true`).
+   */
+  private assertWorldActive(world: World): void {
+    if (world.isActive === false || world.deletedAt != null) {
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    }
+  }
+
   private async applyDetailScope(
     world: World,
     requester: RequestUser | null,
   ): Promise<World> {
+    // FIX-17 — soft-smazaný svět zůstával čitelný přes GET :id/:slug (jen null
+    // doc → 404 dřív hlídal `findById`, ne stav `deletedAt`/`isActive`).
+    this.assertWorldActive(world);
     if (world.accessMode !== 'private') return world;
     // Private: 404 pokud anon, jinak vyžaduj member nebo pending AR nebo admin.
     if (!requester) {
@@ -528,6 +556,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<World> {
     const world = await this.findById(id);
+    this.assertWorldActive(world); // FIX-17
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       id,
@@ -648,6 +677,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<World> {
     const world = await this.findById(worldId);
+    this.assertWorldActive(world); // FIX-17
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -696,6 +726,7 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
+    this.assertWorldActive(world); // FIX-17
     if (world.accessMode === 'closed')
       throw new ForbiddenException({
         code: 'WORLD_CLOSED',
@@ -755,6 +786,7 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'WORLD_NOT_FOUND',
         message: 'Svět nenalezen',
       });
+    this.assertWorldActive(world); // FIX-17
     if (world.accessMode === 'closed')
       throw new ForbiddenException({
         code: 'WORLD_CLOSED',
@@ -835,6 +867,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<{ ok: true; membership: WorldMembership }> {
     const world = await this.findById(worldId);
+    this.assertWorldActive(world); // FIX-17
     await this.assertCanModerateAccessRequests(world, requester);
 
     const ar = await this.accessRequestRepo.findById(accessRequestId);
@@ -959,6 +992,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<{ ok: true }> {
     const world = await this.findById(worldId);
+    this.assertWorldActive(world); // FIX-17
     await this.assertCanModerateAccessRequests(world, requester);
 
     const ar = await this.accessRequestRepo.findById(accessRequestId);
@@ -1016,7 +1050,10 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<void> {
     // R-NEW (role-audit) — přijmout/odmítnout žádost do světa smí vlastník NEBO
-    // člen s rolí PJ (co-PJ), ne PomocnyPJ a ne platformový Admin/Superadmin.
+    // člen s rolí PJ (co-PJ); platformový Admin/Superadmin BEZ elevace ne.
+    // FIX-19 — PŘI AKTIVNÍ ELEVACI (worldAdminBypass) smí i platform Admin+ —
+    // dřív elevace tuhle bránu vůbec nepokrývala (mezera v governance).
+    if (worldAdminBypass(requester, world.id)) return;
     if (world.ownerId === requester.id) return;
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
@@ -1088,6 +1125,16 @@ export class WorldsService implements OnApplicationBootstrap {
   ): Promise<WorldSettings | null> {
     const settings = await this.settingsRepo.findByWorldId(worldId);
     if (!settings) return null;
+    // FIX-17 — soft-smazaný svět: soft-delete membership NEMAŽE, takže bývalý
+    // člen mrtvého světa dřív fast-pathoval rovnou k `if (membership) return
+    // settings` níž a dostal interní settings (persona, AKJ úrovně...).
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world || world.isActive === false || world.deletedAt != null) {
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    }
     if (worldAdminBypass(requester, worldId)) {
       return settings;
     }
@@ -1118,6 +1165,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<WorldSettings> {
     const world = await this.findById(worldId);
+    this.assertWorldActive(world); // FIX-17
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -1195,6 +1243,7 @@ export class WorldsService implements OnApplicationBootstrap {
     requester: RequestUser,
   ): Promise<WorldSettings> {
     const world = await this.findById(worldId);
+    this.assertWorldActive(world); // FIX-17
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -1225,14 +1274,18 @@ export class WorldsService implements OnApplicationBootstrap {
     },
     requester: RequestUser,
   ): Promise<World> {
-    await this.findById(worldId); // throws 404
+    const world = await this.findById(worldId); // throws 404
+    this.assertWorldActive(world); // FIX-17
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
     );
-    // R-NEW (role-audit) — admin nemá zásah do světa; jen PomocnyPJ+.
+    // R-NEW (role-audit) — platform Admin bez elevace nemá zásah do světa;
+    // jen PomocnyPJ+. FIX-19 — PŘI AKTIVNÍ ELEVACI (worldAdminBypass) smí
+    // i platform Admin+ měnit kalendářní defaults (governance zásah).
     const allowed =
-      membership != null && membership.role >= WorldRole.PomocnyPJ;
+      worldAdminBypass(requester, worldId) ||
+      (membership != null && membership.role >= WorldRole.PomocnyPJ);
     if (!allowed)
       throw new ForbiddenException({
         code: 'FORBIDDEN',
@@ -1285,7 +1338,8 @@ export class WorldsService implements OnApplicationBootstrap {
     worldId: string,
     requester: RequestUser,
   ): Promise<WorldMembership> {
-    await this.findById(worldId);
+    const world = await this.findById(worldId);
+    this.assertWorldActive(world); // FIX-17
     const membership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       worldId,
@@ -1352,6 +1406,7 @@ export class WorldsService implements OnApplicationBootstrap {
       });
 
     const world = await this.findById(membership.worldId);
+    this.assertWorldActive(world); // FIX-17
     const requesterMembership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       membership.worldId,
@@ -1368,16 +1423,20 @@ export class WorldsService implements OnApplicationBootstrap {
     // jen roli REQUESTERA, ne CÍLOVOU roli ani roli cílového člena — bez tohoto
     // bloku by PomocnyPJ(4) povýšil sebe/kohokoli na PJ(5) nebo demotoval PJ/ownera.
     //  (a) roli vlastníka světa lze měnit jen přes transferOwnership (immutable zde),
-    //  (b) kdo není GlobalAdmin ani owner, nesmí udělit roli >= své vlastní
-    //      ani měnit roli člena, jehož role >= jeho vlastní (rovný/výše postavený).
+    //  (b) kdo není owner, nesmí udělit roli >= své vlastní ani měnit roli člena,
+    //      jehož role >= jeho vlastní (rovný/výše postavený).
+    // FIX-20 — dřív tenhle ceiling-check obcházel i `isGlobalAdmin`
+    // (worldAdminBypass). Elevovaný Admin má REÁLNOU world membership (typicky
+    // PomocnyPJ) jen skrz `canManageMembers` bránu výš — bez tohoto odebrání by
+    // mohl obejít R-03 strop a povýšit sám sebe/kohokoli až na PJ. Ceiling teď
+    // platí i na něj; jen skutečný owner (transferOwnership) ho obchází.
     if (world.ownerId === membership.userId)
       throw new ForbiddenException({
         code: 'WORLD_OWNER_ROLE_IMMUTABLE',
         message: 'Roli vlastníka světa nelze měnit — použij předání světa.',
       });
-    const isGlobalAdmin = worldAdminBypass(requester, membership.worldId);
     const isOwner = world.ownerId === requester.id;
-    if (!isGlobalAdmin && !isOwner) {
+    if (!isOwner) {
       const requesterRole = requesterMembership?.role ?? WorldRole.Zadatel;
       if (role >= requesterRole || membership.role >= requesterRole)
         throw new ForbiddenException({
@@ -1437,6 +1496,7 @@ export class WorldsService implements OnApplicationBootstrap {
       });
 
     const world = await this.findById(membership.worldId);
+    this.assertWorldActive(world); // FIX-17
     const requesterMembership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       membership.worldId,
@@ -1479,6 +1539,7 @@ export class WorldsService implements OnApplicationBootstrap {
       });
 
     const world = await this.findById(membership.worldId);
+    this.assertWorldActive(world); // FIX-17
     if (membership.userId !== requester.id) {
       const requesterMembership = await this.membershipRepo.findByUserAndWorld(
         requester.id,
@@ -1494,6 +1555,22 @@ export class WorldsService implements OnApplicationBootstrap {
         throw new ForbiddenException({
           code: 'FORBIDDEN',
           message: 'Nedostatečná oprávnění',
+        });
+      }
+    } else if (characterPath) {
+      // FIX-18 — self-edit (requester si přiřazuje postavu SÁM SOBĚ) smí jen
+      // na Character, kterou skutečně vlastní. Dřív tahle větev nekontrolovala
+      // nic — Zadatel/Čtenář si mohl nastavit `characterPath` na CIZÍ postavu
+      // (nebo NPC) a v chatu/na mapě vystupovat pod cizí identitou (spoofing).
+      // `null`/undefined (odpojení postavy) zůstává vždy povoleno.
+      const character = await this.charactersRepo.findBySlugAndWorld(
+        characterPath,
+        membership.worldId,
+      );
+      if (!character || character.isNpc || character.userId !== requester.id) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Můžeš si přiřadit jen vlastní postavu.',
         });
       }
     }
@@ -1542,6 +1619,7 @@ export class WorldsService implements OnApplicationBootstrap {
       });
 
     const world = await this.findById(membership.worldId);
+    this.assertWorldActive(world); // FIX-17
     const requesterMembership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       membership.worldId,
@@ -1667,6 +1745,7 @@ export class WorldsService implements OnApplicationBootstrap {
       });
 
     const world = await this.findById(membership.worldId);
+    this.assertWorldActive(world); // FIX-17
     const requesterMembership = await this.membershipRepo.findByUserAndWorld(
       requester.id,
       membership.worldId,
@@ -2080,13 +2159,16 @@ export class WorldsService implements OnApplicationBootstrap {
   }
 
   private canAdminWorld(
-    _requester: RequestUser,
-    _world: World,
+    requester: RequestUser,
+    world: World,
     membership?: WorldMembership,
   ): boolean {
-    // R-NEW (role-audit) — platformový Admin/Superadmin NEMÁ moc uvnitř světa
-    // (governance je doména PJ). Admin pojistka existuje jen pro obnovu
-    // opuštěného světa (restore + newOwnerId), ne pro běžné zásahy.
+    // R-NEW (role-audit) — platformový Admin/Superadmin BEZ elevace nemá moc
+    // uvnitř světa (governance je doména PJ).
+    // FIX-19 — PŘI AKTIVNÍ ELEVACI (worldAdminBypass) smí i platform Admin+
+    // spravovat governance (nastavení/členy/kalendář) — dřív elevace tuhle
+    // (a přes ni `canManageMembers`/`canEditWorldData`) bránu vůbec nepokrývala.
+    if (worldAdminBypass(requester, world.id)) return true;
     if (membership && membership.role >= WorldRole.PJ) return true;
     return false;
   }

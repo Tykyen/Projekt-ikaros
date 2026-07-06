@@ -171,8 +171,87 @@ describe('WorldNewsService', () => {
     });
   });
 
+  describe('findMany — FIX-22 scope=active world-scoped accessMode gate', () => {
+    it('scope=active bez worldId (globální/vše) zůstává veřejné', async () => {
+      mockRepo.findMany.mockResolvedValue([]);
+      await expect(service.findMany({})).resolves.toBeDefined();
+      expect(mockWorlds.findById).not.toHaveBeenCalled();
+    });
+
+    it('scope=active pro PUBLIC svět čte i anonym', async () => {
+      mockWorlds.findById.mockResolvedValue({ id: 'w1', accessMode: 'public' });
+      mockRepo.findMany.mockResolvedValue([]);
+      await expect(
+        service.findMany({ worldId: 'w1', scope: 'active' }),
+      ).resolves.toBeDefined();
+    });
+
+    it('scope=active pro PRIVATE svět + anonym → 403 (dřív leak)', async () => {
+      mockWorlds.findById.mockResolvedValue({
+        id: 'w1',
+        accessMode: 'private',
+      });
+      await expect(
+        service.findMany({ worldId: 'w1', scope: 'active' }),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(mockRepo.findMany).not.toHaveBeenCalled();
+    });
+
+    it('scope=active pro PRIVATE svět + přihlášený nečlen → 403', async () => {
+      mockWorlds.findById.mockResolvedValue({
+        id: 'w1',
+        accessMode: 'private',
+      });
+      mockMembership.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.findMany({
+          worldId: 'w1',
+          scope: 'active',
+          requester: RegularUser,
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('scope=active pro PRIVATE svět + member smí', async () => {
+      mockWorlds.findById.mockResolvedValue({
+        id: 'w1',
+        accessMode: 'private',
+      });
+      mockMembership.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      mockRepo.findMany.mockResolvedValue([]);
+      await expect(
+        service.findMany({
+          worldId: 'w1',
+          scope: 'active',
+          requester: RegularUser,
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it('scope=active pro PRIVATE svět + elevovaný Admin smí (bez membershipu)', async () => {
+      mockWorlds.findById.mockResolvedValue({
+        id: 'w1',
+        accessMode: 'private',
+      });
+      mockRepo.findMany.mockResolvedValue([]);
+      await expect(
+        service.findMany({
+          worldId: 'w1',
+          scope: 'active',
+          requester: { ...Admin, elevatedWorldIds: ['w1'] },
+        }),
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('count (5.5b)', () => {
     it('vrátí počet pro scope active (veřejné)', async () => {
+      // FIX-22 — scope=active teď taky čte accessMode světa; explicitní mock,
+      // ať test nezávisí na leftover stavu z předchozích testů (clearAllMocks
+      // nemaže mockResolvedValue).
+      mockWorlds.findById.mockResolvedValue({ id: 'w1', accessMode: 'public' });
       mockRepo.count.mockResolvedValue(7);
       const total = await service.count({ worldId: 'w1' });
       expect(total).toBe(7);

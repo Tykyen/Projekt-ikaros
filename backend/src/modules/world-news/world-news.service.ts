@@ -311,13 +311,52 @@ export class WorldNewsService {
     worldId: string | undefined,
     requester: WorldNewsRequester | undefined,
   ): Promise<void> {
-    if (scope === 'active') return;
+    if (scope === 'active') {
+      // FIX-22 — GLOBÁLNÍ novinky (worldId undefined/null, žádný filtr) zůstávají
+      // veřejné bez podmínek. WORLD-scoped `active` novinky ale dřív byly čitelné
+      // anonymně i pro PRIVATE svět (žádný accessMode/membership check) — obsah
+      // světa unikal komukoli, kdo znal worldId.
+      if (worldId)
+        await this.assertCanReadActiveWorldScoped(worldId, requester);
+      return;
+    }
     if (!requester)
       throw new UnauthorizedException({
         code: 'WORLD_NEWS_AUTH_REQUIRED',
         message: 'Pro archiv je potřeba přihlášení',
       });
     await this.assertCanWrite(worldId ?? null, requester);
+  }
+
+  /**
+   * FIX-22 — accessMode gate pro world-scoped `scope=active` novinky (vzor
+   * `applyDetailScope` u `worlds.service`). Public/open svět = veřejné čtení
+   * i pro anonyma; private = jen member nebo elevovaný platform Admin+.
+   * Neexistující/nenalezený svět necháváme projít (přirozeně vrátí 0 položek,
+   * ne anti-enumeration citlivé jako detail jednoho světa).
+   */
+  private async assertCanReadActiveWorldScoped(
+    worldId: string,
+    requester: WorldNewsRequester | undefined,
+  ): Promise<void> {
+    if (requester && worldAdminBypass(requester, worldId)) return;
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world || world.accessMode !== 'private') return;
+    if (!requester) {
+      throw new ForbiddenException({
+        code: 'WORLD_NEWS_FORBIDDEN',
+        message: 'Nedostatečná oprávnění',
+      });
+    }
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (membership) return;
+    throw new ForbiddenException({
+      code: 'WORLD_NEWS_FORBIDDEN',
+      message: 'Nedostatečná oprávnění',
+    });
   }
 
   /**

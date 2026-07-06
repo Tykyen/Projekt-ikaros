@@ -193,18 +193,17 @@ describe('Error contract — M-SHAPE (tvar chyby po drátě)', () => {
     expect(res.body.error.code).toBe('RAW_CODE');
   });
 
-  // ── EC-02 OPRAVENO (F2): code VALIDATION + CS + fields mapping ──
-  it('✅ EC-02 OPRAVENO: validační chyba → code=VALIDATION + fields{} pro field-mapping', async () => {
+  // ── EC-02 OPRAVENO (F2): code VALIDATION + CS ──
+  // FIX-24 — `error.fields` (field-level mapping) odstraněno: FE ho nikde
+  // nekonzumoval (0 výskytů `.error.fields`), mrtvé pole v kontraktu.
+  it('✅ EC-02 OPRAVENO: validační chyba → code=VALIDATION + message[] (bez mrtvého fields)', async () => {
     const res = await srv()
       .post('/api/probe/validate')
       .send({ email: 'neni-email', name: '' });
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject(ERROR_SHAPE);
     expect(res.body.error.code).toBe('VALIDATION'); // doménový → FE pozná validaci
-    expect(res.body.error.fields).toMatchObject({
-      email: expect.any(Array),
-      name: expect.any(Array),
-    }); // FE může setError('email'/'name')
+    expect(res.body.error.fields).toBeUndefined(); // FIX-24 — mrtvé pole odstraněno
     expect(Array.isArray(res.body.error.message)).toBe(true); // zpětná kompat (toast)
   });
 

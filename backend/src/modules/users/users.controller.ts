@@ -571,22 +571,4 @@ export class UsersController {
     }
     return this.usersService.resetPassword(id, dto);
   }
-
-  @Delete(':id')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(204)
-  @ApiOperation({ summary: 'Smazání účtu' })
-  @ApiResponse({ status: 204, description: 'Účet smazán' })
-  @ApiResponse({ status: 401, description: 'Neautorizováno' })
-  @ApiResponse({ status: 403, description: 'Nedostatečná oprávnění' })
-  @ApiResponse({ status: 404, description: 'Uživatel nenalezen' })
-  delete(@Param('id') id: string, @CurrentUser() requester: Requester) {
-    if (requester.id !== id && requester.role > UserRole.Admin) {
-      throw new ForbiddenException({
-        code: 'USER_FORBIDDEN',
-        message: 'Nedostatečná oprávnění',
-      });
-    }
-    return this.usersService.delete(id);
-  }
 }

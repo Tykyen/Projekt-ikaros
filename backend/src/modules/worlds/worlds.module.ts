@@ -29,6 +29,7 @@ import { WorldsController } from './worlds.controller';
 import { WorldsGateway } from './worlds.gateway';
 import { WorldAccessRequestProvider } from './world-access-request.provider';
 import { PagesModule } from '../pages/pages.module';
+import { CharactersModule } from '../characters/characters.module';
 import { WorldCurrenciesModule } from '../world-currencies/world-currencies.module';
 import {
   DiarySchemaVersionSchemaClass,
@@ -61,6 +62,10 @@ import { AuthModule } from '../auth/auth.module';
       { name: WorldOperationSchemaClass.name, schema: WorldOperationSchema },
     ]),
     forwardRef(() => PagesModule),
+    // FIX-18 — updateMemberCharacter ověřuje vlastnictví Character při self-edit
+    // (ne cizí identita). Kruh CharactersModule → forwardRef(WorldsModule)
+    // existuje už dřív; tady doplňujeme opačný směr (stejný vzor jako UsersModule).
+    forwardRef(() => CharactersModule),
     forwardRef(() => WorldCurrenciesModule),
     SystemPresetsModule,
     forwardRef(() => WorldWeatherModule),
