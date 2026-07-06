@@ -204,4 +204,33 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
     expect(srv.in).toHaveBeenCalledWith('user:u9');
     expect(srv.socketsLeave).toHaveBeenCalledWith('chat:ch1');
   });
+
+  // FIX-B část 2 (2026-07) — reorder eventy dřív nesly plné `items:[{id,order}]`
+  // (+ groupId) do `world:{id}` roomu bez membership joinu (N-8) → odhalovaly
+  // existenci/strukturu i skrytých kanálů. FE (`WorldChatRoom.invalidateGroups`)
+  // na payload nesahá, jen refetchne — takže leak-safe `{worldId}` je bezpečné.
+  describe('reorder eventy — leak-safe payload', () => {
+    it('chat.groups.reordered → emit JEN {worldId}, bez items', () => {
+      gateway.handleGroupsReordered({
+        worldId: 'w1',
+        items: [{ id: 'g1', order: 1 }],
+      });
+      expect(srv.to).toHaveBeenCalledWith('world:w1');
+      expect(srv.emit).toHaveBeenCalledWith('chat:groups:reordered', {
+        worldId: 'w1',
+      });
+    });
+
+    it('chat.channels.reordered → emit JEN {worldId}, bez items/groupId', () => {
+      gateway.handleChannelsReordered({
+        worldId: 'w1',
+        groupId: 'g1',
+        items: [{ id: 'c1', order: 1 }],
+      });
+      expect(srv.to).toHaveBeenCalledWith('world:w1');
+      expect(srv.emit).toHaveBeenCalledWith('chat:channels:reordered', {
+        worldId: 'w1',
+      });
+    });
+  });
 });

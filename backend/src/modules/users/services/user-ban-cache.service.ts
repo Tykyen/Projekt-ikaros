@@ -6,6 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
+import type { IUsersRepository } from '../interfaces/users-repository.interface';
 
 export interface BanState {
   bannedAt: Date;
@@ -36,7 +37,10 @@ export class UserBanCacheService implements OnModuleInit, OnModuleDestroy {
   private readonly cache = new Map<string, BanState>();
   private redisSubscriber: Redis | null = null;
 
-  constructor(@Inject('REDIS') private readonly redis: Redis) {}
+  constructor(
+    @Inject('REDIS') private readonly redis: Redis,
+    @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
+  ) {}
 
   /**
    * Uvolní dedicated subscriber spojení při shutdownu (app.close / hot-reload /
@@ -99,6 +103,42 @@ export class UserBanCacheService implements OnModuleInit, OnModuleDestroy {
 
   size(): number {
     return this.cache.size;
+  }
+
+  /**
+   * FIX-A (WS reconnect-gate, 2026-07) — jediný entry point pro „musí být
+   * socket odmítnut" (banned NEBO hard-deleted). Cache-first (`get()`, sync,
+   * nulová latency pro opakované connecty stejného banned usera); na miss
+   * dotáhne DB a cachuje jen POZITIVNÍ (banned) nález — shodné se stávající
+   * `set`/`get` sémantikou (pozitivní cache, viz D-028). „Not banned" se
+   * nekešuje — connecty jsou řádově vzácnější než requesty, DB dotaz při
+   * miss je přijatelný (stejný trade-off jako `JwtAuthGuard`).
+   *
+   * Fail-open při DB výpadku — WS handshake nesmí spadnout kvůli dočasné
+   * nedostupnosti Monga (stejná konvence jako `PresenceGateway.handleConnection`
+   * hiddenPresence fallback).
+   */
+  async isBlocked(userId: string): Promise<boolean> {
+    if (this.get(userId)) return true;
+    let user: Awaited<ReturnType<IUsersRepository['findById']>>;
+    try {
+      user = await this.usersRepo.findById(userId);
+    } catch (err) {
+      this.logger.warn(
+        `isBlocked DB fallback selhal pro ${userId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
+    if (!user || user.isDeleted) return true;
+    if (user.bannedAt) {
+      this.set(userId, {
+        bannedAt: user.bannedAt,
+        bannedUntil: user.bannedUntil,
+        banReason: user.banReason,
+      });
+      return true;
+    }
+    return false;
   }
 
   private async publishInvalidate(userId: string): Promise<void> {

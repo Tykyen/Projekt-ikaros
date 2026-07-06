@@ -11,11 +11,12 @@ const mockRedis = {
 
 describe('UserBanCacheService', () => {
   let service: UserBanCacheService;
+  const mockUsersRepo = { findById: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    service = new UserBanCacheService(mockRedis as any);
+    service = new UserBanCacheService(mockRedis as any, mockUsersRepo as any);
   });
 
   it('get neexistujícího userId → null', () => {
@@ -67,5 +68,61 @@ describe('UserBanCacheService', () => {
     expect(service.size()).toBe(2);
     service.invalidate('u1');
     expect(service.size()).toBe(1);
+  });
+
+  // FIX-A část 1 (2026-07, WS reconnect-gate) — isBlocked() cache-first + DB fallback.
+  describe('isBlocked()', () => {
+    it('cache hit (banned) → true, BEZ DB dotazu', async () => {
+      service.set('u1', { bannedAt: new Date() });
+      await expect(service.isBlocked('u1')).resolves.toBe(true);
+      expect(mockUsersRepo.findById).not.toHaveBeenCalled();
+    });
+
+    it('cache miss + DB: uživatel neexistuje → true (blokován)', async () => {
+      mockUsersRepo.findById.mockResolvedValue(null);
+      await expect(service.isBlocked('ghost')).resolves.toBe(true);
+    });
+
+    it('cache miss + DB: isDeleted → true', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'u1',
+        isDeleted: true,
+      });
+      await expect(service.isBlocked('u1')).resolves.toBe(true);
+    });
+
+    it('cache miss + DB: bannedAt nastaven → true + dopočítá cache (další volání bez DB)', async () => {
+      const bannedAt = new Date('2026-01-01');
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'u1',
+        isDeleted: false,
+        bannedAt,
+        banReason: 'spam',
+      });
+      await expect(service.isBlocked('u1')).resolves.toBe(true);
+      expect(service.get('u1')).toEqual({
+        bannedAt,
+        bannedUntil: undefined,
+        banReason: 'spam',
+      });
+
+      mockUsersRepo.findById.mockClear();
+      await expect(service.isBlocked('u1')).resolves.toBe(true);
+      expect(mockUsersRepo.findById).not.toHaveBeenCalled(); // druhé volání = cache hit
+    });
+
+    it('cache miss + DB: účet v pořádku → false, NEcachuje se', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'u1',
+        isDeleted: false,
+      });
+      await expect(service.isBlocked('u1')).resolves.toBe(false);
+      expect(service.get('u1')).toBeNull();
+    });
+
+    it('DB výpadek → fail-open (false), nesmí spadnout', async () => {
+      mockUsersRepo.findById.mockRejectedValue(new Error('mongo down'));
+      await expect(service.isBlocked('u1')).resolves.toBe(false);
+    });
   });
 });

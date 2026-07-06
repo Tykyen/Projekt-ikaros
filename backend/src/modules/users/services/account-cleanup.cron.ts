@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IUsersRepository } from '../interfaces/users-repository.interface';
 import { MailerService } from '../../mailer/mailer.service';
+import { UserBanCacheService } from './user-ban-cache.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,6 +30,8 @@ export class AccountCleanupCron {
     private readonly events: EventEmitter2,
     // Injectovaný pro budoucí T-24h reminder (viz JSDoc) — DI zachováno.
     private readonly mailer: MailerService,
+    // FIX-A část 2 (2026-07) — invalidate + force-disconnect (viz sweep()).
+    private readonly banCache: UserBanCacheService,
   ) {
     void this.mailer;
   }
@@ -64,6 +67,16 @@ export class AccountCleanupCron {
           deletionRequestedBy: u.deletionRequestedBy,
           deletionReason: u.deletionReason,
           deletionRequestedAt: u.deletionRequestedAt,
+        });
+        // FIX-A část 2 (2026-07) — defense-in-depth: v praxi už žádný živý
+        // socket nebývá (requestUserDeletion force-disconnectl při zápisu
+        // žádosti, access token mezitím taky vypršel), ale kdyby přece jen
+        // nějaký přežil, hard-delete ho má taky zavřít + smazat případný
+        // (nepravděpodobný) ban cache záznam anonymizovaného účtu.
+        this.banCache.invalidate(u.id);
+        this.events.emit('user.identity.changed', {
+          userId: u.id,
+          kind: 'deletion',
         });
       } catch (err) {
         // Jeden selhaný účet nesmí zastavit zbytek dávky.

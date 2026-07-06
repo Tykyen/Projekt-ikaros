@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AccountCleanupCron } from './account-cleanup.cron';
 import { MailerService } from '../../mailer/mailer.service';
+import { UserBanCacheService } from './user-ban-cache.service';
 import type { User } from '../interfaces/user.interface';
 import { UserRole } from '../interfaces/user.interface';
 
@@ -39,6 +40,9 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
   };
   const mailer = {} as unknown as MailerService;
   let events: jest.Mocked<EventEmitter2>;
+  const banCache: Record<string, jest.Mock> = {
+    invalidate: jest.fn(),
+  };
 
   beforeEach(async () => {
     events = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
@@ -48,6 +52,7 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
         { provide: 'IUsersRepository', useValue: usersRepo },
         { provide: EventEmitter2, useValue: events },
         { provide: MailerService, useValue: mailer },
+        { provide: UserBanCacheService, useValue: banCache },
       ],
     }).compile();
     cron = mod.get(AccountCleanupCron);
@@ -72,6 +77,7 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
 
     expect(usersRepo.anonymizeForHardDelete).not.toHaveBeenCalled();
     expect(events.emit).not.toHaveBeenCalled();
+    expect(banCache.invalidate).not.toHaveBeenCalled();
   });
 
   it('pro každý expirovaný účet anonymizuje + emituje hardDeleted', async () => {
@@ -102,6 +108,22 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
     );
   });
 
+  // FIX-A část 2 (2026-07) — defense-in-depth force-disconnect + ban cache
+  // invalidate i při hard-delete (viz UsersIdentityGateway.handleIdentityChanged).
+  it('FIX-A — hard-delete invaliduje ban cache a emituje user.identity.changed(kind:deletion)', async () => {
+    const a = makePending({ id: 'a', username: 'alice' });
+    usersRepo.findExpiredPendingDeletion.mockResolvedValue([a]);
+    usersRepo.anonymizeForHardDelete.mockResolvedValue(undefined);
+
+    await cron.sweep();
+
+    expect(banCache.invalidate).toHaveBeenCalledWith('a');
+    expect(events.emit).toHaveBeenCalledWith('user.identity.changed', {
+      userId: 'a',
+      kind: 'deletion',
+    });
+  });
+
   it('chyba u jednoho účtu nezastaví zbytek dávky', async () => {
     const a = makePending({ id: 'a' });
     const b = makePending({ id: 'b' });
@@ -113,11 +135,13 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
     await expect(cron.sweep()).resolves.not.toThrow();
 
     expect(usersRepo.anonymizeForHardDelete).toHaveBeenCalledTimes(2);
-    // jen druhý (úspěšný) account vyemituje event
-    expect(events.emit).toHaveBeenCalledTimes(1);
+    // jen druhý (úspěšný) account vyemituje eventy (hardDeleted + identity.changed)
+    expect(events.emit).toHaveBeenCalledTimes(2);
     expect(events.emit).toHaveBeenCalledWith(
       'user.deletion.hardDeleted',
       expect.objectContaining({ userId: 'b' }),
     );
+    expect(banCache.invalidate).toHaveBeenCalledTimes(1);
+    expect(banCache.invalidate).toHaveBeenCalledWith('b');
   });
 });

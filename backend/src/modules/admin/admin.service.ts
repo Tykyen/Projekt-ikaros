@@ -573,6 +573,14 @@ export class AdminService {
       },
       dto.reason,
     );
+    // FIX-A část 2 (2026-07) — real-time signál + force-disconnect otevřených
+    // socketů (viz `UsersIdentityGateway.handleIdentityChanged`), stejný
+    // mechanismus jako `banUser` (kind:'ban'). Bez tohoto by admin moderation
+    // delete nechal aktivní socket připojený, dokud si klient sám nerefetchne.
+    this.eventEmitter.emit('user.identity.changed', {
+      userId,
+      kind: 'deletion',
+    });
 
     // 1.7 D-036 — notifikační mail user (admin moderation delete)
     const scheduledHardDeleteAt = new Date(

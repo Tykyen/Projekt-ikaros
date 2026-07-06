@@ -12,6 +12,7 @@ import { UserBanCacheService } from '../users/services/user-ban-cache.service';
 
 describe('AdminService', () => {
   let service: AdminService;
+  let mockEvents: { emit: jest.Mock };
 
   const mockUsersRepo = {
     findById: jest.fn(),
@@ -77,6 +78,7 @@ describe('AdminService', () => {
   } as never;
 
   beforeEach(async () => {
+    mockEvents = { emit: jest.fn() };
     const module = await Test.createTestingModule({
       providers: [
         AdminService,
@@ -98,7 +100,7 @@ describe('AdminService', () => {
         { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
         { provide: UserBanCacheService, useValue: mockBanCache },
         // 1.7 — emit eventy pro D-026 + D-036
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: mockEvents },
         {
           provide: ConfigService,
           useValue: { get: jest.fn().mockReturnValue(30) },
@@ -350,6 +352,58 @@ describe('AdminService', () => {
           targetUsername: 'newuser',
         }),
       );
+    });
+  });
+
+  // FIX-A část 2 (2026-07) — ban/moderation-delete musí force-disconnectnout
+  // otevřené sockety (viz UsersIdentityGateway.handleIdentityChanged).
+  // Cesta k tomu je `user.identity.changed` event — testujeme, že se
+  // skutečně emituje se správným `kind`, aby gateway měla co zachytit.
+  describe('banUser / requestUserDeletion — force-disconnect signál', () => {
+    const target = {
+      id: 'u1',
+      role: UserRole.Ikarus,
+      username: 'alice',
+      isDeleted: false,
+    };
+
+    it('banUser invaliduje ban cache a emituje user.identity.changed(kind:"ban")', async () => {
+      mockUsersRepo.findById.mockResolvedValue(target);
+      mockUsersRepo.update.mockResolvedValue({
+        ...target,
+        bannedAt: new Date(),
+        bannedBy: 'sa',
+      });
+
+      await service.banUser(superadmin, 'u1', { reason: 'spam' });
+
+      expect(mockBanCache.invalidate).toHaveBeenCalledWith('u1');
+      expect(mockEvents.emit).toHaveBeenCalledWith('user.identity.changed', {
+        userId: 'u1',
+        kind: 'ban',
+      });
+    });
+
+    it('requestUserDeletion invaliduje ban cache a emituje user.identity.changed(kind:"deletion")', async () => {
+      mockUsersRepo.findById.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === 'u1' ? target : { id: 'sa', role: UserRole.Superadmin },
+        ),
+      );
+      mockUsersRepo.update.mockResolvedValue({
+        ...target,
+        deletionRequestedAt: new Date(),
+      });
+
+      await service.requestUserDeletion(superadmin, 'u1', {
+        reason: 'porušení pravidel',
+      });
+
+      expect(mockBanCache.invalidate).toHaveBeenCalledWith('u1');
+      expect(mockEvents.emit).toHaveBeenCalledWith('user.identity.changed', {
+        userId: 'u1',
+        kind: 'deletion',
+      });
     });
   });
 });

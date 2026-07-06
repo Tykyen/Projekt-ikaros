@@ -390,6 +390,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // ─── Reorder events (krok 6.5a/b) ────────────────────────────────────────
+  // FIX-B část 2 (2026-07) — dřív se sem posílalo plné `items:[{id,order}]`
+  // (+ groupId) do `world:{id}` roomu (bez membership joinu, N-8), což
+  // odhalovalo existenci/strukturu i skrytých (`accessMode:'roles'`) kanálů.
+  // FE (`WorldChatRoom.invalidateGroups`) na tyhle eventy jen invaliduje a
+  // refetchne `GET groups` (server-side filtrovaný) — payload nečte, takže
+  // leak-safe `{worldId}` signál (stejný vzor jako W-4 channel/group created)
+  // je zpětně kompatibilní.
 
   @OnEvent('chat.groups.reordered')
   handleGroupsReordered(payload: {
@@ -398,7 +405,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }): void {
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('chat:groups:reordered', payload);
+      .emit('chat:groups:reordered', { worldId: payload.worldId });
   }
 
   @OnEvent('chat.channels.reordered')
@@ -409,7 +416,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }): void {
     this.server
       .to(`world:${payload.worldId}`)
-      .emit('chat:channels:reordered', payload);
+      .emit('chat:channels:reordered', { worldId: payload.worldId });
   }
 
   // ─── Unread events ───────────────────────────────────────────────────────

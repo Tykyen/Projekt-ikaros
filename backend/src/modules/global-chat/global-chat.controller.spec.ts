@@ -141,7 +141,19 @@ describe('GlobalChatController — guest scope (15.8)', () => {
           getClass: () => GlobalChatController,
           switchToHttp: () => ({ getRequest: () => ({ user: { role } }) }),
         }) as unknown as ExecutionContext;
-      expect(guard.canActivate(ctx(UserRole.Hrac))).toBe(false);
+      // RolesGuard záměrně HÁZÍ ForbiddenException {code:'INSUFFICIENT_ROLE'}
+      // místo tichého `false` (jednotný error kontrakt) — nedostatečná role
+      // dá 403 s kódem, ne prosté odepření.
+      expect(() => guard.canActivate(ctx(UserRole.Hrac))).toThrow(
+        ForbiddenException,
+      );
+      try {
+        guard.canActivate(ctx(UserRole.Hrac));
+      } catch (err) {
+        expect((err as ForbiddenException).getResponse()).toMatchObject({
+          code: 'INSUFFICIENT_ROLE',
+        });
+      }
       expect(guard.canActivate(ctx(UserRole.Admin))).toBe(true);
       expect(guard.canActivate(ctx(UserRole.Superadmin))).toBe(true);
     });

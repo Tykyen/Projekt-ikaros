@@ -38,6 +38,14 @@ export class UsersIdentityGateway implements OnGatewayConnection {
     this.server
       .to(`user:${p.userId}`)
       .emit('user:identity:changed', { kind: p.kind });
+    // FIX-A část 2 (2026-07) — ban/smazání musí ukončit i JIŽ otevřený socket,
+    // jinak zůstává funkční až do expirace access tokenu (3 dny) i s WS
+    // reconnect-gate (ten chytá jen NOVÉ handshaky, ne živé spojení).
+    // `disconnectSockets(true)` = zavři low-level transport (klient dostane
+    // `disconnect`, ne jen odejde z roomu jako FIX-44 `socketsLeave`).
+    if (p.kind === 'ban' || p.kind === 'deletion') {
+      this.server.in(`user:${p.userId}`).disconnectSockets(true);
+    }
   }
 
   @OnEvent('username-request.decided')
