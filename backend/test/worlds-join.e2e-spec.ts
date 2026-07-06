@@ -8,6 +8,7 @@ import { WorldsModule } from '../src/modules/worlds/worlds.module';
 import { IkarosMessagesModule } from '../src/modules/ikaros-messages/ikaros-messages.module';
 import { ChatModule } from '../src/modules/chat/chat.module';
 import { PushModule } from '../src/modules/push/push.module';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 /**
  * Spec 2.4 — vstup do světa.
@@ -34,6 +35,9 @@ describe('Worlds JOIN + access flow (e2e)', () => {
         IkarosMessagesModule,
         ChatModule,
         PushModule,
+        // AuthService injektuje WorldElevationsService — @Global modul se
+        // ale při selektivním modules importu neregistruje automaticky.
+        WorldElevationsModule,
       ],
     });
   });

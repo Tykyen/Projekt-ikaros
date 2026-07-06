@@ -5,8 +5,10 @@
   "testRunner": "jest",
   "jest": {
     "projectType": "custom",
-    "configFile": "package.json"
+    "configFile": "jest.config.ts"
   },
+  "tempDirName_comment": "tempDirName BEZ leading tečky (ne default '.stryker-tmp') — na Windows jest-config `escapeGlobCharacters`+`replacePathSepForGlob` zlomí <rootDir> substituci glob patternu testMatch, když libovolný segment cesty začíná tečkou (backslash před '.stryker-tmp' zůstane neeskejpovaný → jest najde 0 testů, viz reprodukce). Ověřeno empiricky 2026-07-06.",
+  "tempDirName": "stryker-tmp",
   "coverageAnalysis": "perTest",
   "concurrency": 2,
   "timeoutMS": 60000,

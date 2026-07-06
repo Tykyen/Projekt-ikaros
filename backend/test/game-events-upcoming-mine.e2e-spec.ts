@@ -16,6 +16,7 @@ import { FriendshipsModule } from '../src/modules/friendships/friendships.module
 import { PendingActionsModule } from '../src/modules/pending-actions/pending-actions.module';
 import { IkarosMessagesModule } from '../src/modules/ikaros-messages/ikaros-messages.module';
 import { WorldRole } from '../src/modules/worlds/interfaces/world-membership.interface';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 describe('GameEvents upcoming/mine (e2e)', () => {
   let testApp: TestApp;
@@ -36,6 +37,9 @@ describe('GameEvents upcoming/mine (e2e)', () => {
         IkarosMessagesModule,
         PendingActionsModule,
         FriendshipsModule,
+        // AuthService injektuje WorldElevationsService — @Global modul se
+        // ale při selektivním modules importu neregistruje automaticky.
+        WorldElevationsModule,
       ],
     });
   });

@@ -6,3 +6,8 @@ coverage/
 
 # Spec 2.4 — ML model cache (runtime download z HF/CDN, do gitu nepatří)
 data/model_cache/
+
+# Stryker (teeth): sandbox + report. Přejmenováno z default ".stryker-tmp" —
+# leading tečka v cestě láme na Windows jest testMatch <rootDir> substituci.
+stryker-tmp/
+reports/mutation/

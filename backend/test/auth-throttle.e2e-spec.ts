@@ -12,6 +12,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AuthController } from '../src/modules/auth/auth.controller';
 import { AuthService } from '../src/modules/auth/auth.service';
+import { WorldElevationsService } from '../src/modules/world-elevations/world-elevations.service';
 
 describe('Auth throttle (e2e smoke)', () => {
   let app: INestApplication<App>;
@@ -33,6 +34,12 @@ describe('Auth throttle (e2e smoke)', () => {
       providers: [
         { provide: AuthService, useValue: mockAuthService },
         { provide: APP_GUARD, useClass: ThrottlerGuard },
+        // AuthController má JwtAuthGuard na logout-all/resend-verification →
+        // Nest resolvuje jeho konstruktor při app.init() bez ohledu na to,
+        // že tento smoke test volá jen /login. Mock, žádná reálná DB/logika
+        // (JwtAuthGuard.canActivate se v tomto testu nikdy nevykoná).
+        { provide: 'IUsersRepository', useValue: {} },
+        { provide: WorldElevationsService, useValue: {} },
       ],
     }).compile();
 

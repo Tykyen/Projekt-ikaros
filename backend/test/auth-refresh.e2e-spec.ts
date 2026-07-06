@@ -9,13 +9,16 @@ import {
 import { clearAllCollections } from './helpers/db';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { UsersModule } from '../src/modules/users/users.module';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 describe('Auth refresh flow (e2e)', () => {
   let testApp: TestApp;
 
   beforeAll(async () => {
     testApp = await createTestApp({
-      modules: [AuthModule, UsersModule],
+      // AuthService injektuje WorldElevationsService — @Global modul se
+      // ale při selektivním modules importu neregistruje automaticky.
+      modules: [AuthModule, UsersModule, WorldElevationsModule],
     });
   });
 
@@ -159,12 +162,30 @@ describe('Auth refresh flow (e2e)', () => {
         })
         .expect(204);
 
-      // Event user.password.changed by měl být handler v AuthService
-      // synchronně volán → refresh token je už revoked.
-      // Ale @OnEvent je async, takže potřebujeme krátký flush:
-      await new Promise((resolve) => setImmediate(resolve));
+      // Revokaci provádí async `@OnEvent('user.password.changed')` handler v
+      // AuthService (`revokeAllForUser` → `refresh_tokens.revoked=true`) — NENÍ
+      // synchronní vůči HTTP odpovědi na změnu hesla. Jeden `setImmediate` flush
+      // byl pod paralelní zátěží (--maxWorkers=2) flaky (handler ještě neproběhl
+      // → refresh vrátil 200). Pollovat SAMOTNÝ refresh endpoint nejde: úspěšný
+      // refresh token zrotuje (spotřebuje ho) → druhý pokus by vrátil 401 z
+      // JINÉHO důvodu (rotace, ne revokace) = falešně zelená. Proto čekáme
+      // deterministicky na revokaci v DB, PAK refresh zavoláme jen jednou.
+      const refreshTokens = testApp.connection.collection('refresh_tokens');
+      let revoked = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const remaining = await refreshTokens.countDocuments({
+          userId: session.userId,
+          revoked: { $ne: true },
+        });
+        if (remaining === 0) {
+          revoked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      expect(revoked).toBe(true);
 
-      // Refresh starým tokenem už nesmí projít
+      // Refresh starým (revokovaným) tokenem už nesmí projít.
       const res = await request(testApp.app.getHttpServer())
         .post('/api/auth/refresh')
         .send({ refreshToken: session.refreshToken });

@@ -14,6 +14,7 @@ import { IkarosMessagesModule } from '../src/modules/ikaros-messages/ikaros-mess
 import { MailerModule } from '../src/modules/mailer/mailer.module';
 import { SecurityTokensModule } from '../src/modules/security-tokens/security-tokens.module';
 import { DataExportModule } from '../src/modules/data-export/data-export.module';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 /**
  * Spec 1.8 — e2e flow pro Friendship modul.
@@ -48,6 +49,9 @@ describe('Friendships flow (e2e)', () => {
         IkarosMessagesModule,
         PendingActionsModule,
         FriendshipsModule,
+        // AuthService injektuje WorldElevationsService — @Global modul se
+        // ale při selektivním modules importu neregistruje automaticky.
+        WorldElevationsModule,
       ],
       envOverrides: {
         FRIEND_REQUEST_COOLDOWN_HOURS: '1',

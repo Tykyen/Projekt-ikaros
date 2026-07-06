@@ -8,13 +8,17 @@ import { registerUser, loginUser } from './helpers/auth';
 import { clearAllCollections } from './helpers/db';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { UsersModule } from '../src/modules/users/users.module';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 describe('Auth login by identifier (e2e)', () => {
   let testApp: TestApp;
 
   beforeAll(async () => {
     testApp = await createTestApp({
-      modules: [AuthModule, UsersModule],
+      // AuthService injektuje WorldElevationsService (@Global, ale při
+      // selektivním modules importu se @Global moduly nezaregistrují samy —
+      // musí být explicitně v seznamu), jinak Nest DI compile selže.
+      modules: [AuthModule, UsersModule, WorldElevationsModule],
     });
   });
 

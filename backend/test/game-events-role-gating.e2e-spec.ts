@@ -9,6 +9,7 @@ import { WorldsModule } from '../src/modules/worlds/worlds.module';
 import { GameEventsModule } from '../src/modules/game-events/game-events.module';
 import { ChatModule } from '../src/modules/chat/chat.module';
 import { PushModule } from '../src/modules/push/push.module';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 describe('GameEvents role gating (e2e)', () => {
   let testApp: TestApp;
@@ -22,6 +23,9 @@ describe('GameEvents role gating (e2e)', () => {
         GameEventsModule,
         ChatModule,
         PushModule,
+        // AuthService injektuje WorldElevationsService — @Global modul se
+        // ale při selektivním modules importu neregistruje automaticky.
+        WorldElevationsModule,
       ],
     });
   });
@@ -136,12 +140,17 @@ describe('GameEvents role gating (e2e)', () => {
       .expect(201);
   });
 
-  it('Admin globální (ne-member světa) POST → 201 (bypass)', async () => {
+  // R-20 governance (viz docs/arch/phase-1/_side-tasks/spec-world-admin-elevation.md,
+  // paměť admin_governance): platform Admin/Superadmin NEMÁ automaticky moc uvnitř
+  // světa. Bypass (`worldAdminBypass`) platí JEN pro svět, kde má admin AKTIVNÍ
+  // elevaci (záznam v `world_elevations`). Bez elevace a bez membershipu = jako
+  // nečlen → 403. (Dřív tenhle test čekal bezpodmínečný 201 — starý model.)
+  it('Admin globální BEZ elevace (ne-member) POST → 403 (R-20 governance)', async () => {
     const { worldId } = await setupOwnerAndWorld();
     const adminCreds = uniqueCreds('admin');
     const admin = await registerUser(testApp.app, adminCreds);
 
-    // Promote globally to UserRole.Admin = 2 (lower number = higher privilege).
+    // Povýšení na UserRole.Admin = 2 (nižší číslo = vyšší oprávnění).
     await testApp.connection
       .collection('users')
       .updateOne(
@@ -149,7 +158,44 @@ describe('GameEvents role gating (e2e)', () => {
         { $set: { role: 2 } },
       );
 
-    // Re-login so the new JWT carries role = 2
+    // Re-login, aby JWT nesl role = 2.
+    const adminFresh = await loginUser(
+      testApp.app,
+      adminCreds.email,
+      adminCreds.password,
+    );
+
+    await request(testApp.app.getHttpServer())
+      .post('/api/game-events')
+      .set(authHeader(adminFresh.accessToken))
+      .send(eventPayload(worldId))
+      .expect(403);
+  });
+
+  it('Admin globální S elevací POST → 201 (bypass po nahození práv)', async () => {
+    const { worldId } = await setupOwnerAndWorld();
+    const adminCreds = uniqueCreds('adminelev');
+    const admin = await registerUser(testApp.app, adminCreds);
+
+    // Povýšení na UserRole.Admin = 2.
+    await testApp.connection
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(admin.userId) },
+        { $set: { role: 2 } },
+      );
+
+    // Aktivace elevace pro TENTO svět — záznam v `world_elevations`.
+    // JwtAuthGuard čte `elevatedWorldIds` z této kolekce při KAŽDÉM requestu
+    // (listWorldIdsForUser), takže stačí vložit doc; re-login není kvůli
+    // elevaci nutný, ale potřebujeme čerstvý JWT s role = 2 (viz níže).
+    await testApp.connection.collection('world_elevations').insertOne({
+      userId: admin.userId,
+      worldId,
+      activatedAt: new Date(),
+    });
+
+    // Re-login, aby JWT nesl role = 2 (bypass gate: role <= Admin ∧ elevated).
     const adminFresh = await loginUser(
       testApp.app,
       adminCreds.email,

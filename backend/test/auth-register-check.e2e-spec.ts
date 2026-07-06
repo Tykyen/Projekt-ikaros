@@ -7,13 +7,16 @@ import { registerUser } from './helpers/auth';
 import { clearAllCollections } from './helpers/db';
 import { AuthModule } from '../src/modules/auth/auth.module';
 import { UsersModule } from '../src/modules/users/users.module';
+import { WorldElevationsModule } from '../src/modules/world-elevations/world-elevations.module';
 
 describe('Auth register conflict + check (e2e)', () => {
   let testApp: TestApp;
 
   beforeAll(async () => {
     testApp = await createTestApp({
-      modules: [AuthModule, UsersModule],
+      // AuthService injektuje WorldElevationsService — @Global modul se
+      // ale při selektivním modules importu neregistruje automaticky.
+      modules: [AuthModule, UsersModule, WorldElevationsModule],
     });
   });
 

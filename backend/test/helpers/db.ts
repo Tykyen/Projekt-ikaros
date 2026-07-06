@@ -8,7 +8,12 @@ export interface TestDb {
 }
 
 export async function startTestDb(): Promise<TestDb> {
-  const mongo = await MongoMemoryServer.create();
+  // launchTimeout zvednutý stejně jako u replica-set varianty níže — pod
+  // zátěží plné e2e sady (paralelní `mongod` procesy) default 10 s občas
+  // nestíhá (RC-CC-e2e-launch-timeout).
+  const mongo = await MongoMemoryServer.create({
+    instance: { launchTimeout: 60000 },
+  });
   const uri = mongo.getUri();
   return {
     mongo,
@@ -31,8 +36,13 @@ export async function startTestDb(): Promise<TestDb> {
 export async function startTestReplDb(): Promise<TestDb> {
   // Default launch timeout 10 s je pod zátěží plné e2e sady na replica-set mongod
   // málo (boot pomalejší než standalone) → flaky „failed to start within 10000ms".
-  process.env.MONGOMS_LAUNCH_TIMEOUT ??= '60000';
-  const mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  // POZOR: `MONGOMS_LAUNCH_TIMEOUT` env var v mongodb-memory-server-core@11
+  // NEEXISTUJE (žádný env mapping na `launchTimeout` — ověřeno v
+  // resolveConfig.js), musí jít přes `instanceOpts.launchTimeout` konstruktoru.
+  const mongo = await MongoMemoryReplSet.create({
+    replSet: { count: 1 },
+    instanceOpts: [{ launchTimeout: 60000 }],
+  });
   const uri = mongo.getUri();
   return {
     mongo,
