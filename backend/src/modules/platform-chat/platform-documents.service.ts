@@ -154,5 +154,18 @@ export class PlatformDocumentsService {
       });
     }
     await this.model.findByIdAndDelete(id).exec();
+    // FIX-33 — úklid Cloudinary raw PDF assetu smazaného dokumentu; jinak
+    // blob leakuje navždy (`uploadPlatformDocument` ho nahrává jako `raw`).
+    const rec = doc as unknown as Record<string, unknown>;
+    await this.uploadService.deleteAttachments([
+      {
+        url: rec.url as string,
+        publicId: rec.publicId as string,
+        type: 'document',
+        mimeType: (rec.mimeType as string) ?? 'application/pdf',
+        filename: rec.filename as string,
+        size: (rec.sizeBytes as number) ?? 0,
+      },
+    ]);
   }
 }

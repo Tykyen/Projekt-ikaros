@@ -115,12 +115,22 @@ export class IkarosEventsService {
         code: 'IKAROS_EVENT_EMPTY_UPDATE',
         message: 'Musíš upravit alespoň jedno pole.',
       });
+    // FIX-30 — načíst existující kvůli úklidu starého blobu při výměně obrázku.
+    const existing = await this.repo.findById(id);
     const updated = await this.repo.update(id, fields);
     if (!updated)
       throw new NotFoundException({
         code: 'IKAROS_EVENT_NOT_FOUND',
         message: 'Akce nenalezena',
       });
+    // FIX-30 — úklid starého blobu při výměně / odebrání obrázku.
+    if (
+      dto.imageUrl !== undefined &&
+      existing?.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.eventEmitter.emit('ikaros-events.changed', {});
     const [res] = await this.toResponses([updated], requestUserId);
     return res;

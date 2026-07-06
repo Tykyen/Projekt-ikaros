@@ -164,6 +164,8 @@ export class IkarosNewsService {
         message: 'Musíš upravit alespoň jedno pole.',
       });
     }
+    // FIX-30 — načíst existující kvůli úklidu starého blobu při výměně obrázku.
+    const existing = await this.repo.findById(id);
     const updated = await this.repo.update(id, {
       ...(dto.title !== undefined && { title: dto.title }),
       // F-10 — sanitizace rich-text obsahu před uložením.
@@ -178,6 +180,14 @@ export class IkarosNewsService {
         code: 'IKAROS_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    // FIX-30 — úklid starého blobu při výměně / odebrání obrázku.
+    if (
+      dto.imageUrl !== undefined &&
+      existing?.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.eventEmitter.emit('ikaros-news.changed', {});
     const [enriched] = await this.joinAuthorNames([updated]);
     return enriched;

@@ -203,6 +203,14 @@ export class BestiaeService {
     }
     const updated = await this.repo.updateAtomic(id, dto);
     if (!updated) throw new NotFoundException();
+    // FIX-29 — úklid starého blobu obrázku bestie při výměně / odebrání.
+    if (
+      dto.imageUrl !== undefined &&
+      existing.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
     this.emitChanged(updated);
     return updated;
   }
@@ -212,6 +220,12 @@ export class BestiaeService {
     if (!existing) throw new NotFoundException();
     await this.assertCanWrite(existing, user);
     await this.repo.softDelete(id);
+    // FIX-29 — NEemitujeme `media.orphaned` zde: `softDelete` je zotavitelný
+    // (`POST /bestiae/:id/restore`), na rozdíl od world-news/game-events
+    // (hard delete bez restore). Okamžitý úklid Cloudinary blobu by po
+    // restore nechal bestii s rozbitým obrázkem. Cleanup patří až k
+    // budoucímu skutečnému hard-delete (repo.hardDelete existuje, ale
+    // dnes ho nevolá žádný cron/service).
     this.emitChanged(existing);
   }
 

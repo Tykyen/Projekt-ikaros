@@ -52,6 +52,10 @@ export class MongoChannelReadStatusRepository implements IChannelReadStatusRepos
     return this.toEntity(doc as unknown as Record<string, unknown>);
   }
 
+  async deleteByChannelId(channelId: string): Promise<void> {
+    await this.model.deleteMany({ channelId }).exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): ChannelReadStatus {
     return {
       id: String(doc._id),

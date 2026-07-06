@@ -45,7 +45,9 @@ export class WorldNewsController {
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary:
-      'Seznam novinek. Bez worldId = vše. ?scope=active (default, public) | archived | all (oba PomocnyPJ+/Admin).',
+      // FIX-22b — dřív „Bez worldId = vše" leakovalo i novinky privátních
+      // světů komukoli; bez worldId teď vrací jen GLOBÁLNÍ novinky (worldId=null).
+      'Seznam novinek. Bez worldId = jen globální. ?scope=active (default, public) | archived | all (oba PomocnyPJ+/Admin).',
   })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 401 })

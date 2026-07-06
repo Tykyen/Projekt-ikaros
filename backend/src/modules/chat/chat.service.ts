@@ -457,7 +457,12 @@ export class ChatService implements OnApplicationBootstrap {
     const channels = await this.channelRepo.findByGroupId(groupId);
     for (const ch of channels) {
       await this.messageRepo.softDeleteByChannelId(ch.id);
+      await this.readRepo.deleteByChannelId(ch.id); // FIX-35 — osiřelý read-status.
       await this.channelRepo.delete(ch.id);
+      // FIX-27 — úklid blobu obrázku konverzace smazané cascade se skupinou.
+      if (ch.imageUrl) {
+        this.eventEmitter.emit('media.orphaned', { urls: [ch.imageUrl] });
+      }
       this.eventEmitter.emit('chat.channel.deleted', {
         worldId: group.worldId,
         channelId: ch.id,
@@ -465,6 +470,10 @@ export class ChatService implements OnApplicationBootstrap {
       });
     }
     await this.groupRepo.delete(groupId);
+    // FIX-28 — úklid blobu obrázku smazané skupiny.
+    if (group.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [group.imageUrl] });
+    }
     this.eventEmitter.emit('chat.group.deleted', {
       worldId: group.worldId,
       groupId,
@@ -581,6 +590,14 @@ export class ChatService implements OnApplicationBootstrap {
         code: 'CHAT_CHANNEL_NOT_FOUND',
         message: 'Kanál nenalezen',
       });
+    // FIX-27 — úklid starého blobu obrázku konverzace při výměně / odebrání.
+    if (
+      dto.imageUrl !== undefined &&
+      channel.imageUrl &&
+      channel.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [channel.imageUrl] });
+    }
     this.eventEmitter.emit('chat.channel.updated', {
       worldId: channel.worldId,
       channel: updated,
@@ -606,7 +623,12 @@ export class ChatService implements OnApplicationBootstrap {
       });
     }
     await this.messageRepo.softDeleteByChannelId(channelId);
+    await this.readRepo.deleteByChannelId(channelId); // FIX-35 — osiřelý read-status.
     await this.channelRepo.delete(channelId);
+    // FIX-27 — úklid blobu obrázku smazané konverzace.
+    if (channel.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [channel.imageUrl] });
+    }
     this.eventEmitter.emit('chat.channel.deleted', {
       worldId: channel.worldId,
       channelId,

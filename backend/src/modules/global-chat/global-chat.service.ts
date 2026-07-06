@@ -14,7 +14,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { logWarn } from '../../common/logging/log-error.util';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IChatChannelRepository } from '../chat/interfaces/chat-channel-repository.interface';
 import type { IChatMessageRepository } from '../chat/interfaces/chat-message-repository.interface';
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
@@ -739,5 +739,15 @@ export class GlobalChatService implements OnModuleInit {
   /** Spec 16.6b — smaže hráčův slot (idempotentní). */
   async deleteSavedGame(userId: string): Promise<void> {
     await this.savedGameModel.deleteOne({ userId }).exec();
+  }
+
+  /**
+   * FIX-34 (GDPR) — hard-delete účtu uklidí i uloženou hru Campu (keyed
+   * userId, jinak orphan záznam přežije anonymizaci uživatele). Konzistentní
+   * s trusted-devices / world-elevations cleanupem stejného eventu.
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleAccountHardDeleted(payload: { userId: string }): Promise<void> {
+    await this.savedGameModel.deleteOne({ userId: payload.userId }).exec();
   }
 }

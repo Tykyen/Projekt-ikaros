@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MapOperationsService } from './map-operations.service';
 import { OperationPayloadValidator } from './operation-payload-validator.service';
 import { OperationsAuthorizer } from './operations-authorizer.service';
@@ -105,6 +106,7 @@ describe('MapOperationsService', () => {
         Promise.resolve({ id: 'wrec1', ...record }),
       ),
   };
+  const mockEventEmitter = { emit: jest.fn() };
 
   const pj = { id: 'pj', role: UserRole.Hrac }; // role gating se děje v authorizer mock
 
@@ -148,6 +150,7 @@ describe('MapOperationsService', () => {
           provide: 'IWorldOperationsRepository',
           useValue: mockWorldOpsRepo,
         },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
     service = module.get(MapOperationsService);

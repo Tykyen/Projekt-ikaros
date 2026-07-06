@@ -14,4 +14,6 @@ export interface IChannelReadStatusRepository {
     channelId: string,
     lastReadMessageId: string,
   ): Promise<ChannelReadStatus>;
+  /** FIX-35 — úklid osiřelých read-status záznamů po smazání kanálu. */
+  deleteByChannelId(channelId: string): Promise<void>;
 }

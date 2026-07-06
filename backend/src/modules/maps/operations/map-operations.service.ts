@@ -29,6 +29,7 @@ import type { IWorldsRepository } from '../../worlds/interfaces/worlds-repositor
 import type { IWorldMembershipRepository } from '../../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldOperationsRepository } from '../../worlds/interfaces/world-operations-repository.interface';
 import { SystemStatsValidatorService } from '../schemas/system-entity-schema/system-stats-validator.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 export interface ApplyMapOperationResult {
   recordId: string;
@@ -80,6 +81,7 @@ export class MapOperationsService {
     private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldOperationsRepository')
     private readonly worldOpsRepo: IWorldOperationsRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async apply(
@@ -831,6 +833,15 @@ export class MapOperationsService {
           { _id: sceneId },
           { $set: { imageUrl: op.imageUrl, lastModified: now } },
         );
+        // FIX-31 — úklid starého blobu pozadí scény při in-place výměně
+        // (deleteScene už fix má, UM-05). Pozn.: `scene.image` má `inverse`
+        // (undo stack, 10.2m) — dnes ale žádný endpoint undo nevolá
+        // (`findLastByUser` bez callerů), takže okamžitý cleanup nic
+        // nerozbíjí. Až bude undo skutečně zapojené, přehodnotit (obnova by
+        // ukázala smazaný blob).
+        if (op.imageUrl !== scene.imageUrl && scene.imageUrl) {
+          this.eventEmitter.emit('media.orphaned', { urls: [scene.imageUrl] });
+        }
         return;
 
       case 'scene.name':

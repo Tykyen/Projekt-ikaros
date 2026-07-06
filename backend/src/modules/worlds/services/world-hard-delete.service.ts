@@ -65,6 +65,10 @@ const WORLD_SCOPED_COLLECTIONS = [
   'worldmemberships',
   'worldOperations',
   'worldsettings',
+  // FIX-26 (blob/cascade audit) — `worldId` required, dřív chyběly v cascade →
+  // orphan po hard-delete světa.
+  'entity_schema_versions',
+  'world_elevations',
 ];
 
 /**
@@ -80,6 +84,14 @@ const BLOB_COLLECTIONS: Record<string, string[]> = {
   bestiae: ['imageUrl'],
   worldMapEntries: ['imageUrl'],
   worldmemberships: ['avatarUrl', 'pjPersonaAvatarUrl'],
+  // FIX-25 (blob/cascade audit) — dřív se mazaly přímým deleteMany bez
+  // úklidu Cloudinary blobu → osiřelý soubor navždy.
+  pages: ['imageUrl'],
+  chatchannels: ['imageUrl'],
+  campaignSubjects: ['avatarUrl'],
+  game_events: ['imageUrl'],
+  timeline_events: ['imageUrl'],
+  worldnews: ['imageUrl'],
 };
 
 /**
@@ -146,6 +158,9 @@ export class WorldHardDeleteService {
     for (const [coll, fields] of Object.entries(BLOB_COLLECTIONS)) {
       await this.collectBlobs(coll, { worldId }, fields);
     }
+    // FIX-25 — `pages.galleryImages` je pole objektů `{ url, ... }`, ne prostý
+    // string field → nejde přes generický `collectBlobs`, potřebuje vlastní extrakci.
+    await this.collectGalleryBlobs('pages', { worldId }, 'galleryImages');
 
     // 2) všechny world-scoped kolekce.
     for (const coll of WORLD_SCOPED_COLLECTIONS) {
@@ -191,6 +206,39 @@ export class WorldHardDeleteService {
     } catch (err) {
       this.logger.error(
         `hardDelete: blob collect ${collection} selhal: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * FIX-25 — varianta `collectBlobs` pro pole objektů (`{ url, ... }[]`),
+   * jako `pages.galleryImages`. Posbírá `.url` z každé položky pole.
+   */
+  private async collectGalleryBlobs(
+    collection: string,
+    filter: Record<string, unknown>,
+    field: string,
+  ): Promise<void> {
+    try {
+      const docs = (await this.connection
+        .collection(collection)
+        .find(filter, { projection: { [field]: 1 } })
+        .toArray()) as Array<Record<string, unknown>>;
+      const urls: string[] = [];
+      for (const doc of docs) {
+        const items = doc[field];
+        if (!Array.isArray(items)) continue;
+        for (const item of items as Array<Record<string, unknown>>) {
+          const url = item?.url;
+          if (typeof url === 'string' && url.length > 0) urls.push(url);
+        }
+      }
+      if (urls.length > 0) {
+        this.eventEmitter.emit('media.orphaned', { urls });
+      }
+    } catch (err) {
+      this.logger.error(
+        `hardDelete: gallery blob collect ${collection} selhal: ${(err as Error).message}`,
       );
     }
   }

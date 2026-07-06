@@ -54,8 +54,15 @@ export class MongoWorldNewsRepository implements IWorldNewsRepository {
     worldId: string | undefined,
     scope: WorldNewsScope,
   ): Record<string, unknown> {
+    // FIX-22b — bez `worldId` smí projít jen GLOBÁLNÍ novinky (worldId=null),
+    // ne celá kolekce. Dřív `{}` (žádný filtr) vracel i novinky privátních
+    // světů komukoli, kdo zavolal `GET /world-news` bez query parametru
+    // (service gate `assertCanReadScope` pro `scope=active` bez worldId
+    // taky nic nekontroluje — viz FIX-22 komentář tamtéž).
     const worldFilter =
-      worldId === undefined ? {} : { worldId: { $in: [worldId, null] } };
+      worldId === undefined
+        ? { worldId: null }
+        : { worldId: { $in: [worldId, null] } };
     return { ...worldFilter, ...this.scopeFilter(scope) };
   }
 

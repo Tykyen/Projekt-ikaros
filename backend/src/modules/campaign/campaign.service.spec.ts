@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CampaignService } from './campaign.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -89,6 +90,7 @@ describe('CampaignService', () => {
     findByUserAndWorld: jest.fn(),
     findByWorldId: jest.fn(),
   };
+  const mockEventEmitter = { emit: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -110,6 +112,7 @@ describe('CampaignService', () => {
         },
         { provide: 'ICampaignChangeLogRepository', useValue: mockLogRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
       ],
     }).compile();
     service = module.get(CampaignService);

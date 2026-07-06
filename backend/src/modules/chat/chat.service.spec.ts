@@ -137,6 +137,7 @@ describe('ChatService', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
@@ -1993,6 +1994,7 @@ describe('sendMessage — new fields', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
@@ -2263,6 +2265,7 @@ describe('toggleReaction', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
@@ -2436,6 +2439,7 @@ describe('sendMessage — character mentions', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
@@ -2648,6 +2652,7 @@ describe('sendMessage — attachments', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
@@ -2789,6 +2794,7 @@ describe('findChannelForUpload', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),
@@ -2936,6 +2942,7 @@ describe('getMessages — whisper filtering', () => {
     findByUserAndChannel: jest.fn(),
     findByUserAndChannels: jest.fn(),
     upsert: jest.fn(),
+    deleteByChannelId: jest.fn(),
   };
   const mockMembershipRepo = {
     findByUserAndWorld: jest.fn(),

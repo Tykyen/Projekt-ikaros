@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
@@ -59,6 +60,7 @@ export class CampaignService {
     private readonly logRepo: ICampaignChangeLogRepository,
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -289,6 +291,10 @@ export class CampaignService {
       });
     await this.subjectRepo.delete(id);
     await this.relRepo.deleteBySubjectId(id);
+    // FIX-32 — úklid blobu avataru smazaného subjektu (hard delete, bez restore).
+    if (existing.avatarUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.avatarUrl] });
+    }
     this.logChange(
       existing,
       'subject',
