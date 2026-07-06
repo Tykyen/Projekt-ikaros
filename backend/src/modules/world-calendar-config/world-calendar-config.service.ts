@@ -74,7 +74,7 @@ export class WorldCalendarConfigService {
     requester: CalendarConfigRequester,
   ): Promise<WorldCalendarConfig> {
     await this.assertCanWrite(worldId, requester);
-    this.validateMonthsAndSeasons(dto);
+    this.validateMonthsAndSeasons(dto.months, dto.seasons);
 
     const data = {
       slug: dto.slug,
@@ -107,7 +107,15 @@ export class WorldCalendarConfigService {
     requester: CalendarConfigRequester,
   ): Promise<WorldCalendarConfig> {
     await this.assertCanWrite(worldId, requester);
-    this.validateMonthsAndSeasons(dto);
+    // FIX-62 — PATCH jen `{seasons}` (bez `months`) musí validovat proti
+    // STÁVAJÍCÍM měsícům configu; dřív `!dto.months` → validace se rovnou
+    // přeskočila → SEASON_OUT_OF_RANGE nikdy neproběhlo na season-only patch.
+    const monthsForValidation =
+      dto.months ??
+      (dto.seasons
+        ? (await this.repo.findBySlug(worldId, slug))?.months
+        : undefined);
+    this.validateMonthsAndSeasons(monthsForValidation, dto.seasons);
 
     const patched = await this.repo.patch(worldId, slug, {
       name: dto.name,
@@ -184,7 +192,7 @@ export class WorldCalendarConfigService {
   ): Promise<WorldCalendarConfig> {
     const existing = await this.repo.findBySlug(worldId, dto.slug);
     if (existing) return existing;
-    this.validateMonthsAndSeasons(dto);
+    this.validateMonthsAndSeasons(dto.months, dto.seasons);
     const created = await this.repo.create(worldId, {
       slug: dto.slug,
       name: dto.name,
@@ -291,15 +299,20 @@ export class WorldCalendarConfigService {
 
   // ── Validation ────────────────────────────────────────────────────
 
-  private validateMonthsAndSeasons(dto: {
-    months?: { name: string; daysCount: number }[];
-    seasons?: { startMonthIndex: number; startDay: number }[];
-  }): void {
-    if (!dto.months || dto.months.length === 0) return;
-    const monthCount = dto.months.length;
+  /**
+   * FIX-62 — bere `months`/`seasons` už MERGED (volající zodpovídá za merge s
+   * existujícím configem, když PATCH `months` neposílá) — jinak `{seasons}`-only
+   * patch obchází kontrolu (viz `patch()`).
+   */
+  private validateMonthsAndSeasons(
+    months: { name: string; daysCount: number }[] | undefined,
+    seasons?: { startMonthIndex: number; startDay: number }[],
+  ): void {
+    if (!months || months.length === 0) return;
+    const monthCount = months.length;
 
-    if (dto.seasons) {
-      for (const season of dto.seasons) {
+    if (seasons) {
+      for (const season of seasons) {
         if (
           season.startMonthIndex < 0 ||
           season.startMonthIndex >= monthCount
@@ -309,7 +322,7 @@ export class WorldCalendarConfigService {
             message: `Sezóna startMonthIndex ${season.startMonthIndex} mimo rozsah 0..${monthCount - 1}`,
           });
         }
-        const monthDef = dto.months[season.startMonthIndex];
+        const monthDef = months[season.startMonthIndex];
         if (season.startDay < 1 || season.startDay > monthDef.daysCount) {
           throw new BadRequestException({
             code: 'SEASON_DAY_OUT_OF_RANGE',

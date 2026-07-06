@@ -438,6 +438,16 @@ describe('GameEventsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // FIX-60 — service musí check i na '' (ne jen null/undefined), jinak jde
+    // uložit event bez publika (groupOnly:true, targetGroup: '').
+    it('groupOnly: true && targetGroup: "" → 400', async () => {
+      mockRepo.findById.mockResolvedValue(baseEvent);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+      await expect(
+        service.update('e1', { groupOnly: true, targetGroup: '' }, mockPJUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
     it('groupOnly: true && existing targetGroup zůstává — OK', async () => {
       mockRepo.findById.mockResolvedValue({
         ...baseEvent,

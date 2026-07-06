@@ -181,6 +181,11 @@ export class MongoUsersRepository
       .exec();
   }
 
+  /** FIX-68 — celkový počet aktivních (non-tombstone) účtů. */
+  async countActive(): Promise<number> {
+    return this.model.countDocuments({ isDeleted: { $ne: true } }).exec();
+  }
+
   async countPendingDeletion(): Promise<number> {
     return this.model
       .countDocuments({

@@ -25,6 +25,8 @@ import { UserRole } from '../users/interfaces/user.interface';
 interface RequestUser {
   id: string;
   role: UserRole;
+  /** World elevation (platform Admin bypass jen pro tyto světy) — viz worldAdminBypass. */
+  elevatedWorldIds?: string[];
 }
 
 @ApiTags('WorldPageTemplates')
@@ -37,8 +39,9 @@ export class WorldPageTemplatesController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Seznam šablon stránek pro daný svět' })
   @ApiResponse({ status: 200, description: 'OK' })
-  findAll(@Param('worldId') worldId: string) {
-    return this.service.findByWorld(worldId);
+  @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
+  findAll(@Param('worldId') worldId: string, @CurrentUser() user: RequestUser) {
+    return this.service.findByWorld(worldId, user);
   }
 
   @Post()

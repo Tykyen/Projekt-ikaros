@@ -926,6 +926,14 @@ export class UsersService implements OnModuleInit {
         message: 'Neplatné worldId',
       });
     }
+    // FIX-66 — dřív jen tvar ObjectId, existence světa se neověřovala →
+    // šlo nasypat favoritePageSlugs pro neexistující worldId (mrtvý záznam).
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
     const dedup = Array.from(new Set(slugs));
     const next = { ...(user.favoritePageSlugs ?? {}) };
     if (dedup.length === 0) {

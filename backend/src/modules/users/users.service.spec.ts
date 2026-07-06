@@ -1125,11 +1125,25 @@ describe('UsersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    // FIX-66 — existence světa se dřív neověřovala (jen tvar ObjectId).
+    it('404 NotFound když svět neexistuje', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockUser,
+        favoritePageSlugs: {},
+      });
+      mockWorldsRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.setFavoritePages('u1', VALID_WORLD, ['domov']),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockRepo.update).not.toHaveBeenCalled();
+    });
+
     it('dedup zachová POŘADÍ vložení (reorder)', async () => {
       mockRepo.findById.mockResolvedValue({
         ...mockUser,
         favoritePageSlugs: {},
       });
+      mockWorldsRepo.findById.mockResolvedValue({ id: VALID_WORLD });
       mockRepo.update.mockResolvedValue({ ...mockUser });
       const result = await service.setFavoritePages('u1', VALID_WORLD, [
         'mapa',
@@ -1149,6 +1163,7 @@ describe('UsersService', () => {
         ...mockUser,
         favoritePageSlugs: { [VALID_WORLD]: ['domov'], world2: ['mesto'] },
       });
+      mockWorldsRepo.findById.mockResolvedValue({ id: VALID_WORLD });
       mockRepo.update.mockResolvedValue({ ...mockUser });
       const result = await service.setFavoritePages('u1', VALID_WORLD, []);
       expect(result[VALID_WORLD]).toBeUndefined();
@@ -1160,6 +1175,7 @@ describe('UsersService', () => {
         ...mockUser,
         favoritePageSlugs: { world2: ['existing'] },
       });
+      mockWorldsRepo.findById.mockResolvedValue({ id: VALID_WORLD });
       mockRepo.update.mockResolvedValue({ ...mockUser });
       const result = await service.setFavoritePages('u1', VALID_WORLD, [
         'domov',

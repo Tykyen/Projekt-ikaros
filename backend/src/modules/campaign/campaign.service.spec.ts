@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { CampaignService } from './campaign.service';
@@ -441,6 +442,10 @@ describe('CampaignService', () => {
 
   describe('relationships — emoční model (11.1)', () => {
     it('createRelationship předá valence/emotionTag do repo (passthrough, žádný field-drop)', async () => {
+      mockSubjectRepo.findById.mockResolvedValue({
+        ...mockSubject,
+        worldId: 'w1',
+      });
       mockRelRepo.create.mockImplementation((d: Record<string, unknown>) =>
         Promise.resolve({ id: 'rel1', ...d }),
       );
@@ -465,6 +470,47 @@ describe('CampaignService', () => {
           }),
         }),
       );
+    });
+  });
+
+  // FIX-73 — self-relationship + world-scope validace obou subjektů.
+  describe('createRelationship — validace subjektů (FIX-73)', () => {
+    it('subjectAId === subjectBId → BadRequestException', async () => {
+      await expect(
+        service.createRelationship('u1', 'U', WorldRole.Hrac, 'w1', false, {
+          subjectAId: 'a',
+          subjectBId: 'a',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockSubjectRepo.findById).not.toHaveBeenCalled();
+      expect(mockRelRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('subjekt z jiného světa → 404 (cross-world IDOR)', async () => {
+      mockSubjectRepo.findById.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === 'a'
+            ? { ...mockSubject, worldId: 'w1' }
+            : { ...mockSubject, worldId: 'w2' },
+        ),
+      );
+      await expect(
+        service.createRelationship('u1', 'U', WorldRole.Hrac, 'w1', false, {
+          subjectAId: 'a',
+          subjectBId: 'b',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(mockRelRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('neexistující subjekt → 404', async () => {
+      mockSubjectRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.createRelationship('u1', 'U', WorldRole.Hrac, 'w1', false, {
+          subjectAId: 'a',
+          subjectBId: 'b',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

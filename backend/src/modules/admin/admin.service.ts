@@ -220,6 +220,13 @@ export class AdminService {
       lastSeenAt: new Date(),
       adminPermissions: { ...DEFAULT_ADMIN_PERMISSIONS },
     });
+    // FIX-72 — dřív se nezapisoval audit log (typ USER_CREATE existoval,
+    // ale nikdo ho nevolal → vznik účtu z admin panelu beze stopy).
+    await this.audit(actor, user, 'USER_CREATE', null, {
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    });
     return stripPassword(user);
   }
 

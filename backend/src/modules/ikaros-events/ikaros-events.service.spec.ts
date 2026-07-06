@@ -172,6 +172,23 @@ describe('IkarosEventsService', () => {
         expect.objectContaining({ confirmable: false }),
       );
     });
+
+    // FIX-71 — create() dřív imageFit vůbec neposílal do repo (feature mrtvá).
+    it('imageFit se pošle do repo.create', async () => {
+      mockRepo.create.mockResolvedValue({ ...mockItem, imageFit: 'contain' });
+      await service.create(
+        {
+          title: 'X',
+          date: '2026-06-01T18:00',
+          imageFit: 'contain',
+        },
+        'user1',
+        UserRole.Admin,
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ imageFit: 'contain' }),
+      );
+    });
   });
 
   describe('update', () => {

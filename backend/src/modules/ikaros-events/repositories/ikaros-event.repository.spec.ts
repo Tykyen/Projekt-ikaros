@@ -70,6 +70,20 @@ describe('MongoIkarosEventRepository', () => {
       } as never);
       await expect(repo.update('x', { title: 'Y' })).resolves.toBeNull();
     });
+
+    // FIX-71 — `toEntity` dřív `imageFit` nemapovalo (uložilo se, ale při čtení
+    // zpět zmizelo → feature mrtvá).
+    it('mapuje imageFit z dokumentu (FIX-71)', async () => {
+      const lean = jest
+        .fn()
+        .mockReturnValue(execMock({ ...docFixture, imageFit: 'contain' }));
+      const findByIdAndUpdate = jest.fn().mockReturnValue({ lean });
+      const repo = new MongoIkarosEventRepository({
+        findByIdAndUpdate,
+      } as never);
+      const res = await repo.update('e1', { imageFit: 'contain' } as never);
+      expect(res?.imageFit).toBe('contain');
+    });
   });
 
   describe('delete (hard, CD-RUN-4b)', () => {

@@ -71,8 +71,8 @@ export class SearchCoordinator {
     await Promise.all(this.providers.map((p) => p.updatePageInIndex(page)));
   }
 
-  async deletePageFromIndex(slug: string): Promise<void> {
-    await Promise.all(this.providers.map((p) => p.deletePageFromIndex(slug)));
+  async deletePageFromIndex(pageId: string): Promise<void> {
+    await Promise.all(this.providers.map((p) => p.deletePageFromIndex(pageId)));
   }
 
   async rebuildIndex(): Promise<void> {

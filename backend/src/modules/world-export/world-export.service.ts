@@ -301,7 +301,7 @@ export class WorldExportService {
       campaignQuickNotes,
       shopGroups,
       shopItems,
-      gmNotes,
+      ownGmNotesDoc,
     ] = await Promise.all([
       this.settingsRepo.findByWorldId(worldId),
       this.membershipRepo.findByWorldId(worldId),
@@ -323,7 +323,9 @@ export class WorldExportService {
       this.campaignQuickNoteRepo.findMany({ worldId }),
       this.shopGroupRepo.findMany({ worldId }),
       this.shopItemRepo.findMany({ worldId }),
-      this.gmNotesRepo.findByWorldId(worldId),
+      // FIX-57 — jen VLASTNÍ blok exportéra, ne `findByWorldId` (agregovalo by
+      // GM poznámky VŠECH PJ; WorldGmNotes jsou striktně per-PJ izolované).
+      this.gmNotesRepo.findByWorldAndUser(worldId, requesterId),
     ]);
 
     const [diaries, finances, inventories, notes] = await Promise.all([
@@ -369,7 +371,8 @@ export class WorldExportService {
         shopGroups,
         shopItems,
       },
-      gmNotes,
+      // FIX-57 — jen vlastní blok exportéra (0 nebo 1 položka), ne cizí PJ poznámky.
+      gmNotes: ownGmNotesDoc ? [ownGmNotesDoc] : [],
       chat,
     };
   }

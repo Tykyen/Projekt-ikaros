@@ -81,9 +81,15 @@ export class UpdateGameEventDto {
   @IsIn(['cover', 'contain'])
   imageFit?: 'cover' | 'contain' | null;
 
-  // F-08 — když groupOnly===true, targetGroup musí být neprázdný.
+  // F-08 (FIX-60, mirror create DTO) — když groupOnly===true NEBO je targetGroup
+  // vůbec poslaný, musí to být neprázdný string. Bez `|| targetGroup != null`
+  // šel PATCH `{groupOnly:true, targetGroup:''}` (groupOnly beze zbytku
+  // publika) obejít, protože `@ValidateIf` samotné `groupOnly===true` tu
+  // podmínku nekontrolovalo, když patch neposílal `groupOnly` vůbec.
   @IsOptional()
-  @ValidateIf((o: UpdateGameEventDto) => o.groupOnly === true)
+  @ValidateIf(
+    (o: UpdateGameEventDto) => o.groupOnly === true || o.targetGroup != null,
+  )
   @IsNotEmpty({ message: 'targetGroup je povinný, když groupOnly===true' })
   @IsString()
   @MaxLength(64)

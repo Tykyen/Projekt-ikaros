@@ -317,6 +317,16 @@ export class WorldWeatherService {
   }
 
   private validateConfig(config: WeatherGeneratorConfig): void {
+    // FIX-70 — defense-in-depth vedle DTO `@ArrayMinSize(1)`: prázdné pole by
+    // jinak prošlo (probability-sum check níže běží jen `if length > 0`) a
+    // `/generate` by spadl 500 na `weightedPick([])`.
+    if (!config.weatherTypes || config.weatherTypes.length === 0) {
+      throw new BadRequestException({
+        code: 'WEATHER_EMPTY_TYPES',
+        message:
+          'weatherTypes nesmí být prázdné — generátor potřebuje alespoň jeden typ počasí.',
+      });
+    }
     if (config.tempMin > config.tempMax)
       throw new BadRequestException({
         code: 'WEATHER_INVALID_TEMP_RANGE',

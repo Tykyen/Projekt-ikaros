@@ -119,8 +119,8 @@ export class SearchController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Odebrání stránky ze search indexu (Admin+)' })
   @ApiResponse({ status: 200 })
-  async pageDeleted(@Body() slug: string) {
-    await this.coordinator.deletePageFromIndex(slug);
+  async pageDeleted(@Body() pageId: string) {
+    await this.coordinator.deletePageFromIndex(pageId);
     return { message: 'Page removed from index.' };
   }
 

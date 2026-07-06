@@ -256,7 +256,8 @@ export class GameEventsService {
       imageFit: dto.imageFit ?? null,
       targetGroup: dto.targetGroup ?? null,
       groupOnly: dto.groupOnly ?? false,
-      confirmable: dto.confirmable ?? false,
+      // FIX-61 — mirror `ikaros-events.service.ts` + schema default `true`.
+      confirmable: dto.confirmable ?? true,
       confirmedBy: [],
       comments: [],
       reminderSent: false,
@@ -288,9 +289,13 @@ export class GameEventsService {
     const finalGroupOnly = dto.groupOnly ?? existing.groupOnly;
     const finalTargetGroup =
       dto.targetGroup !== undefined ? dto.targetGroup : existing.targetGroup;
+    // FIX-60 — i na '' (ne jen null/undefined): bez toho šlo PATCHem uložit
+    // `groupOnly:true, targetGroup:''` (event bez publika — nikdo ho neuvidí).
     if (
       finalGroupOnly === true &&
-      (finalTargetGroup === null || finalTargetGroup === undefined)
+      (finalTargetGroup === null ||
+        finalTargetGroup === undefined ||
+        finalTargetGroup === '')
     ) {
       throw new BadRequestException({
         code: 'BAD_REQUEST',

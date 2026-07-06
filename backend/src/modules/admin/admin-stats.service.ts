@@ -61,13 +61,9 @@ export class AdminStatsService {
       discussions,
       pendingUsernameRequests,
     ] = await Promise.all([
-      this.safe('users.total', async () => {
-        const res = await this.usersRepo.findAllPaginated({
-          page: 1,
-          limit: 1,
-        });
-        return res.total;
-      }),
+      // FIX-68 — dřív `findAllPaginated` (počítá i tombstone/smazané účty);
+      // DTO komentář slibuje „aktivní non-tombstone" (na rozdíl od tohoto totalu).
+      this.safe('users.total', () => this.usersRepo.countActive()),
       this.safe('users.online', async () => {
         const ids = await this.usersRepo.findOnlineSince(onlineSince);
         return ids.length;

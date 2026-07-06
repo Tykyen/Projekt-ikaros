@@ -11,7 +11,7 @@ describe('AdminStatsService', () => {
   let usersRepo: jest.Mocked<
     Pick<
       IUsersRepository,
-      | 'findAllPaginated'
+      | 'countActive'
       | 'findOnlineSince'
       | 'countCreatedSince'
       | 'countPendingDeletion'
@@ -41,7 +41,7 @@ describe('AdminStatsService', () => {
 
   beforeEach(() => {
     usersRepo = {
-      findAllPaginated: jest.fn().mockResolvedValue({ items: [], total: 42 }),
+      countActive: jest.fn().mockResolvedValue(42),
       findOnlineSince: jest.fn().mockResolvedValue(['a', 'b', 'c']),
       countCreatedSince: jest.fn().mockResolvedValue(5),
       countPendingDeletion: jest.fn().mockResolvedValue(2),

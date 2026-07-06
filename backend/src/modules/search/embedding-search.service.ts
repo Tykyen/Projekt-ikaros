@@ -163,8 +163,8 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
-  async deletePageFromIndex(slug: string): Promise<void> {
-    this.queue.enqueue({ type: 'Delete', slug });
+  async deletePageFromIndex(pageId: string): Promise<void> {
+    this.queue.enqueue({ type: 'Delete', pageId });
   }
 
   // eslint-disable-next-line @typescript-eslint/require-await
@@ -178,7 +178,7 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
 
   private async handleOperation(op: QueueOperation): Promise<void> {
     if (op.type === 'Upsert') await this.indexPage(op.page);
-    else if (op.type === 'Delete') await this.deletePage(op.slug);
+    else if (op.type === 'Delete') await this.deletePage(op.pageId);
     else if (op.type === 'Rebuild') await this.doRebuild();
   }
 
@@ -224,13 +224,11 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
     }
   }
 
-  private async deletePage(slug: string): Promise<void> {
+  private async deletePage(pageId: string): Promise<void> {
+    // FIX-59 — dřív se hledalo přes `e.slug === slug` (interface nesl slug);
+    // teď kontrakt nese `pageId` přímo, netřeba fetch+filter přes všechny embeddingy.
     for (const runtime of this.runtimes) {
-      const existing = await this.embeddingRepo.findByModelKey(runtime.key);
-      const toDelete = existing.filter((e) => e.slug === slug);
-      for (const e of toDelete) {
-        await this.embeddingRepo.deleteByPageId(e.pageId, runtime.key);
-      }
+      await this.embeddingRepo.deleteByPageId(pageId, runtime.key);
       await this.rebuildIndexForModel(runtime.key);
     }
   }

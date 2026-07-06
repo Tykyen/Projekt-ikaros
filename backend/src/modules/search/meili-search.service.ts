@@ -104,8 +104,10 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
     await this.index.addDocuments([this.toDocument(page)]);
   }
 
-  async deletePageFromIndex(slug: string): Promise<void> {
-    await this.index.deleteDocument(slug);
+  async deletePageFromIndex(pageId: string): Promise<void> {
+    // FIX-59 — MeiliSearch primaryKey je `id` (viz `toDocument`), ne `slug`.
+    // Mazání podle slugu nikdy netrefilo dokument → smazaná stránka zůstávala v indexu.
+    await this.index.deleteDocument(pageId);
   }
 
   async rebuildIndex(): Promise<void> {

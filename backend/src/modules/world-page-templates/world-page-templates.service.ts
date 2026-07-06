@@ -33,8 +33,16 @@ export class WorldPageTemplatesService {
     private readonly worldsRepo: IWorldsRepository,
   ) {}
 
-  /** GET — všichni přihlášení mohou číst seznam. */
-  async findByWorld(worldId: string): Promise<WorldPageTemplate[]> {
+  /**
+   * GET — čtou členové privátního světa / kdokoli přihlášený u veřejného.
+   * FIX-58 — dřív bez `assertCanViewWorld`, nečlen privátního světa tak četl
+   * šablony (vzor `pages.service.findByWorld`).
+   */
+  async findByWorld(
+    worldId: string,
+    requester: TemplateRequester,
+  ): Promise<WorldPageTemplate[]> {
+    await this.assertCanViewWorld(worldId, requester);
     return this.repo.findByWorld(worldId);
   }
 
@@ -164,6 +172,35 @@ export class WorldPageTemplatesService {
       throw new ForbiddenException({
         code: 'TEMPLATE_FORBIDDEN',
         message: 'Nedostatečná oprávnění pro správu šablon',
+      });
+    }
+  }
+
+  /**
+   * FIX-58 — read-gate pro GET (vzor `pages.service.assertCanViewWorld`):
+   * veřejný svět čte kdokoli přihlášený, privátní jen člen (nebo world-admin bypass).
+   */
+  private async assertCanViewWorld(
+    worldId: string,
+    requester: TemplateRequester,
+  ): Promise<void> {
+    if (worldAdminBypass(requester, worldId)) return;
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world) {
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    }
+    if (world.accessMode !== 'private') return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    if (!membership) {
+      throw new ForbiddenException({
+        code: 'TEMPLATE_FORBIDDEN',
+        message: 'Nejsi členem tohoto světa',
       });
     }
   }

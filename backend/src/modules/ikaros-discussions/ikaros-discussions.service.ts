@@ -129,7 +129,15 @@ export class IkarosDiscussionsService {
     username: string,
   ): boolean {
     if (this.isAdmin(role, username)) return true;
-    if (!discussion.isApproved) return false;
+    // FIX-64 — dřív `!isApproved` rovnou vrátilo false bez ohledu na
+    // creatorId/managerIds → tvůrce dostal 403 na VLASTNÍ pending diskuzi
+    // (nemohl sledovat stav schvalování ani ji upravit před schválením).
+    if (!discussion.isApproved) {
+      return (
+        discussion.creatorId === userId ||
+        discussion.managerIds.includes(userId)
+      );
+    }
     if (discussion.isOpen) return true;
     return (
       discussion.creatorId === userId ||
@@ -372,6 +380,16 @@ export class IkarosDiscussionsService {
         code: 'DISCUSSION_NOT_FOUND',
         message: 'Diskuze nenalezena',
       });
+    // FIX-65 — `reject` je hard-delete. Bez tohoto guardu šlo „zamítnout"
+    // (= smazat) i živou, už schválenou diskuzi — reject smí cílit jen na
+    // dosud NEschválenou (pending) diskuzi.
+    if (discussion.isApproved) {
+      throw new BadRequestException({
+        code: 'DISCUSSION_ALREADY_APPROVED',
+        message:
+          'Diskuze je už schválená — zamítnutí lze použít jen na čekající (neschválenou) diskuzi.',
+      });
+    }
     await this.postsRepo.deleteByDiscussion(id);
     await this.repo.delete(id);
     const body = reason

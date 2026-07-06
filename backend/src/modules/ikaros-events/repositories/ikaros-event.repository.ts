@@ -25,6 +25,9 @@ export class MongoIkarosEventRepository implements IIkarosEventRepository {
       imageFocalX: (doc.imageFocalX as number | undefined) ?? undefined,
       imageFocalY: (doc.imageFocalY as number | undefined) ?? undefined,
       imageZoom: (doc.imageZoom as number | undefined) ?? undefined,
+      // FIX-71 — dřív chybělo (schema/create/update ho ukládaly, ale čtení ho
+      // tiše zahazovalo → feature mrtvá).
+      imageFit: (doc.imageFit as 'cover' | 'contain' | undefined) ?? undefined,
       confirmable: (doc.confirmable as boolean | undefined) ?? true,
       attendeeUserIds: (doc.attendeeUserIds as string[] | undefined) ?? [],
       authorId: doc.authorId as string,

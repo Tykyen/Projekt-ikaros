@@ -6,6 +6,7 @@
  */
 import { Test } from '@nestjs/testing';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -159,6 +160,60 @@ describe('WorldCalendarConfigService', () => {
       await expect(
         service.patch('W1', 'x', { name: 'y' }, Admin),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    // FIX-62 — patch jen {seasons} (bez months) musí validovat proti
+    // STÁVAJÍCÍM měsícům configu, ne rovnou projít (`!dto.months` → return).
+    it('PATCH jen {seasons} (bez months) validuje proti stávajícím měsícům → SEASON_OUT_OF_RANGE', async () => {
+      mockRepo.findBySlug.mockResolvedValue({
+        slug: 'g',
+        months: [{ name: 'M1', daysCount: 30 }],
+      });
+      await expect(
+        service.patch(
+          'W1',
+          'g',
+          {
+            seasons: [
+              {
+                id: 's1',
+                name: 'Zima',
+                startMonthIndex: 5,
+                startDay: 1,
+                color: '#000000',
+              },
+            ],
+          },
+          Admin,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepo.patch).not.toHaveBeenCalled();
+    });
+
+    it('PATCH jen {seasons} platné proti stávajícím měsícům → projde do repo', async () => {
+      mockRepo.findBySlug.mockResolvedValue({
+        slug: 'g',
+        months: [
+          { name: 'M1', daysCount: 30 },
+          { name: 'M2', daysCount: 30 },
+        ],
+      });
+      mockRepo.patch.mockResolvedValue({ slug: 'g' });
+      const seasons = [
+        {
+          id: 's1',
+          name: 'Zima',
+          startMonthIndex: 1,
+          startDay: 1,
+          color: '#000000',
+        },
+      ];
+      await service.patch('W1', 'g', { seasons }, Admin);
+      expect(mockRepo.patch).toHaveBeenCalledWith(
+        'W1',
+        'g',
+        expect.objectContaining({ seasons }),
+      );
     });
   });
 

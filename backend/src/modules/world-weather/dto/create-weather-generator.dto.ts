@@ -69,7 +69,9 @@ export class WeatherGeneratorConfigDto {
   @IsNumber() tempMax: number;
   @IsIn(['C', 'F']) @IsOptional() tempUnit?: 'C' | 'F';
 
+  // FIX-70 — prázdné pole dřív prošlo → `/generate` spadl 500 na `weightedPick([])`.
   @IsArray()
+  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => WeatherTypeEntryDto)
   weatherTypes: WeatherTypeEntryDto[];

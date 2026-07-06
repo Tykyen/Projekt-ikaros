@@ -77,6 +77,8 @@ export class IkarosEventsService {
       imageFocalX: dto.imageFocalX,
       imageFocalY: dto.imageFocalY,
       imageZoom: dto.imageZoom,
+      // FIX-71 — dřív se neukládalo (feature mrtvá i přes DTO/schema podporu).
+      imageFit: dto.imageFit,
       confirmable: dto.confirmable ?? true,
       attendeeUserIds: [],
       authorId,

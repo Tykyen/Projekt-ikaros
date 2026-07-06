@@ -59,11 +59,48 @@ describe('WorldPageTemplatesService', () => {
   });
 
   describe('findByWorld', () => {
-    it('vrátí seznam šablon', async () => {
+    it('vrátí seznam šablon (world admin bypass)', async () => {
       repo.findByWorld.mockResolvedValueOnce([mockTemplate]);
-      const result = await service.findByWorld('w1');
+      const result = await service.findByWorld('w1', adminRequester);
       expect(result).toEqual([mockTemplate]);
       expect(repo.findByWorld).toHaveBeenCalledWith('w1');
+    });
+
+    // FIX-58 — dřív žádný gate, nečlen privátního světa četl šablony.
+    it('nečlen privátního světa → 403', async () => {
+      worldsRepo.findById.mockResolvedValueOnce({
+        id: 'w1',
+        accessMode: 'private',
+      });
+      membershipRepo.findByUserAndWorld.mockResolvedValueOnce(null);
+      await expect(
+        service.findByWorld('w1', hracRequester),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.findByWorld).not.toHaveBeenCalled();
+    });
+
+    it('veřejný svět — čte kdokoli přihlášený bez membership', async () => {
+      worldsRepo.findById.mockResolvedValueOnce({
+        id: 'w1',
+        accessMode: 'public',
+      });
+      repo.findByWorld.mockResolvedValueOnce([mockTemplate]);
+      const result = await service.findByWorld('w1', hracRequester);
+      expect(result).toEqual([mockTemplate]);
+      expect(membershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('člen privátního světa čte OK', async () => {
+      worldsRepo.findById.mockResolvedValueOnce({
+        id: 'w1',
+        accessMode: 'private',
+      });
+      membershipRepo.findByUserAndWorld.mockResolvedValueOnce({
+        role: WorldRole.Hrac,
+      });
+      repo.findByWorld.mockResolvedValueOnce([mockTemplate]);
+      const result = await service.findByWorld('w1', hracRequester);
+      expect(result).toEqual([mockTemplate]);
     });
   });
 

@@ -10,6 +10,8 @@ export interface UpdateEventFields {
   imageFocalX?: number | null;
   imageFocalY?: number | null;
   imageZoom?: number | null;
+  /** FIX-71 — dřív chybělo, `create`/`toEntity` feature „zapomínaly" imageFit. */
+  imageFit?: 'cover' | 'contain' | null;
   confirmable?: boolean;
 }
 

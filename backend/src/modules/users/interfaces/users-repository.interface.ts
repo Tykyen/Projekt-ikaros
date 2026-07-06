@@ -23,6 +23,8 @@ export interface IUsersRepository {
   findOnlineSince(since: Date): Promise<string[]>;
   /** 12.1 — počet aktivních (non-tombstone) účtů založených od `since`. */
   countCreatedSince(since: Date): Promise<number>;
+  /** FIX-68 (12.1) — celkový počet aktivních (non-tombstone) účtů. */
+  countActive(): Promise<number>;
   /** 12.1 — počet účtů v pending-deletion holdu (deletionRequestedAt, !isDeleted). */
   countPendingDeletion(): Promise<number>;
   /**

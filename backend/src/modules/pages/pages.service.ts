@@ -622,8 +622,9 @@ export class PagesService {
       imageUrl: page.imageUrl ?? null,
       galleryUrls: (page.galleryImages ?? []).map((g) => g.url),
     });
+    // FIX-59 — deletePageFromIndex bere `pageId` (search primaryKey), ne `slug`.
     void this.searchCoordinator
-      ?.deletePageFromIndex(page.slug)
+      ?.deletePageFromIndex(page.id)
       .catch((err: unknown) =>
         logWarn(
           this.logger,

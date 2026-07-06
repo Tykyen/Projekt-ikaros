@@ -1,8 +1,16 @@
-import { IsString, IsOptional, MaxLength, Matches } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNotEmpty,
+  MaxLength,
+  Matches,
+} from 'class-validator';
 
 export class UpdateGalleryItemDto {
+  // FIX-63 — chybělo @IsNotEmpty (create DTO ho má) → PUT title:'' vyprázdnilo název.
   @IsString()
   @IsOptional()
+  @IsNotEmpty()
   @MaxLength(300)
   title?: string;
 

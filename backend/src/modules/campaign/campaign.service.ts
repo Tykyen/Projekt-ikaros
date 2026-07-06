@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
@@ -364,6 +365,30 @@ export class CampaignService {
       lastChangeNote?: string;
     },
   ): Promise<CampaignRelationship> {
+    // FIX-73 — dřív nevalidováno: self-relationship (subjektA===subjektB) ani
+    // world-scope obou subjektů (šlo propojit subjekt cizího světa přes uhodnuté ID).
+    if (dto.subjectAId === dto.subjectBId) {
+      throw new BadRequestException({
+        code: 'CAMPAIGN_RELATION_SELF',
+        message: 'Vztah nelze vytvořit mezi subjektem a sebou samým.',
+      });
+    }
+    const [subjectA, subjectB] = await Promise.all([
+      this.subjectRepo.findById(dto.subjectAId),
+      this.subjectRepo.findById(dto.subjectBId),
+    ]);
+    if (!subjectA || subjectA.worldId !== worldId) {
+      throw new NotFoundException({
+        code: 'CAMPAIGN_SUBJECT_NOT_FOUND',
+        message: 'Subjekt A nenalezen',
+      });
+    }
+    if (!subjectB || subjectB.worldId !== worldId) {
+      throw new NotFoundException({
+        code: 'CAMPAIGN_SUBJECT_NOT_FOUND',
+        message: 'Subjekt B nenalezen',
+      });
+    }
     const created = await this.relRepo.create({
       worldId,
       ownerId: userId,

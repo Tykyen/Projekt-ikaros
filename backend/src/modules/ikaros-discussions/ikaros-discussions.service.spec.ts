@@ -212,7 +212,9 @@ describe('IkarosDiscussionsService', () => {
       const hidden = {
         ...mockDiscussion,
         id: 'd2',
-        isApproved: false, // hráč nevidí
+        isApproved: false, // hráč nevidí (cizí pending — není creator/manager)
+        creatorId: 'other',
+        managerIds: ['other'],
       };
       mockRepo.findAll.mockResolvedValue([openApproved, hidden]);
       const result = await service.findAllPaginated(
@@ -225,6 +227,35 @@ describe('IkarosDiscussionsService', () => {
       expect(result.total).toBe(1);
       expect(result.items).toHaveLength(1);
       expect(result.items[0].id).toBe('disc1');
+    });
+
+    // FIX-64 — tvůrce musí vidět VLASTNÍ pending diskuzi (dřív 403 na vlastní obsah).
+    it('tvůrce vidí vlastní pending (neschválenou) diskuzi', async () => {
+      mockRepo.findAll.mockResolvedValue([mockDiscussion]); // creatorId: 'user1', isApproved: false
+      const result = await service.findAll('user1', UserRole.Hrac, 'hrac');
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('disc1');
+    });
+
+    it('manažer vidí pending diskuzi, cizí uživatel ne', async () => {
+      const pendingWithManager = {
+        ...mockDiscussion,
+        creatorId: 'other',
+        managerIds: ['other', 'manager1'],
+      };
+      mockRepo.findAll.mockResolvedValue([pendingWithManager]);
+      const asManager = await service.findAll(
+        'manager1',
+        UserRole.Hrac,
+        'manazer',
+      );
+      expect(asManager).toHaveLength(1);
+      const asStranger = await service.findAll(
+        'stranger',
+        UserRole.Hrac,
+        'cizi',
+      );
+      expect(asStranger).toHaveLength(0);
     });
   });
 
@@ -270,6 +301,18 @@ describe('IkarosDiscussionsService', () => {
       await expect(
         service.reject('disc1', undefined, UserRole.Hrac, 'nekdo'),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    // FIX-65 — reject je hard-delete; nesmí cílit na už schválenou (živou) diskuzi.
+    it('hodí BadRequestException při zamítnutí už schválené (živé) diskuze', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+      });
+      await expect(
+        service.reject('disc1', undefined, UserRole.Admin, 'Admin'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepo.delete).not.toHaveBeenCalled();
     });
   });
 

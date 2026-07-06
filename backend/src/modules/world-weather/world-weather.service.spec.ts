@@ -475,6 +475,18 @@ describe('WorldWeatherService', () => {
         service.create('world1', dto as never, Admin),
       ).rejects.toThrow(BadRequestException);
     });
+
+    // FIX-70 — prázdné weatherTypes dřív prošlo (probability-sum check běžel
+    // jen při length > 0) a `/generate` by spadl na `weightedPick([])`.
+    it('weatherTypes prázdné pole: BadRequestException', async () => {
+      const dto = {
+        name: 'X',
+        config: { ...badConfigBase, weatherTypes: [] },
+      };
+      await expect(
+        service.create('world1', dto as never, Admin),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   // ─── seedDefaultForWorld ──────────────────────────────────────────────────

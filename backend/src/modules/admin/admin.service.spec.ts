@@ -323,5 +323,33 @@ describe('AdminService', () => {
         expect.objectContaining({ role: UserRole.Ikarus }),
       );
     });
+
+    // FIX-72 — createUser dřív nezapisoval audit log.
+    it('zapíše audit log USER_CREATE', async () => {
+      mockUsersRepo.findByUsername.mockResolvedValue(null);
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.save.mockImplementation((u) =>
+        Promise.resolve({
+          id: 'u-new',
+          ...u,
+          isOnline: false,
+          lastSeenAt: new Date(),
+          favoriteDiscussionIds: [],
+          themeSettings: {},
+          chatPreferences: {},
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+      );
+      await service.createUser(superadmin, dto);
+      expect(mockAuditRepo.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'USER_CREATE',
+          actorId: 'sa',
+          targetId: 'u-new',
+          targetUsername: 'newuser',
+        }),
+      );
+    });
   });
 });

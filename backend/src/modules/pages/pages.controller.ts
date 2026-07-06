@@ -102,9 +102,13 @@ export class PagesController {
     @CurrentUser() user: RequestUser,
     @Query('number') number?: string,
   ) {
+    // FIX-67 — nečíselné `number` → parseInt vrátí NaN → `$sample: {size: NaN}`
+    // → Mongo 500. Guard s fallbackem na default (5).
+    const parsed = number !== undefined ? parseInt(number, 10) : NaN;
+    const count = Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
     return this.pagesService.findRandom(
       worldId,
-      number ? parseInt(number, 10) : 5,
+      count,
       user.id,
       user.role,
       user.elevatedWorldIds,

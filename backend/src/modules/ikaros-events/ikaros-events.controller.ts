@@ -99,6 +99,7 @@ export class IkarosEventsController {
   }
 
   @Post(':id/confirm')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Toggle potvrzení účasti (přihlášení)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 404 })

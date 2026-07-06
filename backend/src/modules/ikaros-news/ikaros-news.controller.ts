@@ -168,6 +168,7 @@ export class IkarosNewsController {
 
   @Post(':id/archive')
   @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Archivace novinky (Admin/Superadmin, idempotent)' })
   @ApiResponse({ status: 200 })
@@ -179,6 +180,7 @@ export class IkarosNewsController {
 
   @Post(':id/unarchive')
   @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Obnovení archivované novinky (Admin/Superadmin, idempotent)',

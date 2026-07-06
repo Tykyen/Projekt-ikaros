@@ -4,7 +4,8 @@ import { Logger } from '@nestjs/common';
 
 export type QueueOperation =
   | { type: 'Upsert'; page: Page }
-  | { type: 'Delete'; slug: string }
+  // FIX-59 — `pageId`, ne `slug` (ISearchProvider.deletePageFromIndex kontrakt).
+  | { type: 'Delete'; pageId: string }
   | { type: 'Rebuild' };
 
 export type QueueHandler = (op: QueueOperation) => Promise<void>;

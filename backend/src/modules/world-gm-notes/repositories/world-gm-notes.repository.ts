@@ -48,6 +48,20 @@ export class WorldGmNotesRepository {
     );
   }
 
+  /**
+   * FIX-57 — vlastní blok PJ (bez side-effectu na rozdíl od `findOrCreate`,
+   * který by při exportu zbytečně založil prázdný blok). WorldGmNotes jsou
+   * striktně per-PJ izolované — export smí vzít jen poznámky exportéra.
+   */
+  async findByWorldAndUser(
+    worldId: string,
+    userId: string,
+  ): Promise<WorldGmNotes | null> {
+    const doc = await this.model.findOne({ worldId, userId }).lean().exec();
+    if (!doc) return null;
+    return this.toEntity(doc as unknown as Record<string, unknown>);
+  }
+
   private toEntity(doc: Record<string, unknown>): WorldGmNotes {
     return {
       id: String(doc._id),
