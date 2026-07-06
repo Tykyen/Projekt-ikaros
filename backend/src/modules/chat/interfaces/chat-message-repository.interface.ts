@@ -53,6 +53,23 @@ export interface IChatMessageRepository {
     emoji: string,
     userId: string,
   ): Promise<ChatMessage | null>;
+  /**
+   * FIX-40 — CAS pokus PŘIDAT reakci: uspěje jen když tam `userId` ještě
+   * NENÍ (podmínka je součástí filtru, ne odděleného čtení). `null` = zpráva
+   * zmizela NEBO tam reakce mezitím už je (prohraná race) — volající to
+   * pozná a zkusí opačnou akci (`removeReactionIfPresent`).
+   */
+  addReactionIfAbsent(
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ): Promise<ChatMessage | null>;
+  /** Zrcadlo `addReactionIfAbsent` — uspěje jen když tam `userId` JE. */
+  removeReactionIfPresent(
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ): Promise<ChatMessage | null>;
   pruneChannel(
     channelId: string,
     olderThan: Date,

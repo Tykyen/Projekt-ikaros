@@ -5,11 +5,20 @@ import type { ChatService } from './chat.service';
 import type { JwtService } from '@nestjs/jwt';
 import type { Server, Socket } from 'socket.io';
 
-/** Mock Socket.IO serveru — zachytává `.to(room).emit(event, payload)`. */
+/** Mock Socket.IO serveru — zachytává `.to(room).emit(event, payload)` a
+ *  `.in(room).socketsLeave(room2)` (FIX-44). */
 function mockServer() {
   const emit = jest.fn();
   const to = jest.fn(() => ({ emit }));
-  return { server: { to } as unknown as Server, to, emit };
+  const socketsLeave = jest.fn();
+  const inFn = jest.fn(() => ({ socketsLeave }));
+  return {
+    server: { to, in: inFn } as unknown as Server,
+    to,
+    emit,
+    in: inFn,
+    socketsLeave,
+  };
 }
 
 // Socket po handleConnection nese ověřený `data.userId` (z JWT handshake).
@@ -187,5 +196,12 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
     expect(srv.emit).toHaveBeenCalledTimes(2);
     expect(presence.list('ch1')).toHaveLength(0);
     expect(presence.list('ch2')).toHaveLength(0);
+  });
+
+  // FIX-44 — revokace přístupu ke kanálu za provozu.
+  it('handleChannelMemberRevoked vyhodí odebraného uživatele z room `chat:{channelId}`', () => {
+    gateway.handleChannelMemberRevoked({ channelId: 'ch1', userId: 'u9' });
+    expect(srv.in).toHaveBeenCalledWith('user:u9');
+    expect(srv.socketsLeave).toHaveBeenCalledWith('chat:ch1');
   });
 });

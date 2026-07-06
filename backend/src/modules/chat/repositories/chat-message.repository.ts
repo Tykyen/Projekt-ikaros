@@ -214,6 +214,50 @@ export class MongoChatMessageRepository
       : null;
   }
 
+  /**
+   * FIX-40 — filtr `{ [emoji]: { $ne: userId } }` dělá check-and-set atomický
+   * (Mongo vyhodnotí filtr i update na tomtéž dokumentu bez mezery). Když
+   * mezitím reakci přidal jiný souběžný toggle, filtr nesedí → `null`.
+   */
+  async addReactionIfAbsent(
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ): Promise<ChatMessage | null> {
+    if (!Types.ObjectId.isValid(messageId)) return null;
+    const doc = await this.model
+      .findOneAndUpdate(
+        { _id: messageId, [`reactions.${emoji}`]: { $ne: userId } },
+        { $addToSet: { [`reactions.${emoji}`]: userId } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  /** Zrcadlo `addReactionIfAbsent` — CAS podmínka na PŘÍTOMNOST. */
+  async removeReactionIfPresent(
+    messageId: string,
+    emoji: string,
+    userId: string,
+  ): Promise<ChatMessage | null> {
+    if (!Types.ObjectId.isValid(messageId)) return null;
+    const doc = await this.model
+      .findOneAndUpdate(
+        { _id: messageId, [`reactions.${emoji}`]: userId },
+        { $pull: { [`reactions.${emoji}`]: userId } },
+        { new: true },
+      )
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   async pruneChannel(
     channelId: string,
     olderThan: Date,

@@ -92,6 +92,7 @@ const mockHracMembership = {
 describe('ChatService', () => {
   let service: ChatService;
   let mockPushService: { notifyUsers: jest.Mock };
+  let mockEventEmitter: { emit: jest.Mock };
   const mockGroupRepo = {
     findById: jest.fn(),
     findByWorldId: jest.fn(),
@@ -154,6 +155,7 @@ describe('ChatService', () => {
 
   beforeEach(async () => {
     mockPushService = { notifyUsers: jest.fn().mockResolvedValue(undefined) };
+    mockEventEmitter = { emit: jest.fn() };
     const module = await Test.createTestingModule({
       providers: [
         ChatService,
@@ -184,7 +186,7 @@ describe('ChatService', () => {
           },
         },
         { provide: UsersService, useValue: mockUsersService },
-        { provide: EventEmitter2, useValue: { emit: jest.fn() } },
+        { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: PushService, useValue: mockPushService },
       ],
     }).compile();
@@ -257,6 +259,72 @@ describe('ChatService', () => {
       const b = out.combatants[0] as unknown as Record<string, unknown>;
       expect(b.systemStats).toEqual({ 'health.current': 3 });
       expect(b.notes).toBe('tajné');
+    });
+  });
+
+  describe('syncLinkedChannelMembers (FIX-44 — revokace za provozu)', () => {
+    const linkedGroup = {
+      id: 'lg1',
+      worldId: 'world1',
+      name: 'Družina A',
+      linkedWorldGroup: 'druzina-a',
+      order: 0,
+      createdAt: new Date(),
+    };
+    const linkedChannel = {
+      ...mockChannel,
+      id: 'linked-ch1',
+      groupId: 'lg1',
+      accessMode: 'members' as const,
+      allowedMemberIds: ['user2'],
+    };
+
+    it('odebrání usera z allowedMemberIds emituje chat.channel.member.revoked', async () => {
+      mockGroupRepo.findByWorldId.mockResolvedValue([linkedGroup]);
+      mockChannelRepo.findByGroupId.mockResolvedValue([linkedChannel]);
+      // Uživatel není staff a už není v „druzina-a" → measure removal.
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockHracMembership,
+        userId: 'user2',
+      });
+      await service.handleMembershipRemovedSync({
+        worldId: 'world1',
+        userId: 'user2',
+        membershipId: 'm2',
+      });
+      expect(mockChannelRepo.update).toHaveBeenCalledWith('linked-ch1', {
+        allowedMemberIds: [],
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'chat.channel.member.revoked',
+        { channelId: 'linked-ch1', userId: 'user2' },
+      );
+    });
+
+    it('přidání usera do allowedMemberIds neemituje revoked event', async () => {
+      const emptyChannel = { ...linkedChannel, allowedMemberIds: [] };
+      mockGroupRepo.findByWorldId.mockResolvedValue([linkedGroup]);
+      mockChannelRepo.findByGroupId.mockResolvedValue([emptyChannel]);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockHracMembership,
+        userId: 'user2',
+        group: 'druzina-a',
+      });
+      await service.handleMembershipChangedSync({
+        worldId: 'world1',
+        membership: {
+          ...mockHracMembership,
+          userId: 'user2',
+          group: 'druzina-a',
+        },
+      });
+      expect(mockChannelRepo.update).toHaveBeenCalledWith('linked-ch1', {
+        allowedMemberIds: ['user2'],
+      });
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
+        'chat.channel.member.revoked',
+        expect.anything(),
+      );
     });
   });
 
@@ -2260,6 +2328,8 @@ describe('toggleReaction', () => {
     restoreByWorldId: jest.fn(),
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
+    addReactionIfAbsent: jest.fn(),
+    removeReactionIfPresent: jest.fn(),
   };
   const mockReadRepo = {
     findByUserAndChannel: jest.fn(),
@@ -2326,7 +2396,7 @@ describe('toggleReaction', () => {
     mockMessageRepo.findById.mockResolvedValue(mockMsg);
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
-    mockMessageRepo.addReaction.mockResolvedValue({
+    mockMessageRepo.addReactionIfAbsent.mockResolvedValue({
       ...mockMsg,
       reactions: { '👍': ['user2'] },
     });
@@ -2335,7 +2405,7 @@ describe('toggleReaction', () => {
       role: UserRole.Hrac,
       username: 'user2',
     });
-    expect(mockMessageRepo.addReaction).toHaveBeenCalledWith(
+    expect(mockMessageRepo.addReactionIfAbsent).toHaveBeenCalledWith(
       'msg1',
       '👍',
       'user2',
@@ -2348,7 +2418,7 @@ describe('toggleReaction', () => {
     mockMessageRepo.findById.mockResolvedValue(msgWithReaction);
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
-    mockMessageRepo.removeReaction.mockResolvedValue({
+    mockMessageRepo.removeReactionIfPresent.mockResolvedValue({
       ...mockMsg,
       reactions: { '👍': [] },
     });
@@ -2357,12 +2427,41 @@ describe('toggleReaction', () => {
       role: UserRole.Hrac,
       username: 'user2',
     });
-    expect(mockMessageRepo.removeReaction).toHaveBeenCalledWith(
+    expect(mockMessageRepo.removeReactionIfPresent).toHaveBeenCalledWith(
       'msg1',
       '👍',
       'user2',
     );
-    expect(mockMessageRepo.addReaction).not.toHaveBeenCalled();
+    expect(mockMessageRepo.addReactionIfAbsent).not.toHaveBeenCalled();
+  });
+
+  it('FIX-40: race — CAS miss falls back to opposite action', async () => {
+    mockMessageRepo.findById.mockResolvedValue(mockMsg);
+    mockChannelRepo.findById.mockResolvedValue(mockChannel);
+    mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
+    // Stale snapshot says "not reacted" → primary attempt is addReactionIfAbsent,
+    // but a concurrent toggle already added it (CAS filter no longer matches).
+    mockMessageRepo.addReactionIfAbsent.mockResolvedValue(null);
+    mockMessageRepo.removeReactionIfPresent.mockResolvedValue({
+      ...mockMsg,
+      reactions: { '👍': [] },
+    });
+    const result = await service.toggleReaction('msg1', '👍', {
+      id: 'user2',
+      role: UserRole.Hrac,
+      username: 'user2',
+    });
+    expect(mockMessageRepo.addReactionIfAbsent).toHaveBeenCalledWith(
+      'msg1',
+      '👍',
+      'user2',
+    );
+    expect(mockMessageRepo.removeReactionIfPresent).toHaveBeenCalledWith(
+      'msg1',
+      '👍',
+      'user2',
+    );
+    expect(result.reactions['👍']).toEqual([]);
   });
 
   it('should throw NotFoundException for missing message', async () => {

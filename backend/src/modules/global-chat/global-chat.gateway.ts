@@ -29,6 +29,8 @@ interface PresenceRecord {
   lastSeen: Date;
   username: string;
   userId: string;
+  /** FIX-36 — host (guest) smí jen Hospodu; whisper/reakce to musí ověřit. */
+  isGuest?: boolean;
   /** Avatar účtu — pro zobrazení v Hospodě. */
   avatarUrl?: string;
   /** Postava z profilu — pro zobrazení v Campu (§8). */
@@ -517,6 +519,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
         lastSeen: new Date(),
         username,
         userId,
+        isGuest,
         rooms: new Set<RoomKey>(),
       };
       this.connectedUsers.set(client.id, record);
@@ -630,10 +633,17 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     const room: RoomKey = isRoomKey(payload.room)
       ? payload.room
       : ([...sender.rooms][0] ?? 'hospoda');
+    // FIX-36 — host smí jen do Hospody (stejné omezení jako join/voice);
+    // bez tohoto by prostým `payload.room` obešel zákaz Campu.
+    if (sender.isGuest && room !== 'hospoda') return;
     void this.globalChatService
       .sendWhisper(
         room,
-        { id: sender.userId, username: sender.username },
+        {
+          id: sender.userId,
+          username: sender.username,
+          isGuest: sender.isGuest,
+        },
         payload.toUserId,
         payload.content ?? '',
         payload.color,
@@ -665,6 +675,8 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     const room: RoomKey = isRoomKey(payload.room)
       ? payload.room
       : ([...sender.rooms][0] ?? 'hospoda');
+    // FIX-36 — host smí reagovat jen v Hospodě (viz handleWhisper výš).
+    if (sender.isGuest && room !== 'hospoda') return;
     void this.globalChatService
       .toggleReaction(room, payload.messageId, sender.userId, payload.emoji)
       .catch((err: unknown) =>

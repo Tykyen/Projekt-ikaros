@@ -19,11 +19,6 @@ export class CreateGlobalMessageDto {
   @MaxLength(4000)
   content?: string;
 
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  visibleTo?: string[];
-
   /** Barva textu zprávy (hex) — odpovídá `chatColor` z profilu odesílatele. */
   @IsOptional()
   @IsHexColor()

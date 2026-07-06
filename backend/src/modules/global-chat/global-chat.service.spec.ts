@@ -125,6 +125,8 @@ describe('GlobalChatService', () => {
       restoreByWorldId: jest.fn(),
       addReaction: jest.fn(),
       removeReaction: jest.fn(),
+      addReactionIfAbsent: jest.fn(),
+      removeReactionIfPresent: jest.fn(),
       pruneChannel: jest.fn(),
     };
 

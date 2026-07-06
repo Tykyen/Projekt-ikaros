@@ -344,7 +344,8 @@ export class GlobalChatService implements OnModuleInit {
    */
   private async resolveReply(
     channelId: string,
-    replyToId?: string,
+    replyToId: string | undefined,
+    callerId: string,
   ): Promise<Partial<ChatMessage>> {
     if (!replyToId) return {};
     const target = await this.messageRepo.findById(replyToId);
@@ -353,6 +354,17 @@ export class GlobalChatService implements OnModuleInit {
       target.channelId !== channelId ||
       target.isDeleted ||
       target.isSystem
+    ) {
+      return {};
+    }
+    // FIX-38 — stejná viditelnost jako `getMessages`: whisper cíl smí
+    // „přeposlat" jen účastník / autor, jinak by šlo cizí šepot prosáknout
+    // do veřejné zprávy přes `replyToPreview`/`replyToSenderName`.
+    const visibleTo = target.visibleTo ?? [];
+    if (
+      visibleTo.length > 0 &&
+      !visibleTo.includes(callerId) &&
+      target.senderId !== callerId
     ) {
       return {};
     }
@@ -398,7 +410,7 @@ export class GlobalChatService implements OnModuleInit {
     const channelId = this.getChannelId(room);
     const attachments = this.validateAttachments(dto.attachments);
     this.assertNotEmpty(dto.content, attachments);
-    const reply = await this.resolveReply(channelId, dto.replyToId);
+    const reply = await this.resolveReply(channelId, dto.replyToId, user.id);
     const identity = await this.resolveSenderIdentity(
       room,
       user.id,
@@ -418,7 +430,10 @@ export class GlobalChatService implements OnModuleInit {
       isDeleted: false,
       reactions: {},
       attachments,
-      visibleTo: dto.visibleTo ?? [],
+      // FIX-37 — `visibleTo` NENÍ v `CreateGlobalMessageDto` (klient by si tak
+      // mohl vyrobit whisper-ekvivalent bez omezení na 2 účastníky a bez
+      // anon-ban/rate-limit z `sendWhisper`). Veřejná zpráva vždy `[]`.
+      visibleTo: [],
       ...reply,
       expiresAt: new Date(Date.now() + GlobalChatService.MESSAGE_TTL_MS),
     });
@@ -452,21 +467,33 @@ export class GlobalChatService implements OnModuleInit {
 
   async sendWhisper(
     room: RoomKey,
-    from: { id: string; username: string },
+    from: { id: string; username: string; isGuest?: boolean },
     toUserId: string,
     content: string,
     color?: string,
     replyToId?: string,
     attachmentsDto?: ChatAttachmentDto[],
   ): Promise<ChatMessage> {
+    // FIX-36 — mirror `sendMessage`: bez tohoto zabanovaný/flooding host
+    // obchází anon-ban i rate-limit cestou přes whisper.
+    if (from.isGuest && (await this.anonBan.isBanned(from.id))) {
+      throw new ForbiddenException({
+        code: 'ANON_BANNED',
+        message: 'Host (anonym) byl v Hospodě zablokován.',
+      });
+    }
+    if (from.isGuest) {
+      this.assertAnonRate(from.id);
+    }
     const channelId = this.getChannelId(room);
     const attachments = this.validateAttachments(attachmentsDto);
     this.assertNotEmpty(content, attachments);
-    const reply = await this.resolveReply(channelId, replyToId);
+    const reply = await this.resolveReply(channelId, replyToId, from.id);
     const identity = await this.resolveSenderIdentity(
       room,
       from.id,
       from.username,
+      from.isGuest,
     );
     const message = await this.messageRepo.save({
       channelId,

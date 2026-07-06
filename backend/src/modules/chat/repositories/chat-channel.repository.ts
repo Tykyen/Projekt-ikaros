@@ -107,16 +107,19 @@ export class MongoChatChannelRepository
     patch: Record<string, unknown>,
   ): Promise<ChatChannel | null> {
     if (!this.isId(channelId)) return null;
-    // `combatants.$[c].<key>` per klíč → nepřepíše paralelní změnu jiné položky.
+    // `combatants.$.<key>` per klíč → nepřepíše paralelní změnu jiné položky.
+    // FIX-41 — `'combatants.id': combatantId` je součástí FILTRU (ne jen
+    // arrayFilters na updatu) → když combatant neexistuje, `findOneAndUpdate`
+    // nenajde žádný dokument a vrátí `null` místo "tichého" úspěchu beze změny.
     const set: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(patch)) {
-      set[`combatants.$[c].${k}`] = v;
+      set[`combatants.$.${k}`] = v;
     }
     const doc = await this.model
-      .findByIdAndUpdate(
-        channelId,
+      .findOneAndUpdate(
+        { _id: channelId, 'combatants.id': combatantId },
         { $set: set },
-        { new: true, arrayFilters: [{ 'c.id': combatantId }] },
+        { new: true },
       )
       .lean()
       .exec();
@@ -130,9 +133,12 @@ export class MongoChatChannelRepository
     combatantId: string,
   ): Promise<ChatChannel | null> {
     if (!this.isId(channelId)) return null;
+    // FIX-41 — zrcadlo `updateCombatant`: existence combatanta je součástí
+    // filtru, jinak `$pull` na neexistující ID "tiše uspěje" (kanál beze
+    // změny, ale volající dostane 200 místo 404).
     const doc = await this.model
-      .findByIdAndUpdate(
-        channelId,
+      .findOneAndUpdate(
+        { _id: channelId, 'combatants.id': combatantId },
         { $pull: { combatants: { id: combatantId } } },
         { new: true },
       )
@@ -148,8 +154,21 @@ export class MongoChatChannelRepository
     combat: ChatCombatState,
   ): Promise<ChatChannel | null> {
     if (!this.isId(channelId)) return null;
+    // FIX-41 — cílený `$set` po jednotlivých cestách místo přepisu celého
+    // `combat` objektu: 2 vedoucí měnící různá pole souběžně (round vs.
+    // currentCombatantId) se navzájem nepřepíšou. `currentCombatantId` může
+    // být `undefined` (konec boje / smazaný "na tahu") → `$unset`, protože
+    // Mongoose `undefined` hodnotu v `$set` ignoruje (staré pole by přežilo).
+    const update: Record<string, Record<string, unknown>> = {
+      $set: { 'combat.active': combat.active, 'combat.round': combat.round },
+    };
+    if (combat.currentCombatantId === undefined) {
+      update.$unset = { 'combat.currentCombatantId': '' };
+    } else {
+      update.$set['combat.currentCombatantId'] = combat.currentCombatantId;
+    }
     const doc = await this.model
-      .findByIdAndUpdate(channelId, { $set: { combat } }, { new: true })
+      .findByIdAndUpdate(channelId, update, { new: true })
       .lean()
       .exec();
     return doc

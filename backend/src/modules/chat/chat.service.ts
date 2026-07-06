@@ -968,7 +968,10 @@ export class ChatService implements OnApplicationBootstrap {
 
   /**
    * World role uživatele pro presence záznam dané konverzace. `null` =
-   * konverzace neexistuje / je smazaná, nebo uživatel není člen světa.
+   * konverzace neexistuje / je smazaná, uživatel není člen světa, nebo
+   * (FIX-39) nemá přístup do RESTRIKTIVNÍHO kanálu (accessMode roles/members)
+   * — bez `hasChannelAccess` by členství samo vyrobilo "duch" presence
+   * v kanálu, který uživatel ani nevidí.
    */
   async resolveChannelPresenceRole(
     channelId: string,
@@ -980,7 +983,9 @@ export class ChatService implements OnApplicationBootstrap {
       userId,
       channel.worldId,
     );
-    return membership ? membership.role : null;
+    if (!membership) return null;
+    if (!(await this.hasChannelAccess(channel, userId))) return null;
+    return membership.role;
   }
 
   /** Seznam přítomných v konverzaci — REST seed presence panelu (jen PJ+ FE). */
@@ -1545,9 +1550,35 @@ export class ChatService implements OnApplicationBootstrap {
     const currentReactions = message.reactions[emoji] ?? [];
     const hasReacted = currentReactions.includes(requester.id);
 
-    const updated = hasReacted
-      ? await this.messageRepo.removeReaction(messageId, emoji, requester.id)
-      : await this.messageRepo.addReaction(messageId, emoji, requester.id);
+    // FIX-40 — CAS: primární pokus dle posledního snímku; `null` = repo
+    // filtr nesedí (mezitím to změnil jiný souběžný toggle stejného
+    // uživatele) → dorovnej opačnou akcí, ať výsledek odpovídá AKTUÁLNÍMU
+    // stavu v DB, ne zastaralému čtení (bez tohoto rychlý dvojklik = 2×
+    // "přidáno" místo toggle tam-zpět).
+    let updated = hasReacted
+      ? await this.messageRepo.removeReactionIfPresent(
+          messageId,
+          emoji,
+          requester.id,
+        )
+      : await this.messageRepo.addReactionIfAbsent(
+          messageId,
+          emoji,
+          requester.id,
+        );
+    if (!updated) {
+      updated = hasReacted
+        ? await this.messageRepo.addReactionIfAbsent(
+            messageId,
+            emoji,
+            requester.id,
+          )
+        : await this.messageRepo.removeReactionIfPresent(
+            messageId,
+            emoji,
+            requester.id,
+          );
+    }
 
     if (!updated)
       throw new NotFoundException({
@@ -2199,6 +2230,13 @@ export class ChatService implements OnApplicationBootstrap {
             allowedMemberIds: channel.allowedMemberIds.filter(
               (id) => id !== userId,
             ),
+          });
+          // FIX-44 — bez signálu by odebraný uživatel dál poslouchal živé
+          // zprávy přes už otevřený WS room `chat:{channelId}` (join přežije
+          // DB změnu). Gateway ho server-side vyhodí z té konkrétní room.
+          this.eventEmitter.emit('chat.channel.member.revoked', {
+            channelId: channel.id,
+            userId,
           });
         }
       }

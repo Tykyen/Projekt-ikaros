@@ -336,6 +336,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
   }
 
+  /**
+   * FIX-44 — revokace přístupu ke kanálu za provozu (`syncLinkedChannelMembers`
+   * odebere userId z `allowedMemberIds`). Bez tohoto by odebraný uživatel dál
+   * dostával živé zprávy přes už otevřený `chat:{channelId}` room (WS join
+   * přežije DB změnu). `socketsLeave` (ne `disconnectSockets`) — jen ho
+   * vyhodí z TÉTO room, socket zůstává živý; případný re-join přes
+   * `chat:channel:join`/`room:join` znovu ověří `hasChannelAccess`, který už
+   * ho korektně odmítne.
+   */
+  @OnEvent('chat.channel.member.revoked')
+  handleChannelMemberRevoked(payload: {
+    channelId: string;
+    userId: string;
+  }): void {
+    this.server
+      .in(`user:${payload.userId}`)
+      .socketsLeave(`chat:${payload.channelId}`);
+  }
+
   // 16.1e — combat roster se změnil. Leak-safe signál účastníkům konverzace
   // (room `chat:{channelId}`, kde sedí přes `chat:channel:join`); klient
   // refetchne `GET .../combatants` se server-side access+visibility filtrem.
