@@ -111,12 +111,12 @@ export class WorldCurrenciesService {
     const toCurrency = items.find((c) => c.code === dto.to);
 
     if (!fromCurrency)
-      throw new BadRequestException({
+      throw new NotFoundException({
         code: 'CURRENCY_NOT_FOUND',
         message: `Měna '${dto.from}' neexistuje`,
       });
     if (!toCurrency)
-      throw new BadRequestException({
+      throw new NotFoundException({
         code: 'CURRENCY_NOT_FOUND',
         message: `Měna '${dto.to}' neexistuje`,
       });

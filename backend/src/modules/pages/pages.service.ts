@@ -7,7 +7,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { logWarn } from '../../common/logging/log-error.util';
+import { logError, logWarn } from '../../common/logging/log-error.util';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
 import { SearchCoordinator } from '../search/search.coordinator';
@@ -373,9 +373,10 @@ export class PagesService {
         try {
           await this.charactersService.delete(createdCharacterSlug, worldId);
         } catch (rollbackErr) {
-          this.logger.error(
+          logError(
+            this.logger,
             `DI-04 rollback postavy selhal (${createdCharacterSlug})`,
-            rollbackErr as Error,
+            rollbackErr,
           );
         }
       }

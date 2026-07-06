@@ -683,9 +683,10 @@ export class CharacterAccountsService {
           description: `Revert: ${txOut.description}`,
         });
       } catch (revertErr) {
-        this.logger.error(
+        logError(
+          this.logger,
           `Revert transfer selhal pro ${input.fromAccountId}. Ruční oprava nutná.`,
-          revertErr as Error,
+          revertErr,
         );
       }
       throw new BadRequestException({

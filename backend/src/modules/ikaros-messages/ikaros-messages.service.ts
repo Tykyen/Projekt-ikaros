@@ -101,11 +101,18 @@ export class IkarosMessagesService {
     sender: SenderRef,
     recipientId: string,
   ): Promise<void> {
+    if (sender.id === recipientId) return;
+
+    // FIX-56 — dřív měl admin/systémový odesílatel early-return PŘED
+    // `findById`, takže mohl poslat zprávu neexistujícímu recipientId
+    // (404 se ztratilo). Existence se ověřuje vždy; jen friend-only gate
+    // (D-057) admin obchází.
+    const recipient = await this.usersService.findById(recipientId);
+
     const senderIsAdmin =
       sender.role === UserRole.Admin || sender.role === UserRole.Superadmin;
-    if (senderIsAdmin || sender.id === recipientId) return;
+    if (senderIsAdmin) return;
 
-    const recipient = await this.usersService.findById(recipientId);
     if (recipient.profileVisibility !== 'friends') return;
 
     const friendship = await this.friendsRepo.findActiveBetween(

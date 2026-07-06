@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import type { ClientSession, Connection } from 'mongoose';
+import { logError } from '../../../common/logging/log-error.util';
 import type { ICampaignShopItemRepository } from '../interfaces/campaign-shop-item-repository.interface';
 import type { ICampaignShopGroupRepository } from '../interfaces/campaign-shop-group-repository.interface';
 import type { ICampaignPurchaseRepository } from '../interfaces/campaign-purchase-repository.interface';
@@ -395,9 +396,10 @@ export class CampaignPurchaseService {
             ctx.requester,
           );
         } catch (revertErr) {
-          this.logger.error(
+          logError(
+            this.logger,
             `RC-E5 kompenzační revert účtu selhal pro ${dto.accountId} (paidAmount ${paidAmount}). Ruční oprava nutná.`,
-            revertErr as Error,
+            revertErr,
           );
         }
       }

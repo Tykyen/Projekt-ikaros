@@ -218,7 +218,10 @@ export class PushService implements OnModuleInit {
           if (status === 404 || status === 410) {
             await this.repo.deleteByEndpointOnly(sub.endpoint);
           } else {
-            this.logger.warn(`Push failed for ${sub.endpoint}: ${String(err)}`);
+            // FIX-49 (log hygiene): endpoint je PII (unikátní push URL) — loguj jen sub.id.
+            this.logger.warn(
+              `Push failed for subscription ${sub.id}: ${String(err)}`,
+            );
           }
         }
       }),

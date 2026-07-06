@@ -16,11 +16,42 @@ import { BadRequestException, ValidationError } from '@nestjs/common';
  * Výsledek projde HttpExceptionFilter → `{ error: { code:'VALIDATION', message, timestamp } }`.
  */
 
+/**
+ * FIX-45 — rozpoznávací fragmenty výchozích (EN) hlášek class-validatoru pro
+ * pokryté constrainty (beze $property/$constraint1 částí, které se interpolují
+ * na konkrétní hodnoty a nejdou tedy porovnat 1:1). Pokud `fallback` NEODPOVÍDÁ
+ * defaultnímu EN tvaru, jde o custom hlášku z dekorátoru (`@MinLength(1, {message: '...'})`)
+ * — tu respektujeme beze změny, ať ji šablona níže nepřepíše (regrese F2).
+ */
+const DEFAULT_EN_SIGNATURE: Partial<Record<string, RegExp>> = {
+  isNotEmpty: /should not be empty/i,
+  isEmail: /must be an email/i,
+  isString: /must be a string/i,
+  isInt: /must be an integer number/i,
+  isNumber: /must be a number conforming to the specified constraints/i,
+  isNumberString: /must be a number string/i,
+  isBoolean: /must be a boolean value/i,
+  isEnum: /must be a valid enum value/i,
+  minLength: /must be longer than or equal to/i,
+  maxLength: /must be shorter than or equal to/i,
+  min: /must not be less than/i,
+  max: /must not be greater than/i,
+  isUrl: /must be a URL address/i,
+  isMongoId: /must be a mongodb id/i,
+  isArray: /must be an array/i,
+  whitelistValidation: /should not exist/i,
+};
+
 function csMessage(
   constraint: string,
   property: string,
   fallback: string,
 ): string {
+  const signature = DEFAULT_EN_SIGNATURE[constraint];
+  if (signature && !signature.test(fallback)) {
+    // Custom hláška z dekorátoru — vývojář si ji zvolil schválně, nepřepisuj.
+    return fallback;
+  }
   switch (constraint) {
     case 'isNotEmpty':
       return `Pole „${property}" je povinné.`;

@@ -19,6 +19,8 @@ import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
 import { RateArticleDto } from './dto/rate-article.dto';
 import { RejectArticleDto } from './dto/reject-article.dto';
+import { BulkApproveArticlesDto } from './dto/bulk-approve-articles.dto';
+import { BulkRejectArticlesDto } from './dto/bulk-reject-articles.dto';
 import { UserRole } from '../users/interfaces/user.interface';
 
 interface RequestUser {
@@ -185,7 +187,7 @@ export class IkarosArticlesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   bulkApprove(
-    @Body() dto: { ids: string[] },
+    @Body() dto: BulkApproveArticlesDto,
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.bulkApprove(dto.ids, user.role, user.username);
@@ -195,7 +197,7 @@ export class IkarosArticlesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   bulkReject(
-    @Body() dto: { ids: string[]; reason?: string },
+    @Body() dto: BulkRejectArticlesDto,
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.bulkReject(

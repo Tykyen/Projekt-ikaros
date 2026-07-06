@@ -1,4 +1,9 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import {
+  Injectable,
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { ROLES_KEY } from '../decorators/roles.decorator';
@@ -18,6 +23,14 @@ export class RolesGuard implements CanActivate {
     const { user } = context
       .switchToHttp()
       .getRequest<Request & { user?: RequestUser }>();
-    return user ? requiredRoles.includes(user.role) : false;
+    // FIX-46 — bare `false` nechá Nest vyhodit generický EN
+    // `ForbiddenException('Forbidden resource')`; mirror admin.guard.ts.
+    if (!user || !requiredRoles.includes(user.role)) {
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_ROLE',
+        message: 'Nedostatečná oprávnění',
+      });
+    }
+    return true;
   }
 }

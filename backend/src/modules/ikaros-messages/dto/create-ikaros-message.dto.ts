@@ -19,6 +19,7 @@ export class CreateIkarosMessageDto {
 
   @IsString()
   @MinLength(1)
+  @IsMongoId()
   recipientId: string;
 
   @IsString()

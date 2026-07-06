@@ -3,7 +3,6 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
-  UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -389,7 +388,7 @@ describe('UsersService', () => {
     });
   });
 
-  it('changePassword: špatné staré heslo → UnauthorizedException', async () => {
+  it('changePassword: špatné staré heslo → BadRequestException (FIX-50, ne 401)', async () => {
     mockRepo.findById.mockResolvedValue(mockUser);
     jest.spyOn(bcrypt, 'compare' as never).mockResolvedValue(false as never);
     await expect(
@@ -397,7 +396,7 @@ describe('UsersService', () => {
         oldPassword: 'wrong',
         newPassword: 'newpass123',
       }),
-    ).rejects.toThrow(UnauthorizedException);
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('changePassword: neznámý user → NotFoundException', async () => {

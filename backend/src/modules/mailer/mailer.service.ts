@@ -71,6 +71,14 @@ export class MailerService {
     await this.dispatch('account_deletion_scheduled', opts);
   }
 
+  /** FIX-48 (log hygiene): e-mail je PII → do logu jen maskovaně (`t***@g***`), mirror smtp-mailer.provider.ts. */
+  private static mask(email: string): string {
+    const at = email.indexOf('@');
+    if (at < 1) return '***';
+    const domain = email.slice(at + 1);
+    return `${email[0]}***@${domain[0] ?? ''}***`;
+  }
+
   private async dispatch(
     template: MailerTemplate,
     payload: MailerPayload,
@@ -79,7 +87,7 @@ export class MailerService {
       await this.provider.send(template, payload);
     } catch (err) {
       this.logger.error(
-        `Mailer send failed: template=${template} to=${payload.to}`,
+        `Mailer send failed: template=${template} to=${MailerService.mask(payload.to)}`,
         err instanceof Error ? err.stack : String(err),
       );
     }

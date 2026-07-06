@@ -1,5 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { WorldCurrenciesService } from './world-currencies.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 
@@ -304,14 +308,14 @@ describe('WorldCurrenciesService', () => {
       expect(result.result).toBe(10);
     });
 
-    it('should throw BadRequestException when from code not found', async () => {
+    it('should throw NotFoundException when from code not found (FIX-51)', async () => {
       await expect(
         service.convert(
           'world1',
           { amount: 1, from: 'UNKNOWN', to: 'ST' },
           'user1',
         ),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when from === to', async () => {

@@ -101,7 +101,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
       };
     }
 
-    // 5) Cokoli ostatní = neočekávaná chyba. Zaloguj server-side (jinak slepá v prod),
+    // 5) FIX-52 — oversized request body (`raw-body`/body-parser limit, vzniká
+    //    dřív než routing → není HttpException) padal do generické 500 větve.
+    //    `raw-body` nastavuje `.status/.statusCode = 413` a `.type = 'entity.too.large'`.
+    if (this.hasStatus(exception, 413)) {
+      return {
+        status: 413,
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Požadavek je příliš velký',
+      };
+    }
+
+    // 6) FIX-53 — malformed JSON tělo (body-parser `entity.parse.failed`) →
+    //    syrová EN V8 SyntaxError věta klientovi. Detekce jen přes stabilní
+    //    `.type`, ne přes obsah zprávy (false-positive risk).
+    if (this.hasType(exception, 'entity.parse.failed')) {
+      return {
+        status: 400,
+        code: 'INVALID_JSON',
+        message: 'Neplatný formát požadavku (JSON)',
+      };
+    }
+
+    // 7) Cokoli ostatní = neočekávaná chyba. Zaloguj server-side (jinak slepá v prod),
     //    klientovi generická CS hláška BEZ interních detailů / stacku (EC-01, LK).
     this.logger.error(
       exception instanceof Error
@@ -121,6 +143,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof e === 'object' &&
       e !== null &&
       (e as { code?: unknown }).code === 11000
+    );
+  }
+
+  private hasStatus(e: unknown, status: number): boolean {
+    return (
+      typeof e === 'object' &&
+      e !== null &&
+      ((e as { status?: unknown }).status === status ||
+        (e as { statusCode?: unknown }).statusCode === status)
+    );
+  }
+
+  private hasType(e: unknown, type: string): boolean {
+    return (
+      typeof e === 'object' &&
+      e !== null &&
+      (e as { type?: unknown }).type === type
     );
   }
 }

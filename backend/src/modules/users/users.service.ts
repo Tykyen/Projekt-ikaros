@@ -4,7 +4,6 @@ import {
   Logger,
   NotFoundException,
   ConflictException,
-  UnauthorizedException,
   BadRequestException,
   ForbiddenException,
   OnModuleInit,
@@ -358,7 +357,10 @@ export class UsersService implements OnModuleInit {
       });
     const valid = await bcrypt.compare(dto.oldPassword, user.passwordHash);
     if (!valid)
-      throw new UnauthorizedException({
+      // FIX-50 — 400, ne 401: špatné staré heslo není auth-selhání requestu,
+      // 401 zbytečně spouští refresh-token flow na interceptoru (mirror
+      // requestEmailChange).
+      throw new BadRequestException({
         code: 'INVALID_PASSWORD',
         message: 'Nesprávné heslo',
       });
