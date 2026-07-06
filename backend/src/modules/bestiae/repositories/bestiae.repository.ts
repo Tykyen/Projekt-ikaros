@@ -102,4 +102,30 @@ export class BestiaeRepository {
       .exec();
     return this.toEntity(doc);
   }
+
+  /**
+   * FIX-4 (BE oprava dávka, 2026-07) — `scope:'user'` bestie (per-PJ šablony
+   * napříč světy, `ownerUserId` je jediné vlastnické pole u tohoto scope)
+   * nejsou keyed `worldId` → chybí ve world-hard-delete cascade. Před jejich
+   * smazáním posbírá `imageUrl`, aby volající mohl uklidit Cloudinary blob.
+   */
+  async findImageUrlsByOwner(userId: string): Promise<string[]> {
+    const docs = await this.model
+      .find(
+        { scope: 'user', ownerUserId: userId, imageUrl: { $ne: null } },
+        { imageUrl: 1 },
+      )
+      .lean()
+      .exec();
+    return docs
+      .map((d) => (d as unknown as { imageUrl?: string }).imageUrl)
+      .filter(
+        (url): url is string => typeof url === 'string' && url.length > 0,
+      );
+  }
+
+  /** FIX-4 — hard cleanup: smaže všechny `scope:'user'` bestie daného ownera. */
+  async deleteAllByOwner(userId: string): Promise<void> {
+    await this.model.deleteMany({ scope: 'user', ownerUserId: userId }).exec();
+  }
 }

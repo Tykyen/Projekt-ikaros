@@ -105,6 +105,16 @@ const CHARACTER_KEYED_COLLECTIONS = [
 ];
 
 /**
+ * FIX-2 (BE oprava dávka, 2026-07) — subdoc kolekce keyed `channelId` (NEMAJÍ
+ * `worldId`) — smažou se podle kanálů světa (`chatchannels`), ne podle
+ * worldId. `channelreadstatus` (per-user read-status kanálu) opravdu nemá
+ * `worldId` pole (jen userId+channelId) — bez tohoto kroku orphan po
+ * hard-delete světa (stejný vzor jako `deleteByChannelId` u single-channel
+ * delete v `chat.service.ts`).
+ */
+const CHANNEL_KEYED_COLLECTIONS = ['channelreadstatus'];
+
+/**
  * Trvalé (hard) smazání světa + VŠECH jeho dat. Volá `WorldCleanupCron` po
  * vypršení 30denního recovery okna. Centralizovaný cascade (1 seznam kolekcí)
  * místo per-modul `@OnEvent` handlerů — méně DI, jeden zdroj pravdy.
@@ -153,6 +163,19 @@ export class WorldHardDeleteService {
       }
     }
 
+    // 1b) FIX-2 — subdocy bez worldId — najdi kanály světa, smaž jejich
+    // read-status (channelreadstatus nemá worldId, jen channelId).
+    const channelDocs = await this.connection
+      .collection('chatchannels')
+      .find({ worldId }, { projection: { _id: 1 } })
+      .toArray();
+    const channelIds = channelDocs.map((c) => String(c._id));
+    if (channelIds.length > 0) {
+      for (const coll of CHANNEL_KEYED_COLLECTIONS) {
+        await this.safeDelete(coll, { channelId: { $in: channelIds } });
+      }
+    }
+
     // 1.5) CD-RUN-7..12 — posbírat blob URL z blob-nesoucích kolekcí PŘED
     // jejich smazáním → úklid Cloudinary přes media.orphaned listener.
     for (const [coll, fields] of Object.entries(BLOB_COLLECTIONS)) {
@@ -173,7 +196,7 @@ export class WorldHardDeleteService {
     }
 
     this.logger.log(
-      `World ${worldId} hard-deleted (cascade ${WORLD_SCOPED_COLLECTIONS.length} kolekcí + ${CHARACTER_KEYED_COLLECTIONS.length} subdoc, ${charIds.length} postav)`,
+      `World ${worldId} hard-deleted (cascade ${WORLD_SCOPED_COLLECTIONS.length} kolekcí + ${CHARACTER_KEYED_COLLECTIONS.length} char subdoc (${charIds.length} postav) + ${CHANNEL_KEYED_COLLECTIONS.length} channel subdoc (${channelIds.length} kanálů))`,
     );
   }
 

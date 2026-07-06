@@ -248,11 +248,19 @@ export class MongoUsersRepository
     role?: UserRole;
     page: number;
     limit: number;
+    includeDeleted?: boolean;
   }): Promise<{ items: User[]; total: number }> {
     const query: Record<string, unknown> = {};
     if (opts.role !== undefined) query.role = opts.role;
     if (opts.username)
       query.username = { $regex: escapeRegex(opts.username), $options: 'i' };
+    // FIX-1 (BE oprava dávka, 2026-07) — `total` dřív počítal i tombstone účty
+    // (query bez isDeleted filtru), zatímco `AdminService.getUsers` tombstone
+    // z `items` filtroval in-memory → nekonzistentní total vs. vrácené items.
+    // Filtr přesunut sem (vzor `findPublicPaginated`), total teď odpovídá.
+    if (!opts.includeDeleted) {
+      query.isDeleted = { $ne: true };
+    }
     const skip = (opts.page - 1) * opts.limit;
     const [docs, total] = await Promise.all([
       this.model

@@ -146,13 +146,11 @@ export class AdminService {
     includeDeleted?: boolean;
   }) {
     const result = await this.usersRepo.findAllPaginated(opts);
-    // 1.3c — filter na FE-úrovni (zatímco repository neumí includeDeleted / hasPendingDeletion)
-    // by způsobil nekonzistentní paginaci. Bezpečnější: filtrovat in-memory po vytahu.
-    // Pro malé limity (≤ 100) je in-memory přijatelné; refactor do query je dluh.
+    // FIX-1 (BE oprava dávka, 2026-07) — isDeleted filtr (a `total`) teď řeší
+    // repository query přímo (`includeDeleted`), takže total odpovídá items.
+    // `hasPendingDeletion` repo zatím neumí → zůstává in-memory po vytahu;
+    // pro malé limity (≤ 100) přijatelné, DB-level refactor je dluh.
     let items = result.items;
-    if (!opts.includeDeleted) {
-      items = items.filter((u) => !u.isDeleted);
-    }
     if (opts.hasPendingDeletion) {
       items = items.filter((u) => !!u.deletionRequestedAt);
     }

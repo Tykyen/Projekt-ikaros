@@ -111,6 +111,16 @@ describe('UserBanCacheService', () => {
       expect(mockUsersRepo.findById).not.toHaveBeenCalled(); // druhé volání = cache hit
     });
 
+    it('cache miss + DB: deletionRequestedAt (soft-delete pending) → true, NEcachuje se (FIX-3)', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        id: 'u1',
+        isDeleted: false,
+        deletionRequestedAt: new Date('2026-01-01'),
+      });
+      await expect(service.isBlocked('u1')).resolves.toBe(true);
+      expect(service.get('u1')).toBeNull();
+    });
+
     it('cache miss + DB: účet v pořádku → false, NEcachuje se', async () => {
       mockUsersRepo.findById.mockResolvedValue({
         id: 'u1',

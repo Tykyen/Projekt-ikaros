@@ -2,6 +2,8 @@ name: Export Ikaros users (read-only)
 
 # Jednorazovy nastroj: VYPISE ucty z Ikaros DB (username, email, role) pro kontrolu
 # migrace ze stareho Matrixu. CTE POUZE - nic nemeni, hesla se nevypisuji.
+# Email je v logu maskovany (jen prvni znak + domena) — CI log neni bezpecne
+# misto pro plne PII.
 # Spusteni: Actions -> "Export Ikaros users (read-only)" -> Run workflow.
 # Vystup je ve stepu "Run export on server" (zkopiruj a posli).
 
@@ -27,9 +29,10 @@ jobs:
       - name: Build mongosh export script
         run: |
           {
+            echo 'function maskEmail(e) { if (!e) return e; const at = e.indexOf("@"); if (at <= 0) return "***"; return e.slice(0, 1) + "***@" + e.slice(at + 1); }'
             echo 'const list = db.users.find({}, { _id:1, username:1, usernameLower:1, email:1, role:1 }).sort({ usernameLower: 1 }).toArray();'
             echo 'print("COUNT=" + list.length);'
-            echo 'list.forEach(u => print(JSON.stringify({ id:String(u._id), username:u.username, usernameLower:u.usernameLower, email:u.email, role:u.role })));'
+            echo 'list.forEach(u => print(JSON.stringify({ id:String(u._id), username:u.username, usernameLower:u.usernameLower, email:maskEmail(u.email), role:u.role })));'
           } > export.js
           cat export.js
 

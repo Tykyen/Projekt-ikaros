@@ -16,7 +16,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { BestiaeRepository } from './repositories/bestiae.repository';
 import { SystemStatsValidatorService } from '../maps/schemas/system-entity-schema/system-stats-validator.service';
 import type { ValidationResult } from '../maps/schemas/system-entity-schema/system-entity-schema.types';
@@ -362,5 +362,22 @@ export class BestiaeService {
   // resp. osobní katalog bez worldId). World-scope brány jdou přes worldAdminBypass.
   private isGlobalAdmin(user: CurrentUser): boolean {
     return user.role === UserRole.Superadmin || user.role === UserRole.Admin;
+  }
+
+  /**
+   * FIX-4 (BE oprava dávka, 2026-07) — hard-delete účtu: `scope:'user'` bestie
+   * (per-PJ šablony napříč světy, bez `worldId`) nejsou ve world-hard-delete
+   * cascade → jejich `imageUrl` blob by jinak navždy osiřel na Cloudinary.
+   * `scope:'system'`/`'world'` bestie tenhle handler neřeší (nemají
+   * `ownerUserId`, resp. řeší je world-hard-delete cascade). Best-effort,
+   * konzistentní s ostatními `user.deletion.hardDeleted` listenery.
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleAccountHardDeleted(payload: { userId: string }): Promise<void> {
+    const urls = await this.repo.findImageUrlsByOwner(payload.userId);
+    if (urls.length > 0) {
+      this.eventEmitter.emit('media.orphaned', { urls });
+    }
+    await this.repo.deleteAllByOwner(payload.userId);
   }
 }

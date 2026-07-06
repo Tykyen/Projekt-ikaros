@@ -107,7 +107,8 @@ export class UserBanCacheService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * FIX-A (WS reconnect-gate, 2026-07) — jediný entry point pro „musí být
-   * socket odmítnut" (banned NEBO hard-deleted). Cache-first (`get()`, sync,
+   * socket odmítnut" (banned NEBO hard-deleted NEBO soft-delete pending,
+   * FIX-3 BE oprava dávka). Cache-first (`get()`, sync,
    * nulová latency pro opakované connecty stejného banned usera); na miss
    * dotáhne DB a cachuje jen POZITIVNÍ (banned) nález — shodné se stávající
    * `set`/`get` sémantikou (pozitivní cache, viz D-028). „Not banned" se
@@ -138,6 +139,12 @@ export class UserBanCacheService implements OnModuleInit, OnModuleDestroy {
       });
       return true;
     }
+    // FIX-3 (BE oprava dávka, 2026-07) — symetrie s REST (`JwtAuthGuard`
+    // vrací `DELETION_PENDING`, viz `@AllowPendingDeletion`). WS gateways
+    // nemají obdobu pending-allowlistu, takže pending účet blokujeme vždy.
+    // Negativně necachujeme (stejně jako `isDeleted` výše) — `requestSelfDeletion`
+    // / `cancelSelfDeletion` volají `invalidate()` při každé změně stavu.
+    if (user.deletionRequestedAt) return true;
     return false;
   }
 

@@ -23,6 +23,8 @@ describe('BestiaeService', () => {
     updateAtomic: jest.fn(),
     softDelete: jest.fn(),
     restore: jest.fn(),
+    findImageUrlsByOwner: jest.fn().mockResolvedValue([]),
+    deleteAllByOwner: jest.fn(),
   };
   const mockValidator = {
     validateForCreate: jest.fn(),
@@ -137,6 +139,32 @@ describe('BestiaeService', () => {
         service.create({ ...baseCreate, scope: 'user' }, hrac),
       ).rejects.toThrow(BadRequestException);
       expect(mockRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // FIX-4 (BE oprava dávka, 2026-07) — hard-delete účtu uklidí 'user'-scope
+  // bestie autora (jinak imageUrl blob osiří na Cloudinary navždy).
+  describe('handleAccountHardDeleted', () => {
+    it('posbírá imageUrl "user"-scope bestií ownera → media.orphaned + smaže je', async () => {
+      mockRepo.findImageUrlsByOwner.mockResolvedValue([
+        'https://res.cloudinary.com/x/bestie1.webp',
+      ]);
+      await service.handleAccountHardDeleted({ userId: 'h' });
+      expect(mockRepo.findImageUrlsByOwner).toHaveBeenCalledWith('h');
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('media.orphaned', {
+        urls: ['https://res.cloudinary.com/x/bestie1.webp'],
+      });
+      expect(mockRepo.deleteAllByOwner).toHaveBeenCalledWith('h');
+    });
+
+    it('bez obrázků — nic neemituje, ale pořád smaže bestie', async () => {
+      mockRepo.findImageUrlsByOwner.mockResolvedValue([]);
+      await service.handleAccountHardDeleted({ userId: 'h' });
+      expect(mockEventEmitter.emit).not.toHaveBeenCalledWith(
+        'media.orphaned',
+        expect.anything(),
+      );
+      expect(mockRepo.deleteAllByOwner).toHaveBeenCalledWith('h');
     });
   });
 });

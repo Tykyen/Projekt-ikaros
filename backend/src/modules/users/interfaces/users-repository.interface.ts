@@ -49,6 +49,11 @@ export interface IUsersRepository {
     role?: UserRole;
     page: number;
     limit: number;
+    /**
+     * FIX-1 (BE oprava dávka, 2026-07) — skryje tombstone (`isDeleted:true`)
+     * účty z `items` i `total` (vzor `findPublicPaginated`); default false.
+     */
+    includeDeleted?: boolean;
   }): Promise<{ items: User[]; total: number }>;
   findPublicPaginated(
     opts: FindPublicPaginatedOpts,

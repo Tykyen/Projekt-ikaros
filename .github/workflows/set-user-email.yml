@@ -24,7 +24,7 @@ on:
       newEmail:
         description: 'Novy email'
         required: true
-        default: 'pokorna.tyna@gmail.com'
+        default: ''
       confirm:
         description: 'Napis SET pro potvrzeni'
         required: true
@@ -56,19 +56,28 @@ jobs:
           const userId = "${USER_ID}";
           const newEmail = "${NEW_EMAIL}".trim().toLowerCase();
 
+          // Maskuje email pro Actions log (CI email leak fix) — nikdy nevypisuj
+          // plny email do logu, jen prvni znak + domenu.
+          function maskEmail(e) {
+            if (!e) return e;
+            const at = e.indexOf("@");
+            if (at <= 0) return "***";
+            return e.slice(0, 1) + "***@" + e.slice(at + 1);
+          }
+
           const user = db.users.findOne({ _id: ObjectId(userId) }, { email: 1, username: 1 });
           if (!user) {
             print("CHYBA: ucet nenalezen pro _id=" + userId);
             quit(1);
           }
-          print("Pred:  " + user.username + "  /  " + user.email);
+          print("Pred:  " + user.username + "  /  " + maskEmail(user.email));
 
           const clash = db.users.findOne(
             { email: newEmail, _id: { \$ne: ObjectId(userId) } },
             { username: 1 },
           );
           if (clash) {
-            print("CHYBA: email '" + newEmail + "' uz pouziva ucet '" + clash.username + "' — zmena neprovedena.");
+            print("CHYBA: email uz pouziva ucet '" + clash.username + "' — zmena neprovedena.");
             quit(1);
           }
 
@@ -78,11 +87,14 @@ jobs:
           );
           print("matched=" + r.matchedCount + " modified=" + r.modifiedCount);
           print("--- vysledek:");
-          printjson(
-            db.users.findOne(
-              { _id: ObjectId(userId) },
-              { email: 1, username: 1, emailVerified: 1 },
-            ),
+          const after = db.users.findOne(
+            { _id: ObjectId(userId) },
+            { email: 1, username: 1, emailVerified: 1 },
           );
+          printjson({
+            username: after.username,
+            email: maskEmail(after.email),
+            emailVerified: after.emailVerified,
+          });
           EOF
           ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < set-email.js
