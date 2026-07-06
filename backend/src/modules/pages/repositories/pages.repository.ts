@@ -129,6 +129,8 @@ export class MongoPagesRepository
         // per-user v service.findDirectory).
         accessRequirements: 1,
         isWoodWide: 1,
+        // 17.7 — existence familyTree rozlišuje nový Rodokmen od legacy (→ Zoom).
+        familyTree: 1,
       })
       .sort({ order: 1 })
       .lean()
@@ -137,7 +139,10 @@ export class MongoPagesRepository
       id: String(doc._id),
       slug: doc.slug,
       title: doc.title,
-      type: normalizePageType(doc.type),
+      type: normalizePageType(
+        doc.type,
+        !!(doc as { familyTree?: unknown }).familyTree,
+      ),
       order: doc.order ?? 0,
       updatedAt: (doc as { updatedAt?: Date }).updatedAt as Date,
       imageUrl: (doc as { imageUrl?: string }).imageUrl,
@@ -205,7 +210,7 @@ export class MongoPagesRepository
           slug: { $ne: targetSlug.toLowerCase() }, // self-link nepočítáme
           content: { $regex: pattern, $options: 'i' },
         },
-        { slug: 1, title: 1, type: 1 },
+        { slug: 1, title: 1, type: 1, familyTree: 1 },
       )
       .sort({ updatedAt: -1 })
       .limit(50)
@@ -214,7 +219,10 @@ export class MongoPagesRepository
     return docs.map((doc) => ({
       slug: doc.slug,
       title: doc.title,
-      type: normalizePageType(doc.type),
+      type: normalizePageType(
+        doc.type,
+        !!(doc as { familyTree?: unknown }).familyTree,
+      ),
     }));
   }
 
@@ -237,7 +245,7 @@ export class MongoPagesRepository
       id: String(doc._id),
       slug: doc.slug as string,
       worldId: doc.worldId as string,
-      type: normalizePageType(doc.type),
+      type: normalizePageType(doc.type, !!doc.familyTree),
       title: doc.title as string,
       content: (doc.content as string) ?? '',
       quickRef: (doc.quickRef as string) ?? '',
@@ -251,6 +259,35 @@ export class MongoPagesRepository
       // Krok 8.4 — normalizace table.values na `PageTableCell[]` (stará data
       // mohou být `string[]` / HTML stringy).
       table: normalizePageTable(doc.table),
+      // 17.7 — rodokmen (whitelist people/unions). undefined = legacy (→ Zoom).
+      familyTree: doc.familyTree
+        ? {
+            people: (
+              (doc.familyTree as { people?: Record<string, unknown>[] })
+                .people ?? []
+            ).map((p) => ({
+              id: p.id as string,
+              name: (p.name as string) ?? '',
+              sub: p.sub as string | undefined,
+              born: p.born as string | undefined,
+              died: p.died as string | undefined,
+              imageUrl: p.imageUrl as string | undefined,
+              color: p.color as string | undefined,
+              pageSlug: p.pageSlug as string | undefined,
+              x: (p.x as number) ?? 0,
+              y: (p.y as number) ?? 0,
+            })),
+            unions: (
+              (doc.familyTree as { unions?: Record<string, unknown>[] })
+                .unions ?? []
+            ).map((u) => ({
+              id: u.id as string,
+              aId: u.aId as string,
+              bId: u.bId as string | undefined,
+              childIds: (u.childIds as string[]) ?? [],
+            })),
+          }
+        : undefined,
       sections: ((doc.sections as Record<string, unknown>[]) ?? []).map(
         (s) => ({
           id: s.id as string,

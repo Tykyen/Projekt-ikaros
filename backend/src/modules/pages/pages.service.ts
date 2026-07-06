@@ -341,6 +341,12 @@ export class PagesService {
         plainText,
         sections: safeSections,
         table: sanitizeTable(dto.table),
+        // 17.7 — familyTree jen pro typ Rodokmen (nový strom vždy dostane objekt,
+        // i prázdný → odliší se od legacy 'Rodokmen' bez familyTree = Zoom).
+        familyTree:
+          dto.type === 'Rodokmen'
+            ? (dto.familyTree ?? { people: [], unions: [] })
+            : undefined,
         galleryImages: dto.galleryImages ?? [],
         videos: dto.videos ?? [],
         menu: (dto.menu ?? []).map((m) => ({ ...m, order: m.order ?? 0 })),

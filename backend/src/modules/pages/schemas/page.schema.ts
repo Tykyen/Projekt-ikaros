@@ -22,6 +22,15 @@ export class PageSchemaClass {
   @Prop({ default: null, type: String, enum: ['cover', 'contain', null] })
   imageFit?: 'cover' | 'contain' | null;
   @Prop({ type: Object }) table?: Record<string, unknown>;
+  // 17.7 — vizuální rodokmen (strom rodiny). Raw Object jako `table`. BEZ
+  // defaultu — pole existuje JEN na stránkách typu Rodokmen (service ho tam
+  // nastaví). Jeho přítomnost odlišuje nový typ „Rodokmen" od legacy (velký
+  // obrázek → Zoom); viz normalizePageType.
+  @Prop({ type: Object })
+  familyTree?: {
+    people: Record<string, unknown>[];
+    unions: Record<string, unknown>[];
+  };
   @Prop({
     type: [MixedArraySubSchema],
     default: (): Record<string, unknown>[] => [],

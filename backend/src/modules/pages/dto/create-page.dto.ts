@@ -75,6 +75,75 @@ export class GalleryImageDto {
   order: number = 0;
 }
 
+// 17.7 — vizuální rodokmen.
+export class FamilyPersonDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  name: string = '';
+
+  @IsOptional()
+  @IsString()
+  sub?: string;
+
+  @IsOptional()
+  @IsString()
+  born?: string;
+
+  @IsOptional()
+  @IsString()
+  died?: string;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsString()
+  pageSlug?: string;
+
+  @IsNumber()
+  x: number = 0;
+
+  @IsNumber()
+  y: number = 0;
+}
+
+export class FamilyUnionDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  aId: string;
+
+  @IsOptional()
+  @IsString()
+  bId?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  childIds: string[] = [];
+}
+
+export class FamilyTreeDto {
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FamilyPersonDto)
+  people: FamilyPersonDto[] = [];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FamilyUnionDto)
+  unions: FamilyUnionDto[] = [];
+}
+
 export class InstructionalVideoDto {
   @IsString()
   id: string;
@@ -289,6 +358,12 @@ export class CreatePageDto {
   @ValidateNested()
   @Type(() => PageTableDto)
   table?: PageTableDto;
+
+  // 17.7 — vizuální rodokmen (jen typ Rodokmen; pro ostatní undefined).
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => FamilyTreeDto)
+  familyTree?: FamilyTreeDto;
 
   @IsOptional()
   @IsObject()
