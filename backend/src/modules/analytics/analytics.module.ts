@@ -15,5 +15,7 @@ import { AnalyticsService } from './analytics.service';
   ],
   controllers: [AnalyticsController],
   providers: [AnalyticsService],
+  // 19.1 — admin growth dashboard čte `visitors` ze summary (akviziční poměr).
+  exports: [AnalyticsService],
 })
 export class AnalyticsModule {}

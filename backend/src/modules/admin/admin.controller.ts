@@ -16,6 +16,8 @@ import {
 } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
+import { AdminGrowthService } from './admin-growth.service';
+import { AdminCostsService } from './admin-costs.service';
 import { AdminFriendshipsService } from './admin-friendships.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
@@ -42,6 +44,9 @@ class UpdateRoleDto {
   @IsEnum(UserRole) role: UserRole;
 }
 
+/** 19.1 — povolená okna pro growth funnel (nováčkovská kohorta). */
+const GROWTH_ALLOWED_DAYS = [7, 30, 90];
+
 @ApiTags('Admin')
 @ApiBearerAuth()
 @Controller('admin')
@@ -50,6 +55,8 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly adminStatsService: AdminStatsService,
+    private readonly adminGrowthService: AdminGrowthService,
+    private readonly adminCostsService: AdminCostsService,
     private readonly adminFriendshipsService: AdminFriendshipsService,
   ) {}
 
@@ -64,6 +71,34 @@ export class AdminController {
   @ApiResponse({ status: 403 })
   getStatsOverview() {
     return this.adminStatsService.getOverview();
+  }
+
+  // ─── Stats — growth funnel & retention (19.1) ─────────────────────────────
+
+  @Get('stats/growth')
+  @UseGuards(AdminGuard)
+  @ApiOperation({
+    summary: 'Onboarding funnel + retenční ukazatele (Admin+)',
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  getStatsGrowth(@Query('days') daysRaw?: string) {
+    const n = Number(daysRaw);
+    const days = GROWTH_ALLOWED_DAYS.includes(n) ? n : 30;
+    return this.adminGrowthService.getGrowth(days);
+  }
+
+  // ─── Stats — costs / storage (19.2) ───────────────────────────────────────
+
+  @Get('stats/costs')
+  @UseGuards(AdminGuard)
+  @ApiOperation({
+    summary: 'Počítadla nákladů — počty blobů, byty, Cloudinary usage (Admin+)',
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  getStatsCosts() {
+    return this.adminCostsService.getCosts();
   }
 
   // ─── Users — listing / create / role ──────────────────────────────────────
