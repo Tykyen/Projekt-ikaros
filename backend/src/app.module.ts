@@ -44,6 +44,7 @@ import { IkarosCategoriesModule } from './modules/ikaros-categories/ikaros-categ
 import { PendingActionsModule } from './modules/pending-actions/pending-actions.module';
 import { IkarosGalleryModule } from './modules/ikaros-gallery/ikaros-gallery.module';
 import { IkarosDiscussionsModule } from './modules/ikaros-discussions/ikaros-discussions.module';
+import { NaboryModule } from './modules/nabory/nabory.module';
 import { EmotesModule } from './modules/emotes/emotes.module';
 import { ImagesModule } from './modules/images/images.module';
 import { SoundsModule } from './modules/sounds/sounds.module';
@@ -113,6 +114,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     IkarosCategoriesModule,
     IkarosGalleryModule,
     IkarosDiscussionsModule,
+    NaboryModule,
     EmotesModule,
     ImagesModule,
     SoundsModule,
