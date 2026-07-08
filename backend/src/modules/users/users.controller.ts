@@ -469,6 +469,16 @@ export class UsersController {
     return this.usersService.lookup(q ?? '');
   }
 
+  // 19.4 — veřejná zeď podporovatelů. BEZ guardu (marketing i pro anon).
+  // MUSÍ být deklarováno PŘED @Get(':id'), jinak by ':id'='supporters'.
+  @Get('supporters')
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @ApiOperation({ summary: '19.4 — veřejná zeď podporovatelů (leak-safe)' })
+  @ApiResponse({ status: 200 })
+  listSupporters() {
+    return this.usersService.listSupporters();
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Detail uživatele podle ID' })

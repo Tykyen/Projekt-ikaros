@@ -17,6 +17,7 @@ import {
   UserRole,
   PublicUserListItem,
   PublicUserProfile,
+  SupporterListItem,
   TombstoneInfo,
 } from './interfaces/user.interface';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -131,6 +132,8 @@ export class UsersService implements OnModuleInit {
       createdAt: user.createdAt,
       // „Neviditelný" mód (`hiddenPresence`) → presence se ostatním neukazuje.
       lastSeenAt: user.hiddenPresence ? undefined : user.lastSeenAt,
+      // 19.4 — status Podporovatel (badge).
+      isSupporter: user.isSupporter ?? false,
     };
   }
 
@@ -428,6 +431,21 @@ export class UsersService implements OnModuleInit {
     };
   }
 
+  /**
+   * 19.4 — veřejná zeď podporovatelů (leak-safe). Bez auth, bez role/PII.
+   */
+  async listSupporters(): Promise<SupporterListItem[]> {
+    const users = await this.repo.findSupporters();
+    return users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrl,
+      defaultAvatarType: u.defaultAvatarType,
+      supporterSince: u.supporterSince ? u.supporterSince.toISOString() : null,
+    }));
+  }
+
   private toPublicListItem(
     user: User,
     worldsCount: number,
@@ -443,6 +461,9 @@ export class UsersService implements OnModuleInit {
       createdAt: user.createdAt,
       defaultAvatarType: user.defaultAvatarType,
       worldsCount,
+      // 19.4 — status Podporovatel + kdy (badge v adresáři/na zdi).
+      isSupporter: user.isSupporter ?? false,
+      supporterSince: user.supporterSince,
     };
     if (isAdmin) {
       if (user.isDeleted) item.deleted = true;
@@ -513,6 +534,9 @@ export class UsersService implements OnModuleInit {
       defaultAvatarType: user.defaultAvatarType,
       worldsCount,
       lastSeenAt,
+      // 19.4 — status Podporovatel + kdy (badge + „podporovatel od").
+      isSupporter: user.isSupporter ?? false,
+      supporterSince: user.supporterSince,
       // 1.3a — veřejná profilová pole + postava v Campu (FE: veřejný
       // profil 1.4 + detail postavy v chatu).
       bio: user.bio,

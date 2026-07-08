@@ -49,6 +49,7 @@ import type { UpdateAppearanceDto } from './dto/update-appearance.dto';
 import type { UpdateChatPrefsDto } from './dto/update-chat-prefs.dto';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import { UsersService } from '../users/users.service';
+import { isEffectiveSupporter } from '../users/supporter.util';
 import type { World } from '../worlds/interfaces/world.interface';
 import type { WorldSettings } from '../worlds/interfaces/world-settings.interface';
 import { WorldsService } from '../worlds/worlds.service';
@@ -2404,6 +2405,8 @@ export class ChatService implements OnApplicationBootstrap {
       patch.diceSkinMapping = dto.diceSkinMapping;
     if (dto.jailedDiceSkins !== undefined)
       patch.jailedDiceSkins = dto.jailedDiceSkins;
+    // 19.4 — nepodporovatel: prémiové skiny (ne bezne-*) a vězení jen podporovatelům.
+    await this.enforceSupporterDiceGate(userId, patch);
     const updated = await this.membershipRepo.update(membership.id, patch);
     return {
       chatColor: updated?.chatColor ?? null,
@@ -2416,5 +2419,31 @@ export class ChatService implements OnApplicationBootstrap {
       diceSkinMapping: updated?.diceSkinMapping ?? null,
       jailedDiceSkins: updated?.jailedDiceSkins ?? [],
     };
+  }
+
+  /**
+   * 19.4 — freemium gate na kosmetiku kostek. Nepodporovatel smí mít v
+   * diceSkinMapping jen běžné materiály (id `bezne-*`) a nesmí používat vězení
+   * (jailedDiceSkins). Tiché ořezání = pojistka za FE gate (FE prémiové ani
+   * nepošle); autorita na BE, kdo obejde FE, prémiové stejně neuloží.
+   */
+  private async enforceSupporterDiceGate(
+    userId: string,
+    patch: {
+      diceSkinMapping?: Record<string, string> | null;
+      jailedDiceSkins?: string[];
+    },
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId).catch(() => null);
+    if (!user || isEffectiveSupporter(user.role, user.isSupporter)) return;
+    if (patch.diceSkinMapping) {
+      const filtered: Record<string, string> = {};
+      for (const [key, val] of Object.entries(patch.diceSkinMapping)) {
+        if (typeof val === 'string' && val.startsWith('bezne-'))
+          filtered[key] = val;
+      }
+      patch.diceSkinMapping = filtered;
+    }
+    if (patch.jailedDiceSkins !== undefined) patch.jailedDiceSkins = [];
   }
 }

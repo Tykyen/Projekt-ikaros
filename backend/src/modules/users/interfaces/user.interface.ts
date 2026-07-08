@@ -144,6 +144,10 @@ export interface User {
 
   // 15.9 — notifikační preference (push). undefined = použij defaulty z kódu.
   notificationPreferences?: NotificationPreferences;
+
+  // 19.4 — freemium status „Podporovatel" (spec-19.4). Ručně udělený flag.
+  isSupporter?: boolean;
+  supporterSince?: Date;
 }
 
 /**
@@ -176,6 +180,8 @@ export interface PublicUser {
   /** Poslední aktivita uživatele. `undefined`, má-li zapnutý „neviditelný" mód
    *  (`hiddenPresence`) — presence se pak ostatním neukazuje. */
   lastSeenAt?: Date;
+  // 19.4 — status Podporovatel (badge na veřejném profilu).
+  isSupporter?: boolean;
 }
 
 export interface PublicUserListItem {
@@ -190,6 +196,9 @@ export interface PublicUserListItem {
   worldsCount: number;
   deleted?: boolean;
   pendingDeletion?: boolean;
+  // 19.4 — status Podporovatel + kdy (badge v adresáři + zeď „podporovatel od").
+  isSupporter?: boolean;
+  supporterSince?: Date;
 }
 
 export interface PublicUserProfile extends PublicUserListItem {
@@ -203,4 +212,17 @@ export interface PublicUserProfile extends PublicUserListItem {
   characterName?: string;
   characterBio?: string;
   characterAvatarUrl?: string;
+}
+
+/**
+ * 19.4 — leak-safe položka zdi podporovatelů (veřejný endpoint /users/supporters).
+ * BEZ role/emailu/worldsCount — jen co veřejná zeď potřebuje.
+ */
+export interface SupporterListItem {
+  id: string;
+  username: string;
+  displayName?: string;
+  avatarUrl?: string;
+  defaultAvatarType?: string;
+  supporterSince: string | null;
 }

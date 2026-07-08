@@ -57,12 +57,21 @@ export type { RequestUser };
 import { worldAdminBypass } from '../../common/utils/world-elevation';
 import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 import type { WorldElevationChangedEvent } from '../world-elevations/world-elevations.service';
+import { isEffectiveSupporter } from '../users/supporter.util';
 
 /**
  * 2.3 D-NEW-quota — maximální počet aktivních světů, které smí mít jeden
  * vlastník (kromě globálních admin rolí). Soft-deleted světy se nepočítají.
  */
 export const MAX_ACTIVE_WORLDS_PER_OWNER = 30;
+
+/**
+ * 19.4 (spec-19.4) — nepodporovatel smí být max ve 3 AKTIVNÍCH světech
+ * (je NEBO vlastní; vlastník má vždy membership). Podporovatel (vč. týmu z role)
+ * jede na owner-kvótu výše. Grandfathering: limit blokuje jen NOVÉ přidání nad 3,
+ * existující členství nikdy neodebírá.
+ */
+export const MAX_ACTIVE_WORLDS_NON_SUPPORTER = 3;
 
 /**
  * Krok 6.3 D-NEW-dice-default-set — výchozí sada kostek per RPG systém.
@@ -317,6 +326,37 @@ export class WorldsService implements OnApplicationBootstrap {
       );
   }
 
+  /**
+   * 19.4 — počet AKTIVNÍCH světů uživatele (je NEBO vlastní; vlastník má vždy
+   * membership). Soft-deleted světy se nepočítají (membership u nich zůstává).
+   */
+  private async countActiveWorldsForUser(userId: string): Promise<number> {
+    const memberships = await this.membershipRepo.findByUserId(userId);
+    if (memberships.length === 0) return 0;
+    const worlds = await this.worldsRepo.findByIds(
+      memberships.map((m) => m.worldId),
+    );
+    return worlds.filter((w) => w.isActive).length;
+  }
+
+  /**
+   * 19.4 — brána freemium limitu při vstupu do dalšího světa (join/žádost).
+   * Nepodporovatel nesmí překročit MAX_ACTIVE_WORLDS_NON_SUPPORTER. Grandfathering:
+   * blokuje jen NOVÉ přidání, existující členství neodebírá.
+   */
+  private async assertCanJoinMoreWorlds(userId: string): Promise<void> {
+    const user = await this.usersService.findById(userId).catch(() => null);
+    if (!user) return; // fail-open (auth existenci už ověřil)
+    if (isEffectiveSupporter(user.role, user.isSupporter)) return;
+    const active = await this.countActiveWorldsForUser(userId);
+    if (active >= MAX_ACTIVE_WORLDS_NON_SUPPORTER) {
+      throw new ForbiddenException({
+        code: 'WORLD_MEMBERSHIP_QUOTA_REACHED',
+        message: `Bez podpory můžeš být max ve ${MAX_ACTIVE_WORLDS_NON_SUPPORTER} světech. Staň se podporovatelem, nebo některý svět opusť.`,
+      });
+    }
+  }
+
   // ─── Elevation („nahození práv") ──────────────────────────────────────────
 
   private assertCanElevate(requester: RequestUser): void {
@@ -414,12 +454,25 @@ export class WorldsService implements OnApplicationBootstrap {
     // 2.3 D-NEW-quota — Admin/Superadmin (role <= Admin) bez limitu;
     // ostatní max MAX_ACTIVE_WORLDS_PER_OWNER aktivních světů.
     if (ownerRole != null && ownerRole > UserRole.Admin) {
-      const owned = await this.worldsRepo.findByOwnerId(ownerId);
-      if (owned.length >= MAX_ACTIVE_WORLDS_PER_OWNER) {
-        throw new ForbiddenException({
-          code: 'WORLD_QUOTA_REACHED',
-          message: `Dosáhl jsi limitu ${MAX_ACTIVE_WORLDS_PER_OWNER} aktivních světů.`,
-        });
+      // 19.4 — nepodporovatel: limit 3 aktivní světy (je nebo vlastní).
+      // Podporovatel (vč. správců z role) jede na owner-kvótu 30 níže.
+      const owner = await this.usersService.findById(ownerId).catch(() => null);
+      if (!isEffectiveSupporter(ownerRole, owner?.isSupporter)) {
+        const active = await this.countActiveWorldsForUser(ownerId);
+        if (active >= MAX_ACTIVE_WORLDS_NON_SUPPORTER) {
+          throw new ForbiddenException({
+            code: 'WORLD_MEMBERSHIP_QUOTA_REACHED',
+            message: `Bez podpory můžeš být max ve ${MAX_ACTIVE_WORLDS_NON_SUPPORTER} světech. Staň se podporovatelem, nebo některý svět opusť.`,
+          });
+        }
+      } else {
+        const owned = await this.worldsRepo.findByOwnerId(ownerId);
+        if (owned.length >= MAX_ACTIVE_WORLDS_PER_OWNER) {
+          throw new ForbiddenException({
+            code: 'WORLD_QUOTA_REACHED',
+            message: `Dosáhl jsi limitu ${MAX_ACTIVE_WORLDS_PER_OWNER} aktivních světů.`,
+          });
+        }
       }
     }
 
@@ -759,6 +812,9 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'PENDING_ACCESS_REQUEST',
       });
 
+    // 19.4 — nepodporovatel max 3 aktivní světy (je nebo vlastní).
+    await this.assertCanJoinMoreWorlds(userId);
+
     const membership = await this.membershipRepo.save({
       userId,
       worldId,
@@ -807,6 +863,9 @@ export class WorldsService implements OnApplicationBootstrap {
         message: 'Již jsi členem tohoto světa',
         code: 'WORLD_ALREADY_MEMBER',
       });
+
+    // 19.4 — nepodporovatel max 3 aktivní světy (blokuj už žádost o vstup).
+    await this.assertCanJoinMoreWorlds(userId);
 
     // create() vyhodí ConflictException pri duplicate (unique index).
     const ar = await this.accessRequestRepo.create({ worldId, userId });

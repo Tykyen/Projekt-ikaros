@@ -183,6 +183,40 @@ export class AdminService {
     return user ? stripPassword(user) : null;
   }
 
+  /**
+   * 19.4 (spec-19.4) — ruční udělení/odebrání statusu Podporovatel (režim A2:
+   * status je grant, ne nákup). Napříč rolemi (na rozdíl od admin-permissions).
+   * supporterSince = první udělení (při re-grantu se zachová), revoke ho nemaže
+   * (neškodí — zeď filtruje na isSupporter).
+   */
+  async setSupporter(actor: User, userId: string, isSupporter: boolean) {
+    const target = await this.usersRepo.findById(userId);
+    if (!target)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    const before = target.isSupporter ?? false;
+    const patch: Partial<User> = { isSupporter };
+    if (isSupporter) patch.supporterSince = target.supporterSince ?? new Date();
+    const user = await this.usersRepo.update(userId, patch);
+    if (user) {
+      await this.audit(
+        actor,
+        target,
+        isSupporter ? 'SUPPORTER_GRANT' : 'SUPPORTER_REVOKE',
+        { isSupporter: before },
+        { isSupporter },
+      );
+      // real-time signál cílovému uživateli (refetch identity → badge/limity).
+      this.eventEmitter.emit('user.identity.changed', {
+        userId,
+        kind: 'supporter',
+      });
+    }
+    return user ? stripPassword(user) : null;
+  }
+
   async createUser(actor: User, dto: CreateUserAdminDto): Promise<SafeUser> {
     const targetRole = dto.role ?? UserRole.Ikarus;
     // Virtuální target: vznikne nový user, takže pro hierarchy check použijeme

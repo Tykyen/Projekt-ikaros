@@ -166,6 +166,13 @@ export class UserSchemaClass {
     _id: false,
   })
   notificationPreferences?: NotificationPreferences;
+
+  // 19.4 (spec-19.4) — freemium status „Podporovatel" (režim A2). Ručně udělený
+  // flag; tým (Admin/Superadmin/Správci) je efektivní podporovatel z role (viz
+  // isEffectiveSupporter helper). supporterSince = kdy udělen (řazení zdi +
+  // „podporovatel od"); NEodvozovat z createdAt.
+  @Prop({ default: false }) isSupporter?: boolean;
+  @Prop({ type: Date }) supporterSince?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(UserSchemaClass);
@@ -176,3 +183,5 @@ UserSchema.index({ bannedUntil: 1 }, { sparse: true });
 // Aktivuje se v `MongoUsersRepository.findPublicPaginated` při dotazu s parametrem `useTextSearch: true`,
 // jinak fallback na $regex (rychlejší pro malé sety, viditelné `usernameLower` substring search).
 UserSchema.index({ usernameLower: 'text', displayName: 'text' });
+// 19.4 — zeď podporovatelů (findSupporters): filtr isSupporter + řazení supporterSince.
+UserSchema.index({ isSupporter: 1, supporterSince: -1 });

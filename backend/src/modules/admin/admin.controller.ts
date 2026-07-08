@@ -26,7 +26,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, User } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
-import { IsEnum } from 'class-validator';
+import { IsBoolean, IsEnum } from 'class-validator';
 import { CreateUserAdminDto } from './dto/create-user-admin.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { AdminDeleteUserDto } from './dto/admin-delete-user.dto';
@@ -42,6 +42,11 @@ import type {
 
 class UpdateRoleDto {
   @IsEnum(UserRole) role: UserRole;
+}
+
+/** 19.4 — udělení/odebrání statusu Podporovatel. */
+class SetSupporterDto {
+  @IsBoolean() isSupporter: boolean;
 }
 
 /** 19.1 — povolená okna pro growth funnel (nováčkovská kohorta). */
@@ -142,6 +147,23 @@ export class AdminController {
       actor as unknown as User,
       id,
       dto.role,
+    );
+  }
+
+  @Patch('users/:id/supporter')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: '19.4 — udělení/odebrání statusu Podporovatel' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  setSupporter(
+    @Param('id') id: string,
+    @Body() dto: SetSupporterDto,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.adminService.setSupporter(
+      actor as unknown as User,
+      id,
+      dto.isSupporter,
     );
   }
 

@@ -327,6 +327,28 @@ export class MongoUsersRepository
     };
   }
 
+  /**
+   * 19.4 — zeď podporovatelů. Jen isSupporter=true, leak-safe filtry
+   * (tombstone/pending/hidden), řazení supporterSince desc, strop 200.
+   */
+  async findSupporters(): Promise<User[]> {
+    const filter: Record<string, unknown> = {
+      isSupporter: true,
+      isDeleted: { $ne: true },
+      deletionRequestedAt: { $exists: false },
+      hiddenInDirectory: { $ne: true },
+    };
+    const docs = await this.model
+      .find(filter)
+      .sort({ supporterSince: -1 })
+      .limit(200)
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
   protected toEntity(doc: Record<string, unknown>): User {
     return {
       id: String(doc._id),
@@ -405,6 +427,10 @@ export class MongoUsersRepository
       notificationPreferences: doc.notificationPreferences as
         | User['notificationPreferences']
         | undefined,
+
+      // 19.4 — status Podporovatel. Fallback false pro dokumenty bez pole.
+      isSupporter: (doc.isSupporter as boolean | undefined) ?? false,
+      supporterSince: doc.supporterSince as Date | undefined,
     };
   }
 

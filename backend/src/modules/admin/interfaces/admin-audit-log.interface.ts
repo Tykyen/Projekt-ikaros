@@ -25,7 +25,10 @@ export type AdminAuditAction =
   | 'IKAROS_NEWS_DELETE'
   // Elevation — admin si „nahodil"/„složil" pravomoci ve světě.
   | 'WORLD_ELEVATION_ACTIVATED'
-  | 'WORLD_ELEVATION_REVOKED';
+  | 'WORLD_ELEVATION_REVOKED'
+  // 19.4 — admin udělil/odebral status Podporovatel.
+  | 'SUPPORTER_GRANT'
+  | 'SUPPORTER_REVOKE';
 
 /**
  * D-067 — typ cílové entity audit záznamu. `user` = výchozí (akce nad

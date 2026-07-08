@@ -58,6 +58,8 @@ export interface IUsersRepository {
   findPublicPaginated(
     opts: FindPublicPaginatedOpts,
   ): Promise<{ items: User[]; total: number }>;
+  /** 19.4 — zeď podporovatelů (isSupporter=true, leak-safe, řazení supporterSince). */
+  findSupporters(): Promise<User[]>;
   save(user: Partial<User>): Promise<User>;
   update(id: string, data: Partial<User>): Promise<User | null>;
   updateLastSeen(id: string): Promise<void>;
