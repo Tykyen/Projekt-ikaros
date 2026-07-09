@@ -6,6 +6,7 @@ import type {
   IkarosGalleryItem,
   GalleryStatus,
   GalleryRating,
+  GalleryAiOrigin,
 } from '../interfaces/ikaros-gallery.interface';
 import { IkarosGallerySchemaClass } from '../schemas/ikaros-gallery.schema';
 
@@ -46,15 +47,21 @@ export class MongoIkarosGalleryRepository implements IIkarosGalleryRepository {
         createdAtUtc: r.createdAtUtc ?? new Date(0),
       })),
       averageRating: (doc.averageRating as number) ?? 0,
+      // 20D (D1) — legacy dokumenty bez pole → 'none'.
+      aiOrigin: (doc.aiOrigin as GalleryAiOrigin) ?? 'none',
       createdAtUtc: doc.createdAtUtc as Date,
       updatedAtUtc: doc.updatedAtUtc as Date,
       publishedAtUtc: doc.publishedAtUtc as Date | undefined,
+      moderationHidden: (doc.moderationHidden as boolean) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
     };
   }
 
   async findPublished(): Promise<IkarosGalleryItem[]> {
     const docs = await this.model
-      .find({ status: 'Published' })
+      // B4b — veřejný list vynechá moderačně skryté (`$ne: true` bere i legacy
+      // dokumenty bez pole). Reviewer list (`findPublishedAndPending`) je vidí.
+      .find({ status: 'Published', moderationHidden: { $ne: true } })
       .sort({ createdAtUtc: -1 })
       .lean()
       .exec();

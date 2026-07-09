@@ -31,10 +31,13 @@ describe('MongoIkarosGalleryRepository', () => {
       .mockReturnValue({ exec: jest.fn().mockResolvedValue(0) }),
   };
 
-  it('findPublished volá find se status Published', async () => {
+  it('findPublished volá find se status Published (+ B4b: bez moderačně skrytých)', async () => {
     const repo = new MongoIkarosGalleryRepository(mockModel as never);
     await repo.findPublished();
-    expect(mockModel.find).toHaveBeenCalledWith({ status: 'Published' });
+    expect(mockModel.find).toHaveBeenCalledWith({
+      status: 'Published',
+      moderationHidden: { $ne: true },
+    });
   });
 
   it('countByCategory volá countDocuments s kategorií', async () => {

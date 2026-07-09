@@ -45,6 +45,12 @@ export interface Nabor {
   authorIsDeleted?: boolean;
   /** Počet nahlášení (post-moderace) — vidí moderátoři. */
   reportCount?: number;
+  /**
+   * B4b (spec 20B) — true = nábor skryt moderací (akce M2/M3). Veřejná nástěnka
+   * i detail ho vynechají; vidí ho jen reviewer set.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
   createdAtUtc: Date;
   expiresAtUtc?: Date;
 }

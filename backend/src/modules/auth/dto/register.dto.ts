@@ -31,6 +31,19 @@ export class RegisterDto {
   acceptedTerms: boolean;
 
   /**
+   * 20C (spec-20C §C2) — deklarativní věk. FE nabízí volbu „15+" / „<15" a
+   * odvozuje z ní `isMinor` (true = mladší 15). Minimalizace: NEsbíráme datum
+   * narození, jen tento flag. Service z něj nastaví `minorSelfDeclaredAt`,
+   * `parentalConsentStatus` a bezpečné defaulty nezletilého.
+   *
+   * POZOR: musí být v DTO (jako `acceptedTerms`/`hp`), protože
+   * `forbidNonWhitelisted` (PC-07) jinak registraci s `isMinor` z FE odmítne
+   * 400 „Neznámé pole isMinor" → rozbitá registrace. Symetrické s FE payloadem.
+   */
+  @IsBoolean()
+  isMinor: boolean;
+
+  /**
    * D-011 — Cloudflare Turnstile token. Pro dev (test keys) vždy projde;
    * v produkci se musí ověřit přes siteverify endpoint Cloudflare.
    * Pole je optional pro zpětnou kompatibilitu (klient bez Turnstile widgetu

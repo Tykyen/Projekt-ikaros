@@ -209,6 +209,13 @@ export interface Page {
   menu: MenuItem[];
   plainText: string;
   isWoodWide: boolean;
+  /**
+   * B4b (spec 20B) — true = stránka skryta moderací (akce M2/M3). Globální
+   * zásah: nevidí ji ani PJ/členové světa, jen platform reviewer set. Read cesty
+   * (findBySlug/findByWorld/findDirectory/findMeta/findRandom) ji vynechají.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
   accessRequirements: AccessRequirement[];
   customData?: Record<string, string>;
   order: number;

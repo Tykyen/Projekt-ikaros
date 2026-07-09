@@ -13,11 +13,9 @@ import { logWarn } from '../../common/logging/log-error.util';
 import { PushService } from '../push/push.service';
 import type { IIkarosDiscussionsRepository } from './interfaces/ikaros-discussions-repository.interface';
 import type { IIkarosDiscussionPostsRepository } from './interfaces/ikaros-discussion-posts-repository.interface';
-import type { IIkarosDiscussionReportsRepository } from './interfaces/ikaros-discussion-reports-repository.interface';
 import type {
   IkarosDiscussion,
   IkarosDiscussionPost,
-  IkarosDiscussionReport,
 } from './interfaces/ikaros-discussion.interface';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import { UsersService } from '../users/users.service';
@@ -44,8 +42,6 @@ export class IkarosDiscussionsService {
     private readonly repo: IIkarosDiscussionsRepository,
     @Inject('IIkarosDiscussionPostsRepository')
     private readonly postsRepo: IIkarosDiscussionPostsRepository,
-    @Inject('IIkarosDiscussionReportsRepository')
-    private readonly reportsRepo: IIkarosDiscussionReportsRepository,
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
     // D-040 — tombstone batch enrich pro `creatorIsDeleted` / `authorIsDeleted`.
     private readonly usersService: UsersService,
@@ -526,10 +522,14 @@ export class IkarosDiscussionsService {
         code: 'DISCUSSION_ACCESS_DENIED',
         message: 'Přístup odepřen',
       });
+    // B4d — moderačně skryté příspěvky (M2/M3) vidí jen reviewer set
+    // (Superadmin/Admin/SpravceDiskuzi); ostatním se z vlákna vynechají.
+    const isReviewer = this.isAdmin(role, username);
     const posts = await this.postsRepo.findByDiscussion(
       discussionId,
       skip,
       Math.min(limit, 100),
+      isReviewer,
     );
     return this.enrichTombstoneAuthors(posts);
   }
@@ -825,64 +825,34 @@ export class IkarosDiscussionsService {
     return updated!;
   }
 
-  async reportPost(
-    discussionId: string,
+  // ─── B4d — moderační enforcement (spec 20B, modul `moderation`) ─────────────
+  // Nahlašování příspěvků řeší generický modul `moderation` (queue
+  // `content_report`). `resolveReport` v moderaci vyšle `moderation.enforce`;
+  // `DiscussionsModerationEnforcementListener` volá tyto systémové metody.
+
+  /**
+   * B4d — moderační skrytí / odkrytí příspěvku (akce M2/M3 a revert). Systémová
+   * cesta z enforcement listeneru; BEZ autorského/role guardu (autorizoval už
+   * moderační zásah). Na neznámém id vrátí false, nikdy nehází.
+   */
+  async setPostModerationHidden(
     postId: string,
-    reason: string,
-    reporterId: string,
-    reporterName: string,
-  ): Promise<IkarosDiscussionReport> {
-    const discussion = await this.repo.findById(discussionId);
-    if (!discussion)
-      throw new NotFoundException({
-        code: 'DISCUSSION_NOT_FOUND',
-        message: 'Diskuze nenalezena',
-      });
-    const post = await this.postsRepo.findById(postId);
-    if (!post || post.discussionId !== discussionId)
-      throw new NotFoundException({
-        code: 'POST_NOT_FOUND',
-        message: 'Příspěvek nenalezen',
-      });
-    const report = await this.reportsRepo.create({
-      discussionId,
-      discussionTitle: discussion.title,
-      postId,
-      postContentSnapshot: post.content,
-      postAuthorName: post.authorName,
-      reporterId,
-      reporterName,
-      reason,
-      createdAtUtc: new Date(),
-      resolved: false,
-    });
-    await this.notifyAdmins(
-      'Nahlášený příspěvek v diskuzi',
-      `Uživatel ${reporterName} nahlásil příspěvek v diskuzi "${discussion.title}".`,
-    );
-    return report;
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    return this.postsRepo.setModerationHidden(postId, hidden, reason);
   }
 
-  async resolveReport(
-    reportId: string,
-    deletePost: boolean,
-    role: UserRole,
-    username: string,
-  ): Promise<void> {
-    this.assertAdmin(role, username);
-    const report = await this.reportsRepo.findById(reportId);
-    if (!report)
-      throw new NotFoundException({
-        code: 'REPORT_NOT_FOUND',
-        message: 'Hlášení nenalezeno',
-      });
-    if (deletePost) {
-      const post = await this.postsRepo.findById(report.postId);
-      if (post) {
-        await this.postsRepo.delete(report.postId);
-        await this.repo.adjustPostCount(report.discussionId, -1);
-      }
-    }
-    await this.reportsRepo.markResolved(reportId);
+  /**
+   * B4d — moderační smazání příspěvku (akce M4). Systémová cesta bez access
+   * guardu; dohledá post kvůli `discussionId` (kvůli dekrementu postCount).
+   * Na neznámém id vrátí false, nikdy nehází.
+   */
+  async moderationDeletePost(postId: string): Promise<boolean> {
+    const post = await this.postsRepo.findById(postId);
+    if (!post) return false;
+    await this.postsRepo.delete(postId);
+    await this.repo.adjustPostCount(post.discussionId, -1);
+    return true;
   }
 }

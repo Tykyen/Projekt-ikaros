@@ -61,12 +61,46 @@ export class NaboryService {
     return n;
   }
 
-  findAll(): Promise<Nabor[]> {
-    return this.repo.findActive();
+  /**
+   * Veřejná nástěnka. B4b — moderačně skryté nábory vidí jen reviewer set
+   * (ADMIN_ROLES); běžnému uživateli je repo vynechá. `role` je nepovinná kvůli
+   * legacy/interním callerům (bez ní = veřejný pohled bez skrytých).
+   */
+  findAll(role?: UserRole): Promise<Nabor[]> {
+    const isReviewer = role !== undefined && this.isAdmin(role);
+    return this.repo.findActive(isReviewer);
   }
 
-  findById(id: string): Promise<Nabor> {
-    return this.getOr404(id);
+  /**
+   * Detail náboru. B4b — moderačně skrytý nábor vrátíme jen reviewerovi;
+   * ostatním 404 (neprozrazuje existenci skrytého obsahu, auth-leak-policy).
+   */
+  async findById(id: string, role?: UserRole): Promise<Nabor> {
+    const nabor = await this.getOr404(id);
+    if (nabor.moderationHidden && !(role !== undefined && this.isAdmin(role))) {
+      throw new NotFoundException({
+        code: 'NABOR_NOT_FOUND',
+        message: 'Nábor nenalezen',
+      });
+    }
+    return nabor;
+  }
+
+  /**
+   * B4b (spec 20B) — moderační skrytí / odkrytí náboru (akce M2/M3 a revert).
+   * Systémová cesta z enforcement listeneru; bez autorského/role guardu
+   * (autorizoval už moderační zásah). Na neznámém id vrátí false, nikdy nehází.
+   */
+  async setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.repo.update(id, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    return updated !== null;
   }
 
   create(

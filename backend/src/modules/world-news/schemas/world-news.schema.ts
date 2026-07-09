@@ -44,6 +44,10 @@ export class WorldNewsSchemaClass {
   @Prop({ type: Boolean, default: false, index: true }) archived: boolean;
   @Prop() archivedAtUtc?: Date;
   @Prop() archivedByUserId?: string;
+  // B5 (spec 20B) — moderační skrytí (M2/M3). Veřejné čtení filtruje `$ne: true`.
+  @Prop({ type: Boolean, default: false, index: true })
+  moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
 }
 
 export const WorldNewsSchema =

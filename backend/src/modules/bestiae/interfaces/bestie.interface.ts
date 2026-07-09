@@ -23,6 +23,12 @@ export interface Bestie {
   systemStats: Record<string, unknown>;
   clonedFromId?: string;
   deletedAt: Date | null;
+  /**
+   * B5 (spec 20B) — moderačně skrytá bestie (akce M2/M3). Čtení (list i detail)
+   * ji vynechá; vidí ji jen platform reviewer (Admin+). Legacy bez pole = false.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -20,16 +20,26 @@ export class MongoIkarosDiscussionPostsRepository implements IIkarosDiscussionPo
       authorName: doc.authorName as string,
       content: doc.content as string,
       createdAtUtc: doc.createdAtUtc as Date,
+      moderationHidden: (doc.moderationHidden as boolean) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
     };
   }
 
+  /**
+   * B4d — `includeModerationHidden=false` (default) přidá filtr, který skryté
+   * příspěvky vynechá z veřejného čtení. Reviewer set volá s `true`.
+   */
   async findByDiscussion(
     discussionId: string,
     skip: number,
     limit: number,
+    includeModerationHidden = false,
   ): Promise<IkarosDiscussionPost[]> {
     const docs = await this.model
-      .find({ discussionId })
+      .find({
+        discussionId,
+        ...(includeModerationHidden ? {} : { moderationHidden: { $ne: true } }),
+      })
       .sort({ createdAtUtc: 1 })
       .skip(skip)
       .limit(limit)
@@ -61,5 +71,24 @@ export class MongoIkarosDiscussionPostsRepository implements IIkarosDiscussionPo
 
   async deleteByDiscussion(discussionId: string): Promise<void> {
     await this.model.deleteMany({ discussionId });
+  }
+
+  /**
+   * B4d — moderační skrytí / odkrytí příspěvku (M2/M3 + revert). Vrací false,
+   * když příspěvek neexistuje (listener to zaloguje), nikdy nehází.
+   */
+  async setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const res = await this.model
+      .findByIdAndUpdate(id, {
+        moderationHidden: hidden,
+        moderationHiddenReason: hidden ? reason : undefined,
+      })
+      .lean()
+      .exec();
+    return res !== null;
   }
 }

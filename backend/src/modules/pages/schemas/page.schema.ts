@@ -53,6 +53,10 @@ export class PageSchemaClass {
   menu: Record<string, unknown>[];
   @Prop({ default: '' }) plainText: string;
   @Prop({ default: false }) isWoodWide: boolean;
+  // B4b (spec 20B) — moderační skrytí (akce M2/M3). Globální zásah: skrytou
+  // stránku nevidí ani členové/PJ světa, jen platform reviewer set. Default false.
+  @Prop({ default: false }) moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
   @Prop({
     type: [MixedArraySubSchema],
     default: (): Record<string, unknown>[] => [],

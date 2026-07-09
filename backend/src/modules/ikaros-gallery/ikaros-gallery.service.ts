@@ -21,6 +21,9 @@ import type { User } from '../users/interfaces/user.interface';
 import type { CreateGalleryItemDto } from './dto/create-gallery-item.dto';
 import type { UpdateGalleryItemDto } from './dto/update-gallery-item.dto';
 import type { GalleryCategoriesService } from './gallery-categories.service';
+import type { GalleryAiOrigin } from './interfaces/ikaros-gallery.interface';
+// 20D (D3) — doklad souhlasu s právy při uploadu.
+import { UploadConsentsService } from '../upload-consents/upload-consents.service';
 
 // 3.3a — galerie je platformový obsah → jen globální role, bez world-scoped PJ.
 const ADMIN_ROLES = [
@@ -56,6 +59,9 @@ export class IkarosGalleryService {
     @Inject('UploadService') private readonly uploadService: UploadService,
     @Inject('GalleryCategoriesService')
     private readonly categoriesService: GalleryCategoriesService,
+    // 20D (D3) — audit log souhlasů; @Optional pro starší testy bez modulu.
+    @Optional()
+    private readonly uploadConsents?: UploadConsentsService,
     // 15.9 — push autorovi; @Optional pro starší testy bez PushModule.
     @Optional()
     private readonly pushService?: PushService,
@@ -197,6 +203,15 @@ export class IkarosGalleryService {
         code: 'GALLERY_ITEM_NOT_FOUND',
         message: 'Obrázek nenalezen',
       });
+    // B4b (spec 20B) — moderačně skrytý obrázek (M2/M3): vidí ho jen reviewer
+    // (content-admin set), ostatním (vč. autora a anonyma) vracíme 404, aby se
+    // neprozradila existence skrytého obsahu (auth-leak-policy).
+    if (item.moderationHidden && !this.isAdmin(role, username)) {
+      throw new NotFoundException({
+        code: 'GALLERY_ITEM_NOT_FOUND',
+        message: 'Obrázek nenalezen',
+      });
+    }
     if (
       item.status !== 'Published' &&
       item.authorId !== userId &&
@@ -216,13 +231,24 @@ export class IkarosGalleryService {
     authorId: string,
     authorName: string,
     _role: UserRole,
+    ip?: string,
   ): Promise<IkarosGalleryItem> {
     if (!file)
       throw new BadRequestException({
         code: 'GALLERY_FILE_REQUIRED',
         message: 'Soubor obrázku je povinný',
       });
+    // 20D (D1) — bez prohlášení práv nelze nahrát. Gate i na BE (ne jen FE
+    // disable), aby byl audit doklad (D3) vždy podložený reálným souhlasem.
+    if (dto.rightsDeclared !== true)
+      throw new BadRequestException({
+        code: 'GALLERY_RIGHTS_NOT_DECLARED',
+        message: 'Bez prohlášení o právech k obsahu nelze obrázek nahrát',
+      });
     const category = await this.resolveCategory(dto.category);
+    // 20D (D1) — self-declared AI původ; cokoli jiného než 'ai_image' → 'none'.
+    const aiOrigin: GalleryAiOrigin =
+      dto.aiOrigin === 'ai_image' ? 'ai_image' : 'none';
     const { url, publicId, width, height } =
       await this.uploadService.uploadGalleryImage(file);
     const status = dto.submit ? 'Pending' : 'Draft';
@@ -239,9 +265,23 @@ export class IkarosGalleryService {
       status,
       ratings: [],
       averageRating: 0,
+      aiOrigin,
       createdAtUtc: new Date(),
       updatedAtUtc: new Date(),
     });
+    // 20D (D3) — zapiš doklad souhlasu do audit logu. Best-effort: modul je
+    // @Optional (starší testy), a service sama chybu jen loguje (upload už proběhl).
+    if (this.uploadConsents) {
+      const author = await this.usersRepo.findById(authorId);
+      await this.uploadConsents.record({
+        userId: authorId,
+        targetType: 'gallery',
+        targetId: item.id,
+        aiDeclared: aiOrigin !== 'none',
+        termsVersion: author?.termsVersion ?? '',
+        ip,
+      });
+    }
     if (status === 'Pending') {
       await this.notifyAdmins(
         'Obrázek čeká na schválení',
@@ -512,10 +552,29 @@ export class IkarosGalleryService {
     userId: string,
     isAdmin: boolean,
   ): boolean {
+    // B4b — moderačně skrytý obrázek vidí jen reviewer (i v oblíbených).
+    if (item.moderationHidden && !isAdmin) return false;
     if (item.status === 'Published') return true;
     if (item.authorId === userId) return true;
     if (item.status === 'Pending' && isAdmin) return true;
     return false;
+  }
+
+  /**
+   * B4b (spec 20B) — moderační skrytí / odkrytí obrázku (akce M2/M3 a revert).
+   * Systémová cesta z enforcement listeneru; bez autorského/role guardu
+   * (autorizoval už moderační zásah). Na neznámém id vrátí false, nikdy nehází.
+   */
+  async setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.repo.update(id, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    return updated !== null;
   }
 
   async toggleFavorite(

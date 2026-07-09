@@ -42,6 +42,11 @@ export class BestieSchemaClass {
   @Prop() clonedFromId?: string;
 
   @Prop({ type: Date, default: null }) deletedAt!: Date | null;
+
+  // B5 (spec 20B) — moderační skrytí (M2/M3). Čtení filtruje `$ne: true`.
+  @Prop({ type: Boolean, default: false, index: true })
+  moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
 }
 
 export const BestieSchema = SchemaFactory.createForClass(BestieSchemaClass);

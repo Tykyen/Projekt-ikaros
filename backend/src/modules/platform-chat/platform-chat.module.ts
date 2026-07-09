@@ -6,6 +6,7 @@ import { UploadModule } from '../upload/upload.module';
 import { PlatformChatService } from './platform-chat.service';
 import { PlatformChatController } from './platform-chat.controller';
 import { PlatformChatGateway } from './platform-chat.gateway';
+import { ModerationEscalationListener } from './moderation-escalation.listener';
 import { PlatformDocumentsService } from './platform-documents.service';
 import { PlatformDocumentsController } from './platform-documents.controller';
 import { AdminTasksService } from './admin-tasks.service';
@@ -47,6 +48,8 @@ import {
     PlatformChatGateway,
     PlatformDocumentsService,
     AdminTasksService,
+    // B5 — eskalace moderace (M7 / minor_safety) do etického kanálu.
+    ModerationEscalationListener,
   ],
 })
 export class PlatformChatModule {}

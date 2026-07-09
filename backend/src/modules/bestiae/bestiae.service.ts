@@ -118,6 +118,11 @@ export class BestiaeService {
   async findById(id: string, user: CurrentUser): Promise<Bestie> {
     const bestie = await this.repo.findById(id);
     if (!bestie) throw new NotFoundException('Bestie nenalezena');
+    // B5 (spec 20B) — moderačně skrytá bestie (M2/M3): vidí ji jen platform
+    // reviewer (Admin+). Ostatním 404, aby se neprozradila existence.
+    if (bestie.moderationHidden && !this.isGlobalAdmin(user)) {
+      throw new NotFoundException('Bestie nenalezena');
+    }
     await this.assertCanRead(bestie, user);
     return bestie;
   }
@@ -237,6 +242,40 @@ export class BestiaeService {
     if (!restored) throw new NotFoundException();
     this.emitChanged(restored);
     return restored;
+  }
+
+  // ───────── B5 (spec 20B) — moderační enforcement (systémová cesta) ────────
+  // Bez autorské/role brány (autorizoval už moderační zásah); idempotentní,
+  // na neznámém id vrací false (listener zaloguje). Volá jen enforcement listener.
+
+  /** M2/M3 (skrytí) a jejich revert. */
+  async moderationSetHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.repo.updateAtomic(id, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? (reason ?? '') : '',
+    });
+    if (updated) this.emitChanged(updated);
+    return updated !== null;
+  }
+
+  /** M4 (odstranění) — soft delete (vratné přes `moderationRestore`). */
+  async moderationRemove(id: string): Promise<boolean> {
+    const existing = await this.repo.findById(id);
+    if (!existing) return false;
+    await this.repo.softDelete(id);
+    this.emitChanged(existing);
+    return true;
+  }
+
+  /** Revert M4 — obnoví soft-smazanou bestii (bestiae soft delete je vratné). */
+  async moderationRestore(id: string): Promise<boolean> {
+    const restored = await this.repo.restore(id);
+    if (restored) this.emitChanged(restored);
+    return restored !== null;
   }
 
   async clone(

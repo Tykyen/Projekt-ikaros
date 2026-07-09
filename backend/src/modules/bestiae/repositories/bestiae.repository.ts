@@ -42,6 +42,8 @@ export class BestiaeRepository {
       systemStats: (o.systemStats as Record<string, unknown>) ?? {},
       clonedFromId: o.clonedFromId as string | undefined,
       deletedAt: o.deletedAt as Date | null,
+      moderationHidden: (o.moderationHidden as boolean | undefined) ?? false,
+      moderationHiddenReason: o.moderationHiddenReason as string | undefined,
       createdAt: o.createdAt as Date,
       updatedAt: o.updatedAt as Date,
     };
@@ -59,6 +61,8 @@ export class BestiaeRepository {
       .find({
         systemId: filter.systemId,
         deletedAt: null,
+        // B5 — moderačně skryté bestie (M2/M3) z listů vždy vynech.
+        moderationHidden: { $ne: true },
         $or: orConditions,
       })
       .sort({ name: 1 })

@@ -18,6 +18,7 @@ import { ArticleVersionsRepository } from './repositories/article-versions.repos
 import { IkarosArticlesService } from './ikaros-articles.service';
 import { IkarosArticlesController } from './ikaros-articles.controller';
 import { ArticleReviewProvider } from './article-review.provider';
+import { ArticlesModerationEnforcementListener } from './moderation-enforcement.listener';
 import { ArticleCategorySlugMigration } from './article-category-slug-migration';
 import { IkarosMessagesModule } from '../ikaros-messages/ikaros-messages.module';
 import { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
@@ -41,6 +42,8 @@ import { IkarosCategoriesModule } from '../ikaros-categories/ikaros-categories.m
   providers: [
     IkarosArticlesService,
     ArticleReviewProvider,
+    // B4b — enforcement moderačních zásahů nad články (skrytí/smazání).
+    ArticlesModerationEnforcementListener,
     ArticleCategorySlugMigration,
     ArticleVersionsRepository,
     {

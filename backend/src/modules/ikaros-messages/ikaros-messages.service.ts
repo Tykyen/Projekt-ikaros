@@ -206,6 +206,23 @@ export class IkarosMessagesService {
     );
   }
 
+  /**
+   * B5 (spec 20B) — moderační odstranění zprávy (akce M4). Systémová cesta bez
+   * účastnické brány (autorizoval moderační zásah). Pošta je soukromá 1:1 a
+   * nemá hard delete — zprávu proto skryjeme OBĚMA stranám (`deletedBySender`
+   * + `deletedByRecipient`), takže zmizí z doručených, odeslaných i vlákna.
+   * Idempotentní — na neznámém id vrací false (listener zaloguje).
+   */
+  async moderationRemove(id: string): Promise<boolean> {
+    const msg = await this.msgRepo.findById(id);
+    if (!msg) return false;
+    await this.msgRepo.update(id, {
+      deletedBySender: true,
+      deletedByRecipient: true,
+    });
+    return true;
+  }
+
   async softDelete(id: string, userId: string): Promise<void> {
     const msg = await this.msgRepo.findById(id);
     if (!msg)

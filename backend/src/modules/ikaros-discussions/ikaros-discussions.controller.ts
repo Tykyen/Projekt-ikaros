@@ -24,9 +24,7 @@ import { PatchDiscussionDto } from './dto/patch-discussion.dto';
 import { RejectDiscussionDto } from './dto/reject-discussion.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { AddPostDto } from './dto/add-post.dto';
-import { ReportPostDto } from './dto/report-post.dto';
 import { ResolveJoinRequestDto } from './dto/resolve-join-request.dto';
-import { ResolveReportDto } from './dto/resolve-report.dto';
 import { UserRole } from '../users/interfaces/user.interface';
 
 interface RequestUser {
@@ -243,41 +241,10 @@ export class IkarosDiscussionsController {
     );
   }
 
-  @Post(':id/posts/:postId/report')
-  @ApiOperation({ summary: 'Nahlášení příspěvku' })
-  @ApiResponse({ status: 201 })
-  reportPost(
-    @Param('id') id: string,
-    @Param('postId') postId: string,
-    @Body() dto: ReportPostDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.service.reportPost(
-      id,
-      postId,
-      dto.reason,
-      user.id,
-      user.username,
-    );
-  }
-
-  @Post('reports/:reportId/resolve')
-  @HttpCode(204)
-  @ApiOperation({ summary: 'Vyřízení nahlášeného příspěvku (správce diskuzí)' })
-  @ApiResponse({ status: 204 })
-  @ApiResponse({ status: 403 })
-  async resolveReport(
-    @Param('reportId') reportId: string,
-    @Body() dto: ResolveReportDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    await this.service.resolveReport(
-      reportId,
-      dto.deletePost,
-      user.role,
-      user.username,
-    );
-  }
+  // B4d — nahlašování příspěvků sjednoceno pod generický modul `moderation`
+  // (`POST /moderation/reports` s targetType='discussion_post'); legacy
+  // endpointy `POST :id/posts/:postId/report` a `POST reports/:reportId/resolve`
+  // byly odstraněny.
 
   @Get(':id/members')
   @ApiOperation({ summary: 'Resolvovaní členové diskuze (manažer/admin)' })

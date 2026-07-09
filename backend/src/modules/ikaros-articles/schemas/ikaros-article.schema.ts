@@ -27,6 +27,10 @@ export class IkarosArticleSchemaClass {
   @Prop({ default: () => new Date() }) createdAtUtc: Date;
   @Prop({ default: () => new Date() }) updatedAtUtc: Date;
   @Prop() publishedAtUtc?: Date;
+  // B4b (spec 20B) — moderační skrytí (akce M2/M3). Skrytý článek se ve
+  // veřejných read cestách vynechá; vidí ho jen reviewer set. Default false.
+  @Prop({ default: false }) moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
 }
 
 export const IkarosArticleSchema = SchemaFactory.createForClass(

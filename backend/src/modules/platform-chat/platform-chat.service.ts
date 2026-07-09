@@ -35,9 +35,23 @@ import type { UpdatePlatformChannelDto } from './dto/update-platform-channel.dto
  */
 const STAFF_GROUP_ID = '__platform_staff__';
 
+/**
+ * B5 (spec 20B) — vyhrazená konverzace pro moderační eskalace (M7) a citlivé
+ * případy (kategorie `minor_safety`). Seedovaná při startu modulu, `accessMode`
+ * `all` (viditelná všem staff = Superadmin + Admin), zamčená proti smazání jako
+ * ostatní seedy. Sem posílá systémové zprávy `ModerationEscalationListener` —
+ * BEZ identity oznamovatele.
+ */
+const ESCALATION_CHANNEL_TYPE = 'staff-moderation-escalation';
+const ESCALATION_CHANNEL_NAME = 'Moderace — eskalace';
+/** Systémový odesílatel zpráv do etického kanálu (není reálný uživatel). */
+const SYSTEM_SENDER_ID = 'system';
+const SYSTEM_SENDER_NAME = 'Systém';
+
 const SEED_CHANNELS: { type: string; name: string }[] = [
   { type: 'staff-main', name: 'Hlavní' },
   { type: 'staff-vedeni', name: 'Vedení' },
+  { type: ESCALATION_CHANNEL_TYPE, name: ESCALATION_CHANNEL_NAME },
 ];
 const SEED_TYPES = new Set(SEED_CHANNELS.map((c) => c.type));
 
@@ -85,6 +99,83 @@ export class PlatformChatService implements OnModuleInit {
 
   private isSeed(channel: ChatChannel): boolean {
     return SEED_TYPES.has(channel.type);
+  }
+
+  /**
+   * B5 — zajistí existenci etického kanálu (idempotentně) a pošle do něj
+   * systémovou zprávu. Volá `ModerationEscalationListener` při M7 eskalaci /
+   * citlivém případu. Best-effort: jakékoli selhání jen zaloguje, NIKDY
+   * neshodí volajícího (enforcement moderace nesmí padnout kvůli chatu).
+   * `text` NESMÍ obsahovat identitu oznamovatele (volající ji nepředává).
+   */
+  async postModerationSystemMessage(text: string): Promise<void> {
+    try {
+      const channel = await this.ensureEscalationChannel();
+      const content = text.trim().slice(0, 5000);
+      if (!content) return;
+      const message = await this.messageRepo.save({
+        channelId: channel.id,
+        worldId: null,
+        senderId: SYSTEM_SENDER_ID,
+        senderName: SYSTEM_SENDER_NAME,
+        content,
+        isSystem: true,
+        isEdited: false,
+        isDeleted: false,
+        reactions: {},
+        attachments: [],
+        visibleTo: [],
+      });
+      await this.channelRepo.update(channel.id, {
+        lastMessageAt: new Date(),
+        lastMessagePreview: content.slice(0, 80),
+      });
+      this.eventEmitter.emit('platform-chat.message.created', {
+        channelId: channel.id,
+        message,
+      });
+      // In-app badge ostatním adminům (accessMode 'all' → celý staff).
+      const recipientIds = await this.resolveRecipients(
+        channel,
+        SYSTEM_SENDER_ID,
+      );
+      if (recipientIds.length > 0) {
+        this.eventEmitter.emit('platform-chat.activity', {
+          recipientIds,
+          channelId: channel.id,
+        });
+      }
+    } catch (err) {
+      logWarn(
+        this.logger,
+        'Zápis moderační eskalace do etického kanálu selhal',
+        err,
+      );
+    }
+  }
+
+  /**
+   * B5 — najde nebo (lazy) vytvoří etický kanál. Seed v `onModuleInit` ho
+   * normálně už vytvořil; tohle je pojistka, kdyby modul startoval v jiném
+   * pořadí nebo byl kanál omylem smazán.
+   */
+  private async ensureEscalationChannel(): Promise<ChatChannel> {
+    const existing = await this.channelRepo.findGlobalByType(
+      ESCALATION_CHANNEL_TYPE,
+    );
+    if (existing && !existing.isDeleted) return existing;
+    return this.channelRepo.save({
+      name: ESCALATION_CHANNEL_NAME,
+      worldId: null,
+      groupId: STAFF_GROUP_ID,
+      isGlobal: true,
+      accessMode: 'all',
+      allowedRoles: [],
+      allowedMemberIds: [],
+      order: SEED_CHANNELS.length,
+      isDeleted: false,
+      type: ESCALATION_CHANNEL_TYPE,
+    });
   }
 
   private isStaffRole(role: UserRole): boolean {

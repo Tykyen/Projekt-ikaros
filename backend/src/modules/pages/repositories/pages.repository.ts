@@ -105,6 +105,7 @@ export class MongoPagesRepository
       | 'ownerUserId'
       | 'accessRequirements'
       | 'isWoodWide'
+      | 'moderationHidden'
     >[]
   > {
     const filter: Record<string, unknown> = { worldId };
@@ -117,6 +118,8 @@ export class MongoPagesRepository
         type: 1,
         order: 1,
         updatedAt: 1,
+        // B4b — potřebné, aby service.findDirectory odfiltroval moderačně skryté.
+        moderationHidden: 1,
         // Krok 9.1 — pro CharactersPage potřebujeme avatar + owner do karty.
         imageUrl: 1,
         // Parita s GameEvent — focal/zoom/fit pro výřez avataru v kartě.
@@ -156,6 +159,8 @@ export class MongoPagesRepository
         (doc as { accessRequirements?: Page['accessRequirements'] })
           .accessRequirements ?? [],
       isWoodWide: (doc as { isWoodWide?: boolean }).isWoodWide ?? false,
+      moderationHidden:
+        (doc as { moderationHidden?: boolean }).moderationHidden ?? false,
     }));
   }
 
@@ -324,6 +329,8 @@ export class MongoPagesRepository
       })),
       plainText: (doc.plainText as string) ?? '',
       isWoodWide: (doc.isWoodWide as boolean) ?? false,
+      moderationHidden: (doc.moderationHidden as boolean) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
       accessRequirements: (
         (doc.accessRequirements as Record<string, unknown>[]) ?? []
       ).map((r) => ({

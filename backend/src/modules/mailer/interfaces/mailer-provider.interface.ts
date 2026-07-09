@@ -4,7 +4,10 @@ export type MailerTemplate =
   | 'email_change_confirm'
   | 'email_change_notice'
   | 'username_decided'
-  | 'account_deletion_scheduled';
+  | 'account_deletion_scheduled'
+  // Spec 20B — moderace: potvrzení příjmu reportu + vyrozumění o vyřízení.
+  | 'moderation_report_ack'
+  | 'moderation_report_resolved';
 
 export interface MailerPayload {
   to: string;
@@ -15,6 +18,8 @@ export interface MailerPayload {
   newEmail?: string; // email_change_notice
   decidedUsername?: string; // username_decided
   scheduledFor?: Date; // account_deletion_scheduled
+  reportId?: string; // moderation_report_ack, moderation_report_resolved
+  submittedAt?: Date; // moderation_report_ack
 }
 
 /**

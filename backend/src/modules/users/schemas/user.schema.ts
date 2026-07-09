@@ -85,6 +85,16 @@ export class UserSchemaClass {
   @Prop({ type: Date }) acceptedTermsAt?: Date;
   @Prop() termsVersion?: string;
 
+  // 20C (spec-20C §C2/C3) — deklarativní věk + režim ochrany nezletilých.
+  // `isMinor` = uživatel při registraci deklaroval věk < 15 (minimalizace: bez
+  // data narození). `minorSelfDeclaredAt` = kdy volbu udělal. `parentalConsentStatus`
+  // je stav souhlasu zákonného zástupce — u nezletilého default `pending`
+  // (NEblokuje užívání v betě; reálný tok řeší právník), jinak `not_required`.
+  @Prop({ default: false }) isMinor?: boolean;
+  @Prop({ type: Date }) minorSelfDeclaredAt?: Date;
+  @Prop({ type: String, enum: ['pending', 'granted', 'not_required'] })
+  parentalConsentStatus?: 'pending' | 'granted' | 'not_required';
+
   @Prop({
     type: [
       {

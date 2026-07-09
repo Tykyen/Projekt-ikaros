@@ -27,18 +27,7 @@ export interface IkarosDiscussionPost {
   authorIsDeleted?: boolean;
   content: string;
   createdAtUtc: Date;
-}
-
-export interface IkarosDiscussionReport {
-  id: string;
-  discussionId: string;
-  discussionTitle: string;
-  postId: string;
-  postContentSnapshot: string;
-  postAuthorName: string;
-  reporterId: string;
-  reporterName: string;
-  reason: string;
-  createdAtUtc: Date;
-  resolved: boolean;
+  /** B4d — moderačně skrytý příspěvek (M2/M3); veřejné cesty ho vynechají. */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
 }

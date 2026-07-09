@@ -41,6 +41,7 @@ export interface IPagesRepository {
       | 'ownerUserId'
       | 'accessRequirements'
       | 'isWoodWide'
+      | 'moderationHidden'
     >[]
   >;
   findAllSlugs(worldId: string): Promise<string[]>;

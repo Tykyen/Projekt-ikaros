@@ -10,7 +10,9 @@ import {
   HttpCode,
   UseInterceptors,
   UploadedFile,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
@@ -122,6 +124,9 @@ export class IkarosGalleryController {
         description: { type: 'string' },
         category: { type: 'string' },
         submit: { type: 'boolean' },
+        // 20D (D1) — povinné prohlášení práv + volitelný self-declare AI.
+        rightsDeclared: { type: 'boolean' },
+        aiOrigin: { type: 'string', enum: ['none', 'ai_image'] },
       },
     },
   })
@@ -130,8 +135,17 @@ export class IkarosGalleryController {
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: CreateGalleryItemDto,
     @CurrentUser() user: RequestUser,
+    @Req() req: Request,
   ) {
-    return this.service.create(dto, file, user.id, user.username, user.role);
+    // 20D (D3) — IP z requestu jako best-effort doklad souhlasu.
+    return this.service.create(
+      dto,
+      file,
+      user.id,
+      user.username,
+      user.role,
+      req.ip,
+    );
   }
 
   @Put(':id')

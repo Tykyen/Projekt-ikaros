@@ -48,4 +48,23 @@ describe('CreateGalleryItemDto', () => {
     const { errors } = await check({ title: 'X', category: 'Velké Písmo' });
     expect(errors.length).toBeGreaterThan(0);
   });
+
+  // 20D (D1) — prohlášení práv (multipart string → boolean).
+  it('rightsDeclared "true" (multipart string) → boolean true', async () => {
+    const { dto, errors } = await check({ title: 'X', rightsDeclared: 'true' });
+    expect(errors).toHaveLength(0);
+    expect(dto.rightsDeclared).toBe(true);
+  });
+
+  // 20D (D1) — self-declare AI.
+  it('aiOrigin "ai_image" → validní', async () => {
+    const { dto, errors } = await check({ title: 'X', aiOrigin: 'ai_image' });
+    expect(errors).toHaveLength(0);
+    expect(dto.aiOrigin).toBe('ai_image');
+  });
+
+  it('aiOrigin s neplatnou hodnotou → validační chyba', async () => {
+    const { errors } = await check({ title: 'X', aiOrigin: 'deepfake' });
+    expect(errors.length).toBeGreaterThan(0);
+  });
 });

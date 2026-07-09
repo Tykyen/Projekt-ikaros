@@ -7,6 +7,7 @@ import {
 import { MongoWorldNewsRepository } from './repositories/world-news.repository';
 import { WorldNewsService } from './world-news.service';
 import { WorldNewsController } from './world-news.controller';
+import { WorldNewsModerationEnforcementListener } from './moderation-enforcement.listener';
 import { WorldsModule } from '../worlds/worlds.module';
 
 @Module({
@@ -19,6 +20,8 @@ import { WorldsModule } from '../worlds/worlds.module';
   controllers: [WorldNewsController],
   providers: [
     WorldNewsService,
+    // B5 — enforcement moderačních zásahů nad novinkami (skrytí/smazání).
+    WorldNewsModerationEnforcementListener,
     { provide: 'IWorldNewsRepository', useClass: MongoWorldNewsRepository },
   ],
 })

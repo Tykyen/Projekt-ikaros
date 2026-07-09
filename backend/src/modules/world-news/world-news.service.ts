@@ -95,6 +95,17 @@ export class WorldNewsService {
         code: 'WORLD_NEWS_NOT_FOUND',
         message: 'Novinka nenalezena',
       });
+    // B5 (spec 20B) — moderačně skrytá novinka (M2/M3): vidí ji jen platform
+    // reviewer (Admin+). Ostatním 404, aby se neprozradila existence skrytého
+    // obsahu (auth-leak-policy), stejně jako `ikaros-articles`.
+    // elevation-exempt: platformová moderace (Admin+ vidí moderationHidden), NE world governance — nejde o world-admin bypass
+    const isReviewer = !!requester && requester.role <= UserRole.Admin;
+    if (item.moderationHidden && !isReviewer) {
+      throw new NotFoundException({
+        code: 'WORLD_NEWS_NOT_FOUND',
+        message: 'Novinka nenalezena',
+      });
+    }
     // R-AUDIT — dřív BEZ brány: detail vracel i ARCHIVOVANÉ novinky komukoli
     // (obchází scope gate listu). Aplikuj stejný scope gate dle stavu položky
     // (active = veřejné jako list; archived = jen PomocnyPJ+ svého světa).
@@ -300,6 +311,48 @@ export class WorldNewsService {
       worldId: updated.worldId,
     });
     return updated;
+  }
+
+  /**
+   * B5 (spec 20B) — moderační skrytí / odkrytí novinky (akce M2/M3 a jejich
+   * revert). Systémová cesta z enforcement listeneru; BEZ autorské/role brány
+   * (autorizoval už moderační zásah). Idempotentní — na neznámém id vrátí
+   * false (listener zaloguje), nikdy nehází.
+   */
+  async setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.repo.update(id, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    if (updated) {
+      this.eventEmitter.emit('world-news.changed', {
+        worldId: updated.worldId,
+      });
+    }
+    return updated !== null;
+  }
+
+  /**
+   * B5 (spec 20B) — moderační smazání novinky (akce M4). Systémová cesta bez
+   * brány (autorizoval moderační zásah). Hard delete jako uživatelský `delete`
+   * (úklid blobu + signál), ale NEVRATNÝ (revert listener jen zaloguje).
+   */
+  async moderationDelete(id: string): Promise<boolean> {
+    const existing = await this.repo.findById(id);
+    if (!existing) return false;
+    const deleted = await this.repo.delete(id);
+    if (!deleted) return false;
+    if (existing.imageUrl) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
+    this.eventEmitter.emit('world-news.changed', {
+      worldId: existing.worldId,
+    });
+    return true;
   }
 
   /**

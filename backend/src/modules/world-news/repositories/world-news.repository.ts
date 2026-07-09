@@ -40,6 +40,8 @@ export class MongoWorldNewsRepository implements IWorldNewsRepository {
         (doc.calendarDate as WorldNewsItem['calendarDate'] | undefined) ?? null,
       createdBy: doc.createdBy as string | undefined,
       archived: (doc.archived as boolean | undefined) ?? false,
+      moderationHidden: (doc.moderationHidden as boolean | undefined) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
     };
   }
 
@@ -63,7 +65,13 @@ export class MongoWorldNewsRepository implements IWorldNewsRepository {
       worldId === undefined
         ? { worldId: null }
         : { worldId: { $in: [worldId, null] } };
-    return { ...worldFilter, ...this.scopeFilter(scope) };
+    // B5 — moderačně skryté novinky (M2/M3) z veřejných listů vždy vynech
+    // (jako `ikaros-articles`). Reviewer je dohledá přes moderační log / detail.
+    return {
+      ...worldFilter,
+      ...this.scopeFilter(scope),
+      moderationHidden: { $ne: true },
+    };
   }
 
   async findMany(opts: FindOptions): Promise<WorldNewsItem[]> {

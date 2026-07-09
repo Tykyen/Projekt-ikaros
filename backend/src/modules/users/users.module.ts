@@ -10,6 +10,7 @@ import { MongoUsernameChangeRequestsRepository } from './repositories/username-c
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { UserBanCacheService } from './services/user-ban-cache.service';
+import { UsersModerationEnforcementListener } from './moderation-enforcement.listener';
 import { WorldsModule } from '../worlds/worlds.module';
 import { CharactersModule } from '../characters/characters.module';
 import { FriendshipsRepositoryModule } from '../friendships/friendships-repository.module';
@@ -49,6 +50,8 @@ import { UploadModule } from '../upload/upload.module';
   providers: [
     UsersService,
     UserBanCacheService,
+    // B4b — vynucení account-level moderačních zásahů (M5/M6/M7 → ban/unban).
+    UsersModerationEnforcementListener,
     { provide: 'IUsersRepository', useClass: MongoUsersRepository },
     {
       provide: 'IUsernameChangeRequestsRepository',

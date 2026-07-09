@@ -5,9 +5,15 @@ export interface IIkarosDiscussionPostsRepository {
     discussionId: string,
     skip: number,
     limit: number,
+    includeModerationHidden?: boolean,
   ): Promise<IkarosDiscussionPost[]>;
   findById(id: string): Promise<IkarosDiscussionPost | null>;
   create(data: Omit<IkarosDiscussionPost, 'id'>): Promise<IkarosDiscussionPost>;
   delete(id: string): Promise<boolean>;
   deleteByDiscussion(discussionId: string): Promise<void>;
+  setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean>;
 }

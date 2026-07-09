@@ -31,4 +31,11 @@ export interface WorldNewsItem {
   } | null;
   createdBy?: string; // userId; undefined u legacy migrovaných
   archived: boolean; // 5.5b — archivovaná novinka (legacy bez pole = false)
+  /**
+   * B5 (spec 20B) — moderačně skrytá novinka (akce M2/M3). Veřejné čtení
+   * (list i detail) ji vynechá; vidí ji jen platform reviewer (Admin+).
+   * Legacy bez pole = false.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
 }

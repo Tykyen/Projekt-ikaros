@@ -21,7 +21,18 @@
 
 Záznamy zde jsou legitní budoucí práce, ne aktuální technický dluh. Mají uvedený explicitní trigger — událost, která je převede do "Otevřené".
 
-_(žádné — D-028 Redis throttler vyřešen 2026-06-19 jako opt-in přepínač, viz Vyřešené níže)_
+### D-20D — AI provenance & licenční napojení (odloženo do Fáze 18 / 21.5)
+**Kontext:** Fáze 20D (spec-20D) postavila actionable minimum — dobrovolný self-declare AI u galerie (`aiOrigin`), AiBadge, consent audit log (`upload_consents`) a NENAPOJENÝ podklad licenční karty (`content_licenses`). Vědomě odloženo (spec-20D „Odloženo"):
+- **Strojové značení AI** (metadata/vodoznak, AI Act čl. 50(2)) — grace do 2.12.2026, ale bez AI generátoru (Fáze 18) bezpředmětné.
+- **Interakční hláška „řídí AI"** (čl. 50(1)) — žádný AI chat/asistent.
+- **Deepfake filtry, NCII/CSAM automod, opt-in AI trénink, DPA/SCC u LLM** — Fáze 18.
+- **Napojení `content_licenses` na klonování/genealogii + UI „klonovat"** — Fáze 21.5 (komunitní knihovna). Model + repo (verzování) existují jako podklad; jen se použijí.
+- **Rozšíření consent auditu na avatary / page-images** — stejným vzorem (`UploadConsentsService.record`), až budou ty uploady potřeba.
+**Trigger:** zahájení Fáze 18 (AI) resp. 21.5 (knihovna/klonování). Do té doby ne otevřený dluh — chybí co ovládat.
+
+---
+
+_(jinak žádné — D-028 Redis throttler vyřešen 2026-06-19 jako opt-in přepínač, viz Vyřešené níže)_
 
 ---
 

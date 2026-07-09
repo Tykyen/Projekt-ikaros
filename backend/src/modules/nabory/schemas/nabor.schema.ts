@@ -24,6 +24,10 @@ export class NaborSchemaClass {
   @Prop({ required: true }) authorName: string;
   // Post-moderace: userId nahlašovatelů (idempotentní, reportCount = length).
   @Prop({ type: [String], default: [] }) reportedBy: string[];
+  // B4b (spec 20B) — moderační skrytí (akce M2/M3). Skrytý nábor se ve veřejné
+  // nástěnce i detailu vynechá; vidí ho jen reviewer set. Default false.
+  @Prop({ default: false }) moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
   @Prop({ default: () => new Date() }) createdAtUtc: Date;
   @Prop() expiresAtUtc?: Date;
 }

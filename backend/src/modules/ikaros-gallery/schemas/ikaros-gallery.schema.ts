@@ -31,9 +31,16 @@ export class IkarosGallerySchemaClass {
   @Prop({ type: [GalleryRatingSchema], default: [] })
   ratings: GalleryRatingSchema[];
   @Prop({ default: 0 }) averageRating: number;
+  // Spec 20D (D1) — self-declared původ obrázku ('none' | 'ai_image').
+  // Uloženo jako string (rozšiřitelný enum); validaci hodnot řeší DTO.
+  @Prop({ default: 'none' }) aiOrigin: string;
   @Prop({ default: () => new Date() }) createdAtUtc: Date;
   @Prop({ default: () => new Date() }) updatedAtUtc: Date;
   @Prop() publishedAtUtc?: Date;
+  // B4b (spec 20B) — moderační skrytí (akce M2/M3). Skrytý obrázek se ve
+  // veřejných read cestách vynechá; vidí ho jen reviewer set. Default false.
+  @Prop({ default: false }) moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
 }
 
 export const IkarosGallerySchema = SchemaFactory.createForClass(

@@ -130,5 +130,30 @@ export function renderEmail(
         ),
       };
     }
+    case 'moderation_report_ack': {
+      const when = payload.submittedAt
+        ? new Date(payload.submittedAt).toLocaleString('cs-CZ')
+        : '';
+      const id = esc(payload.reportId);
+      return {
+        subject: `${BRAND} — přijali jsme tvé hlášení`,
+        text: `Ahoj ${payload.username},\n\nprijali jsme tve hlaseni (ID ${payload.reportId ?? ''})${when ? ` z ${when}` : ''}. Posoudime ho co nejdrive; pokud sis vyzadal(a) informaci o vysledku, dame ti vedet.`,
+        html: layout(
+          'Hlášení přijato',
+          `<p>Ahoj ${name},</p><p>přijali jsme tvé hlášení${id ? ` (ID <b>${id}</b>)` : ''}${when ? ` z <b>${esc(when)}</b>` : ''}.</p><p>Posoudíme ho co nejdříve. Pokud sis vyžádal(a) informaci o výsledku, dáme ti vědět.</p>`,
+        ),
+      };
+    }
+    case 'moderation_report_resolved': {
+      const id = esc(payload.reportId);
+      return {
+        subject: `${BRAND} — tvé hlášení bylo vyřízeno`,
+        text: `Ahoj ${payload.username},\n\ntve hlaseni (ID ${payload.reportId ?? ''}) jsme posoudili a vyridili. Dekujeme, ze pomahas udrzet platformu bezpecnou.`,
+        html: layout(
+          'Hlášení vyřízeno',
+          `<p>Ahoj ${name},</p><p>tvé hlášení${id ? ` (ID <b>${id}</b>)` : ''} jsme posoudili a vyřídili.</p><p style="font-size:13px;color:#8a83b5;">Děkujeme, že pomáháš udržet platformu bezpečnou.</p>`,
+        ),
+      };
+    }
   }
 }

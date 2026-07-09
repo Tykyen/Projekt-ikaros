@@ -3,10 +3,12 @@ import {
   IsNotEmpty,
   IsOptional,
   IsBoolean,
+  IsIn,
   MaxLength,
   Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import type { GalleryAiOrigin } from '../interfaces/ikaros-gallery.interface';
 
 export class CreateGalleryItemDto {
   @IsString()
@@ -37,4 +39,18 @@ export class CreateGalleryItemDto {
   )
   @IsBoolean()
   submit?: boolean;
+
+  // Spec 20D (D1) — povinné prohlášení práv k obsahu. Multipart posílá string,
+  // proto stejná boolean-transformace jako `submit`. Service vyžaduje `true`.
+  @IsOptional()
+  @Transform(({ value }) =>
+    value === undefined ? undefined : value === true || value === 'true',
+  )
+  @IsBoolean()
+  rightsDeclared?: boolean;
+
+  // Spec 20D (D1) — dobrovolný self-declare AI původu. Chybí → 'none'.
+  @IsOptional()
+  @IsIn(['none', 'ai_image'])
+  aiOrigin?: GalleryAiOrigin;
 }

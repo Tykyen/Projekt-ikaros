@@ -63,6 +63,10 @@ import { MailerModule } from './modules/mailer/mailer.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformChatModule } from './modules/platform-chat/platform-chat.module';
+import { ModerationModule } from './modules/moderation/moderation.module';
+// 20D — upload consent audit (D3) + licenční karta podklad (D4).
+import { UploadConsentsModule } from './modules/upload-consents/upload-consents.module';
+import { ContentLicensesModule } from './modules/content-licenses/content-licenses.module';
 import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 
 @Module({
@@ -124,6 +128,9 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     SeoModule,
     AnalyticsModule,
     PlatformChatModule,
+    ModerationModule,
+    UploadConsentsModule,
+    ContentLicensesModule,
     AdminModule,
     FriendshipsModule,
     DataExportModule,

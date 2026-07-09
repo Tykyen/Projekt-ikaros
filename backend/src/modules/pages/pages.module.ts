@@ -8,6 +8,7 @@ import { WorldsModule } from '../worlds/worlds.module';
 import { CharactersModule } from '../characters/characters.module';
 import { TipTapExtractor } from './tiptap-extractor.service';
 import { PagesWorldSeedListener } from './pages-world-seed.listener';
+import { PagesModerationEnforcementListener } from './moderation-enforcement.listener';
 import { RulebookMatrixSeed } from './rulebook/rulebook-matrix-seed';
 
 @Module({
@@ -25,6 +26,8 @@ import { RulebookMatrixSeed } from './rulebook/rulebook-matrix-seed';
     TipTapExtractor,
     { provide: 'IPagesRepository', useClass: MongoPagesRepository },
     PagesWorldSeedListener,
+    // B4b — enforcement moderačních zásahů nad stránkami (skrytí/smazání).
+    PagesModerationEnforcementListener,
     RulebookMatrixSeed,
   ],
   exports: [PagesService, 'IPagesRepository'],

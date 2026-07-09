@@ -22,6 +22,7 @@ const mockItem = {
   status: 'Draft' as const,
   ratings: [],
   averageRating: 0,
+  aiOrigin: 'none' as const,
   createdAtUtc: new Date(),
   updatedAtUtc: new Date(),
 };
@@ -114,7 +115,12 @@ describe('IkarosGalleryService', () => {
     it('vytvoří Draft po nahrání obrázku, uloží rozměry a kategorii', async () => {
       mockRepo.create.mockResolvedValue(mockItem);
       const result = await service.create(
-        { title: 'Test', category: 'fanart', submit: false },
+        {
+          title: 'Test',
+          category: 'fanart',
+          submit: false,
+          rightsDeclared: true,
+        },
         fakeFile,
         'user1',
         'Autor',
@@ -137,14 +143,14 @@ describe('IkarosGalleryService', () => {
     it('bez kategorie použije výchozí ostatni', async () => {
       mockRepo.create.mockResolvedValue(mockItem);
       await service.create(
-        { title: 'Test', submit: false },
+        { title: 'Test', submit: false, rightsDeclared: true },
         fakeFile,
         'user1',
         'Autor',
         UserRole.Hrac,
       );
       expect(mockRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ category: 'ostatni' }),
+        expect.objectContaining({ category: 'ostatni', aiOrigin: 'none' }),
       );
     });
 
@@ -152,13 +158,51 @@ describe('IkarosGalleryService', () => {
       mockCategoriesService.existsByKey.mockResolvedValue(false);
       await expect(
         service.create(
-          { title: 'Test', category: 'neexistuje', submit: false },
+          {
+            title: 'Test',
+            category: 'neexistuje',
+            submit: false,
+            rightsDeclared: true,
+          },
           fakeFile,
           'user1',
           'Autor',
           UserRole.Hrac,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // 20D (D1) — upload consent gate: bez prohlášení práv nelze nahrát.
+    it('hodí BadRequest bez prohlášení práv (rightsDeclared chybí)', async () => {
+      await expect(
+        service.create(
+          { title: 'Test', submit: false },
+          fakeFile,
+          'user1',
+          'Autor',
+          UserRole.Hrac,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockUploadService.uploadGalleryImage).not.toHaveBeenCalled();
+    });
+
+    it('uloží aiOrigin=ai_image při self-declare AI', async () => {
+      mockRepo.create.mockResolvedValue(mockItem);
+      await service.create(
+        {
+          title: 'Test',
+          submit: false,
+          rightsDeclared: true,
+          aiOrigin: 'ai_image',
+        },
+        fakeFile,
+        'user1',
+        'Autor',
+        UserRole.Hrac,
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ aiOrigin: 'ai_image' }),
+      );
     });
 
     it('vytvoří Pending s submit=true a pošle notifikaci', async () => {
@@ -168,7 +212,7 @@ describe('IkarosGalleryService', () => {
       ]);
       mockUsersRepo.findByUsername.mockResolvedValue(null);
       await service.create(
-        { title: 'Test', submit: true },
+        { title: 'Test', submit: true, rightsDeclared: true },
         fakeFile,
         'user1',
         'Autor',

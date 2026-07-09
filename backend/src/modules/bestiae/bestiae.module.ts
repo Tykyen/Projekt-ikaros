@@ -8,6 +8,7 @@ import { BestiaeRepository } from './repositories/bestiae.repository';
 import { BestiaeService } from './bestiae.service';
 import { BestiaeController } from './bestiae.controller';
 import { BestiaeGateway } from './bestiae.gateway';
+import { BestiaeModerationEnforcementListener } from './moderation-enforcement.listener';
 import { MapsModule } from '../maps/maps.module';
 import { WorldsModule } from '../worlds/worlds.module';
 import { AuthModule } from '../auth/auth.module';
@@ -24,7 +25,13 @@ import { EntitySchemaVersionsModule } from '../entity-schema-versions/entity-sch
     EntitySchemaVersionsModule, // 16.2g F2 — world-scoped bestie schema
   ],
   controllers: [BestiaeController],
-  providers: [BestiaeRepository, BestiaeService, BestiaeGateway],
+  providers: [
+    BestiaeRepository,
+    BestiaeService,
+    BestiaeGateway,
+    // B5 — enforcement moderačních zásahů nad bestiemi (skrytí/smazání).
+    BestiaeModerationEnforcementListener,
+  ],
   exports: [BestiaeService, BestiaeRepository],
 })
 export class BestiaeModule {}

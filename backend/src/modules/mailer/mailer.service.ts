@@ -71,6 +71,25 @@ export class MailerService {
     await this.dispatch('account_deletion_scheduled', opts);
   }
 
+  /** Spec 20B čl. 16/3 — potvrzení příjmu reportu oznamovateli. */
+  async sendModerationReportAck(opts: {
+    to: string;
+    username: string;
+    reportId: string;
+    submittedAt: Date;
+  }): Promise<void> {
+    await this.dispatch('moderation_report_ack', opts);
+  }
+
+  /** Spec 20B — vyrozumění oznamovateli, že jeho hlášení bylo vyřízeno. */
+  async sendModerationReportResolved(opts: {
+    to: string;
+    username: string;
+    reportId: string;
+  }): Promise<void> {
+    await this.dispatch('moderation_report_resolved', opts);
+  }
+
   /** FIX-48 (log hygiene): e-mail je PII → do logu jen maskovaně (`t***@g***`), mirror smtp-mailer.provider.ts. */
   private static mask(email: string): string {
     const at = email.indexOf('@');

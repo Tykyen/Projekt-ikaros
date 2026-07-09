@@ -33,14 +33,15 @@ export class NaboryController {
 
   @Get()
   @ApiOperation({ summary: 'Aktivní nábory (nástěnka)' })
-  findAll() {
-    return this.service.findAll();
+  findAll(@CurrentUser() user: RequestUser) {
+    // B4b — role rozhoduje, zda uživatel uvidí i moderačně skryté nábory.
+    return this.service.findAll(user.role);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Detail náboru' })
-  findById(@Param('id') id: string) {
-    return this.service.findById(id);
+  findById(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.service.findById(id, user.role);
   }
 
   @Post()

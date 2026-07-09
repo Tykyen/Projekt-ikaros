@@ -431,6 +431,13 @@ export class MongoUsersRepository
       // 19.4 — status Podporovatel. Fallback false pro dokumenty bez pole.
       isSupporter: (doc.isSupporter as boolean | undefined) ?? false,
       supporterSince: doc.supporterSince as Date | undefined,
+
+      // 20C — deklarativní věk + režim ochrany nezletilých. Bez mapování by
+      // /users/me i login zahodily flag → FE profil badge by nefungoval.
+      isMinor: (doc.isMinor as boolean | undefined) ?? false,
+      minorSelfDeclaredAt: doc.minorSelfDeclaredAt as Date | undefined,
+      parentalConsentStatus:
+        doc.parentalConsentStatus as User['parentalConsentStatus'],
     };
   }
 

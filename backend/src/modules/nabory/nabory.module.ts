@@ -4,6 +4,7 @@ import { NaborSchemaClass, NaborSchema } from './schemas/nabor.schema';
 import { MongoNaboryRepository } from './repositories/nabory.repository';
 import { NaboryService } from './nabory.service';
 import { NaboryController } from './nabory.controller';
+import { NaboryModerationEnforcementListener } from './moderation-enforcement.listener';
 import { IkarosMessagesModule } from '../ikaros-messages/ikaros-messages.module';
 import { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 
@@ -21,6 +22,8 @@ import { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.servic
   controllers: [NaboryController],
   providers: [
     NaboryService,
+    // B4b — enforcement moderačních zásahů nad nábory (skrytí/smazání).
+    NaboryModerationEnforcementListener,
     { provide: 'INaboryRepository', useClass: MongoNaboryRepository },
     { provide: 'IkarosMessagesService', useExisting: IkarosMessagesService },
   ],

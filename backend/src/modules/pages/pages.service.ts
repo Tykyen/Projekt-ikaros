@@ -32,6 +32,8 @@ import {
 } from '../worlds/interfaces/world-membership.interface';
 import type { AkjType } from '../worlds/interfaces/world-settings.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+// B4b — „kdo vidí moderačně skrytý obsah" = generický reviewer set (spec 20B).
+import { isContentReviewer } from '../moderation/moderation.constants';
 
 export interface PagesRequester {
   id: string;
@@ -640,6 +642,23 @@ export class PagesService {
       );
   }
 
+  /**
+   * B4b (spec 20B) — moderační skrytí / odkrytí stránky (akce M2/M3 a revert).
+   * Systémová cesta z enforcement listeneru; bez world/role guardu (autorizoval
+   * už moderační zásah). Na neznámém id vrátí false, nikdy nehází.
+   */
+  async setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.pagesRepo.update(id, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    return updated !== null;
+  }
+
   async findDirectory(
     worldId: string,
     types?: string[],
@@ -658,7 +677,14 @@ export class PagesService {
         elevatedWorldIds,
       );
     }
-    const entries = await this.pagesRepo.findDirectory(worldId, types);
+    const allEntries = await this.pagesRepo.findDirectory(worldId, types);
+    // B4b — moderačně skryté stránky vynech z adresáře pro všechny mimo reviewer
+    // set (globální zásah, platí i pro PJ světa).
+    const isReviewer =
+      platformRole !== undefined && isContentReviewer(platformRole);
+    const entries = isReviewer
+      ? allEntries
+      : allEntries.filter((e) => !e.moderationHidden);
     // D-062c — per-entry shieldedBy pro stub karty v listings. Membership +
     // akjSettings načteme JEDNOU (ne N+1 per stránka), a jen když je vůbec nějaká
     // stránka chráněná. Raw accessRequirements NEvracíme na FE (privacy — UserId).
@@ -677,17 +703,25 @@ export class PagesService {
     const akjSettings = needsAkjTypes
       ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
       : [];
-    return entries.map(({ accessRequirements, ...rest }) => ({
-      ...rest,
-      shieldedBy: anyProtected
-        ? this.shieldedFromRequirements(
-            accessRequirements,
-            membership,
-            akjSettings,
-            userId ?? null,
-          )
-        : undefined,
-    }));
+    // `moderationHidden` z entry NEpropouštíme na FE (interní příznak) — omit
+    // přes rename na `_`-prefix (eslint no-unused-vars ignoruje).
+    return entries.map(
+      ({
+        accessRequirements,
+        moderationHidden: _moderationHidden,
+        ...rest
+      }) => ({
+        ...rest,
+        shieldedBy: anyProtected
+          ? this.shieldedFromRequirements(
+              accessRequirements,
+              membership,
+              akjSettings,
+              userId ?? null,
+            )
+          : undefined,
+      }),
+    );
   }
 
   async findAllSlugs(
@@ -805,6 +839,13 @@ export class PagesService {
         code: 'PAGE_NOT_FOUND',
         message: 'Stránka nenalezena',
       });
+    // B4b — moderačně skrytá stránka: meta nevydáme nikomu mimo reviewer set.
+    if (this.isModerationHiddenFor(page, platformRole)) {
+      throw new NotFoundException({
+        code: 'PAGE_NOT_FOUND',
+        message: 'Stránka nenalezena',
+      });
+    }
     const shieldedBy = await this.computeShieldedBy(
       page,
       userId ?? null,
@@ -1029,6 +1070,16 @@ export class PagesService {
     return false;
   }
 
+  /**
+   * B4b (spec 20B) — moderačně skrytá stránka (akce M2/M3) je GLOBÁLNÍ zásah:
+   * nevidí ji ani PJ/členové světa (žádný world bypass), jen platform reviewer
+   * set. true = skryj před tímto viewerem.
+   */
+  private isModerationHiddenFor(page: Page, platformRole?: UserRole): boolean {
+    if (!page.moderationHidden) return false;
+    return !(platformRole !== undefined && isContentReviewer(platformRole));
+  }
+
   private async assertAccess(
     page: Page,
     userId: string,
@@ -1036,6 +1087,14 @@ export class PagesService {
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
   ): Promise<void> {
+    // B4b — moderační skrytí má přednost PŘED per-stránka access i world bypassem
+    // (zásah platí i pro PJ). 404 = neprozrazuje existenci (auth-leak-policy).
+    if (this.isModerationHiddenFor(page, platformRole)) {
+      throw new NotFoundException({
+        code: 'PAGE_NOT_FOUND',
+        message: 'Stránka nenalezena',
+      });
+    }
     if (!page.accessRequirements || page.accessRequirements.length === 0)
       return;
     // AKJ skrývá obsah jen před hráči. PomocnyPJ+ (autorské role) a platform

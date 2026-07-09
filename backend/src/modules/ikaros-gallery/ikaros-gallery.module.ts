@@ -16,11 +16,14 @@ import { IkarosGalleryController } from './ikaros-gallery.controller';
 import { GalleryCategoriesController } from './gallery-categories.controller';
 import { GalleryCategoriesSeed } from './gallery-categories.seed';
 import { GalleryReviewProvider } from './gallery-review.provider';
+import { GalleryModerationEnforcementListener } from './moderation-enforcement.listener';
 import { IkarosMessagesModule } from '../ikaros-messages/ikaros-messages.module';
 import { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 import { UploadModule } from '../upload/upload.module';
 import { UploadService } from '../upload/upload.service';
 import { PendingActionsService } from '../pending-actions/pending-actions.service';
+// 20D (D3) — audit log souhlasů při uploadu (`upload_consents`).
+import { UploadConsentsModule } from '../upload-consents/upload-consents.module';
 
 @Module({
   imports: [
@@ -30,6 +33,7 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
     ]),
     IkarosMessagesModule,
     UploadModule,
+    UploadConsentsModule,
   ],
   controllers: [IkarosGalleryController, GalleryCategoriesController],
   providers: [
@@ -37,6 +41,8 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
     GalleryCategoriesService,
     GalleryCategoriesSeed,
     GalleryReviewProvider,
+    // B4b — enforcement moderačních zásahů nad galerií (skrytí/smazání).
+    GalleryModerationEnforcementListener,
     {
       provide: 'IIkarosGalleryRepository',
       useClass: MongoIkarosGalleryRepository,

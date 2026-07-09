@@ -28,10 +28,13 @@ describe('MongoIkarosArticlesRepository', () => {
     aggregate: jest.fn().mockResolvedValue([]),
   };
 
-  it('findPublished volá find se status Published', async () => {
+  it('findPublished volá find se status Published (+ B4b: bez moderačně skrytých)', async () => {
     const repo = new MongoIkarosArticlesRepository(mockModel as never);
     await repo.findPublished();
-    expect(mockModel.find).toHaveBeenCalledWith({ status: 'Published' });
+    expect(mockModel.find).toHaveBeenCalledWith({
+      status: 'Published',
+      moderationHidden: { $ne: true },
+    });
   });
 
   it('findPending volá find se status Pending', async () => {

@@ -58,13 +58,7 @@ describe('IkarosDiscussionsService', () => {
     create: jest.fn(),
     delete: jest.fn(),
     deleteByDiscussion: jest.fn(),
-  };
-  const mockReportsRepo = {
-    create: jest.fn(),
-    findById: jest.fn(),
-    findUnresolved: jest.fn(),
-    countUnresolved: jest.fn(),
-    markResolved: jest.fn(),
+    setModerationHidden: jest.fn(),
   };
   const mockUsersRepo = {
     findByRoles: jest.fn(),
@@ -87,10 +81,6 @@ describe('IkarosDiscussionsService', () => {
         {
           provide: 'IIkarosDiscussionPostsRepository',
           useValue: mockPostsRepo,
-        },
-        {
-          provide: 'IIkarosDiscussionReportsRepository',
-          useValue: mockReportsRepo,
         },
         { provide: 'IUsersRepository', useValue: mockUsersRepo },
         { provide: UsersService, useValue: mockUsersService },
@@ -677,43 +667,77 @@ describe('IkarosDiscussionsService', () => {
     });
   });
 
-  describe('reportPost / resolveReport', () => {
-    it('vytvoří report se snapshotem obsahu příspěvku', async () => {
-      mockRepo.findById.mockResolvedValue(mockDiscussion);
-      mockPostsRepo.findById.mockResolvedValue(mockPost);
-      mockReportsRepo.create.mockResolvedValue({ id: 'rep1' });
-      mockUsersRepo.findByRoles.mockResolvedValue([]);
-      mockUsersRepo.findByUsername.mockResolvedValue(null);
-      await service.reportPost('disc1', 'post1', 'Spam', 'user5', 'Reportér');
-      expect(mockReportsRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          postContentSnapshot: 'Obsah příspěvku',
-          postAuthorName: 'Autor',
-          reason: 'Spam',
-        }),
+  // B4d — nahlašování příspěvků řeší generický modul `moderation`; discussions
+  // service už jen vynucuje zásahy (enforcement listener volá tyto metody).
+  describe('moderace příspěvků (B4d enforcement)', () => {
+    it('setPostModerationHidden deleguje na repo (skrytí M2/M3)', async () => {
+      mockPostsRepo.setModerationHidden.mockResolvedValue(true);
+      const ok = await service.setPostModerationHidden(
+        'post1',
+        true,
+        'Skryto moderací',
+      );
+      expect(ok).toBe(true);
+      expect(mockPostsRepo.setModerationHidden).toHaveBeenCalledWith(
+        'post1',
+        true,
+        'Skryto moderací',
       );
     });
 
-    it('resolveReport s deletePost smaže příspěvek a uzavře report', async () => {
-      mockReportsRepo.findById.mockResolvedValue({
-        id: 'rep1',
-        postId: 'post1',
-        discussionId: 'disc1',
-      });
+    it('moderationDeletePost smaže příspěvek a dekrementuje postCount (M4)', async () => {
       mockPostsRepo.findById.mockResolvedValue(mockPost);
-      mockRepo.findById.mockResolvedValue({
-        ...mockDiscussion,
-        postCount: 3,
-      });
-      await service.resolveReport('rep1', true, UserRole.Admin, 'Admin');
+      const ok = await service.moderationDeletePost('post1');
+      expect(ok).toBe(true);
       expect(mockPostsRepo.delete).toHaveBeenCalledWith('post1');
-      expect(mockReportsRepo.markResolved).toHaveBeenCalledWith('rep1');
+      expect(mockRepo.adjustPostCount).toHaveBeenCalledWith('disc1', -1);
     });
 
-    it('resolveReport hodí ForbiddenException pro non-admina', async () => {
-      await expect(
-        service.resolveReport('rep1', false, UserRole.Hrac, 'nekdo'),
-      ).rejects.toThrow(ForbiddenException);
+    it('moderationDeletePost na neznámém id vrátí false (best-effort)', async () => {
+      mockPostsRepo.findById.mockResolvedValue(null);
+      const ok = await service.moderationDeletePost('ghost');
+      expect(ok).toBe(false);
+      expect(mockPostsRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('getPosts skryje moderované příspěvky ne-reviewerovi', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+        isOpen: true,
+      });
+      mockPostsRepo.findByDiscussion.mockResolvedValue([]);
+      await service.getPosts('disc1', 'user9', UserRole.Hrac, 'hrac', 0, 50);
+      // 4. argument (includeModerationHidden) = false pro ne-reviewera.
+      expect(mockPostsRepo.findByDiscussion).toHaveBeenCalledWith(
+        'disc1',
+        0,
+        50,
+        false,
+      );
+    });
+
+    it('getPosts ukáže moderované příspěvky reviewerovi (SpravceDiskuzi)', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockDiscussion,
+        isApproved: true,
+        isOpen: true,
+      });
+      mockPostsRepo.findByDiscussion.mockResolvedValue([]);
+      await service.getPosts(
+        'disc1',
+        'mod1',
+        UserRole.SpravceDiskuzi,
+        'Moderátor',
+        0,
+        50,
+      );
+      expect(mockPostsRepo.findByDiscussion).toHaveBeenCalledWith(
+        'disc1',
+        0,
+        50,
+        true,
+      );
     });
   });
 

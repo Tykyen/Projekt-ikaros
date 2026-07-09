@@ -251,6 +251,15 @@ export class IkarosArticlesService {
         code: 'ARTICLE_NOT_FOUND',
         message: 'Článek nenalezen',
       });
+    // B4b (spec 20B) — moderačně skrytý článek (M2/M3): vidí ho jen reviewer
+    // (content-admin set), ostatním (vč. autora a anonyma) vracíme 404, aby se
+    // neprozradila existence skrytého obsahu (auth-leak-policy).
+    if (article.moderationHidden && !this.isAdmin(role, username)) {
+      throw new NotFoundException({
+        code: 'ARTICLE_NOT_FOUND',
+        message: 'Článek nenalezen',
+      });
+    }
     // Anon — jen Published
     if (!userId) {
       if (article.status !== 'Published') {
@@ -659,10 +668,30 @@ export class IkarosArticlesService {
     userId: string,
     isAdmin: boolean,
   ): boolean {
+    // B4b — moderačně skrytý článek vidí jen reviewer (i kdyby ho měl v oblíbených).
+    if (article.moderationHidden && !isAdmin) return false;
     if (article.status === 'Published') return true;
     if (article.authorId === userId) return true;
     if (article.status === 'Pending' && isAdmin) return true;
     return false;
+  }
+
+  /**
+   * B4b (spec 20B) — moderační skrytí / odkrytí článku (akce M2/M3 a jejich
+   * revert). Systémová cesta z enforcement listeneru; NEmá autorský/role guard
+   * (autorizoval už moderační zásah). Idempotentní — na neznámém id jen vrátí
+   * false (listener to zaloguje), nikdy nehází.
+   */
+  async setModerationHidden(
+    id: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.repo.update(id, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    return updated !== null;
   }
 
   async toggleFavorite(

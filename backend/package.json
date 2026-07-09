@@ -25,6 +25,7 @@
     "parity": "ts-node scripts/parity-check/index.ts",
     "migrate:news": "ts-node scripts/migrate-world-news/index.ts",
     "migrate:message-threads": "ts-node scripts/migrate-message-threads/index.ts",
+    "migrate:discussion-reports": "ts-node scripts/migrate-discussion-reports-to-content-reports/index.ts",
     "migrate:npc-bestiae": "ts-node scripts/migrate-npc-templates-to-bestiae/index.ts",
     "migrate:world-maps": "ts-node scripts/migrate-world-maps/index.ts",
     "migrate:chatmessage-nonce-index": "ts-node scripts/fix-chatmessage-clientnonce-index/index.ts",

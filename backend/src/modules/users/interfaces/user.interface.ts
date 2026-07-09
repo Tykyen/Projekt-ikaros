@@ -104,6 +104,11 @@ export interface User {
   acceptedTermsAt?: Date;
   termsVersion?: string;
 
+  // 20C (spec-20C §C2/C3) — deklarativní věk + režim ochrany nezletilých.
+  isMinor?: boolean;
+  minorSelfDeclaredAt?: Date;
+  parentalConsentStatus?: 'pending' | 'granted' | 'not_required';
+
   // SP3 / D-052 (2026-05-14):
   hiddenPresence?: boolean;
 

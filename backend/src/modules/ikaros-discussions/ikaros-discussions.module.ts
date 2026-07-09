@@ -8,18 +8,13 @@ import {
   IkarosDiscussionPostSchemaClass,
   IkarosDiscussionPostSchema,
 } from './schemas/ikaros-discussion-post.schema';
-import {
-  IkarosDiscussionReportSchemaClass,
-  IkarosDiscussionReportSchema,
-} from './schemas/ikaros-discussion-report.schema';
 import { MongoIkarosDiscussionsRepository } from './repositories/ikaros-discussions.repository';
 import { MongoIkarosDiscussionPostsRepository } from './repositories/ikaros-discussion-posts.repository';
-import { MongoIkarosDiscussionReportsRepository } from './repositories/ikaros-discussion-reports.repository';
 import { IkarosDiscussionsService } from './ikaros-discussions.service';
 import { IkarosDiscussionsController } from './ikaros-discussions.controller';
 import { DiscussionReviewProvider } from './providers/discussion-review.provider';
-import { DiscussionReportProvider } from './providers/discussion-report.provider';
 import { DiscussionJoinProvider } from './providers/discussion-join.provider';
+import { DiscussionsModerationEnforcementListener } from './moderation-enforcement.listener';
 import { IkarosMessagesModule } from '../ikaros-messages/ikaros-messages.module';
 import { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 import { PendingActionsService } from '../pending-actions/pending-actions.service';
@@ -35,10 +30,6 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
         name: IkarosDiscussionPostSchemaClass.name,
         schema: IkarosDiscussionPostSchema,
       },
-      {
-        name: IkarosDiscussionReportSchemaClass.name,
-        schema: IkarosDiscussionReportSchema,
-      },
     ]),
     IkarosMessagesModule,
   ],
@@ -46,8 +37,9 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
   providers: [
     IkarosDiscussionsService,
     DiscussionReviewProvider,
-    DiscussionReportProvider,
     DiscussionJoinProvider,
+    // B4d — vynucení moderačních zásahů nad příspěvky (skrytí M2/M3, smazání M4).
+    DiscussionsModerationEnforcementListener,
     {
       provide: 'IIkarosDiscussionsRepository',
       useClass: MongoIkarosDiscussionsRepository,
@@ -55,10 +47,6 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
     {
       provide: 'IIkarosDiscussionPostsRepository',
       useClass: MongoIkarosDiscussionPostsRepository,
-    },
-    {
-      provide: 'IIkarosDiscussionReportsRepository',
-      useClass: MongoIkarosDiscussionReportsRepository,
     },
     { provide: 'IkarosMessagesService', useExisting: IkarosMessagesService },
   ],
@@ -69,18 +57,17 @@ export class IkarosDiscussionsModule implements OnModuleInit {
   constructor(
     private readonly pendingActions: PendingActionsService,
     private readonly reviewProvider: DiscussionReviewProvider,
-    private readonly reportProvider: DiscussionReportProvider,
     private readonly joinProvider: DiscussionJoinProvider,
   ) {}
 
   /**
-   * Spec 3.4 §7 — registrace tří queue typů diskuzí v globální
-   * `PendingActionsService`: discussion_pending_review / discussion_report /
-   * discussion_join_request.
+   * Spec 3.4 §7 — registrace queue typů diskuzí v globální
+   * `PendingActionsService`: discussion_pending_review / discussion_join_request.
+   * B4d — `discussion_report` byl sjednocen do generického `content_report`
+   * (modul `moderation`), vlastní provider už neexistuje.
    */
   onModuleInit() {
     this.pendingActions.register(this.reviewProvider);
-    this.pendingActions.register(this.reportProvider);
     this.pendingActions.register(this.joinProvider);
   }
 }

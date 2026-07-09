@@ -40,16 +40,21 @@ export class MongoNaboryRepository implements INaboryRepository {
       authorId: doc.authorId as string,
       authorName: doc.authorName as string,
       reportCount: reportedBy.length,
+      moderationHidden: (doc.moderationHidden as boolean) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
       createdAtUtc: doc.createdAtUtc as Date,
       expiresAtUtc: (doc.expiresAtUtc as Date) ?? undefined,
     };
   }
 
-  async findActive(): Promise<Nabor[]> {
+  async findActive(includeModerationHidden = false): Promise<Nabor[]> {
     const now = new Date();
     const docs = await this.model
       .find({
         status: { $ne: 'expired' },
+        // B4b — veřejná nástěnka vynechá moderačně skryté (`$ne: true` bere i
+        // legacy dokumenty bez pole); reviewer si vyžádá i skryté.
+        ...(includeModerationHidden ? {} : { moderationHidden: { $ne: true } }),
         $or: [
           { expiresAtUtc: { $exists: false } },
           { expiresAtUtc: null },

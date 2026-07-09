@@ -45,12 +45,16 @@ export class MongoIkarosArticlesRepository implements IIkarosArticlesRepository 
       createdAtUtc: doc.createdAtUtc as Date,
       updatedAtUtc: doc.updatedAtUtc as Date,
       publishedAtUtc: doc.publishedAtUtc as Date | undefined,
+      moderationHidden: (doc.moderationHidden as boolean) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
     };
   }
 
   async findPublished(): Promise<IkarosArticle[]> {
     const docs = await this.model
-      .find({ status: 'Published' })
+      // B4b — veřejný list vynechá moderačně skryté (`$ne: true` bere i legacy
+      // dokumenty bez pole). Reviewer list (`findPublishedAndPending`) je vidí.
+      .find({ status: 'Published', moderationHidden: { $ne: true } })
       .sort({ createdAtUtc: -1 })
       .lean()
       .exec();
@@ -74,7 +78,11 @@ export class MongoIkarosArticlesRepository implements IIkarosArticlesRepository 
   async searchPublished(search: string): Promise<IkarosArticle[]> {
     const docs = await this.model
       .find(
-        { status: 'Published', $text: { $search: search } },
+        {
+          status: 'Published',
+          moderationHidden: { $ne: true },
+          $text: { $search: search },
+        },
         { score: { $meta: 'textScore' } },
       )
       .sort({ score: { $meta: 'textScore' } })

@@ -237,6 +237,7 @@ describe('AuthService', () => {
           username: 'new',
           password: 'pass123',
           acceptedTerms: true,
+          isMinor: false,
         });
         fail('expected ConflictException');
       } catch (err) {
@@ -258,6 +259,7 @@ describe('AuthService', () => {
           username: 'user',
           password: 'pass123',
           acceptedTerms: true,
+          isMinor: false,
         });
         fail('expected ConflictException');
       } catch (err) {
@@ -280,6 +282,7 @@ describe('AuthService', () => {
         username: 'new',
         password: 'pass123',
         acceptedTerms: true,
+        isMinor: false,
       });
       expect(result.accessToken).toBeDefined();
       expect(result.refreshToken).toBeDefined();
@@ -303,6 +306,7 @@ describe('AuthService', () => {
           username: 'new',
           password: 'pass123',
           acceptedTerms: false,
+          isMinor: false,
         });
         fail('expected BadRequestException');
       } catch (err) {
@@ -324,6 +328,7 @@ describe('AuthService', () => {
         username: 'new',
         password: 'pass123',
         acceptedTerms: true,
+        isMinor: false,
       });
       expect(mockUsersRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ acceptedTermsAt: expect.any(Date) }),
@@ -340,9 +345,57 @@ describe('AuthService', () => {
         username: 'new',
         password: 'pass123',
         acceptedTerms: true,
+        isMinor: false,
       });
       expect(mockUsersRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ lastLoginAt: expect.any(Date) }),
+      );
+    });
+
+    // 20C §C2/C3 — deklarativní věk + bezpečné defaulty nezletilého.
+    it('20C — dospělý (isMinor:false): parentalConsentStatus=not_required, žádné minor defaulty', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.findByUsername.mockResolvedValue(null);
+      mockUsersRepo.save.mockResolvedValue(mockUser);
+      mockRefreshRepo.save.mockResolvedValue({});
+      await service.register({
+        email: 'a@a.com',
+        username: 'new',
+        password: 'pass123',
+        acceptedTerms: true,
+        isMinor: false,
+      });
+      const saved = mockUsersRepo.save.mock.calls[0][0];
+      expect(saved).toMatchObject({
+        isMinor: false,
+        minorSelfDeclaredAt: expect.any(Date),
+        parentalConsentStatus: 'not_required',
+      });
+      // dospělý NEdostane minor defaulty (dědí schema public/viditelný)
+      expect(saved.profileVisibility).toBeUndefined();
+      expect(saved.hiddenInDirectory).toBeUndefined();
+    });
+
+    it('20C — nezletilý (isMinor:true): parentalConsentStatus=pending + bezpečné defaulty', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.findByUsername.mockResolvedValue(null);
+      mockUsersRepo.save.mockResolvedValue(mockUser);
+      mockRefreshRepo.save.mockResolvedValue({});
+      await service.register({
+        email: 'kid@a.com',
+        username: 'kiddo',
+        password: 'pass123',
+        acceptedTerms: true,
+        isMinor: true,
+      });
+      expect(mockUsersRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isMinor: true,
+          minorSelfDeclaredAt: expect.any(Date),
+          parentalConsentStatus: 'pending',
+          profileVisibility: 'friends',
+          hiddenInDirectory: true,
+        }),
       );
     });
   });

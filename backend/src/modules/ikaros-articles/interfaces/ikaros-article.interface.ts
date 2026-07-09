@@ -38,4 +38,11 @@ export interface IkarosArticle {
   createdAtUtc: Date;
   updatedAtUtc: Date;
   publishedAtUtc?: Date;
+  /**
+   * B4b (spec 20B) — true = obsah skryt moderací (akce M2/M3). Veřejné read
+   * cesty ho vynechají; vidí ho jen reviewer set. `moderationHiddenReason` je
+   * interní poznámka (kód rozhodnutí), nezobrazuje se veřejně.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
 }

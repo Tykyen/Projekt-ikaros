@@ -139,18 +139,30 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const now = new Date();
     const user = await this.usersRepo.save({
       email: dto.email.toLowerCase(),
       username: dto.username,
       passwordHash,
       role: UserRole.Hrac,
       isOnline: true,
-      lastSeenAt: new Date(),
+      lastSeenAt: now,
       // 1.3a — registrace je zároveň první přihlášení.
-      lastLoginAt: new Date(),
+      lastLoginAt: now,
       // F-03 (GDPR) — doklad souhlasu s podmínkami.
-      acceptedTermsAt: new Date(),
+      acceptedTermsAt: now,
       termsVersion: AuthService.TERMS_VERSION,
+      // 20C (spec-20C §C2) — deklarativní věk. `isMinor` je z FE volby 15+/<15.
+      isMinor: dto.isMinor,
+      minorSelfDeclaredAt: now,
+      // 20C §C2 — souhlas zákonného zástupce: nezletilý → `pending` (jen flag,
+      // NEblokuje registraci — reálný tok řeší právník), dospělý → `not_required`.
+      parentalConsentStatus: dto.isMinor ? 'pending' : 'not_required',
+      // 20C §C3 — bezpečný default nezletilého (app-side): neveřejný profil +
+      // skrytý v adresáři uživatelů. Dospělý dědí schema defaulty (public / viditelný).
+      ...(dto.isMinor
+        ? { profileVisibility: 'friends' as const, hiddenInDirectory: true }
+        : {}),
     });
 
     // SP2: po vytvoření vystavit verify token + poslat mail (fire-and-forget).
