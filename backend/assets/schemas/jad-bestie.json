@@ -17,6 +17,15 @@
           "description": "N — stupeň nebezpečnosti."
         },
         {
+          "key": "zkusenosti",
+          "label": "Zkušenosti (zk)",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "combatBehavior": "static",
+          "description": "zk — kolik zkušeností bytost udílí za poražení."
+        },
+        {
           "key": "presvedceni",
           "label": "Přesvědčení (P)",
           "type": "enum",
