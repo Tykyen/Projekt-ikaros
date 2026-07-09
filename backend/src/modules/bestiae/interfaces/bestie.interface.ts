@@ -1,9 +1,20 @@
 /**
+ * 16.2b-2 — jedna pravidlová verze (statblok) komunitní bytosti. Klíč v mapě
+ * `Bestie.statblocks` = systemId. Staty se mění jen schvalovacím tokem (§2a).
+ */
+export interface BestieStatblockEntry {
+  systemStats: Record<string, unknown>;
+  status: 'draft' | 'approved';
+  authorId: string;
+  createdAt: Date | string;
+}
+
+/**
  * 10.2d-prep-B — Bestie entity rozhraní (FE+BE shared shape).
  */
 export interface Bestie {
   id: string;
-  scope: 'system' | 'user' | 'world';
+  scope: 'system' | 'user' | 'world' | 'community';
   systemId: string;
   ownerUserId?: string;
   worldId?: string;
@@ -31,4 +42,19 @@ export interface Bestie {
   moderationHiddenReason?: string;
   createdAt: Date;
   updatedAt: Date;
+
+  // ── 16.2b-2 komunitní scope (jen scope='community') ──
+  /** Latinský/ozdobný název (podtitul v knize). */
+  latin?: string;
+  /** Typ bytosti (drak/nemrtvý/…) — filtr knihovny. */
+  kind?: string;
+  tags?: string[];
+  /** 'draft' = knihovna návrhů, 'approved' = schválená knihovna. */
+  status?: 'draft' | 'approved';
+  /** Atribuce autora (povinná u community). */
+  authorId?: string;
+  approvedAt?: Date | null;
+  approvedBy?: string;
+  /** Mapa systém→statblok. Klíč = systemId. */
+  statblocks?: Record<string, BestieStatblockEntry>;
 }

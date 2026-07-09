@@ -46,6 +46,15 @@ export class BestiaeRepository {
       moderationHiddenReason: o.moderationHiddenReason as string | undefined,
       createdAt: o.createdAt as Date,
       updatedAt: o.updatedAt as Date,
+      // 16.2b-2 — komunitní scope (u ostatních scope undefined).
+      latin: o.latin as string | undefined,
+      kind: o.kind as string | undefined,
+      tags: o.tags as string[] | undefined,
+      status: o.status as Bestie['status'],
+      authorId: o.authorId as string | undefined,
+      approvedAt: (o.approvedAt as Date | null) ?? null,
+      approvedBy: o.approvedBy as string | undefined,
+      statblocks: o.statblocks as Bestie['statblocks'],
     };
   }
 
@@ -68,6 +77,83 @@ export class BestiaeRepository {
       .sort({ name: 1 })
       .exec();
     return docs.map((d) => this.toEntity(d)!).filter(Boolean);
+  }
+
+  /**
+   * 16.2b-2 — komunitní (globální) bestie, cross-system. Dvě knihovny přes
+   * `status` (approved / draft). Filtr `kind` (typ) a `systemId` (bytosti, co
+   * mají pravidlovou verzi pro daný systém). Moderačně skryté vždy vynech.
+   */
+  async findCommunity(filter: {
+    status?: 'draft' | 'approved';
+    kind?: string;
+    systemId?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<Bestie[]> {
+    const q = this.communityQuery(filter);
+    let query = this.model.find(q).sort({ name: 1 });
+    if (filter.skip) query = query.skip(filter.skip);
+    if (filter.limit) query = query.limit(filter.limit);
+    const docs = await query.exec();
+    return docs.map((d) => this.toEntity(d)!).filter(Boolean);
+  }
+
+  /** 16.2b-2 — počet komunitních bytostí (pro pending badge). */
+  async countCommunity(filter: {
+    status?: 'draft' | 'approved';
+    kind?: string;
+    systemId?: string;
+  }): Promise<number> {
+    return this.model.countDocuments(this.communityQuery(filter)).exec();
+  }
+
+  private communityQuery(filter: {
+    status?: 'draft' | 'approved';
+    kind?: string;
+    systemId?: string;
+  }): Record<string, unknown> {
+    const q: Record<string, unknown> = {
+      scope: 'community',
+      deletedAt: null,
+      moderationHidden: { $ne: true },
+    };
+    if (filter.status) q.status = filter.status;
+    if (filter.kind) q.kind = filter.kind;
+    if (filter.systemId) q[`statblocks.${filter.systemId}`] = { $exists: true };
+    return q;
+  }
+
+  /** 16.2b-2 — zapíše/přepíše celou pravidlovou verzi (statblok) pro systém. */
+  async setStatblock(
+    id: string,
+    systemId: string,
+    entry: NonNullable<Bestie['statblocks']>[string],
+  ): Promise<Bestie | null> {
+    const doc = await this.model
+      .findByIdAndUpdate(
+        id,
+        { $set: { [`statblocks.${systemId}`]: entry } },
+        { new: true },
+      )
+      .exec();
+    return this.toEntity(doc);
+  }
+
+  /** 16.2b-2 — schválení jedné pravidlové verze (draft → approved). */
+  async setStatblockStatus(
+    id: string,
+    systemId: string,
+    status: 'draft' | 'approved',
+  ): Promise<Bestie | null> {
+    const doc = await this.model
+      .findByIdAndUpdate(
+        id,
+        { $set: { [`statblocks.${systemId}.status`]: status } },
+        { new: true },
+      )
+      .exec();
+    return this.toEntity(doc);
   }
 
   async findById(id: string): Promise<Bestie | null> {

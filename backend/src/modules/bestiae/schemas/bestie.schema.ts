@@ -1,19 +1,29 @@
 /**
  * 10.2d-prep-B — Bestie schema (statblok šablona, žádný deník).
  *
- * 3-scope kolekce: 'system' (admin-managed seeds), 'user' (per PJ napříč
- * jeho světy), 'world' (per-svět specifika). `systemStats` storage validátor
+ * 4-scope kolekce: 'system' (admin-managed seeds), 'user' (per PJ napříč
+ * jeho světy), 'world' (per-svět specifika), 'community' (16.2b-2 — globální
+ * komunitní katalog ve Společné tvorbě). `systemStats` storage validátor
  * z 10.2d-prep-A (SystemStatsValidatorService).
+ *
+ * 16.2b-2: community bytost = sdílený lore + mapa `systém → statblok`
+ * (`statblocks`). Staty se NEmění přímou editací — jen schvalovacím tokem
+ * (spec-16.2b-2 §2a). Ostatní 3 scope zůstávají single-system (`systemStats`).
  */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { BestieStatblockEntry } from '../interfaces/bestie.interface';
 
 export type BestieDocument = HydratedDocument<BestieSchemaClass>;
 
 @Schema({ timestamps: true, collection: 'bestiae' })
 export class BestieSchemaClass {
-  @Prop({ required: true, enum: ['system', 'user', 'world'], index: true })
-  scope!: 'system' | 'user' | 'world';
+  @Prop({
+    required: true,
+    enum: ['system', 'user', 'world', 'community'],
+    index: true,
+  })
+  scope!: 'system' | 'user' | 'world' | 'community';
 
   @Prop({ required: true, index: true }) systemId!: string;
 
@@ -47,9 +57,31 @@ export class BestieSchemaClass {
   @Prop({ type: Boolean, default: false, index: true })
   moderationHidden?: boolean;
   @Prop() moderationHiddenReason?: string;
+
+  // ── 16.2b-2 komunitní scope (dává smysl jen pro scope='community') ──
+  /** Latinský/ozdobný název (podtitul v knize). */
+  @Prop() latin?: string;
+  /** Typ bytosti (drak/nemrtvý/…) — filtr knihovny. */
+  @Prop({ index: true, sparse: true }) kind?: string;
+  @Prop({ type: [String], default: undefined }) tags?: string[];
+  /** Stav bytosti: 'draft' = knihovna návrhů, 'approved' = schválená knihovna. */
+  @Prop({ enum: ['draft', 'approved'], index: true, sparse: true })
+  status?: 'draft' | 'approved';
+  /** Atribuce autora (povinná u community). */
+  @Prop({ index: true, sparse: true }) authorId?: string;
+  @Prop({ type: Date, default: null }) approvedAt?: Date | null;
+  @Prop() approvedBy?: string;
+  /**
+   * Mapa systém→statblok (16.2b-2). Klíč = systemId; hodnota = staty + stav +
+   * autor. Staty se ladí schvalovacím tokem (spec §2a), ne přímým zápisem.
+   */
+  @Prop({ type: Object, default: {} })
+  statblocks?: Record<string, BestieStatblockEntry>;
 }
 
 export const BestieSchema = SchemaFactory.createForClass(BestieSchemaClass);
 BestieSchema.index({ scope: 1, systemId: 1 });
 BestieSchema.index({ scope: 1, ownerUserId: 1, systemId: 1 });
 BestieSchema.index({ scope: 1, worldId: 1, systemId: 1 });
+// 16.2b-2 — list dvou knihoven (schválené / návrhy) + filtr typu.
+BestieSchema.index({ scope: 1, status: 1, kind: 1 });

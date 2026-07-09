@@ -32,4 +32,7 @@ export enum PendingActionType {
   ContentReport = 'content_report',
   // 20B/B4a — fronta odvolání proti moderačnímu rozhodnutí (přezkum jiným moderátorem).
   ModerationAppeal = 'moderation_appeal',
+  // 16.2b-2 — komunitní bytosti (scope='community', status='draft') čekající na
+  // povýšení do schválené knihovny. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunityBestiePendingReview = 'community_bestie_pending_review',
 }

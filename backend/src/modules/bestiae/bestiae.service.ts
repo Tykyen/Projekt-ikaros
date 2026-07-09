@@ -25,6 +25,11 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import type { CreateBestieDto } from './dto/create-bestie.dto';
 import type { UpdateBestieDto } from './dto/update-bestie.dto';
 import type { CloneBestieDto } from './dto/clone-bestie.dto';
+import type { CreateCommunityBestieDto } from './dto/create-community-bestie.dto';
+import type { UpdateBestieLoreDto } from './dto/update-bestie-lore.dto';
+import type { CloneCommunityBestieDto } from './dto/clone-community-bestie.dto';
+import type { ProposeStatblockDto } from './dto/propose-statblock.dto';
+import { isBestieCurator } from './curator-roles';
 import type { Bestie } from './interfaces/bestie.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -317,6 +322,288 @@ export class BestiaeService {
     return cloned;
   }
 
+  // ═══════════ 16.2b-2 — Komunitní (globální) bestiář ═══════════
+  // Cross-system katalog ve Společné tvorbě. Vlastní cesta (list je jinak
+  // per-systemId). Staty jen přes schvalovací tok — viz BE-2b (spec §2a).
+
+  /** Dvě knihovny (approved / draft) — cross-system; filtr kind/systemId. */
+  async listCommunity(filter: {
+    status?: 'draft' | 'approved';
+    kind?: string;
+    systemId?: string;
+  }): Promise<Bestie[]> {
+    return this.repo.findCommunity(filter);
+  }
+
+  /** Detail komunitní bytosti (veřejné čtení; skrytou vidí jen Admin+). */
+  async findCommunityById(id: string, user: CurrentUser): Promise<Bestie> {
+    const bestie = await this.repo.findById(id);
+    if (!bestie || bestie.scope !== 'community') {
+      throw new NotFoundException('Bestie nenalezena');
+    }
+    if (bestie.moderationHidden && !this.isGlobalAdmin(user)) {
+      throw new NotFoundException('Bestie nenalezena');
+    }
+    return bestie;
+  }
+
+  /**
+   * Založí komunitní bytost jako NÁVRH (draft) + první pravidlovou verzi.
+   * Autor ji hned dostane i do svého osobního (user) bestiáře (spec §5).
+   */
+  async createCommunity(
+    dto: CreateCommunityBestieDto,
+    user: CurrentUser,
+  ): Promise<Bestie> {
+    const result = await this.validateStats(
+      dto.systemStats,
+      { scope: 'community', systemId: dto.systemId },
+      'create',
+    );
+    if (!result.valid && !result.errors._schema) {
+      throw new BadRequestException({
+        code: 'BESTIE_STATS_INVALID',
+        errors: result.errors,
+      });
+    }
+    const now = new Date();
+    const created = await this.repo.create({
+      scope: 'community',
+      systemId: dto.systemId,
+      name: dto.name,
+      latin: dto.latin,
+      kind: dto.kind,
+      tags: dto.tags,
+      imageUrl: dto.imageUrl,
+      imageFocalX: dto.imageFocalX,
+      imageFocalY: dto.imageFocalY,
+      imageZoom: dto.imageZoom,
+      imageFit: dto.imageFit,
+      notes: '',
+      description: dto.description ?? '',
+      // Community nepoužívá top-level systemStats — reálné staty jsou ve statblocks.
+      systemStats: {},
+      status: 'draft',
+      authorId: user.id,
+      statblocks: {
+        [dto.systemId]: {
+          systemStats: result.filled,
+          status: 'draft',
+          authorId: user.id,
+          createdAt: now,
+        },
+      },
+    });
+    // Autor má návrh hned u sebe (osobní bestiář), i než projde schválením.
+    await this.cloneStatblockToBestiary(
+      created,
+      dto.systemId,
+      'user',
+      undefined,
+      created.name,
+      user,
+    );
+    this.emitChanged(created);
+    return created;
+  }
+
+  /** Úprava lore (text/obrázek). STATY tudy NEJDOU (spec §2a). */
+  async updateCommunityLore(
+    id: string,
+    dto: UpdateBestieLoreDto,
+    user: CurrentUser,
+  ): Promise<Bestie> {
+    const existing = await this.repo.findById(id);
+    if (!existing || existing.scope !== 'community') {
+      throw new NotFoundException();
+    }
+    // Lore upraví autor nebo kurátor (správci diskusí/článků + Admin/Superadmin).
+    if (existing.authorId !== user.id && !this.isCurator(user)) {
+      throw new ForbiddenException({
+        code: 'BESTIE_NOT_AUTHOR',
+        message: 'Upravit popis může jen autor nebo správce.',
+      });
+    }
+    const updated = await this.repo.updateAtomic(id, {
+      name: dto.name,
+      latin: dto.latin,
+      kind: dto.kind,
+      tags: dto.tags,
+      imageUrl: dto.imageUrl,
+      imageFocalX: dto.imageFocalX,
+      imageFocalY: dto.imageFocalY,
+      imageZoom: dto.imageZoom,
+      imageFit: dto.imageFit,
+      description: dto.description,
+    });
+    if (!updated) throw new NotFoundException();
+    // Úklid starého blobu při výměně obrázku (parity s update()).
+    if (
+      dto.imageUrl !== undefined &&
+      existing.imageUrl &&
+      existing.imageUrl !== dto.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
+    this.emitChanged(updated);
+    return updated;
+  }
+
+  /** „Vlož do mého bestiáře" — klon JEDNÉ pravidlové verze do světa/osobního. */
+  async cloneCommunity(
+    sourceId: string,
+    dto: CloneCommunityBestieDto,
+    user: CurrentUser,
+  ): Promise<Bestie> {
+    const source = await this.repo.findById(sourceId);
+    if (!source || source.scope !== 'community') throw new NotFoundException();
+    if (source.moderationHidden && !this.isGlobalAdmin(user)) {
+      throw new NotFoundException();
+    }
+    if (!source.statblocks?.[dto.systemId]) {
+      throw new BadRequestException({
+        code: 'BESTIE_STATBLOCK_MISSING',
+        message: 'Pro tento systém zatím nejsou staty.',
+      });
+    }
+    if (dto.scope === 'world') {
+      if (!dto.worldId) {
+        throw new BadRequestException(
+          'worldId required for clone target world',
+        );
+      }
+      await this.assertCanManageWorld(dto.worldId, user);
+    }
+    return this.cloneStatblockToBestiary(
+      source,
+      dto.systemId,
+      dto.scope,
+      dto.scope === 'world' ? dto.worldId : undefined,
+      dto.newName ?? source.name,
+      user,
+    );
+  }
+
+  /** Interní: single-system bestie z jedné pravidlové verze (snapshot). */
+  private async cloneStatblockToBestiary(
+    source: Bestie,
+    systemId: string,
+    scope: 'user' | 'world',
+    worldId: string | undefined,
+    name: string,
+    user: CurrentUser,
+  ): Promise<Bestie> {
+    const sb = source.statblocks?.[systemId];
+    const cloned = await this.repo.create({
+      scope,
+      systemId,
+      ownerUserId: scope === 'user' ? user.id : undefined,
+      worldId: scope === 'world' ? worldId : undefined,
+      name,
+      imageUrl: source.imageUrl,
+      imageFocalX: source.imageFocalX,
+      imageFocalY: source.imageFocalY,
+      imageZoom: source.imageZoom,
+      imageFit: source.imageFit,
+      notes: '',
+      description: source.description,
+      // Schopnosti jsou v `systemStats.abilities` → snapshot je přebírá.
+      systemStats: { ...(sb?.systemStats ?? {}) },
+      clonedFromId: source.id,
+    });
+    this.emitChanged(cloned);
+    return cloned;
+  }
+
+  /**
+   * Návrh / kurátorská úprava pravidlové verze statů (spec §2a). Prázdný systém
+   * → smí navrhnout kdokoli přihlášený (draft). Existující verzi upraví jen
+   * kurátor (běžný uživatel navrhuje změnu slovně v diskusi). Nový systém =
+   * draft; kurátorská úprava zachová stávající stav (oprava schválené verze).
+   */
+  async proposeStatblock(
+    id: string,
+    dto: ProposeStatblockDto,
+    user: CurrentUser,
+  ): Promise<Bestie> {
+    const existing = await this.repo.findById(id);
+    if (!existing || existing.scope !== 'community') {
+      throw new NotFoundException();
+    }
+    const sb = existing.statblocks?.[dto.systemId];
+    if (sb && !this.isCurator(user)) {
+      throw new ForbiddenException({
+        code: 'BESTIE_STATBLOCK_EXISTS',
+        message:
+          'Tuhle pravidlovou verzi už někdo založil — změny navrhni v diskusi.',
+      });
+    }
+    const result = await this.validateStats(
+      dto.systemStats,
+      { scope: 'community', systemId: dto.systemId },
+      'create',
+    );
+    if (!result.valid && !result.errors._schema) {
+      throw new BadRequestException({
+        code: 'BESTIE_STATS_INVALID',
+        errors: result.errors,
+      });
+    }
+    const updated = await this.repo.setStatblock(id, dto.systemId, {
+      systemStats: result.filled,
+      status: sb?.status ?? 'draft',
+      authorId: sb?.authorId ?? user.id,
+      createdAt: sb?.createdAt ?? new Date(),
+    });
+    if (!updated) throw new NotFoundException();
+    this.emitChanged(updated);
+    return updated;
+  }
+
+  /** Kurátor schválí jednu pravidlovou verzi (draft → approved). */
+  async approveStatblock(
+    id: string,
+    systemId: string,
+    user: CurrentUser,
+  ): Promise<Bestie> {
+    this.requireCurator(user);
+    const existing = await this.repo.findById(id);
+    if (!existing || existing.scope !== 'community') {
+      throw new NotFoundException();
+    }
+    if (!existing.statblocks?.[systemId]) {
+      throw new BadRequestException({
+        code: 'BESTIE_STATBLOCK_MISSING',
+        message: 'Pro tento systém nejsou staty.',
+      });
+    }
+    const updated = await this.repo.setStatblockStatus(
+      id,
+      systemId,
+      'approved',
+    );
+    if (!updated) throw new NotFoundException();
+    this.emitChanged(updated);
+    return updated;
+  }
+
+  /** Kurátor schválí bytost → přejde z knihovny návrhů do schválené. */
+  async approveBeast(id: string, user: CurrentUser): Promise<Bestie> {
+    this.requireCurator(user);
+    const existing = await this.repo.findById(id);
+    if (!existing || existing.scope !== 'community') {
+      throw new NotFoundException();
+    }
+    const updated = await this.repo.updateAtomic(id, {
+      status: 'approved',
+      approvedAt: new Date(),
+      approvedBy: user.id,
+    });
+    if (!updated) throw new NotFoundException();
+    this.emitChanged(updated);
+    return updated;
+  }
+
   // ───────── Authorization helpers ─────────
 
   private async assertCanRead(
@@ -401,6 +688,24 @@ export class BestiaeService {
   // resp. osobní katalog bez worldId). World-scope brány jdou přes worldAdminBypass.
   private isGlobalAdmin(user: CurrentUser): boolean {
     return user.role === UserRole.Superadmin || user.role === UserRole.Admin;
+  }
+
+  /**
+   * 16.2b-2 — kurátor komunitního bestiáře = správci diskusí/článků +
+   * Admin/Superadmin (`curator-roles.ts`, sdíleno s review providerem).
+   */
+  private isCurator(user: CurrentUser): boolean {
+    return isBestieCurator(user.role);
+  }
+
+  private requireCurator(user: CurrentUser): void {
+    if (!this.isCurator(user)) {
+      throw new ForbiddenException({
+        code: 'BESTIE_NOT_CURATOR',
+        message:
+          'Na tohle potřebuješ být správce diskusí, článků nebo platformy.',
+      });
+    }
   }
 
   /**
