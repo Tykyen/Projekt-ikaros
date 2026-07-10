@@ -30,6 +30,7 @@
     "migrate:world-maps": "ts-node scripts/migrate-world-maps/index.ts",
     "migrate:chatmessage-nonce-index": "ts-node scripts/fix-chatmessage-clientnonce-index/index.ts",
     "seed:superadmin": "ts-node scripts/seed-superadmin/index.ts",
+    "seed:plants": "ts-node scripts/seed-plants/index.ts",
     "smoke:be": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" ../scripts/backend-smoke-test.ts",
     "smoke:be:full": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" ../scripts/backend-smoke-with-mongo.ts",
     "prepare": "cd .. && husky backend/.husky"

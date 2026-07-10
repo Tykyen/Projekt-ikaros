@@ -32,6 +32,8 @@ import type {
   CampaignEntityType,
   CampaignChangeType,
 } from './interfaces/campaign-change-log.interface';
+import type { CreateCampaignShopItemDto } from './dto/create-campaign-shop-item.dto';
+import { SHOP_BULK_MAX } from './dto/bulk-create-shop-items.dto';
 
 interface EntityBase {
   id: string;
@@ -987,6 +989,11 @@ export class CampaignService {
       linkedItemIds?: string[];
       referenceLink?: string;
       isRecommended?: boolean;
+      imageUrl?: string;
+      imageFocalX?: number | null;
+      imageFocalY?: number | null;
+      imageZoom?: number | null;
+      imageFit?: 'cover' | 'contain' | null;
     },
   ): Promise<CampaignShopItem> {
     const created = await this.shopRepo.create({
@@ -1003,6 +1010,12 @@ export class CampaignService {
       linkedItemIds: dto.linkedItemIds ?? [],
       referenceLink: dto.referenceLink,
       isRecommended: dto.isRecommended ?? false,
+      // 21.5a-B — obrázek + výřez položky.
+      imageUrl: dto.imageUrl,
+      imageFocalX: dto.imageFocalX ?? null,
+      imageFocalY: dto.imageFocalY ?? null,
+      imageZoom: dto.imageZoom ?? null,
+      imageFit: dto.imageFit ?? null,
     });
     this.logChange(
       created,
@@ -1012,6 +1025,68 @@ export class CampaignService {
       userId,
       userName,
     );
+    return created;
+  }
+
+  /**
+   * 21.5a-B — hromadné vložení položek obchodu (bulk). Základ pro vklad z
+   * herbáře i budoucí předpřipravené obchody. Role gate + resolveIsShared per
+   * položka (parity single create); worldRole si service odvodí sama.
+   */
+  async createShopItemsBulk(
+    worldId: string,
+    items: CreateCampaignShopItemDto[],
+    user: RequestUser,
+  ): Promise<CampaignShopItem[]> {
+    const worldRole = await this.getWorldRole(user, worldId);
+    // Stejný role-floor jako single create (mirror controller gate).
+    if (worldRole < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
+    if (!Array.isArray(items) || items.length === 0)
+      throw new BadRequestException({
+        code: 'SHOP_BULK_EMPTY',
+        message: 'Bulk požadavek neobsahuje žádné položky.',
+      });
+    if (items.length > SHOP_BULK_MAX)
+      throw new BadRequestException({
+        code: 'SHOP_BULK_TOO_MANY',
+        message: `Najednou lze vložit nejvýš ${SHOP_BULK_MAX} položek.`,
+      });
+    const docs = items.map((dto) => ({
+      worldId,
+      ownerId: user.id,
+      // resolveIsShared per položka (parity single create; gate výše → PomocnyPJ+).
+      isShared:
+        worldRole >= WorldRole.PomocnyPJ ? (dto.isShared ?? false) : false,
+      name: dto.name,
+      description: dto.description,
+      groupId: dto.groupId ?? '',
+      subgroupId: dto.subgroupId,
+      price: dto.price ?? 0,
+      currencyCode: dto.currencyCode ?? '',
+      discountPercent: dto.discountPercent ?? 0,
+      linkedItemIds: dto.linkedItemIds ?? [],
+      referenceLink: dto.referenceLink,
+      isRecommended: dto.isRecommended ?? false,
+      imageUrl: dto.imageUrl,
+      imageFocalX: dto.imageFocalX ?? null,
+      imageFocalY: dto.imageFocalY ?? null,
+      imageZoom: dto.imageZoom ?? null,
+      imageFit: dto.imageFit ?? null,
+    }));
+    const created = await this.shopRepo.createMany(docs);
+    for (const item of created)
+      this.logChange(
+        item,
+        'shopitem',
+        item.name,
+        'created',
+        user.id,
+        user.username,
+      );
     return created;
   }
 

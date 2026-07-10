@@ -7,6 +7,8 @@ export interface ICampaignShopItemRepository {
   ): Promise<CampaignShopItem[]>;
   findById(id: string): Promise<CampaignShopItem | null>;
   create(data: Partial<CampaignShopItem>): Promise<CampaignShopItem>;
+  // 21.5a-B — hromadné vložení položek (bulk).
+  createMany(docs: Partial<CampaignShopItem>[]): Promise<CampaignShopItem[]>;
   update(
     id: string,
     data: Partial<CampaignShopItem>,

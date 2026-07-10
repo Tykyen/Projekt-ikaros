@@ -29,6 +29,7 @@ import { CreateCampaignStorylineDto } from './dto/create-campaign-storyline.dto'
 import { CreateCampaignScenarioDto } from './dto/create-campaign-scenario.dto';
 import { CreateCampaignQuickNoteDto } from './dto/create-campaign-quick-note.dto';
 import { CreateCampaignShopItemDto } from './dto/create-campaign-shop-item.dto';
+import { BulkCreateShopItemsDto } from './dto/bulk-create-shop-items.dto';
 import { CreateCampaignShopGroupDto } from './dto/create-campaign-shop-group.dto';
 import { PurchaseShopItemDto } from './dto/purchase-shop-item.dto';
 import { CampaignPurchaseService } from './services/campaign-purchase.service';
@@ -604,6 +605,26 @@ export class CampaignController {
   ) {
     const worldRole = await this.role(user, worldId);
     return this.service.findShopItems(user.id, worldRole, worldId, { groupId });
+  }
+
+  // POZOR: `/shopitems/bulk` musí být před `/shopitems/:id`, jinak by `:id`
+  // zachytil „bulk" jako id.
+  @Post('shopitems/bulk')
+  @ApiOperation({ summary: 'Hromadné vytvoření položek obchodu' })
+  @ApiResponse({ status: 201 })
+  async createShopItemsBulk(
+    @CurrentUser() user: RequestUser,
+    @Query('worldId') worldId: string,
+    @Body() body: BulkCreateShopItemsDto,
+  ) {
+    const worldRole = await this.role(user, worldId);
+    // FIX-3 parity — role-floor gate (mirror createShopItem); service gate-uje znovu.
+    if (worldRole < WorldRole.PomocnyPJ)
+      throw new ForbiddenException({
+        code: 'INSUFFICIENT_WORLD_ROLE',
+        message: 'Na tohle potřebuješ roli Pomocný PJ nebo vyšší.',
+      });
+    return this.service.createShopItemsBulk(worldId, body.items, user);
   }
 
   @Get('shopitems/:id')

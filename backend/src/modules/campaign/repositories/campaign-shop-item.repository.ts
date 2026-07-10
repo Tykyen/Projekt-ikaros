@@ -37,6 +37,17 @@ export class MongoCampaignShopItemRepository
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
+  // 21.5a-B — hromadné vložení položek (bulk). Vzor `create`, jen pole docs.
+  async createMany(
+    docs: Partial<CampaignShopItem>[],
+  ): Promise<CampaignShopItem[]> {
+    if (docs.length === 0) return [];
+    const created = await this.model.insertMany(docs);
+    return created.map((doc) =>
+      this.toEntity(doc.toObject() as unknown as Record<string, unknown>),
+    );
+  }
+
   async update(
     id: string,
     data: Partial<CampaignShopItem>,
@@ -91,6 +102,12 @@ export class MongoCampaignShopItemRepository
       linkedItemIds: (doc.linkedItemIds as string[]) ?? [],
       referenceLink: doc.referenceLink as string | undefined,
       isRecommended: (doc.isRecommended as boolean) ?? false,
+      // 21.5a-B — obrázek + výřez (whitelist, jinak by se pole tiše ztratila).
+      imageUrl: doc.imageUrl as string | undefined,
+      imageFocalX: (doc.imageFocalX as number | null) ?? null,
+      imageFocalY: (doc.imageFocalY as number | null) ?? null,
+      imageZoom: (doc.imageZoom as number | null) ?? null,
+      imageFit: (doc.imageFit as 'cover' | 'contain' | null) ?? null,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

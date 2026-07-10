@@ -21,6 +21,12 @@ export class CampaignShopItemSchemaClass {
   @Prop({ type: [String], default: [] }) linkedItemIds: string[];
   @Prop() referenceLink?: string;
   @Prop({ default: false }) isRecommended: boolean;
+  // 21.5a-B — obrázek položky + výřez (parity s Plant/Bestie). null = default (50/50).
+  @Prop() imageUrl?: string;
+  @Prop({ type: Number, default: null }) imageFocalX?: number | null;
+  @Prop({ type: Number, default: null }) imageFocalY?: number | null;
+  @Prop({ type: Number, default: null }) imageZoom?: number | null;
+  @Prop({ type: String, default: null }) imageFit?: 'cover' | 'contain' | null;
 }
 
 export const CampaignShopItemSchema = SchemaFactory.createForClass(

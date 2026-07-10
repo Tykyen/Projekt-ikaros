@@ -13,6 +13,12 @@ export interface CampaignShopItem {
   linkedItemIds: string[];
   referenceLink?: string;
   isRecommended: boolean;
+  // 21.5a-B — obrázek položky + výřez (parity s Plant/Bestie).
+  imageUrl?: string;
+  imageFocalX?: number | null;
+  imageFocalY?: number | null;
+  imageZoom?: number | null;
+  imageFit?: 'cover' | 'contain' | null;
   createdAt: Date;
   updatedAt: Date;
 }
