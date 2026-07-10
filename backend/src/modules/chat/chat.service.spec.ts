@@ -31,6 +31,12 @@ const mockCharactersService = {
 /** D-040 — tombstone batch enrich; default = všichni autoři aktivní. */
 const mockUsersService = {
   findManyTombstoneInfo: jest.fn().mockResolvedValue(new Map()),
+  // 19.4 — enforceSupporterDiceGate (v updateMembershipAppearance) volá findById.
+  // Vrací entitled uživatele (isSupporter), aby prémiové dice skiny v testech
+  // persistence prošly gate; strip-path pro ne-supportera řeší supporter.util.
+  findById: jest
+    .fn()
+    .mockResolvedValue({ id: 'user1', role: UserRole.Hrac, isSupporter: true }),
 };
 
 const mockPJ: { id: string; role: UserRole; username: string } = {
@@ -1842,6 +1848,7 @@ describe('ChatService', () => {
       expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith('ch1', {
         before: undefined,
         limit: 50,
+        visibilityUserId: 'user2',
       });
     });
 
@@ -1855,6 +1862,7 @@ describe('ChatService', () => {
       expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith('ch1', {
         before: undefined,
         limit: 50,
+        visibilityUserId: 'user2',
       });
     });
 
@@ -1868,6 +1876,7 @@ describe('ChatService', () => {
       expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith('ch1', {
         before: undefined,
         limit: 100,
+        visibilityUserId: 'user2',
       });
     });
   });
@@ -3098,14 +3107,39 @@ describe('getMessages — whisper filtering', () => {
     jest.clearAllMocks();
   });
 
+  // Filtr šepotů se přesunul z JS service do Mongo query (findByChannelId
+  // `visibilityUserId`) — aby `limit` = počet VIDITELNÝCH zpráv (jinak hráči po
+  // ořezu cizích šepotů vyjde < limit a FE stránkování „Zobrazit starší" selže).
+  // Mock repo tu simuluje DB filtr podle visibilityUserId; testy tak ověří, že
+  // service předá správný visibilityUserId (PomocnyPJ+ = undefined → vidí vše).
+  const simulateVisibility = () =>
+    mockMessageRepo.findByChannelId.mockImplementation(
+      (_channelId: string, opts: { visibilityUserId?: string }) =>
+        Promise.resolve(
+          [publicMsg, whisperMsg].filter((m) => {
+            const vt = (m as { visibleTo?: string[] }).visibleTo;
+            return (
+              opts.visibilityUserId == null ||
+              !vt ||
+              vt.length === 0 ||
+              vt.includes(opts.visibilityUserId)
+            );
+          }),
+        ),
+    );
+
   it('should hide whisper from user not in visibleTo', async () => {
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
       ...mockHracMembership,
       userId: 'user3',
     });
-    mockMessageRepo.findByChannelId.mockResolvedValue([publicMsg, whisperMsg]);
+    simulateVisibility();
     const result = await service.getMessages('ch1', 'user3', {});
+    expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith(
+      'ch1',
+      expect.objectContaining({ visibilityUserId: 'user3' }),
+    );
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('msg1');
   });
@@ -3113,7 +3147,7 @@ describe('getMessages — whisper filtering', () => {
   it('should show whisper to sender', async () => {
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockHracMembership);
-    mockMessageRepo.findByChannelId.mockResolvedValue([publicMsg, whisperMsg]);
+    simulateVisibility();
     const result = await service.getMessages('ch1', 'user1', {});
     expect(result).toHaveLength(2);
   });
@@ -3121,8 +3155,12 @@ describe('getMessages — whisper filtering', () => {
   it('should show all whispers to PJ', async () => {
     mockChannelRepo.findById.mockResolvedValue(mockChannel);
     mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
-    mockMessageRepo.findByChannelId.mockResolvedValue([publicMsg, whisperMsg]);
+    simulateVisibility();
     const result = await service.getMessages('ch1', 'user1', {});
+    expect(mockMessageRepo.findByChannelId).toHaveBeenCalledWith(
+      'ch1',
+      expect.objectContaining({ visibilityUserId: undefined }),
+    );
     expect(result).toHaveLength(2);
   });
 

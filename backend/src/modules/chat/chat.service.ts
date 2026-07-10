@@ -1100,28 +1100,27 @@ export class ChatService implements OnApplicationBootstrap {
         message: 'Nedostatečná oprávnění',
       });
     }
-    const messages = await this.messageRepo.findByChannelId(channelId, {
-      before: opts.before,
-      limit: Math.min(
-        Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50,
-        100,
-      ),
-    });
-
+    // Šepot viditelnost do DB query: PomocnyPJ+ vidí vše, ostatní jen veřejné
+    // zprávy + vlastní šepoty. Filtrujeme v Mongu (ne až v JS po `limit`), aby
+    // `limit` = počet VIDITELNÝCH zpráv — jinak hráči po ořezu cizích šepotů
+    // vyjde < limit a FE stránkování (tlačítko „Zobrazit starší" / odvození
+    // konce historie z počtu) selže. Vzor sdílený s `findFeed`.
     const membership = await this.membershipRepo.findByUserAndWorld(
       userId,
       channel.worldId,
     );
     const canSeeAllWhispers =
       membership !== null && membership.role >= WorldRole.PomocnyPJ;
-
-    const visible = messages.filter((m) => {
-      if (!m.visibleTo || m.visibleTo.length === 0) return true;
-      if (canSeeAllWhispers) return true;
-      return m.visibleTo.includes(userId);
+    const messages = await this.messageRepo.findByChannelId(channelId, {
+      before: opts.before,
+      limit: Math.min(
+        Number.isFinite(opts.limit) && opts.limit! > 0 ? opts.limit! : 50,
+        100,
+      ),
+      visibilityUserId: canSeeAllWhispers ? undefined : userId,
     });
     // D-040 — batch tombstone enrichment (1 lookup pro 50 zpráv, 60s cache).
-    return this.enrichTombstoneSenders(visible);
+    return this.enrichTombstoneSenders(messages);
   }
 
   /**

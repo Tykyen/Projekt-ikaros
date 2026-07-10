@@ -24,11 +24,22 @@ export class MongoChatMessageRepository
 
   async findByChannelId(
     channelId: string,
-    opts: { before?: string; limit: number },
+    opts: { before?: string; limit: number; visibilityUserId?: string },
   ): Promise<ChatMessage[]> {
     const filter: Record<string, unknown> = { channelId };
     if (opts.before && Types.ObjectId.isValid(opts.before)) {
       filter._id = { $lt: new Types.ObjectId(opts.before) };
+    }
+    // Šepot filtr do DB query (ne až v service po `limit`) — pro ne-PJ vidí
+    // jen veřejné zprávy + vlastní šepoty. Jinak by hráči po ořezu cizích
+    // šepotů vyšlo < limit a stránkování (počet == plná stránka) by selhalo.
+    // Vzor sdílený s `findFeed`.
+    if (opts.visibilityUserId) {
+      filter.$or = [
+        { visibleTo: { $exists: false } },
+        { visibleTo: { $size: 0 } },
+        { visibleTo: opts.visibilityUserId },
+      ];
     }
     const docs = await this.model
       .find(filter)

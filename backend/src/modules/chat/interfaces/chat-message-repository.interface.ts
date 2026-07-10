@@ -5,7 +5,7 @@ export interface IChatMessageRepository {
   findById(id: string): Promise<ChatMessage | null>;
   findByChannelId(
     channelId: string,
-    opts: { before?: string; limit: number },
+    opts: { before?: string; limit: number; visibilityUserId?: string },
   ): Promise<ChatMessage[]>;
   countAfter(channelId: string, messageId: string): Promise<number>;
   /** D-NEW-chat-mention-sidebar-dot — počet self-mention zpráv po last-read. */
