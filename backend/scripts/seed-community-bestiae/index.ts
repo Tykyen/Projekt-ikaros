@@ -23,7 +23,13 @@ const MIG = process.env.MIGRACE_DIR ?? 'C:/Matrix/ProjektIkaros/migrace-bestiae'
 const DRY = process.argv.includes('--dry-run');
 const limitArg = process.argv.indexOf('--limit');
 const LIMIT = limitArg >= 0 ? parseInt(process.argv[limitArg + 1], 10) : Infinity;
+const exportArg = process.argv.indexOf('--export');
+// Export režim: nahraje obrázky na Cloudinary + zapíše NDJSON (pro mongoimport
+// na serveru, kde je prod Mongo). NEpotřebuje Mongo připojení. authorId =
+// placeholder `__SEED_AUTHOR__`, který se na serveru nahradí reálným _id.
+const EXPORT: string | null = exportArg >= 0 ? process.argv[exportArg + 1] : null;
 const AUTHOR_EMAIL = 'tykytanjunior@gmail.com';
+const PLACEHOLDER = '__SEED_AUTHOR__';
 
 const slug = (s: string): string =>
   String(s)
@@ -47,26 +53,29 @@ interface Beast {
 }
 
 async function main() {
-  const uri = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/ikaros';
-  await mongoose.connect(uri);
-  const db = mongoose.connection.db!;
-  console.log('DB:', uri, DRY ? '(DRY RUN)' : '(OSTRY)');
+  let db: import('mongodb').Db | null = null;
+  let col: import('mongodb').Collection | null = null;
+  let authorId = PLACEHOLDER;
 
-  const author = await db.collection('users').findOne({ email: AUTHOR_EMAIL });
-  if (!author && !DRY) {
-    throw new Error(
-      'Autor (Superadmin) nenalezen: ' +
-        AUTHOR_EMAIL +
-        ' — mires na spravnou (prod) DB? Zkontroluj MONGODB_URI.',
-    );
+  if (EXPORT) {
+    console.log('EXPORT rezim -> NDJSON:', EXPORT, '(authorId =', PLACEHOLDER + ')');
+  } else {
+    const uri = process.env.MONGODB_URI ?? 'mongodb://localhost:27017/ikaros';
+    await mongoose.connect(uri);
+    db = mongoose.connection.db!;
+    console.log('DB:', uri, DRY ? '(DRY RUN)' : '(OSTRY)');
+    const author = await db.collection('users').findOne({ email: AUTHOR_EMAIL });
+    if (!author && !DRY) {
+      throw new Error(
+        'Autor (Superadmin) nenalezen: ' +
+          AUTHOR_EMAIL +
+          ' — mires na spravnou (prod) DB? Zkontroluj MONGODB_URI.',
+      );
+    }
+    authorId = author ? String(author._id) : 'DRY-PLACEHOLDER';
+    console.log('Autor:', author ? AUTHOR_EMAIL + ' -> ' + authorId : '(DRY placeholder)');
+    col = db.collection('bestiae');
   }
-  const authorId = author ? String(author._id) : 'DRY-PLACEHOLDER';
-  console.log(
-    'Autor:',
-    author ? AUTHOR_EMAIL + ' -> ' + authorId : '(DRY: autor nenalezen -> placeholder)',
-  );
-
-  const col = db.collection('bestiae');
   const files = fs.readdirSync(MIG).filter((f) => f.endsWith('.bestie.json'));
   const docs: Record<string, unknown>[] = [];
   let uploaded = 0;
@@ -89,7 +98,7 @@ async function main() {
     for (const b of beasts) {
       if (docs.length >= LIMIT) break;
       const marker = `seed:jad:${slug(srcName)}:${slug(b.name)}`;
-      if (await col.findOne({ clonedFromId: marker })) {
+      if (col && (await col.findOne({ clonedFromId: marker }))) {
         skipped++;
         continue;
       }
@@ -153,17 +162,34 @@ async function main() {
   }
 
   console.log(
-    `Pripraveno: ${docs.length} | nahrano obrazku: ${uploaded} | bez obrazku: ${noImage} | preskoceno (existuji): ${skipped}`,
+    `Pripraveno: ${docs.length} | nahrano obrazku: ${uploaded} | bez obrazku: ${noImage} | preskoceno: ${skipped}`,
   );
-  if (!DRY && docs.length) {
+  if (EXPORT) {
+    fs.writeFileSync(
+      EXPORT,
+      docs.map((d) => JSON.stringify(d)).join('\n') + '\n',
+      'utf8',
+    );
+    console.log(
+      'NDJSON zapsan:',
+      EXPORT,
+      `(${docs.length} docs, authorId placeholder ${PLACEHOLDER})`,
+    );
+  } else if (!DRY && col && docs.length) {
     const res = await col.insertMany(docs, { ordered: false });
     console.log('Vlozeno do DB:', res.insertedCount);
   } else if (DRY) {
-    console.log('DRY RUN — nic se nenahralo ani nevlozilo. Ukazka prvni:');
-    console.log(JSON.stringify({ ...docs[0], description: (docs[0]?.description as string)?.slice(0, 80) + '…' }, null, 2));
+    console.log('DRY RUN — nic se nezapsalo. Ukazka prvni:');
+    console.log(
+      JSON.stringify(
+        { ...docs[0], description: (docs[0]?.description as string)?.slice(0, 80) + '…' },
+        null,
+        2,
+      ),
+    );
   }
 
-  await mongoose.disconnect();
+  if (!EXPORT) await mongoose.disconnect();
 }
 
 main().catch((e) => {

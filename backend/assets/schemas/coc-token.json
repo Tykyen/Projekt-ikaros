@@ -1,8 +1,25 @@
 {
   "systemId": "coc",
   "entityType": "token",
-  "version": 1,
+  "version": 2,
   "sections": [
+    {
+      "key": "meta",
+      "label": "Identita",
+      "fields": [
+        {
+          "key": "creature_type",
+          "label": "Typ tvora",
+          "type": "string",
+          "description": "Např. bytost Mýtu, nemrtvý, zvíře, kultista."
+        },
+        {
+          "key": "tactic",
+          "label": "Taktika / popis",
+          "type": "string"
+        }
+      ]
+    },
     {
       "key": "health",
       "label": "Životy",
@@ -45,13 +62,48 @@
           "type": "number",
           "default": 10,
           "min": 0
+        },
+        {
+          "key": "luck",
+          "label": "Štěstí",
+          "type": "number",
+          "default": 50,
+          "min": 0,
+          "max": 99
         }
+      ]
+    },
+    {
+      "key": "characteristics",
+      "label": "Vlastnosti (procenta)",
+      "fields": [
+        { "key": "characteristics.str", "label": "SIL %", "type": "number", "default": 50, "min": 1, "max": 99 },
+        { "key": "characteristics.con", "label": "ODL %", "type": "number", "default": 50, "min": 1, "max": 99 },
+        { "key": "characteristics.siz", "label": "VEL %", "type": "number", "default": 50, "min": 1, "max": 99 },
+        {
+          "key": "characteristics.dex",
+          "label": "OBR %",
+          "type": "number",
+          "default": 50,
+          "min": 1,
+          "max": 99,
+          "combatBehavior": "initiative",
+          "description": "OBR určuje pořadí v boji (vyšší jde dřív)."
+        },
+        { "key": "characteristics.app", "label": "VZH %", "type": "number", "default": 50, "min": 1, "max": 99 },
+        { "key": "characteristics.int", "label": "INT %", "type": "number", "default": 50, "min": 1, "max": 99 },
+        { "key": "characteristics.pow", "label": "VŮL %", "type": "number", "default": 50, "min": 1, "max": 99 },
+        { "key": "characteristics.edu", "label": "VZD %", "type": "number", "default": 50, "min": 1, "max": 99 }
       ]
     },
     {
       "key": "combat",
       "label": "Boj",
       "fields": [
+        { "key": "dodge", "label": "Úhyb %", "type": "number", "default": 25, "min": 0, "max": 99 },
+        { "key": "fighting", "label": "Boj (brawl) %", "type": "number", "default": 25, "min": 0, "max": 99 },
+        { "key": "damage_bonus", "label": "Bonus zranění (BZ)", "type": "string", "default": "0" },
+        { "key": "build", "label": "Stavba", "type": "number", "default": 0 },
         {
           "key": "armor",
           "label": "Brnění",
@@ -74,7 +126,48 @@
           "type": "number",
           "default": 50,
           "combatBehavior": "initiative",
-          "description": "V CoC je iniciativa hodnota DEX (vyšší jde dřív)."
+          "description": "V CoC = hodnota OBR (vyšší jde dřív)."
+        }
+      ]
+    },
+    {
+      "key": "attacks",
+      "label": "Útoky",
+      "fields": [
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bytosti (název, šance %, zranění).",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "skill", "label": "Šance %", "type": "number" },
+            { "key": "dmg", "label": "Zranění", "type": "string" },
+            { "key": "special", "label": "Zvláštní efekt", "type": "string" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "sanity-loss",
+      "label": "Ztráta příčetnosti",
+      "fields": [
+        { "key": "sanity_loss.on_seeing", "label": "Při spatření", "type": "string", "default": "0/1K4" },
+        { "key": "sanity_loss.on_attack", "label": "Za jiných okolností", "type": "string", "default": "0/1K6" }
+      ]
+    },
+    {
+      "key": "abilities",
+      "label": "Zvláštní schopnosti",
+      "fields": [
+        {
+          "key": "abilities",
+          "label": "Schopnosti",
+          "type": "list",
+          "listItemFields": [
+            { "key": "label", "label": "Název", "type": "string", "required": true },
+            { "key": "value", "label": "Popis / efekt", "type": "string" }
+          ]
         }
       ]
     }

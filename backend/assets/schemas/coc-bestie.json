@@ -4,6 +4,23 @@
   "version": 1,
   "sections": [
     {
+      "key": "meta",
+      "label": "Identita",
+      "fields": [
+        {
+          "key": "creature_type",
+          "label": "Typ tvora",
+          "type": "string",
+          "description": "Např. bytost Mýtu, nemrtvý, zvíře, kultista."
+        },
+        {
+          "key": "tactic",
+          "label": "Taktika / popis",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "key": "main-stats",
       "label": "Hlavní staty",
       "fields": [
@@ -170,6 +187,24 @@
           "min": 0,
           "combatBehavior": "movement",
           "description": "Move rate."
+        }
+      ]
+    },
+    {
+      "key": "attacks",
+      "label": "Útoky",
+      "fields": [
+        {
+          "key": "attacks",
+          "label": "Útoky",
+          "type": "list",
+          "description": "Útoky bytosti (název, šance %, zranění, zvláštní efekt).",
+          "listItemFields": [
+            { "key": "name", "label": "Název", "type": "string", "required": true },
+            { "key": "skill", "label": "Šance %", "type": "number" },
+            { "key": "dmg", "label": "Zranění", "type": "string" },
+            { "key": "special", "label": "Zvláštní efekt", "type": "string" }
+          ]
         }
       ]
     },
