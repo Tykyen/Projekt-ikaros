@@ -7,8 +7,10 @@
  * z 10.2d-prep-A (SystemStatsValidatorService).
  *
  * 16.2b-2: community bytost = sdílený lore + mapa `systém → statblok`
- * (`statblocks`). Staty se NEmění přímou editací — jen schvalovacím tokem
- * (spec-16.2b-2 §2a). Ostatní 3 scope zůstávají single-system (`systemStats`).
+ * (`statblocks`). Staty přes `/lore` endpoint NEjdou. Hráč staty mění jen
+ * schvalovacím tokem (návrh → schválení); kurátor smí existující statblok
+ * upravit přímo, i schválený (spec-16.2b-2 §2a). Ostatní 3 scope zůstávají
+ * single-system (`systemStats`).
  */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';

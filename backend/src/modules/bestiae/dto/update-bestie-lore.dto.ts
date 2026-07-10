@@ -1,9 +1,10 @@
 /**
  * 16.2b-2 — UpdateBestieLoreDto pro `PATCH /api/bestiae/community/:id/lore`.
  *
- * ⚠️ TVRDÉ PRAVIDLO (spec §2a): lore (text/obrázek) se mění volně, ale STATY
- * NE — proto tohle DTO záměrně NEobsahuje `systemStats`. Staty jdou jen přes
- * návrh statbloku + schválení kurátorem.
+ * Pravidlo (spec §2a): lore (text/obrázek) se mění volně tímto endpointem, ale
+ * STATY tudy NE — proto DTO záměrně NEobsahuje `systemStats`. Staty jdou přes
+ * `/statblock` (hráč = návrh + schválení kurátorem; kurátor = přímý upsert
+ * existující verze, i schválené).
  */
 import {
   IsArray,
