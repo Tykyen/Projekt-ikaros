@@ -1,0 +1,72 @@
+name: Seed community herbar (plants) one-off
+
+# 21.5a — naseeduje komunitni herbar (56 rostlin) do kolekce `plants` z NDJSON
+# (backend/scripts/seed-plants/plants.ndjson). Obrazky uz jsou na Cloudinary
+# (nahrany lokalnim --export). Author = Superadmin (dohledany na serveru dle
+# emailu). NUTNE az PO deployi BE (kolekce plants zavisi na novem modulu).
+# Idempotentni (preskoci rostliny s existujicim `name` + scope community).
+# Mongosh (produkce nema ts-node) — stejny mechanismus jako migrate-world-maps.
+#
+# Spusteni: Actions -> tento workflow:
+#   mode = dry-run           -> dohleda autora, spocita, NIC nezapise
+#   mode = import + IMPORT    -> opravdu vlozi rostliny
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'rezim'
+        type: choice
+        options: [dry-run, import]
+        default: dry-run
+      confirm:
+        description: 'pro import napis IMPORT'
+        required: false
+        default: ''
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p ${{ vars.SERVER_PORT }} -H ${{ vars.SERVER_HOST }} >> ~/.ssh/known_hosts
+      - name: Build mongosh script
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -e
+          DRY=true
+          if [ "$MODE" = "import" ]; then
+            if [ "$CONFIRM" != "IMPORT" ]; then echo "CHYBA: import vyzaduje confirm=IMPORT"; exit 1; fi
+            DRY=false
+          fi
+          DOCS=$(paste -sd, backend/scripts/seed-plants/plants.ndjson)
+          {
+            echo 'const a=db.users.findOne({email:"tykytanjunior@gmail.com"});'
+            echo 'if(!a){print("CHYBA: Superadmin (tykytanjunior@gmail.com) nenalezen — spatna DB?");quit(1);}'
+            echo 'const AUTHOR=String(a._id);'
+            echo "const DRY=$DRY;"
+            echo "const raw=[$DOCS];"
+            echo 'let ins=0,skip=0;'
+            echo 'raw.forEach(function(d){'
+            echo '  d.authorId=AUTHOR; d.approvedBy=AUTHOR;'
+            echo '  d.approvedAt=new Date(d.approvedAt); d.createdAt=new Date(d.createdAt); d.updatedAt=new Date(d.updatedAt);'
+            echo '  if(db.plants.findOne({name:d.name,scope:"community"})){skip++;return;}'
+            echo '  if(!DRY) db.plants.insertOne(d);'
+            echo '  ins++;'
+            echo '});'
+            echo 'print((DRY?"DRY-RUN: ":"IMPORT HOTOV: ")+"vlozeno="+ins+", preskoceno(existuji)="+skip+", autor="+AUTHOR);'
+          } > script.js
+          echo "skript pripraven ($(wc -l < script.js) radku, $(wc -c < script.js) B)"
+      - name: Run on server
+        run: |
+          ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cd /opt/projekt-ikaros-be && docker compose exec -T mongo mongosh 'mongodb://localhost:27017/ikaros?replicaSet=rs0' --quiet" < script.js
