@@ -43,6 +43,7 @@ import {
   WORLD_EXPORT_VERSION,
   type WorldExportManifest,
 } from './interfaces/world-export-payload.interface';
+import { MAX_MEDIA_BYTES, isMediaUrl } from './media-url.guard';
 
 export interface ExportOptions {
   /** Zahrnout chat (kanály/zprávy). Default false — viz spec 14.7 B3. (Zatím no-op.) */
@@ -52,31 +53,6 @@ export interface ExportOptions {
 /** Vyfiltruje null z pole subdoců (postavy bez daného subdocu). */
 function compact<T>(items: (T | null)[]): T[] {
   return items.filter((x): x is T => x != null);
-}
-
-/** Max velikost jednoho staženého média do ZIP (SSRF/DoS pojistka). */
-const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
-
-/**
- * URL na naše médium = JEN https na Cloudinary host (origin-allowlist).
- *
- * SSRF pojistka: dřívější substring-check (`includes('cloudinary')` nebo media
- * přípona) propouštěl JAKOUKOLI URL — PJ vlastního světa vložil na stránku
- * `http://169.254.169.254/x.png` a export mu bajty interní sítě (cloud metadata,
- * Redis, MeiliSearch) zabalil do ZIP ke stažení. Allowlist to uzavírá; cizí/
- * relativní/legacy URL se nefetchují (zůstávají v datech jako odkaz).
- * Pozn.: přidat další legitimní media-host = rozšířit tuto podmínku.
- */
-function isMediaUrl(value: string): boolean {
-  let u: URL;
-  try {
-    u = new URL(value);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== 'https:') return false;
-  const host = u.hostname.toLowerCase();
-  return host === 'res.cloudinary.com' || host.endsWith('.cloudinary.com');
 }
 
 /** Přípona souboru z URL (pro pojmenování v ZIP); prázdná když chybí. */
