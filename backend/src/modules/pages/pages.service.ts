@@ -55,6 +55,10 @@ function sanitizeTable(table: CreatePageDto['table']): CreatePageDto['table'] {
   if (!table) return table;
   return {
     ...table,
+    // PT-36a — `title` se renderuje přes dangerouslySetInnerHTML (PageSidebar)
+    // stejně jako headers/values → stored XSS bez sanitizace. Musí projít
+    // stejným allowlistem.
+    ...(table.title && { title: sanitizeRichText(table.title) }),
     ...(table.headers && {
       headers: table.headers.map((h) => sanitizeRichText(h)),
     }),

@@ -7,6 +7,8 @@ export interface TestUserCreds {
   password: string;
   /** Register DTO vyžaduje boolean; default true (viz registerUser). */
   acceptedTerms?: boolean;
+  /** Register DTO vyžaduje boolean (věková brána 15+); default false (viz registerUser). */
+  isMinor?: boolean;
   /** Turnstile token; default 'dev-bypass'. S prázdným TURNSTILE_SECRET projde (DEV mode). */
   captchaToken?: string;
 }
@@ -24,7 +26,12 @@ export async function registerUser(
 ): Promise<AuthSession> {
   const res = await request(app.getHttpServer())
     .post('/api/auth/register')
-    .send({ acceptedTerms: true, captchaToken: 'dev-bypass', ...creds });
+    .send({
+      acceptedTerms: true,
+      isMinor: false,
+      captchaToken: 'dev-bypass',
+      ...creds,
+    });
 
   if (res.status !== 201) {
     throw new Error(
