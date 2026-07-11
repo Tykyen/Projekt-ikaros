@@ -78,5 +78,35 @@ export class HealthMonitorService {
         cooldownMs: 30 * 60 * 1000,
       });
     }
+
+    // Paměť — alert při překročení prahu RSS_ALERT_MB (default 1536 MB) = možný
+    // memory leak, než dojde k OOM killu.
+    const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+    const rssLimit = Number(this.config.get<string>('RSS_ALERT_MB') ?? '1536');
+    if (rssMb > rssLimit) {
+      void this.alert.alert(
+        'warn',
+        'Vysoká paměť (RSS)',
+        `${rssMb} MB > práh ${rssLimit} MB — možný memory leak.`,
+        { dedupeKey: 'rss-high', cooldownMs: 30 * 60 * 1000 },
+      );
+    }
+  }
+
+  /**
+   * Heartbeat — jednou denně „monitoring žije". Dead-man's switch ze STRANY
+   * aplikace: když tahle zpráva přestane chodit, monitoring/BE nejede (doplňuje
+   * externí UptimeRobot, který hlídá z druhé strany).
+   */
+  @Cron(CronExpression.EVERY_DAY_AT_NOON)
+  heartbeat(): void {
+    const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+    const uptimeH = (process.uptime() / 3600).toFixed(1);
+    void this.alert.alert(
+      'info',
+      '✅ Monitoring žije',
+      `Uptime ${uptimeH} h · RSS ${rssMb} MB. Když tahle zpráva přestane chodit, BE/monitoring nejede.`,
+      { dedupeKey: 'heartbeat', cooldownMs: 60 * 60 * 1000 },
+    );
   }
 }

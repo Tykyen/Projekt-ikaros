@@ -54,6 +54,17 @@ describe('HealthMonitorService (monitoring 3. noha)', () => {
     );
   });
 
+  it('heartbeat → info alert (dead-man switch ze strany appky)', () => {
+    const { svc, alert } = make({});
+    svc.heartbeat();
+    expect(alert.alert).toHaveBeenCalledWith(
+      'info',
+      '✅ Monitoring žije',
+      expect.any(String),
+      expect.objectContaining({ dedupeKey: 'heartbeat' }),
+    );
+  });
+
   it('Mongo down → 1× critical alert (DOWN)', async () => {
     const { svc, alert } = make({ mongoState: 0 });
     await svc.check();
