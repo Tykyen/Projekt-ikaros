@@ -54,12 +54,29 @@ function compact<T>(items: (T | null)[]): T[] {
   return items.filter((x): x is T => x != null);
 }
 
-const MEDIA_EXT = /\.(png|jpe?g|gif|webp|avif|svg|mp4|webm)(?:\?|$)/i;
+/** Max velikost jednoho staženého média do ZIP (SSRF/DoS pojistka). */
+const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
 
-/** URL na naše médium (absolutní http, Cloudinary nebo obrázková/video přípona). */
+/**
+ * URL na naše médium = JEN https na Cloudinary host (origin-allowlist).
+ *
+ * SSRF pojistka: dřívější substring-check (`includes('cloudinary')` nebo media
+ * přípona) propouštěl JAKOUKOLI URL — PJ vlastního světa vložil na stránku
+ * `http://169.254.169.254/x.png` a export mu bajty interní sítě (cloud metadata,
+ * Redis, MeiliSearch) zabalil do ZIP ke stažení. Allowlist to uzavírá; cizí/
+ * relativní/legacy URL se nefetchují (zůstávají v datech jako odkaz).
+ * Pozn.: přidat další legitimní media-host = rozšířit tuto podmínku.
+ */
 function isMediaUrl(value: string): boolean {
-  if (!/^https?:\/\//i.test(value)) return false; // relativní /static neumíme fetchnout
-  return value.includes('cloudinary') || MEDIA_EXT.test(value);
+  let u: URL;
+  try {
+    u = new URL(value);
+  } catch {
+    return false;
+  }
+  if (u.protocol !== 'https:') return false;
+  const host = u.hostname.toLowerCase();
+  return host === 'res.cloudinary.com' || host.endsWith('.cloudinary.com');
 }
 
 /** Přípona souboru z URL (pro pojmenování v ZIP); prázdná když chybí. */
@@ -248,9 +265,18 @@ export class WorldExportService {
     let mediaIdx = 0;
     for (const url of mediaUrls) {
       try {
-        const resp = await fetch(url);
+        const resp = await fetch(url, {
+          signal: AbortSignal.timeout(10_000),
+          redirect: 'error', // redirect-based SSRF bypass zavřen
+        });
         if (!resp.ok) continue;
+        // Velikostní strop (pojistka proti 10GB URL → OOM). Content-Length je
+        // jen hint; reálnou velikost ověříme po arrayBuffer níže.
+        if (Number(resp.headers.get('content-length') ?? 0) > MAX_MEDIA_BYTES) {
+          continue;
+        }
         const buf = Buffer.from(await resp.arrayBuffer());
+        if (buf.byteLength > MAX_MEDIA_BYTES) continue;
         const name = `media/${mediaIdx}${extFromUrl(url)}`;
         archive.append(buf, { name });
         mediaManifest[url] = name;

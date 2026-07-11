@@ -165,6 +165,8 @@ describe('JwtAuthGuard', () => {
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockResolvedValue(true);
     mockListWorldIds.mockResolvedValue(['w1', 'w2']);
+    // Elevace se řídí ČERSTVOU rolí z DB (findById), ne rolí ze staré JWT.
+    mockFindById.mockResolvedValue(activeUser({ role: 2 }));
     const user: Record<string, unknown> = { id: 'user123', role: 2 };
     const ctx = makeContext(user);
 
@@ -178,6 +180,7 @@ describe('JwtAuthGuard', () => {
     jest
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockResolvedValue(true);
+    mockFindById.mockResolvedValue(activeUser({ role: 5 }));
     const user: Record<string, unknown> = { id: 'user123', role: 5 };
     const ctx = makeContext(user);
 
@@ -185,5 +188,23 @@ describe('JwtAuthGuard', () => {
 
     expect(mockListWorldIds).not.toHaveBeenCalled();
     expect(user.elevatedWorldIds).toBeUndefined();
+  });
+
+  // ── SESS freshness — role se bere z DB, ne ze staré JWT (regresní pojistka) ──
+
+  it('přepíše roli z JWT čerstvou rolí z DB (demotovaný admin ztratí práva)', async () => {
+    jest
+      .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
+      .mockResolvedValue(true);
+    // DB říká: už NENÍ admin (role 5). Stará JWT ještě nese admin (role 2).
+    mockFindById.mockResolvedValue(activeUser({ role: 5 }));
+    const user: Record<string, unknown> = { id: 'user123', role: 2 };
+    const ctx = makeContext(user);
+
+    await guard.canActivate(ctx);
+
+    // Role přepsána na DB hodnotu → žádná elevace admina.
+    expect(user.role).toBe(5);
+    expect(mockListWorldIds).not.toHaveBeenCalled();
   });
 });

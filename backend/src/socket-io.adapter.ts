@@ -94,6 +94,15 @@ export class CustomIoAdapter extends IoAdapter {
     if (enableRedis && redisUrl) {
       const pubClient = new Redis(redisUrl);
       const subClient = pubClient.duplicate();
+      // Bez error handleru shodí neošetřený 'error' event (výpadek Redisu za
+      // běhu) CELOU instanci → všechny jeskyně na ní spadnou. ioredis retryuje
+      // spojení sám; handler jen zabrání uncaught crashi (styl 33 — odolnost).
+      pubClient.on('error', (err) =>
+        console.error(`[Socket.IO Redis pub] ${err.message}`),
+      );
+      subClient.on('error', (err) =>
+        console.error(`[Socket.IO Redis sub] ${err.message}`),
+      );
       server.adapter(createAdapter(pubClient, subClient));
 
       console.log('[Socket.IO] Redis adapter aktivován (multi-instance).');

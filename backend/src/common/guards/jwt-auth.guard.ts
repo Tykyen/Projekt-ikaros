@@ -62,6 +62,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             code: 'DELETION_PENDING',
             message: 'Účet je naplánován ke smazání',
           });
+        // SESS — freshness role: access token je stateless (TTL 3 dny). Bez
+        // tohoto by demotovaný Admin držel práva ze STARÉ JWT až do expirace
+        // (a „odhlásit všude" by roli neaktualizovalo). DB = zdroj pravdy;
+        // usera tu už načítáme kvůli ban/delete gate, jen přepíšeme roli.
+        if (request.user) request.user.role = user.role;
         // Elevation („nahození práv") — jen pro platform Admin/Superadmin.
         // Naplní seznam světů, kde má admin aktivní bypass. Běžných uživatelů
         // se extra lookup netýká (výkon). Helper: `worldAdminBypass`.
