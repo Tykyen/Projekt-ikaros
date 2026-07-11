@@ -4,11 +4,12 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import type { Redis } from 'ioredis';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-
-interface CheckResult {
-  ok: boolean;
-  detail?: string;
-}
+import {
+  CheckResult,
+  checkMeili,
+  checkMongo,
+  checkRedis,
+} from './common/health/health-checks';
 
 interface HealthReport {
   status: 'ok' | 'degraded';
@@ -19,15 +20,6 @@ interface HealthReport {
 
 const REQUIRED_ENV = ['MONGODB_URI', 'JWT_SECRET', 'JWT_EXPIRES_IN'];
 const VAPID_KEYS = ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'];
-
-/** Race promise proti timeoutu (health-ping nesmí sám viset na mrtvé závislosti). */
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error('timeout')), ms);
-  });
-  return Promise.race([p.finally(() => clearTimeout(timer)), timeout]);
-}
 
 @ApiTags('Health')
 @Controller()
@@ -55,15 +47,11 @@ export class AppController {
   @ApiResponse({ status: 200, description: 'status=ok nebo status=degraded' })
   async health(): Promise<HealthReport> {
     const backend: CheckResult = { ok: true };
-
-    const mongoState = this.mongo?.readyState as number | undefined;
-    const mongo: CheckResult = {
-      ok: mongoState === 1,
-      detail: `readyState=${mongoState ?? 'unknown'}`,
-    };
-
-    const redis = await this.checkRedis();
-    const meili = await this.checkMeili();
+    const mongo = checkMongo(this.mongo);
+    const redis = await checkRedis(this.redis);
+    const meili = await checkMeili(
+      this.config.get<string>('MEILI_HOST', 'http://localhost:7700'),
+    );
 
     const missingEnv = REQUIRED_ENV.filter((k) => !this.config.get<string>(k));
     const env: CheckResult & { missing?: string[] } = {
@@ -147,34 +135,5 @@ export class AppController {
       timestamp: new Date().toISOString(),
       checks: expose ? full : stripped,
     };
-  }
-
-  /** Redis: bez připojení (status) neblokuj; při ready ověř pingem s timeoutem. */
-  private async checkRedis(): Promise<CheckResult> {
-    if (this.redis.status !== 'ready') {
-      return { ok: false, detail: `status=${this.redis.status}` };
-    }
-    try {
-      const pong = await withTimeout(this.redis.ping(), 1000);
-      return {
-        ok: pong === 'PONG',
-        detail: pong === 'PONG' ? undefined : 'no PONG',
-      };
-    } catch {
-      return { ok: false, detail: 'ping timeout' };
-    }
-  }
-
-  /** MeiliSearch: HTTP GET /health s timeoutem (neblokovat health-ping). */
-  private async checkMeili(): Promise<CheckResult> {
-    const host = this.config.get<string>('MEILI_HOST', 'http://localhost:7700');
-    try {
-      const res = await fetch(`${host}/health`, {
-        signal: AbortSignal.timeout(1500),
-      });
-      return { ok: res.ok, detail: res.ok ? undefined : `HTTP ${res.status}` };
-    } catch {
-      return { ok: false, detail: 'nedostupné' };
-    }
   }
 }
