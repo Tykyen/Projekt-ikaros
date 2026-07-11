@@ -9,6 +9,7 @@ import {
 import { Response } from 'express';
 import { MulterError } from 'multer';
 import { Error as MongooseError } from 'mongoose';
+import type { AlertService } from '../alerting/alert.service';
 
 /**
  * Globální catch-all filtr — JEDINÝ zdroj tvaru chybové odpovědi (error-contract audit, F1).
@@ -24,6 +25,10 @@ import { Error as MongooseError } from 'mongoose';
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
 
+  // AlertService je volitelný (monitoring 3. noha) — bez něj filtr funguje beze
+  // změny (zpětná kompatibilita s `new HttpExceptionFilter()` v testech).
+  constructor(private readonly alert?: AlertService) {}
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -36,6 +41,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
     };
 
     response.status(status).json({ error });
+
+    // Monitoring — 5xx alert do Discordu (rate-limited v AlertService: 1/kód/10 min).
+    // Fire-and-forget: nesmí ovlivnit už odeslanou odpověď. 500 = pád / exploit / DoS.
+    if (status >= 500) {
+      const detail =
+        exception instanceof Error
+          ? `${exception.name}: ${exception.message}`.slice(0, 500)
+          : String(exception).slice(0, 500);
+      void this.alert?.alert('critical', `5xx ${code}`, detail, {
+        dedupeKey: `5xx:${code}`,
+      });
+    }
   }
 
   private resolve(exception: unknown): {
