@@ -9,6 +9,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './common/redis/redis.module';
+import { AlertModule } from './common/alerting/alert.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { GatewaysModule } from './gateways/gateways.module';
@@ -81,6 +82,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     DatabaseModule,
     // D-028 / D-051 / D-NEW-chat-presence-scale — globální Redis client (cache + pub/sub).
     RedisModule,
+    // Monitoring (3. noha) — globální alert kanál (Discord webhook).
+    AlertModule,
     // SP1: foundational @Global() moduly před AuthModule.
     SecurityTokensModule,
     // @Global — guard plní `elevatedWorldIds`; musí být před AuthModule (JwtAuthGuard).
