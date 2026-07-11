@@ -4,7 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Types } from 'mongoose';
 import type { IIkarosMessagesRepository } from './interfaces/ikaros-messages-repository.interface';
 import type { IkarosMessage } from './interfaces/ikaros-message.interface';
@@ -34,6 +34,16 @@ export class IkarosMessagesService {
     private readonly friendsRepo: IFriendshipsRepository,
     private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  /**
+   * GDPR (plný audit 2026-07-11) — hard-delete účtu: anonymizuj jméno
+   * odesílatele i příjemce ve všech jeho soukromých zprávách (DM modul dřív
+   * neměl user.deletion handler).
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleUserHardDeleted(payload: { userId: string }): Promise<void> {
+    await this.msgRepo.anonymizeByUser(payload.userId);
+  }
 
   async create(
     dto: CreateIkarosMessageDto,

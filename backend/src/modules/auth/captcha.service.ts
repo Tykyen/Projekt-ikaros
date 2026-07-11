@@ -61,6 +61,9 @@ export class CaptchaService {
       const res = await fetch(this.verifyUrl, {
         method: 'POST',
         body: params,
+        // RES (styl 33): timeout — bez něj undici drží slot ~5 min; fail-closed
+        // (catch → false) je na request-critical cestě registrace/loginu.
+        signal: AbortSignal.timeout(5000),
       });
       const data = (await res.json()) as TurnstileVerifyResponse;
       if (!data.success) {

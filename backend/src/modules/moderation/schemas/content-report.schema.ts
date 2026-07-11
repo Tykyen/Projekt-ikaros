@@ -15,7 +15,7 @@ export type ContentReportDocument = HydratedDocument<ContentReportSchemaClass>;
  */
 @Schema({ collection: 'content_reports' })
 export class ContentReportSchemaClass {
-  @Prop({ required: true, enum: ReportTargetType })
+  @Prop({ type: String, required: true, enum: ReportTargetType })
   targetType: ReportTargetType;
 
   @Prop({ required: true }) targetId: string;
@@ -26,7 +26,8 @@ export class ContentReportSchemaClass {
   @Prop() targetAuthorId?: string;
   @Prop({ required: true }) targetAuthorName: string;
 
-  @Prop({ required: true, enum: ReportCategory }) category: ReportCategory;
+  @Prop({ type: String, required: true, enum: ReportCategory })
+  category: ReportCategory;
   @Prop({ required: true, maxlength: 2000 }) reason: string;
 
   // Reporter identita — volitelná (anonymní CSAM). NIKDY do výstupu při anonymous=true.
@@ -39,7 +40,11 @@ export class ContentReportSchemaClass {
   @Prop({ default: false }) notifyMe: boolean;
   @Prop({ default: false }) anonymous: boolean;
 
-  @Prop({ default: 'pending', enum: ['pending', 'triaged', 'resolved'] })
+  @Prop({
+    type: String,
+    default: 'pending',
+    enum: ['pending', 'triaged', 'resolved'],
+  })
   status: ContentReportStatus;
 
   @Prop({ default: () => new Date() }) createdAtUtc: Date;

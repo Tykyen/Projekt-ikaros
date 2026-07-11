@@ -16,7 +16,9 @@ export class CampRotationJob {
 
   constructor(private readonly gateway: GlobalChatGateway) {}
 
-  @Cron('0 0,12 * * *')
+  // CORR (styl 41) — timeZone ukotven na Prague; bez něj @Cron běží v UTC
+  // → rotace ve 12:00/00:00 UTC (= 14:00/02:00 letního času) místo poledne/půlnoci.
+  @Cron('0 0,12 * * *', { timeZone: 'Europe/Prague' })
   async rotate(): Promise<void> {
     try {
       for (const room of CAMP_ROOM_KEYS) {

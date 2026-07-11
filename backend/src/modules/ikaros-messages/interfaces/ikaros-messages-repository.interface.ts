@@ -22,4 +22,6 @@ export interface IIkarosMessagesRepository {
     id: string,
     data: Partial<IkarosMessage>,
   ): Promise<IkarosMessage | null>;
+  /** GDPR — hard-delete účtu: anonymizuj jméno odesílatele/příjemce v DM. */
+  anonymizeByUser(userId: string): Promise<void>;
 }

@@ -43,6 +43,8 @@ export interface IChatMessageRepository {
   softDeleteByChannelId(channelId: string): Promise<void>;
   softDeleteByWorldId(worldId: string): Promise<void>;
   restoreByWorldId(worldId: string): Promise<void>;
+  /** GDPR — hard-delete účtu: anonymizuj identitu odesílatele v jeho zprávách. */
+  anonymizeBySender(senderId: string): Promise<void>;
   addReaction(
     messageId: string,
     emoji: string,

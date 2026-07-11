@@ -1,5 +1,6 @@
 // backend/src/modules/push/push.service.ts
 import { Injectable, Inject, OnModuleInit, Logger } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import * as webpush from 'web-push';
 import type { IPushSubscriptionRepository } from './interfaces/push-subscription-repository.interface';
@@ -63,6 +64,16 @@ export class PushService implements OnModuleInit {
     @Inject('IUsersRepository')
     private readonly usersRepo: IUsersRepository,
   ) {}
+
+  /**
+   * GDPR (plný audit 2026-07-11) — hard-delete účtu: smaž VŠECHNY push
+   * subscriptions uživatele. Push modul dřív neměl `user.deletion` handler →
+   * subscriptions (endpoint + p256dh + auth + userAgent = PII) přežívaly navždy.
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleUserHardDeleted(payload: { userId: string }): Promise<void> {
+    await this.repo.deleteByUserId(payload.userId);
+  }
 
   onModuleInit(): void {
     webpush.setVapidDetails(

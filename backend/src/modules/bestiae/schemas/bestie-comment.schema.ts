@@ -15,7 +15,12 @@ export type BestieCommentDocument = HydratedDocument<BestieCommentSchemaClass>;
 export class BestieCommentSchemaClass {
   @Prop({ required: true, index: true }) bestieId!: string;
 
-  @Prop({ required: true, enum: ['beast', 'statblock'], index: true })
+  @Prop({
+    type: String,
+    required: true,
+    enum: ['beast', 'statblock'],
+    index: true,
+  })
   targetType!: 'beast' | 'statblock';
 
   /** Jen pro targetType='statblock' — ke které pravidlové verzi patří. */

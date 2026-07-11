@@ -456,22 +456,34 @@ export class CampaignPurchaseService {
       });
 
     // Vrať peníze na účet (tolerantní k chybějícímu účtu při čtení balance).
+    // DUR (styl 43) — kredit je PO atomickém flipu statusu. Když selže, vrať
+    // status na 'active' (kompenzace), ať storno nezůstane 'refunded' bez peněz
+    // = trvalá ztráta + hráč navždy zablokován `PURCHASE_ALREADY_REFUNDED`.
+    // (Reziduum: pád procesu PŘESNĚ mezi flipem a kreditem řeší jen plná
+    // transakce — vyžaduje session-threading přes accountsService.adjust; dluh.)
     let newBalance = 0;
-    if (purchase.paidAmount > 0) {
-      const acc = await this.accountsService.adjust(
-        purchase.accountId,
-        {
-          amount: purchase.paidAmount,
-          reason: `Storno: ${purchase.itemSnapshot.name}`,
-        },
-        requester,
-      );
-      newBalance = acc.balance;
-    } else {
-      const acc = await this.accountsService
-        .getAccount(purchase.accountId)
-        .catch(() => null);
-      newBalance = acc?.balance ?? 0;
+    try {
+      if (purchase.paidAmount > 0) {
+        const acc = await this.accountsService.adjust(
+          purchase.accountId,
+          {
+            amount: purchase.paidAmount,
+            reason: `Storno: ${purchase.itemSnapshot.name}`,
+          },
+          requester,
+        );
+        newBalance = acc.balance;
+      } else {
+        const acc = await this.accountsService
+          .getAccount(purchase.accountId)
+          .catch(() => null);
+        newBalance = acc?.balance ?? 0;
+      }
+    } catch (err) {
+      await this.purchaseRepo
+        .markActiveIfRefunded(purchaseId)
+        .catch(() => undefined);
+      throw err;
     }
 
     // Odeber položku z vybavení — tolerantně (hráč ji mohl smazat ručně).

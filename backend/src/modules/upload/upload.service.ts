@@ -148,6 +148,9 @@ export class UploadService {
         api_key: decodeURIComponent(parsed.username),
         api_secret: decodeURIComponent(parsed.password),
         secure: true,
+        // RES (styl 33): timeout — Cloudinary SDK default je bez stropu; při
+        // výpadku by upload držel HTTP slot minuty. 60 s pokryje velké obrázky.
+        timeout: 60000,
       });
     } catch {
       this.logger.error(

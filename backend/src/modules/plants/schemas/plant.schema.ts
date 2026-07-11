@@ -37,7 +37,7 @@ export class PlantSchemaClass {
   @Prop() usage?: string;
 
   /** Vzácnost — 5 stupňů (filtr knihovny). */
-  @Prop({ enum: PLANT_RARITIES, index: true, sparse: true })
+  @Prop({ type: String, enum: PLANT_RARITIES, index: true, sparse: true })
   rarity?: PlantRarity;
   /** Volný dovětek k vzácnosti. */
   @Prop() rarityNote?: string;
@@ -50,6 +50,7 @@ export class PlantSchemaClass {
 
   /** Stav: 'draft' = knihovna návrhů, 'approved' = schválená knihovna. */
   @Prop({
+    type: String,
     required: true,
     enum: ['draft', 'approved'],
     default: 'draft',

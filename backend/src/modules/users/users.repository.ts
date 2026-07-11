@@ -237,6 +237,10 @@ export class MongoUsersRepository
             avatarUrl: '',
             characterAvatarUrl: '',
             profileImageUrl: '',
+            // GDPR (plný audit 2026-07-11) — profilová PII postavy: dřív zůstávala
+            // po erasure v user docu (jméno/bio postavy = identifikovatelné).
+            characterName: '',
+            characterBio: '',
           },
         },
       )

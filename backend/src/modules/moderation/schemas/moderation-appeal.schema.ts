@@ -17,7 +17,11 @@ export class ModerationAppealSchemaClass {
   @Prop({ required: true }) appellantName: string;
   @Prop({ required: true, maxlength: 2000 }) reason: string;
 
-  @Prop({ default: 'pending', enum: ['pending', 'upheld', 'overturned'] })
+  @Prop({
+    type: String,
+    default: 'pending',
+    enum: ['pending', 'upheld', 'overturned'],
+  })
   status: ModerationAppealStatus;
 
   @Prop() reviewerId?: string;

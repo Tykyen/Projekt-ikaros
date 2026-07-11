@@ -26,7 +26,7 @@ export class CharacterSchemaClass {
    *  - `'location'` → Lokace (Page typu `Lokace` s characterRef). Jen calendar
    *    subdoc; `isNpc` se pro location ignoruje (nepostava).
    */
-  @Prop({ enum: ['persona', 'location'], default: 'persona' })
+  @Prop({ type: String, enum: ['persona', 'location'], default: 'persona' })
   kind: 'persona' | 'location';
   @Prop({ type: Object, default: {} }) diaryData: Record<string, unknown>;
   @Prop({

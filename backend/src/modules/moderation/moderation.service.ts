@@ -115,6 +115,21 @@ export class ModerationService {
     user: RequestUser,
     dto: CreateReportDto,
   ): Promise<{ id: string }> {
+    // ABU (styl 34) — dedup: 1 oznamovatel nesmí spamovat týž cíl otevřenými
+    // reporty (zahlcení moderační fronty + notifikací + e-mailů). Existující
+    // pending report na týž cíl → Conflict místo duplikátu.
+    if (
+      await this.reportsRepo.existsPendingByReporterAndTarget(
+        user.id,
+        dto.targetType,
+        dto.targetId,
+      )
+    ) {
+      throw new ConflictException({
+        code: 'REPORT_DUPLICATE',
+        message: 'Tento obsah jsi už nahlásil/a; report čeká na vyřízení.',
+      });
+    }
     const report = await this.reportsRepo.create({
       targetType: dto.targetType,
       targetId: dto.targetId,

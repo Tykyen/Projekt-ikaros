@@ -220,6 +220,46 @@ describe('MapOperationsService', () => {
       });
     });
 
+    it('token.update: server clamp — currentHp nad maxHp→maxHp, záporné→0, injury záporná→0 (GI styl 46)', async () => {
+      const scene = makeScene({ tokens: [makeToken('t1', 'pj')] }); // maxHp:10
+      mockMapsRepo.findById.mockResolvedValue(scene);
+
+      await service.apply(
+        'scene1',
+        {
+          type: 'token.update',
+          tokenId: 't1',
+          patch: { currentHp: 99999, injury: -3 },
+        },
+        pj,
+      );
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1', 'tokens.id': 't1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'tokens.$.currentHp': 10,
+            'tokens.$.injury': 0,
+          }) as Record<string, unknown>,
+        }),
+      );
+
+      mockMapsRepo.atomicUpdate.mockClear();
+      mockMapsRepo.findById.mockResolvedValue(scene);
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: -5 } },
+        pj,
+      );
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1', 'tokens.id': 't1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'tokens.$.currentHp': 0,
+          }) as Record<string, unknown>,
+        }),
+      );
+    });
+
     it('fog.brush mode=reveal: $addToSet revealedHexes', async () => {
       mockMapsRepo.findById.mockResolvedValue(makeScene());
 

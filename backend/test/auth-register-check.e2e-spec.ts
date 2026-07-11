@@ -43,6 +43,7 @@ describe('Auth register conflict + check (e2e)', () => {
           username: 'second',
           password: 'Password123!',
           acceptedTerms: true,
+          isMinor: false,
           captchaToken: 'dev-bypass',
         });
 
@@ -69,6 +70,7 @@ describe('Auth register conflict + check (e2e)', () => {
           username: 'duplicateUser',
           password: 'Password123!',
           acceptedTerms: true,
+          isMinor: false,
           captchaToken: 'dev-bypass',
         });
 
@@ -91,6 +93,7 @@ describe('Auth register conflict + check (e2e)', () => {
           username: 'realHuman',
           password: 'Password123!',
           acceptedTerms: true,
+          isMinor: false,
           captchaToken: 'dev-bypass',
           hp: '',
         });

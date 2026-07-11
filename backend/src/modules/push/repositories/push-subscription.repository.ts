@@ -80,6 +80,11 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
     return result.deletedCount > 0;
   }
 
+  /** GDPR — hard-delete účtu: smaž VŠECHNY push subscriptions uživatele. */
+  async deleteByUserId(userId: string): Promise<void> {
+    await this.model.deleteMany({ userId }).exec();
+  }
+
   private toEntity(doc: Record<string, unknown>): PushSubscription {
     return {
       id: String(doc._id),

@@ -80,6 +80,22 @@ export class EmbeddingSearchService implements ISearchProvider, OnModuleInit {
       return;
     }
 
+    // STAB/paměť — ONNX embedding modely (granite 107M+278M) se načítají
+    // IN-PROCESS a spotřebují ~1,5–2 GB RSS (dominantní zdroj paměti backendu;
+    // monitoring pak hlásí „vysoká RSS / možný leak", ač jde o baseline). Na
+    // paměťově omezeném serveru je lze vypnout `EMBEDDING_ENABLED=0` → sémantické
+    // hledání degraduje na MeiliSearch (search() vrátí prázdno, nespadne), RSS
+    // klesne o ~2 GB. Default zapnuto (bez regrese chování).
+    if (
+      process.env.EMBEDDING_ENABLED === '0' ||
+      process.env.EMBEDDING_ENABLED === 'false'
+    ) {
+      this.logger.warn(
+        'EMBEDDING_ENABLED=0 — ONNX embedding modely NEnačteny (úspora ~2 GB RSS); sémantické hledání degradováno na MeiliSearch.',
+      );
+      return;
+    }
+
     const modelConfigs = this.getModelConfigs();
     if (modelConfigs.length === 0) {
       this.logger.warn('Žádné embedding modely nejsou povoleny.');

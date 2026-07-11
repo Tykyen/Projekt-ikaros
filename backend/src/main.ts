@@ -138,6 +138,17 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, document);
   }
 
-  await app.listen(process.env.PORT ?? 3000);
+  // OPS (styl 31) — graceful shutdown: SIGTERM/SIGINT (deploy `compose down`)
+  // počká na dokončení in-flight HTTP/WS + onModuleDestroy (uzavření Mongo/
+  // Redis/socketů) místo tvrdého killu se ztrátou rozdělané operace.
+  app.enableShutdownHooks();
+
+  const server = await app.listen(process.env.PORT ?? 3000);
+  // PERF/SCALE (styl 25/26) — anti slow-loris hardening. keepAliveTimeout mírně
+  // NAD proxy keep-alive (Node default 5 s za proxy → sporadické 502);
+  // headersTimeout > keepAliveTimeout. requestTimeout vědomě NEnastavujeme
+  // (default), aby neuřízlo dlouhý export světa / PDF stream.
+  server.keepAliveTimeout = 61_000;
+  server.headersTimeout = 65_000;
 }
 void bootstrap();

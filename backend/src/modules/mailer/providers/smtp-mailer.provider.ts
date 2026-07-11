@@ -46,7 +46,15 @@ export class SmtpMailerProvider implements IMailerProvider {
       host,
       port,
       secure: port === 465, // 465 = implicit TLS; 587 = STARTTLS (upgrade)
+      // DLV/prod-config-05: na 587 vynuť STARTTLS, ať App Password nejede
+      // plaintextem při downgrade útoku. Gmail 587 STARTTLS podporuje.
+      requireTLS: port === 587,
       auth: user && pass ? { user, pass } : undefined,
+      // RES (styl 33): explicitní timeouty — bez nich SMTP visí na request cestě
+      // (forgot-password čeká inline); nodemailer default je bez stropu.
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 20000,
     });
   }
 

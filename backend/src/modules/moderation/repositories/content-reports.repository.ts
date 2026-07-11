@@ -115,4 +115,15 @@ export class MongoContentReportsRepository implements IContentReportsRepository 
       this.toEntity(d as unknown as Record<string, unknown>),
     );
   }
+
+  async existsPendingByReporterAndTarget(
+    reporterId: string,
+    targetType: ReportTargetType,
+    targetId: string,
+  ): Promise<boolean> {
+    const count = await this.model
+      .countDocuments({ reporterId, targetType, targetId, status: 'pending' })
+      .exec();
+    return count > 0;
+  }
 }

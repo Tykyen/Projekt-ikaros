@@ -58,6 +58,7 @@ describe('CharactersService', () => {
     findPlayerCharacters: jest.fn(),
     findDirectory: jest.fn(),
     existsBySlugAndWorld: jest.fn(),
+    countByWorld: jest.fn().mockResolvedValue(0),
     save: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -259,6 +260,15 @@ describe('CharactersService', () => {
         'character.created',
         expect.objectContaining({ characterId: 'char1', isNpc: false }),
       );
+    });
+
+    it('vyhodí ForbiddenException při dosažení limitu postav (ABU styl 34)', async () => {
+      mockCharRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockCharRepo.countByWorld.mockResolvedValue(5000);
+      await expect(
+        service.create({ slug: 'novy', name: 'Nový', isNpc: false }, 'world1'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockCharRepo.save).not.toHaveBeenCalled();
     });
 
     // 9.1 (cleanup) — isLocation pole odstraněno; Lokace = PageType, ne Character.

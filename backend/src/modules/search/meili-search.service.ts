@@ -30,6 +30,9 @@ export class MeiliSearchService implements ISearchProvider, OnModuleInit {
     this.client = new MeiliSearch({
       host: this.config.get<string>('MEILI_HOST', 'http://localhost:7700'),
       apiKey: this.config.get<string>('MEILI_API_KEY', ''),
+      // RES (styl 33): timeout — když Meili leží, search degraduje (→ []) rychle
+      // místo držení HTTP slotu.
+      timeout: 5000,
     });
     this.index = this.client.index(INDEX_NAME);
 

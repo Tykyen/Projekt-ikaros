@@ -187,6 +187,28 @@ export class MongoChatMessageRepository
       .exec();
   }
 
+  /**
+   * GDPR (plný audit 2026-07-11) — hard-delete účtu: anonymizuj identitu
+   * odesílatele ve VŠECH jeho zprávách. `senderName` je snapshot username v době
+   * odeslání → bez tohoto zůstane napořád identifikovatelný. Obsah NEnulujeme
+   * (zachování konverzace ostatních; plná content-erasure = právní rozhodnutí).
+   */
+  async anonymizeBySender(senderId: string): Promise<void> {
+    await this.model
+      .updateMany(
+        { senderId },
+        {
+          $set: {
+            senderName: 'Smazaný uživatel',
+            senderAvatarUrl: null,
+            overrideName: null,
+            overrideAvatarUrl: null,
+          },
+        },
+      )
+      .exec();
+  }
+
   async addReaction(
     messageId: string,
     emoji: string,

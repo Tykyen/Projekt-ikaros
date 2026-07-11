@@ -128,6 +128,7 @@ describe('GlobalChatService', () => {
       addReactionIfAbsent: jest.fn(),
       removeReactionIfPresent: jest.fn(),
       pruneChannel: jest.fn(),
+      anonymizeBySender: jest.fn(),
     };
 
     eventEmitter = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;

@@ -108,6 +108,16 @@ export class ChatService implements OnApplicationBootstrap {
       });
   }
 
+  /**
+   * GDPR (plný audit 2026-07-11) — hard-delete účtu: anonymizuj identitu
+   * odesílatele ve všech jeho chatových zprávách. Chat modul dřív NEměl
+   * `user.deletion` handler → `senderName` zůstával identifikovatelný napořád.
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleUserHardDeleted(payload: { userId: string }): Promise<void> {
+    await this.messageRepo.anonymizeBySender(payload.userId);
+  }
+
   private async canManageChat(
     requester: RequestUser,
     worldId: string,
@@ -1340,9 +1350,14 @@ export class ChatService implements OnApplicationBootstrap {
       ...characterMemberships.map((m) => m.userId),
     ];
     // Pro @all/@here doplníme všechny recipients (kromě senderId).
-    const broadcastMentions = specialAll
-      ? await this.resolveChannelRecipients(channel, requester.id)
-      : [];
+    // ABU (styl 34) — fan-out notifikace celému kanálu jen pro PomocnyPJ+;
+    // jinak by kterýkoli hráč jedním requestem notifikoval celou jeskyni
+    // (až 50 hráčů × zprávy = notifikační DoS). Bez oprávnění zůstane `@all`
+    // jen jako text bez expanze mentions.
+    const broadcastMentions =
+      specialAll && (await this.canManageChat(requester, channel.worldId))
+        ? await this.resolveChannelRecipients(channel, requester.id)
+        : [];
     const mentions = Array.from(
       new Set([...explicitMentions, ...broadcastMentions]),
     );

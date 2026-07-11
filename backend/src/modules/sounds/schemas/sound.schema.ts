@@ -104,32 +104,64 @@ export class SoundSchemaClass {
     | null;
   @Prop({ required: true }) name: string;
   @Prop({ required: true }) youtubeUrl: string;
-  @Prop({ enum: SoundMediaType, default: SoundMediaType.music })
+  @Prop({ type: String, enum: SoundMediaType, default: SoundMediaType.music })
   mediaType: SoundMediaType;
-  @Prop({ enum: SoundPrimaryFunction, default: SoundPrimaryFunction.safe })
+  @Prop({
+    type: String,
+    enum: SoundPrimaryFunction,
+    default: SoundPrimaryFunction.safe,
+  })
   primaryFunction: SoundPrimaryFunction;
-  @Prop({ enum: SoundEnvironment, default: SoundEnvironment.neutral })
+  @Prop({
+    type: String,
+    enum: SoundEnvironment,
+    default: SoundEnvironment.neutral,
+  })
   environment: SoundEnvironment;
-  @Prop({ enum: SoundEmotionalTone, default: SoundEmotionalTone.calm })
+  @Prop({
+    type: String,
+    enum: SoundEmotionalTone,
+    default: SoundEmotionalTone.calm,
+  })
   emotionalTone: SoundEmotionalTone;
   @Prop({ default: 1, min: 1, max: 5 }) intensity: number;
   @Prop({ default: 0 }) duration: number;
   @Prop({ default: true }) loop: boolean;
-  @Prop({ enum: SoundOnsetProfile, default: SoundOnsetProfile.soft })
+  @Prop({
+    type: String,
+    enum: SoundOnsetProfile,
+    default: SoundOnsetProfile.soft,
+  })
   onsetProfile: SoundOnsetProfile;
-  @Prop({ enum: SoundOutroProfile, default: SoundOutroProfile.fade })
+  @Prop({
+    type: String,
+    enum: SoundOutroProfile,
+    default: SoundOutroProfile.fade,
+  })
   outroProfile: SoundOutroProfile;
-  @Prop({ enum: SoundFactionStyle, default: SoundFactionStyle.civilian })
+  @Prop({
+    type: String,
+    enum: SoundFactionStyle,
+    default: SoundFactionStyle.civilian,
+  })
   factionStyle: SoundFactionStyle;
-  @Prop({ enum: SoundTechLevel, default: SoundTechLevel.modern })
+  @Prop({ type: String, enum: SoundTechLevel, default: SoundTechLevel.modern })
   techLevel: SoundTechLevel;
-  @Prop({ enum: SoundMagicLevel, default: SoundMagicLevel.none })
+  @Prop({ type: String, enum: SoundMagicLevel, default: SoundMagicLevel.none })
   magicLevel: SoundMagicLevel;
-  @Prop({ enum: SoundCombatEnergy, default: SoundCombatEnergy.none })
+  @Prop({
+    type: String,
+    enum: SoundCombatEnergy,
+    default: SoundCombatEnergy.none,
+  })
   combatEnergy: SoundCombatEnergy;
   @Prop({ type: [String], default: [] }) tags: string[];
   @Prop({ default: '' }) notes: string;
-  @Prop({ enum: ['active', 'pending', 'rejected'], default: 'active' })
+  @Prop({
+    type: String,
+    enum: ['active', 'pending', 'rejected'],
+    default: 'active',
+  })
   status: SoundStatus;
   @Prop({ type: String, required: false, default: null }) proposedBy:
     | string

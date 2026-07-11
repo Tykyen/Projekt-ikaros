@@ -108,6 +108,25 @@ export class MongoIkarosMessagesRepository
     );
   }
 
+  async anonymizeByUser(userId: string): Promise<void> {
+    // GDPR (plný audit 2026-07-11) — hard-delete účtu: anonymizuj jméno
+    // odesílatele i příjemce v soukromých zprávách (DM dřív bez erasure
+    // handleru → sender/recipientName identifikovatelné napořád). Body/subject
+    // NEnulujeme (kopie druhé strany; plná content-erasure = právní rozhodnutí).
+    await this.model
+      .updateMany(
+        { senderId: userId },
+        { $set: { senderName: 'Smazaný uživatel' } },
+      )
+      .exec();
+    await this.model
+      .updateMany(
+        { recipientId: userId },
+        { $set: { recipientName: 'Smazaný uživatel' } },
+      )
+      .exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): IkarosMessage {
     return {
       id: String(doc._id),

@@ -20,7 +20,7 @@ export type ReferrerCategory =
 @Schema({ collection: 'analytics_events' })
 export class AnalyticsEventSchemaClass {
   @Prop({ required: true }) path: string;
-  @Prop({ required: true }) referrerCategory: ReferrerCategory;
+  @Prop({ type: String, required: true }) referrerCategory: ReferrerCategory;
   @Prop({ required: true }) sessionId: string;
   @Prop({ required: true, default: false }) authed: boolean;
   @Prop({ required: true, default: () => new Date() }) createdAt: Date;

@@ -291,6 +291,17 @@ export class CharactersService {
         message: 'Slug již existuje v tomto světě',
       });
 
+    // ABU (styl 34) — kumulativní strop postav/svět proti flood útoku: 1 create
+    // spustí kaskádu subdoců (calendar/finance/inventory [+diary/notes u persony]).
+    // 5000 je velkorysé i pro NPC-těžký svět; brání zaplavení DB z jednoho účtu.
+    const MAX_CHARACTERS_PER_WORLD = 5000;
+    const count = await this.charRepo.countByWorld(worldId);
+    if (count >= MAX_CHARACTERS_PER_WORLD)
+      throw new ForbiddenException({
+        code: 'WORLD_CHARACTER_QUOTA',
+        message: `Svět dosáhl limitu ${MAX_CHARACTERS_PER_WORLD} postav.`,
+      });
+
     const character = await this.charRepo.save({
       ...(dto as unknown as Partial<Character>),
       slug,

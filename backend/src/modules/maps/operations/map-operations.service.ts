@@ -639,9 +639,38 @@ export class MapOperationsService {
             (op.patch as { systemStats: Record<string, unknown> }).systemStats,
           );
         }
+        // GI (styl 46) — server-authoritativní clamp herního stavu tokenu.
+        // Hráč smí patchovat vlastní currentHp/injury/initiative (authorizer:152),
+        // ale klient je ne-důvěryhodný: záporné ani nadmaxové HP není platný stav
+        // (99999-exploit / záporné HP). maxHp bereme z patche (mění-li ho PJ)
+        // nebo z aktuální scény. injury nesmí být záporná.
+        const patch: Record<string, unknown> = { ...op.patch };
+        const tokenNow = scene.tokens.find((t) => t.id === op.tokenId);
+        // PT-46d-bypass (pentest 2026-07-11) — číselná pole klient posílá i jako
+        // STRING ("9e9"); pouhý `typeof===number` by clamp obešel a uložil string
+        // verbatim. Proto coercni `Number()` a ne-finite odmítni (400), finite
+        // clampni. maxHp z patche (mění-li PJ) nebo ze scény.
+        const clampField = (
+          key: 'currentHp' | 'injury',
+          max: number | null,
+        ) => {
+          if (!(key in patch)) return;
+          const n = Number(patch[key]);
+          if (!Number.isFinite(n))
+            throw new BadRequestException({
+              code: 'MAP_TOKEN_STATS_INVALID',
+              message: `Neplatná číselná hodnota pole ${key}.`,
+            });
+          const lo = Math.max(0, n);
+          patch[key] = max != null && max > 0 ? Math.min(max, lo) : lo;
+        };
+        const effMaxHp =
+          'maxHp' in patch ? Number(patch.maxHp) : Number(tokenNow?.maxHp);
+        clampField('currentHp', Number.isFinite(effMaxHp) ? effMaxHp : null);
+        clampField('injury', null);
         const setFields: Record<string, unknown> = { lastModified: now };
-        for (const key of Object.keys(op.patch)) {
-          setFields[`tokens.$.${key}`] = op.patch[key];
+        for (const key of Object.keys(patch)) {
+          setFields[`tokens.$.${key}`] = patch[key];
         }
         const result = await this.mapsRepo.atomicUpdate(
           { _id: sceneId, 'tokens.id': op.tokenId },

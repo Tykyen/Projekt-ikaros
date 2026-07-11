@@ -19,7 +19,7 @@ export class ModerationDecisionSchemaClass {
   // Volitelné — může být i proaktivní zásah bez reportu.
   @Prop() reportId?: string;
 
-  @Prop({ required: true, enum: ReportTargetType })
+  @Prop({ type: String, required: true, enum: ReportTargetType })
   targetType: ReportTargetType;
 
   @Prop({ required: true }) targetId: string;
@@ -30,9 +30,10 @@ export class ModerationDecisionSchemaClass {
   @Prop() targetAuthorId?: string;
   @Prop() targetUrl?: string;
 
-  @Prop({ required: true, enum: ModerationAction }) action: ModerationAction;
+  @Prop({ type: String, required: true, enum: ModerationAction })
+  action: ModerationAction;
   @Prop({ required: true }) reasonText: string;
-  @Prop({ enum: ReportCategory }) category?: ReportCategory;
+  @Prop({ type: String, enum: ReportCategory }) category?: ReportCategory;
   @Prop({ required: true }) legalOrPolicyGround: string;
 
   @Prop({ default: false }) automated: boolean;

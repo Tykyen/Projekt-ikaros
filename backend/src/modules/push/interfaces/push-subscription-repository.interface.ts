@@ -10,4 +10,6 @@ export interface IPushSubscriptionRepository {
   deleteByEndpointOnly(endpoint: string): Promise<void>;
   /** D-030 — odhlášení konkrétního zařízení ze seznamu (jen vlastníkem). */
   deleteByIdAndUser(id: string, userId: string): Promise<boolean>;
+  /** GDPR — hard-delete účtu: smaž všechny subscriptions uživatele. */
+  deleteByUserId(userId: string): Promise<void>;
 }

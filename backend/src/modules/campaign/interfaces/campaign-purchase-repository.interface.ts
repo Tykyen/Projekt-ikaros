@@ -25,4 +25,6 @@ export interface ICampaignPurchaseRepository {
    * prohrálo závod). Brání double-refundu.
    */
   markRefundedIfActive(id: string): Promise<CampaignPurchase | null>;
+  /** DUR — kompenzace: vrať status refunded→active, když kredit po flipu selže. */
+  markActiveIfRefunded(id: string): Promise<void>;
 }

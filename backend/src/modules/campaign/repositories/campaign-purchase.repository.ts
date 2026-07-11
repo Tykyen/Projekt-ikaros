@@ -78,6 +78,22 @@ export class MongoCampaignPurchaseRepository
       : null;
   }
 
+  /**
+   * DUR (styl 43) — kompenzace k `markRefundedIfActive`: když kredit po flipu
+   * selže, vrať status zpět na `active`, ať jde storno bezpečně zopakovat
+   * (jinak `refunded` bez vrácených peněz = trvalá ztráta / hráč zablokován).
+   * Filtr `status:'refunded'` = idempotence.
+   */
+  async markActiveIfRefunded(id: string): Promise<void> {
+    if (!Types.ObjectId.isValid(id)) return;
+    await this.model
+      .updateOne(
+        { _id: id, status: 'refunded' },
+        { $set: { status: 'active' }, $unset: { refundedAt: '' } },
+      )
+      .exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): CampaignPurchase {
     return {
       id: String(doc._id),

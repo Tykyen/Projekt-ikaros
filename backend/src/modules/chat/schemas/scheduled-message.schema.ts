@@ -20,7 +20,13 @@ export class ScheduledMessageSchemaClass {
   @Prop() content?: string;
   @Prop({ type: [Object], default: [] }) attachments: Record<string, unknown>[];
   @Prop({ required: true }) sendAt: Date;
-  @Prop({ required: true, default: 'pending', index: true })
+  @Prop({
+    type: String,
+    required: true,
+    default: 'pending',
+    enum: ['pending', 'sent', 'failed'],
+    index: true,
+  })
   status: 'pending' | 'sent' | 'failed';
 }
 

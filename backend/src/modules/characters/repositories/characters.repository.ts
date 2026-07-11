@@ -122,6 +122,10 @@ export class MongoCharactersRepository
     return count > 0;
   }
 
+  async countByWorld(worldId: string): Promise<number> {
+    return this.model.countDocuments({ worldId }).exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): Character {
     return {
       id: String(doc._id),

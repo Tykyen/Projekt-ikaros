@@ -24,4 +24,10 @@ export interface IContentReportsRepository {
     targetType: ReportTargetType,
     targetId: string,
   ): Promise<ContentReport[]>;
+  /** ABU (styl 34) — dedup otevřených reportů téhož oznamovatele na týž cíl. */
+  existsPendingByReporterAndTarget(
+    reporterId: string,
+    targetType: ReportTargetType,
+    targetId: string,
+  ): Promise<boolean>;
 }

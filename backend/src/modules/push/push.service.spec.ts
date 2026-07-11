@@ -36,6 +36,7 @@ describe('PushService', () => {
       deleteByEndpoint: jest.fn(),
       deleteByEndpointOnly: jest.fn(),
       deleteByIdAndUser: jest.fn(),
+      deleteByUserId: jest.fn(),
     };
     usersRepo = {
       findByIds: jest.fn().mockResolvedValue([]),

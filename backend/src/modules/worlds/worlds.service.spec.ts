@@ -75,6 +75,9 @@ describe('WorldsService', () => {
     publicProfile: jest
       .fn()
       .mockResolvedValue({ id: 'user1', username: 'user1', avatarUrl: null }),
+    // create()/assertCanJoinMoreWorlds() dohledávají supporter status uživatele
+    // (19.4). Default null → fail-open (viz assertCanJoinMoreWorlds:349).
+    findById: jest.fn().mockResolvedValue(null),
   };
   const mockSettingsRepo = {
     findByWorldId: jest.fn(),
@@ -1313,6 +1316,13 @@ describe('WorldsService', () => {
 
   describe('create — krok 2.3 D-NEW-quota', () => {
     it('Ikarus (běžný uživatel) s 30 aktivními světy dostane WORLD_QUOTA_REACHED', async () => {
+      // Supporter → owner-kvóta 30 (WORLD_QUOTA_REACHED); jinak by cesta
+      // spadla do non-supporter větve (limit 3, jiný kód). Viz worlds.service:459.
+      mockUsersService.findById.mockResolvedValueOnce({
+        id: 'u1',
+        role: UserRole.Ikarus,
+        isSupporter: true,
+      });
       mockWorldsRepo.findByOwnerId.mockResolvedValue(
         Array.from({ length: 30 }, (_, i) => ({ id: `w${i}` })),
       );

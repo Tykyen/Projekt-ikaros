@@ -119,6 +119,7 @@ describe('Auth login by identifier (e2e)', () => {
           email: 'evil@test.io',
           password: 'Password123!',
           acceptedTerms: true,
+          isMinor: false,
           captchaToken: 'dev-bypass',
         });
       expect(res.status).toBe(400);
@@ -132,6 +133,7 @@ describe('Auth login by identifier (e2e)', () => {
           email: 'clean@test.io',
           password: 'Password123!',
           acceptedTerms: true,
+          isMinor: false,
           captchaToken: 'dev-bypass',
         });
       expect(res.status).toBe(201);

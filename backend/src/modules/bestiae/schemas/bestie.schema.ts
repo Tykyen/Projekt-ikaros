@@ -21,6 +21,7 @@ export type BestieDocument = HydratedDocument<BestieSchemaClass>;
 @Schema({ timestamps: true, collection: 'bestiae' })
 export class BestieSchemaClass {
   @Prop({
+    type: String,
     required: true,
     enum: ['system', 'user', 'world', 'community'],
     index: true,
@@ -67,7 +68,12 @@ export class BestieSchemaClass {
   @Prop({ index: true, sparse: true }) kind?: string;
   @Prop({ type: [String], default: undefined }) tags?: string[];
   /** Stav bytosti: 'draft' = knihovna návrhů, 'approved' = schválená knihovna. */
-  @Prop({ enum: ['draft', 'approved'], index: true, sparse: true })
+  @Prop({
+    type: String,
+    enum: ['draft', 'approved'],
+    index: true,
+    sparse: true,
+  })
   status?: 'draft' | 'approved';
   /** Atribuce autora (povinná u community). */
   @Prop({ index: true, sparse: true }) authorId?: string;

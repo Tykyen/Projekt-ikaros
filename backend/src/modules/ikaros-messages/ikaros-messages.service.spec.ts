@@ -44,6 +44,7 @@ describe('IkarosMessagesService', () => {
       countUnreadMessages: jest.fn(),
       save: jest.fn(),
       update: jest.fn(),
+      anonymizeByUser: jest.fn(),
     };
     usersService = { findById: jest.fn() };
     friendsRepo = { findActiveBetween: jest.fn() };

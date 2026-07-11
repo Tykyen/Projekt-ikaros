@@ -184,6 +184,11 @@ export class WorldHardDeleteService {
     // FIX-25 — `pages.galleryImages` je pole objektů `{ url, ... }`, ne prostý
     // string field → nejde přes generický `collectBlobs`, potřebuje vlastní extrakci.
     await this.collectGalleryBlobs('pages', { worldId }, 'galleryImages');
+    // CD-NEW-1 (plný audit 2026-07-11) — `chatmessages.attachments` je pole
+    // objektů `{ url }` (obrázkové přílohy chatu), stejný tvar jako gallery.
+    // Bez tohoto leakovaly VŠECHNY chat přílohy světa na Cloudinary při
+    // hard-delete (největší objem blobů).
+    await this.collectGalleryBlobs('chatmessages', { worldId }, 'attachments');
 
     // 2) všechny world-scoped kolekce.
     for (const coll of WORLD_SCOPED_COLLECTIONS) {

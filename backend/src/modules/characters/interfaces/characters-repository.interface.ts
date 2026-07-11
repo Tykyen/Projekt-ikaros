@@ -14,6 +14,7 @@ export interface ICharactersRepository {
   findPlayerCharacters(worldId: string): Promise<Character[]>;
   findDirectory(worldId: string): Promise<CharacterDirectoryEntry[]>;
   existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean>;
+  countByWorld(worldId: string): Promise<number>;
   save(character: Partial<Character>): Promise<Character>;
   update(id: string, data: Partial<Character>): Promise<Character | null>;
   delete(id: string): Promise<boolean>;
