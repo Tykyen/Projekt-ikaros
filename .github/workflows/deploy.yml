@@ -75,6 +75,8 @@ jobs:
           DELETION_HOLD_DAYS=${{ vars.DELETION_HOLD_DAYS }}
           EMBEDDING_GRANITE107_ENABLED=${{ vars.EMBEDDING_GRANITE107_ENABLED }}
           EMBEDDING_GRANITE278_ENABLED=${{ vars.EMBEDDING_GRANITE278_ENABLED }}
+          DISCORD_ALERT_WEBHOOK=${{ secrets.DISCORD_ALERT_WEBHOOK }}
+          DISCORD_EVENTS_WEBHOOK=${{ secrets.DISCORD_EVENTS_WEBHOOK }}
           EOF
 
       - name: Validate deployment environment
