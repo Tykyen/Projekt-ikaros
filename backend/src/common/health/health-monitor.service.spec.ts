@@ -1,9 +1,18 @@
 import { HealthMonitorService } from './health-monitor.service';
+import * as checks from './health-checks';
 
 /**
  * Health-cron: alertuje jen PŘI PŘECHODU down/obnoveno, ne opakovaně.
  */
 describe('HealthMonitorService (monitoring 3. noha)', () => {
+  // checkDisk čte reálný FS → mockovat, ať test nezávisí na disku CI stroje.
+  beforeEach(() => {
+    jest
+      .spyOn(checks, 'checkDisk')
+      .mockResolvedValue({ ok: true, detail: 'volné 80%' });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
   function make(opts: {
     mongoState?: number;
     redisStatus?: string;
@@ -29,6 +38,20 @@ describe('HealthMonitorService (monitoring 3. noha)', () => {
     const { svc, alert } = make({});
     await svc.check();
     expect(alert.alert).not.toHaveBeenCalled();
+  });
+
+  it('disk skoro plný → warn alert', async () => {
+    jest
+      .spyOn(checks, 'checkDisk')
+      .mockResolvedValue({ ok: false, detail: 'volné 5%' });
+    const { svc, alert } = make({});
+    await svc.check();
+    expect(alert.alert).toHaveBeenCalledWith(
+      'warn',
+      'Disk skoro plný',
+      expect.any(String),
+      expect.objectContaining({ dedupeKey: 'disk-low' }),
+    );
   });
 
   it('Mongo down → 1× critical alert (DOWN)', async () => {

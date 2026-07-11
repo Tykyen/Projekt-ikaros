@@ -56,3 +56,26 @@ export async function checkMeili(host: string): Promise<CheckResult> {
     return { ok: false, detail: 'nedostupné' };
   }
 }
+
+/**
+ * Disk: volné místo na svazku (disk-full = tichý zabiják — Mongo přestane
+ * zapisovat, upload fallback plní disk). Fail-open (statfs nedostupný → ok),
+ * ať nefalešně nealarmuje. Práh volného místa v %.
+ */
+export async function checkDisk(
+  path: string = process.cwd(),
+  minFreePct = 15,
+): Promise<CheckResult> {
+  try {
+    const { statfs } = await import('node:fs/promises');
+    const s = await statfs(path);
+    const freePct =
+      s.blocks > 0 ? (Number(s.bavail) / Number(s.blocks)) * 100 : 100;
+    return {
+      ok: freePct >= minFreePct,
+      detail: `volné ${freePct.toFixed(0)}%`,
+    };
+  } catch {
+    return { ok: true, detail: 'disk check nedostupný' };
+  }
+}

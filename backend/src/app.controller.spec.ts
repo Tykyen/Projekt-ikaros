@@ -47,13 +47,14 @@ describe('AppController · /health readiness', () => {
     return new AppController(opts.config ?? makeConfig(), mongo, redis);
   }
 
-  it('vše zdravé → status ok, 9 checků', async () => {
+  it('vše zdravé → status ok, 10 checků', async () => {
     const res = await makeController({}).health();
     expect(res.status).toBe('ok');
     expect(Object.keys(res.checks).sort()).toEqual(
       [
         'backend',
         'cloudinary',
+        'disk',
         'env',
         'meili',
         'memory',

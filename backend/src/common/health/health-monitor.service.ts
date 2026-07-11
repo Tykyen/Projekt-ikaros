@@ -7,6 +7,7 @@ import type { Redis } from 'ioredis';
 import { AlertService } from '../alerting/alert.service';
 import {
   CheckResult,
+  checkDisk,
   checkMeili,
   checkMongo,
   checkRedis,
@@ -66,5 +67,16 @@ export class HealthMonitorService {
       }
     }
     this.lastDown = nowDown;
+
+    // Disk — samostatně (warn, ne critical: <15 % volných je varování, ne výpadek).
+    // Vlastní cooldown 30 min, ať to nespamuje, když je disk trvale plný.
+    const disk = await checkDisk();
+    if (!disk.ok) {
+      this.logger.warn(`Disk skoro plný: ${disk.detail ?? ''}`);
+      void this.alert.alert('warn', 'Disk skoro plný', disk.detail ?? '', {
+        dedupeKey: 'disk-low',
+        cooldownMs: 30 * 60 * 1000,
+      });
+    }
   }
 }

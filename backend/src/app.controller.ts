@@ -6,6 +6,7 @@ import type { Redis } from 'ioredis';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   CheckResult,
+  checkDisk,
   checkMeili,
   checkMongo,
   checkRedis,
@@ -96,6 +97,9 @@ export class AppController {
     const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
     const memory: CheckResult = { ok: true, detail: `RSS ${rssMb} MB` };
 
+    // Disk — informativní ve /health (volné %); alert na nízké místo řeší health-cron.
+    const disk = await checkDisk();
+
     // KRITICKÉ pro readiness (route traffic sem, jen když jsou zdravé).
     const allOk =
       backend.ok &&
@@ -119,6 +123,7 @@ export class AppController {
       vapid,
       smtp,
       memory,
+      disk,
     };
     const stripped: HealthReport['checks'] = Object.fromEntries(
       Object.entries(full).map(([k, v]) => [
