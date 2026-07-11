@@ -77,6 +77,8 @@ jobs:
           EMBEDDING_GRANITE278_ENABLED=${{ vars.EMBEDDING_GRANITE278_ENABLED }}
           DISCORD_ALERT_WEBHOOK=${{ secrets.DISCORD_ALERT_WEBHOOK }}
           DISCORD_EVENTS_WEBHOOK=${{ secrets.DISCORD_EVENTS_WEBHOOK }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          RSS_ALERT_MB=${{ vars.RSS_ALERT_MB }}
           EOF
 
       - name: Validate deployment environment

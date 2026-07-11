@@ -120,6 +120,9 @@ services:
       # Discord webhooky (monitoring 3. noha + komunitní oznámení). Prázdné = no-op.
       DISCORD_ALERT_WEBHOOK: ${DISCORD_ALERT_WEBHOOK:-}
       DISCORD_EVENTS_WEBHOOK: ${DISCORD_EVENTS_WEBHOOK:-}
+      # Error tracking (GlitchTip/Sentry). Prázdné = vypnuto. RSS_ALERT_MB = práh paměti.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      RSS_ALERT_MB: ${RSS_ALERT_MB:-1536}
       DELETION_HOLD_DAYS: ${DELETION_HOLD_DAYS:-30}
       EMBEDDING_GRANITE107_ENABLED: ${EMBEDDING_GRANITE107_ENABLED:-true}
       EMBEDDING_GRANITE278_ENABLED: ${EMBEDDING_GRANITE278_ENABLED:-true}

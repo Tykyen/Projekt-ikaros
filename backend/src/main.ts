@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -15,6 +16,17 @@ import { getAllowedOrigins, getPrimaryOrigin } from './common/config/origins';
 
 async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
+
+  // Monitoring (3. noha) — error tracking do GlitchTip/Sentry. Init jen když je
+  // SENTRY_DSN (prázdné = úplně vypnuto, žádné hooky). tracesSampleRate 0 =
+  // jen chyby, ne performance tracing (lehčí). captureException v exception filtru.
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: isProd ? 'production' : 'development',
+      tracesSampleRate: 0,
+    });
+  }
 
   // LH-06 (log hygiene) — top-level záchyt: bez handleru Node při neodchycené
   // chybě syrově vysype celý objekt na stderr. Logujeme přes Logger jen

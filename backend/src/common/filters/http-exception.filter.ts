@@ -9,6 +9,7 @@ import {
 import { Response } from 'express';
 import { MulterError } from 'multer';
 import { Error as MongooseError } from 'mongoose';
+import * as Sentry from '@sentry/node';
 import type { AlertService } from '../alerting/alert.service';
 import type { BruteForceMonitor } from '../alerting/brute-force.monitor';
 
@@ -56,6 +57,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       void this.alert?.alert('critical', `5xx ${code}`, detail, {
         dedupeKey: `5xx:${code}`,
       });
+      // Error tracking (GlitchTip/Sentry) — stack trace + grouping. No-op bez
+      // SENTRY_DSN (Sentry.init se nespustil → captureException nic nedělá).
+      Sentry.captureException(exception);
     }
 
     // Monitoring — brute-force detekce: každé neúspěšné přihlášení počítáme
