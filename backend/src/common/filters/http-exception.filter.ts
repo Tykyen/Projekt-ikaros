@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { MulterError } from 'multer';
 import { Error as MongooseError } from 'mongoose';
 import type { AlertService } from '../alerting/alert.service';
+import type { BruteForceMonitor } from '../alerting/brute-force.monitor';
 
 /**
  * Globální catch-all filtr — JEDINÝ zdroj tvaru chybové odpovědi (error-contract audit, F1).
@@ -25,9 +26,12 @@ import type { AlertService } from '../alerting/alert.service';
 export class HttpExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger('ExceptionFilter');
 
-  // AlertService je volitelný (monitoring 3. noha) — bez něj filtr funguje beze
-  // změny (zpětná kompatibilita s `new HttpExceptionFilter()` v testech).
-  constructor(private readonly alert?: AlertService) {}
+  // AlertService + BruteForceMonitor jsou volitelné (monitoring 3. noha) — bez
+  // nich filtr funguje beze změny (zpětná kompatibilita s `new HttpExceptionFilter()`).
+  constructor(
+    private readonly alert?: AlertService,
+    private readonly bruteForce?: BruteForceMonitor,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -52,6 +56,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
       void this.alert?.alert('critical', `5xx ${code}`, detail, {
         dedupeKey: `5xx:${code}`,
       });
+    }
+
+    // Monitoring — brute-force detekce: každé neúspěšné přihlášení počítáme
+    // centrálně (filtr vidí všechny 401); spike → alert (uvnitř s prahem+rate-limit).
+    if (code === 'INVALID_CREDENTIALS') {
+      this.bruteForce?.recordLoginFailure();
     }
   }
 

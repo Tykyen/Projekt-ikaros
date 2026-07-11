@@ -8,6 +8,7 @@ import type { ServerResponse } from 'http';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AlertService } from './common/alerting/alert.service';
+import { BruteForceMonitor } from './common/alerting/brute-force.monitor';
 import { validationExceptionFactory } from './common/pipes/validation-exception.factory';
 import { CustomIoAdapter } from './socket-io.adapter';
 import { getAllowedOrigins, getPrimaryOrigin } from './common/config/origins';
@@ -59,8 +60,11 @@ async function bootstrap() {
       exceptionFactory: validationExceptionFactory,
     }),
   );
-  // Monitoring (3. noha): filtru předáme AlertService (globální) → 5xx alert do Discordu.
-  app.useGlobalFilters(new HttpExceptionFilter(app.get(AlertService)));
+  // Monitoring (3. noha): filtru předáme AlertService + BruteForceMonitor (globální)
+  // → 5xx alert + brute-force detekce do Discordu.
+  app.useGlobalFilters(
+    new HttpExceptionFilter(app.get(AlertService), app.get(BruteForceMonitor)),
+  );
   app.useWebSocketAdapter(new CustomIoAdapter(app));
   // PC-04: origin z jednoho zdroje; localhost varianty jen mimo produkci.
   app.enableCors({
