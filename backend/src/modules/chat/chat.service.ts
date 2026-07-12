@@ -9,6 +9,7 @@ import {
   type OnApplicationBootstrap,
 } from '@nestjs/common';
 import { logError } from '../../common/logging/log-error.util';
+import { sanitizeDicePayload } from '../../common/dice/dice-payload.validator';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import type { IChatGroupRepository } from './interfaces/chat-group-repository.interface';
 import type { IChatChannelRepository } from './interfaces/chat-channel-repository.interface';
@@ -1397,6 +1398,13 @@ export class ChatService implements OnApplicationBootstrap {
       !!dto.dicePayload ||
       (dto.content ? DICE_REGEX.test(dto.content.trim()) : false);
 
+    // GI (D-LAUNCH-GAP) — klient je autorita nad hodem: server payload dřív
+    // ukládal verbatim, hráč mohl poslat `total:999`. Očistíme (přepočet
+    // sum/total z faces u součtových typů + meze) → 400 při nesmyslu.
+    const sanitizedDice = dto.dicePayload
+      ? sanitizeDicePayload(dto.dicePayload)
+      : null;
+
     // UM-08 — ověř, že přílohy pocházejí z našeho uploadu (ne podstrčená cizí URL).
     this.uploadService.assertAttachmentsOrigin(dto.attachments, [
       'world-chat/',
@@ -1431,7 +1439,8 @@ export class ChatService implements OnApplicationBootstrap {
       clientNonce: dto.clientNonce ?? null,
       mentions,
       // Krok 6.3d/e — strukturovaná data hodu + skin zafixovaný odesílatelem.
-      dicePayload: dto.dicePayload ?? null,
+      // GI — očištěný payload (přepočtený server-side), ne verbatim z klienta.
+      dicePayload: sanitizedDice,
       diceSkin: dto.diceSkin ?? null,
     });
 

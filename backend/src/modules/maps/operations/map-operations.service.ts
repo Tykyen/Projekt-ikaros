@@ -29,6 +29,7 @@ import type { IWorldsRepository } from '../../worlds/interfaces/worlds-repositor
 import type { IWorldMembershipRepository } from '../../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldOperationsRepository } from '../../worlds/interfaces/world-operations-repository.interface';
 import { SystemStatsValidatorService } from '../schemas/system-entity-schema/system-stats-validator.service';
+import { sanitizeDicePayload } from '../../../common/dice/dice-payload.validator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 
 export interface ApplyMapOperationResult {
@@ -1352,11 +1353,18 @@ export class MapOperationsService {
 
       // 10.2j B3 — append hod do diceRolls, cap na 50 posledních.
       case 'dice.roll': {
+        // GI (D-LAUNCH-GAP) — stejná ochrana jako chat: klientův `dicePayload`
+        // se očistí (přepočet sum/total z faces, meze) → hráč nepodstrčí
+        // `total:999` do mapového dice logu. 400 při nesmyslu.
+        const cleanRoll = {
+          ...op.roll,
+          dicePayload: sanitizeDicePayload(op.roll.dicePayload),
+        };
         await this.mapsRepo.atomicUpdate(
           { _id: sceneId },
           {
             $push: {
-              diceRolls: { $each: [op.roll], $slice: -50 },
+              diceRolls: { $each: [cleanRoll], $slice: -50 },
             },
             $set: { lastModified: now },
           },
