@@ -52,6 +52,10 @@ describe('AuthService', () => {
     update: jest.fn(),
     updateLastSeen: jest.fn(),
     updateLastLogin: jest.fn(),
+    // PT-35a / PT-35e (pentest 2026-07-12) — nové atomické metody: lockout + tokenVersion.
+    incrementTokenVersion: jest.fn(),
+    recordTotpFailure: jest.fn().mockResolvedValue({ locked: false }),
+    resetTotpFailures: jest.fn(),
   };
   const mockRefreshRepo = {
     save: jest.fn(),

@@ -147,6 +147,12 @@ export interface User {
   totpEnabledAt?: Date;
   twoFactorMethod?: string;
 
+  // SESS (pentest PT-35e) — verze access tokenu; bump = zneplatnění starých tokenů.
+  tokenVersion?: number;
+  // PT-35a — per-účet 2FA brute-force lockout (čítač neúspěchů + čas zámku).
+  failedTotpAttempts?: number;
+  totpLockedUntil?: Date | null;
+
   // 15.9 — notifikační preference (push). undefined = použij defaulty z kódu.
   notificationPreferences?: NotificationPreferences;
 

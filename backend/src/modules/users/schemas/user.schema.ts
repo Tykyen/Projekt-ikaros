@@ -160,6 +160,17 @@ export class UserSchemaClass {
   @Prop({ type: Date }) totpEnabledAt?: Date;
   @Prop({ type: String, default: 'totp' }) twoFactorMethod?: string;
 
+  // SESS (pentest PT-35e) — `tokenVersion`: čítač verzí access tokenu. Bump při
+  // logout-all / změně hesla zneplatní VŠECHNY dřív vydané access tokeny (guard
+  // porovná `tv` claim s tímto polem). Default 0 = staré tokeny bez claimu se
+  // čtou jako 0 → deploy nikoho neodhlásí, zabijí se až po prvním reálném bumpu.
+  @Prop({ type: Number, default: 0 }) tokenVersion?: number;
+  // PT-35a — per-účet brute-force lockout 2FA. `failedTotpAttempts` roste při
+  // špatném TOTP/záložním kódu; po překročení prahu se nastaví `totpLockedUntil`
+  // (do té doby loginTotp vrací 429) a čítač se vynuluje. Úspěch obojí resetuje.
+  @Prop({ type: Number, default: 0 }) failedTotpAttempts?: number;
+  @Prop({ type: Date, default: null }) totpLockedUntil?: Date | null;
+
   // 15.9 — notifikační preference (push). BEZ default: nenastavené pole zůstává
   // undefined → toEntity ho neukládá a `wantsPush` použije default z kódu.
   @Prop({

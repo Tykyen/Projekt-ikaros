@@ -64,6 +64,19 @@ export interface IUsersRepository {
   update(id: string, data: Partial<User>): Promise<User | null>;
   updateLastSeen(id: string): Promise<void>;
   updateLastLogin(id: string, at: Date): Promise<void>;
+  /** SESS (pentest PT-35e) — atomicky bumpne `tokenVersion` ($inc); zneplatní staré access tokeny. */
+  incrementTokenVersion(id: string): Promise<void>;
+  /**
+   * PT-35a — atomicky inkrementuje `failedTotpAttempts`; při dosažení `maxAttempts`
+   * nastaví `totpLockedUntil` (now + `lockMs`) a čítač vynuluje. Vrací, zda je účet nově zamčen.
+   */
+  recordTotpFailure(
+    id: string,
+    maxAttempts: number,
+    lockMs: number,
+  ): Promise<{ locked: boolean }>;
+  /** PT-35a — vynuluje čítač neúspěchů + odemkne účet (po úspěšném 2FA loginu). */
+  resetTotpFailures(id: string): Promise<void>;
   delete(id: string): Promise<boolean>;
 
   // Migration support pro case-insensitive username (viz UsersService.onModuleInit).

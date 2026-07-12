@@ -16,4 +16,11 @@ export interface RequestUser {
    * GuestOrMemberGuard pustí guesta jen na Hospodu (jinde 403).
    */
   isGuest?: boolean;
+  /**
+   * SESS (pentest PT-35e) — verze access tokenu z `tv` claim. JwtAuthGuard ji
+   * porovná s `user.tokenVersion` v DB; nesouhlas = 401 SESSION_REVOKED
+   * (logout-all / změna hesla bumpne DB verzi → všechny staré access tokeny umřou).
+   * undefined = starý token bez claimu → čte se jako 0.
+   */
+  tokenVersion?: number;
 }

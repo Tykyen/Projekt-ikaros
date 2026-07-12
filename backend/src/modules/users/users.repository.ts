@@ -167,6 +167,58 @@ export class MongoUsersRepository
       .exec();
   }
 
+  // SESS (pentest PT-35e) — atomický bump verze access tokenu. Po logout-all /
+  // změně hesla → guard porovná `tv` claim s tímto polem → staré tokeny 401.
+  async incrementTokenVersion(id: string): Promise<void> {
+    await this.model
+      .updateOne({ _id: id }, { $inc: { tokenVersion: 1 } })
+      .exec();
+  }
+
+  // PT-35a — atomický záznam neúspěchu 2FA. $inc čítač, a když dosáhne prahu,
+  // nastaví zámek + vynuluje čítač (další pokus narazí na `totpLockedUntil`).
+  async recordTotpFailure(
+    id: string,
+    maxAttempts: number,
+    lockMs: number,
+  ): Promise<{ locked: boolean }> {
+    const doc = await this.model
+      .findByIdAndUpdate(
+        id,
+        { $inc: { failedTotpAttempts: 1 } },
+        { new: true, projection: { failedTotpAttempts: 1 } },
+      )
+      .lean()
+      .exec();
+    const attempts =
+      (doc as { failedTotpAttempts?: number } | null)?.failedTotpAttempts ?? 0;
+    if (attempts >= maxAttempts) {
+      await this.model
+        .updateOne(
+          { _id: id },
+          {
+            $set: {
+              totpLockedUntil: new Date(Date.now() + lockMs),
+              failedTotpAttempts: 0,
+            },
+          },
+        )
+        .exec();
+      return { locked: true };
+    }
+    return { locked: false };
+  }
+
+  // PT-35a — reset čítače + odemčení po úspěšném 2FA loginu.
+  async resetTotpFailures(id: string): Promise<void> {
+    await this.model
+      .updateOne(
+        { _id: id },
+        { $set: { failedTotpAttempts: 0, totpLockedUntil: null } },
+      )
+      .exec();
+  }
+
   async findOnlineSince(since: Date): Promise<string[]> {
     const docs = await this.model
       .find({ lastSeenAt: { $gte: since } }, { _id: 1 })
@@ -425,6 +477,12 @@ export class MongoUsersRepository
       backupCodeHashes: (doc.backupCodeHashes as string[]) ?? [],
       totpEnabledAt: doc.totpEnabledAt as Date | undefined,
       twoFactorMethod: (doc.twoFactorMethod as string | undefined) ?? 'totp',
+
+      // SESS/PT-35 — tokenVersion + 2FA lockout stav. Bez mapování by je findById
+      // zahodil → guard by četl tokenVersion undefined a lockout by se „ztrácel".
+      tokenVersion: (doc.tokenVersion as number | undefined) ?? 0,
+      failedTotpAttempts: (doc.failedTotpAttempts as number | undefined) ?? 0,
+      totpLockedUntil: (doc.totpLockedUntil as Date | null | undefined) ?? null,
 
       // 15.9 — notifikační preference. Bez fallbacku na {}: undefined necháváme,
       // ať `wantsPush`/`resolvePref` dosadí defaulty z kódu (ne zamrazené v DB).

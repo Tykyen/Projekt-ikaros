@@ -91,44 +91,40 @@ describe('PT-35 · Session / Auth (TOTP lockout · enumerace · invalidace token
     expect(res.body?.accessToken).toBeUndefined();
   });
 
-  // RED (díra): server nemá PER-ÚČET lockout. `loginTotp` ověřuje challenge přes
-  // `peek` (nespotřebuje při chybě) a nikde nedrží čítač neúspěchů → útočník smí
-  // proti JEDNOMU challenge (TTL 5 min) hádat kód donekonečna, i s rotací IP.
-  // Bezpečný systém by po N chybách účet/challenge zamkl (423/429). Tady se to
-  // NIKDY nestane → assertion padá → `it.failing` dokumentuje díru.
-  it.failing(
-    'PT-35a: TOTP brute — 20 špatných kódů z různých IP NEzamkne účet (chybí lockout)',
-    async () => {
-      const u = await registerUser(testApp.app, {
-        username: 'totp35abrute',
-        email: 'totp35abrute@test.io',
-        password: 'Password123!',
-      });
-      const secret = await enableTotpFor(u.accessToken);
-      const challengeId = await beginTotpLogin(
-        'totp35abrute@test.io',
-        'Password123!',
-      );
-      const valid = authenticator.generate(secret);
+  // GREEN pin (obrana DOPLNĚNA pentestem 2026-07-12): per-účet lockout. Po 5
+  // špatných kódech se účet zamkne na 15 min (429 TOTP_LOCKED), NEZÁVISLE na IP
+  // (per-IP throttle útočník obejde rotací X-Forwarded-For). Dřív `it.failing`
+  // (díra). Zčervená = lockout regresoval.
+  it('PT-35a: TOTP brute — 20 špatných kódů z různých IP ZAMKNE účet (per-účet lockout)', async () => {
+    const u = await registerUser(testApp.app, {
+      username: 'totp35abrute',
+      email: 'totp35abrute@test.io',
+      password: 'Password123!',
+    });
+    const secret = await enableTotpFor(u.accessToken);
+    const challengeId = await beginTotpLogin(
+      'totp35abrute@test.io',
+      'Password123!',
+    );
+    const valid = authenticator.generate(secret);
 
-      const statuses: number[] = [];
-      for (let i = 0; i < 20; i += 1) {
-        let code = String((i * 137 + 1) % 1_000_000).padStart(6, '0');
-        if (code === valid) code = '000001'; // hádej jen ŠPATNĚ
-        const res = await request(srv())
-          .post('/api/auth/login/totp')
-          .set('X-Forwarded-For', `203.0.113.${i}`) // rotace „IP"
-          .send({ challengeId, code });
-        statuses.push(res.status);
-      }
+    const statuses: number[] = [];
+    for (let i = 0; i < 20; i += 1) {
+      let code = String((i * 137 + 1) % 1_000_000).padStart(6, '0');
+      if (code === valid) code = '000001'; // hádej jen ŠPATNĚ
+      const res = await request(srv())
+        .post('/api/auth/login/totp')
+        .set('X-Forwarded-For', `203.0.113.${i}`) // rotace „IP"
+        .send({ challengeId, code });
+      statuses.push(res.status);
+    }
 
-      // Bezpečná obrana (NEEXISTUJE): per-účet lockout by 20 hádání zastavil
-      // statusem 423 (Locked) / 429 (Too Many Requests). Dnes jsou VŠECHNY 401
-      // TOTP_INVALID_CODE → challenge žije dál, brute pokračuje.
-      const lockedOut = statuses.some((s) => s === 423 || s === 429);
-      expect(lockedOut).toBe(true);
-    },
-  );
+    // Bezpečná obrana (NEEXISTUJE): per-účet lockout by 20 hádání zastavil
+    // statusem 423 (Locked) / 429 (Too Many Requests). Dnes jsou VŠECHNY 401
+    // TOTP_INVALID_CODE → challenge žije dál, brute pokračuje.
+    const lockedOut = statuses.some((s) => s === 423 || s === 429);
+    expect(lockedOut).toBe(true);
+  });
 
   // ── B · PT-35b/c/d — enumerace účtů ──────────────────────────────────
 
@@ -285,38 +281,34 @@ describe('PT-35 · Session / Auth (TOTP lockout · enumerace · invalidace token
     expect(after.body?.error?.code).toBe('BANNED');
   });
 
-  // RED (díra): access token je stateless bez `tokenVersion`. Po logout-all
-  // („odhlásit všude") zůstává STARÝ access token plně funkční až do expirace
-  // (prod TTL 3 dny) — guard usera najde (není ban/delete) → projde. Ukradený
-  // token tedy „odhlášení všude" ani změna hesla nezneplatní. Bezpečně by měl
-  // logout-all access token okamžitě zabít → dnes NE → `it.failing`.
-  it.failing(
-    'PT-35e: access token přežije logout-all (chybí tokenVersion → nelze zneplatnit)',
-    async () => {
-      const u = await registerUser(testApp.app, {
-        username: 'inv35access',
-        email: 'inv35access@test.io',
-        password: 'Password123!',
-      });
+  // GREEN pin (obrana DOPLNĚNA pentestem 2026-07-12): tokenVersion. Logout-all
+  // bumpne `user.tokenVersion` v DB → guard porovná `tv` claim STARÉHO access
+  // tokenu s DB → 401 SESSION_REVOKED. Dřív `it.failing` (díra: stateless token
+  // přežil forced-logout až do 3d expirace). Zčervená = invalidace regresovala.
+  it('PT-35e: access token po logout-all UMŘE (tokenVersion invalidace)', async () => {
+    const u = await registerUser(testApp.app, {
+      username: 'inv35access',
+      email: 'inv35access@test.io',
+      password: 'Password123!',
+    });
 
-      const before = await request(srv())
-        .get('/api/users/me')
-        .set(authHeader(u.accessToken));
-      expect(before.status).toBe(200);
+    const before = await request(srv())
+      .get('/api/users/me')
+      .set(authHeader(u.accessToken));
+    expect(before.status).toBe(200);
 
-      const logoutAll = await request(srv())
-        .post('/api/auth/logout-all')
-        .set(authHeader(u.accessToken));
-      expect(logoutAll.status).toBe(204);
+    const logoutAll = await request(srv())
+      .post('/api/auth/logout-all')
+      .set(authHeader(u.accessToken));
+    expect(logoutAll.status).toBe(204);
 
-      // Bezpečná obrana (NEEXISTUJE): starý access token má být po forced-logout
-      // mrtvý. Dnes stále vrací 200 → assertion padá → dokumentuje díru.
-      const after = await request(srv())
-        .get('/api/users/me')
-        .set(authHeader(u.accessToken));
-      expect(after.status).toBe(401);
-    },
-  );
+    // Starý access token je po forced-logout mrtvý (tokenVersion mismatch).
+    const after = await request(srv())
+      .get('/api/users/me')
+      .set(authHeader(u.accessToken));
+    expect(after.status).toBe(401);
+    expect(after.body?.error?.code).toBe('SESSION_REVOKED');
+  });
 
   // ── D · login timing (jen poznámka) ──────────────────────────────────
   // Neexistující účet: `login` hodí INVALID_CREDENTIALS BEZ bcrypt.compare

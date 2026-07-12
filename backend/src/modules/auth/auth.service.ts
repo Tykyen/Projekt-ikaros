@@ -4,6 +4,8 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
   Inject,
 } from '@nestjs/common';
 import { JwtService, type JwtSignOptions } from '@nestjs/jwt';
@@ -63,6 +65,8 @@ export type LoginResult =
 
 const DELETION_HOLD_DAYS = 30; // 1.3c — sjednotné s UsersService
 const TOTP_CHALLENGE_TTL_MS = 5 * 60 * 1000; // 14.1 — challenge mezi heslem a 2FA kódem
+const MAX_TOTP_FAILURES = 5; // PT-35a — práh per-účet lockoutu 2FA
+const TOTP_LOCK_MS = 15 * 60 * 1000; // PT-35a — délka zámku po překročení prahu
 
 @Injectable()
 export class AuthService {
@@ -290,14 +294,41 @@ export class AuthService {
         message: 'Dvoufaktorové ověření není aktivní.',
       });
 
+    // PT-35a — per-účet brute-force lockout. Challenge se ověřuje přes `peek`
+    // (při chybě se NEspotřebuje), takže bez tohoto by útočník s platným heslem
+    // hádal 2FA kód donekonečna. Po N chybách je účet zamčen na okno (429),
+    // NEZÁVISLE na IP (per-IP throttle útočník obejde rotací X-Forwarded-For).
+    if (user.totpLockedUntil && user.totpLockedUntil.getTime() > Date.now()) {
+      const retryAfterSec = Math.ceil(
+        (user.totpLockedUntil.getTime() - Date.now()) / 1000,
+      );
+      throw new HttpException(
+        {
+          code: 'TOTP_LOCKED',
+          message:
+            'Příliš mnoho neúspěšných pokusů. Zkus to prosím znovu za pár minut.',
+          retryAfterSec,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const ok = await this.totpService.verifyForLogin(user, dto.code);
-    if (!ok)
+    if (!ok) {
+      // Atomicky zaznamenej neúspěch — při dosažení prahu se účet zamkne.
+      await this.usersRepo.recordTotpFailure(
+        user.id,
+        MAX_TOTP_FAILURES,
+        TOTP_LOCK_MS,
+      );
       throw new UnauthorizedException({
         code: 'TOTP_INVALID_CODE',
         message: 'Neplatný kód.',
       });
+    }
 
-    // Úspěch → spotřebuj challenge (jednorázový).
+    // Úspěch → vynuluj čítač neúspěchů + spotřebuj challenge (jednorázový).
+    await this.usersRepo.resetTotpFailures(user.id);
     await this.securityTokens.consume(dto.challengeId, 'totp_challenge');
 
     let newTrustToken: string | undefined;
@@ -477,6 +508,9 @@ export class AuthService {
   async logoutAll(userId: string): Promise<void> {
     await this.refreshRepo.revokeAllForUser(userId);
     await this.elevationService.deactivateAllForUser(userId);
+    // SESS (pentest PT-35e) — zabij i STATELESS access tokeny (3d TTL): bump
+    // tokenVersion → guard porovná `tv` claim s DB a všechny staré tokeny odmítne.
+    await this.usersRepo.incrementTokenVersion(userId);
   }
 
   async checkUsername(username: string): Promise<{ available: boolean }> {
@@ -506,6 +540,9 @@ export class AuthService {
       `Password changed pro userId=${payload.userId}, revokuji refresh tokeny`,
     );
     await this.refreshRepo.revokeAllForUser(payload.userId);
+    // SESS (pentest PT-35e) — i access tokeny: změna hesla musí zneplatnit
+    // všechny dřív vydané access tokeny (ukradený token po změně hesla umře).
+    await this.usersRepo.incrementTokenVersion(payload.userId);
   }
 
   // ── SP2 — Email flows (1.7) ────────────────────────────────────────
@@ -719,6 +756,8 @@ export class AuthService {
       username: user.username,
       role: user.role,
       characterPath: user.characterPath ?? '',
+      // SESS (pentest PT-35e) — verze tokenu; guard porovná `tv` s DB, bump = kill.
+      tv: user.tokenVersion ?? 0,
     });
 
     const jti = uuid();

@@ -35,6 +35,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       username: payload.username,
       role: payload.role,
       characterPath: payload.characterPath,
+      // SESS (pentest PT-35e) — verze tokenu (undefined u starých tokenů bez claimu).
+      tokenVersion: payload.tv as number | undefined,
     };
   }
 }

@@ -67,6 +67,19 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
         // (a „odhlásit všude" by roli neaktualizovalo). DB = zdroj pravdy;
         // usera tu už načítáme kvůli ban/delete gate, jen přepíšeme roli.
         if (request.user) request.user.role = user.role;
+        // SESS (pentest PT-35e) — tokenVersion: logout-all / změna hesla bumpnou
+        // `user.tokenVersion` v DB; STARÝ access token (3d TTL) nese starou verzi
+        // → odmítni. Starý token bez `tv` claimu = verze 0; noví uživatelé mají
+        // default 0 → při deployi se NIKDO neodhlásí (kill až po reálném bumpu).
+        if (
+          request.user &&
+          (request.user.tokenVersion ?? 0) !== (user.tokenVersion ?? 0)
+        ) {
+          throw new UnauthorizedException({
+            code: 'SESSION_REVOKED',
+            message: 'Relace byla ukončena, přihlas se prosím znovu.',
+          });
+        }
         // Elevation („nahození práv") — jen pro platform Admin/Superadmin.
         // Naplní seznam světů, kde má admin aktivní bypass. Běžných uživatelů
         // se extra lookup netýká (výkon). Helper: `worldAdminBypass`.
