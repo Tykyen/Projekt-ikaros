@@ -15,7 +15,12 @@ export interface ScheduledMessage {
   content?: string;
   attachments?: unknown[];
   sendAt: Date;
-  status: 'pending' | 'sent' | 'failed';
+  /**
+   * `sending` = atomicky claimnutá cronem (brání dvojímu odeslání při 2+
+   * replikách); stale `sending` (pád procesu mid-send) se po timeoutu
+   * re-claimne.
+   */
+  status: 'pending' | 'sending' | 'sent' | 'failed';
   createdAt?: Date;
   updatedAt?: Date;
 }

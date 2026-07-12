@@ -429,6 +429,8 @@ export class CharacterAccountsService {
       inGameDate: inGameDate ?? null,
       delta: -abs,
       description: reason,
+      // PT-43 — marker původu: undo nesmí popnout nákupem vázanou tx.
+      origin: 'purchase',
       performedByUserId,
     };
     const updated = await this.accountsRepo.appendTransactionIfSufficient(
@@ -490,6 +492,16 @@ export class CharacterAccountsService {
     if (account.transactions.length === 0) return account;
 
     const last = account.transactions[account.transactions.length - 1];
+    // PT-43b/c/d — tx vázaná na nákup/převod má protistranu (položku
+    // v inventáři / druhý účet), kterou undo nevrací → popnutí by tvořilo
+    // peníze z ničeho (cross-account duplikace / položka zdarma). Nákup se
+    // vrací stornem (refund flow), převod protipřevodem.
+    if (last.transferRef || last.origin === 'purchase')
+      throw new ConflictException({
+        code: 'UNDO_LINKED_TRANSACTION',
+        message:
+          'Poslední transakce vznikla nákupem nebo převodem — nejde vrátit přes undo. Použij storno nákupu, nebo pošli protipřevod.',
+      });
     const updated = await this.accountsRepo.update(
       accountId,
       {

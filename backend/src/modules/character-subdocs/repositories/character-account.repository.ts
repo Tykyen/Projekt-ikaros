@@ -194,6 +194,8 @@ export class CharacterAccountRepository {
           transferRef: t.transferRef as
             | FinanceTransaction['transferRef']
             | undefined,
+          // PT-43 — marker původu (purchase); legacy tx bez pole → undefined.
+          origin: t.origin as FinanceTransaction['origin'],
           performedByUserId: (t.performedByUserId as string) ?? '',
         }),
       ),

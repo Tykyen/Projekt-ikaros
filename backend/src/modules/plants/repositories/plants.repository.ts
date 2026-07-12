@@ -92,9 +92,17 @@ export class PlantsRepository {
     return this.toEntity(doc)!;
   }
 
-  async update(id: string, patch: Partial<Plant>): Promise<Plant | null> {
+  async update(
+    id: string,
+    patch: Partial<Plant>,
+    // D-072 — pole k vymazání ($unset); enum pole nejdou vyprázdnit přes $set.
+    unset?: string[],
+  ): Promise<Plant | null> {
+    const update: Record<string, unknown> = { $set: patch };
+    if (unset?.length)
+      update.$unset = Object.fromEntries(unset.map((k) => [k, 1]));
     const doc = await this.model
-      .findByIdAndUpdate(id, { $set: patch }, { new: true })
+      .findByIdAndUpdate(id, update, { new: true })
       .exec();
     return this.toEntity(doc);
   }

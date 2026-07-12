@@ -29,7 +29,7 @@ function makeMsg(over: Partial<ScheduledMessage> = {}): ScheduledMessage {
 describe('ScheduledMessagesController', () => {
   const repo = {
     create: jest.fn(),
-    findDue: jest.fn(),
+    claimDue: jest.fn(),
     findPendingByOwner: jest.fn(),
     findById: jest.fn(),
     setStatus: jest.fn(),

@@ -66,6 +66,12 @@ export interface FinanceTransaction {
     counterpartyCharacterId: string;
     direction: 'in' | 'out';
   };
+  /**
+   * PT-43b/c/d — původ transakce mimo ruční adjust. `'purchase'` = odečet
+   * nákupu (purchase log drží protistranu: položku v inventáři). Undo takovou
+   * tx nesmí popnout — vrácení řeší storno nákupu, ne undo.
+   */
+  origin?: 'purchase';
   /** Audit — user (ne character), který akci provedl. */
   performedByUserId: string;
 }

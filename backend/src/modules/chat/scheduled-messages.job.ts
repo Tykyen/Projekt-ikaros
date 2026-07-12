@@ -23,7 +23,9 @@ export class ScheduledMessagesJob {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async sendDue(): Promise<void> {
-    const due = await this.repo.findDue(new Date());
+    // Atomický claim (pending→sending) — při 2+ replikách BE nedostanou dvě
+    // instance tutéž zprávu (dřív read-then-set → dvojí odeslání).
+    const due = await this.repo.claimDue(new Date());
     for (const m of due) {
       try {
         await this.chatService.sendMessage(

@@ -24,16 +24,35 @@ export class MongoScheduledMessageRepository
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
   }
 
-  async findDue(now: Date, limit = 50): Promise<ScheduledMessage[]> {
-    const docs = await this.model
-      .find({ status: 'pending', sendAt: { $lte: now } })
-      .sort({ sendAt: 1 })
-      .limit(limit)
-      .lean()
-      .exec();
-    return docs.map((d) =>
-      this.toEntity(d as unknown as Record<string, unknown>),
+  /** Po tolika ms se `sending` bere jako stale (pád procesu mid-send) a re-claimne se. */
+  private static readonly SENDING_STALE_MS = 10 * 60 * 1000;
+
+  async claimDue(now: Date, limit = 50): Promise<ScheduledMessage[]> {
+    const staleCutoff = new Date(
+      now.getTime() - MongoScheduledMessageRepository.SENDING_STALE_MS,
     );
+    const claimed: ScheduledMessage[] = [];
+    // Claim po jedné přes findOneAndUpdate — flip pending→sending je atomický,
+    // souběžná instance dostane další dokument (filtr už nesedí). `new:true`
+    // vrací claimnutý stav; updatedAt bump chrání před okamžitým re-claimem.
+    for (let i = 0; i < limit; i++) {
+      const doc = await this.model
+        .findOneAndUpdate(
+          {
+            $or: [
+              { status: 'pending', sendAt: { $lte: now } },
+              { status: 'sending', updatedAt: { $lte: staleCutoff } },
+            ],
+          },
+          { $set: { status: 'sending' } },
+          { new: true, sort: { sendAt: 1 } },
+        )
+        .lean()
+        .exec();
+      if (!doc) break;
+      claimed.push(this.toEntity(doc as unknown as Record<string, unknown>));
+    }
+    return claimed;
   }
 
   async findPendingByOwner(

@@ -11,6 +11,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PlantsRepository } from './repositories/plants.repository';
 import { isBestieCurator } from '../bestiae/curator-roles';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -24,7 +25,10 @@ import type { UpdatePlantDto } from './dto/update-plant.dto';
 
 @Injectable()
 export class PlantsService {
-  constructor(private readonly repo: PlantsRepository) {}
+  constructor(
+    private readonly repo: PlantsRepository,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   /**
    * Veřejné čtení herbáře (dvě knihovny přes `status`, filtr rarity/tag).
@@ -96,9 +100,25 @@ export class PlantsService {
         message: 'Upravit rostlinu může jen autor nebo správce.',
       });
     }
+    // D-071 — výměna obrázku: starý blob by osiřel na Cloudinary. Emit PŘED
+    // zápisem (best-effort úklid; listener ne-Cloudinary URL ignoruje).
+    if (
+      dto.imageUrl !== undefined &&
+      existing.imageUrl &&
+      dto.imageUrl !== existing.imageUrl
+    ) {
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    }
+    // D-072 — `rarity: null` = sentinel „vymazat na neurčeno". Enum v schématu
+    // null nezná → přeložíme na `$unset` (mongoose by null zamítl / $set nechal).
+    const { rarity, ...rest } = dto;
+    const patch: Partial<Plant> = { ...rest };
+    const unset: string[] = [];
+    if (rarity === null) unset.push('rarity');
+    else if (rarity !== undefined) patch.rarity = rarity;
     // `dto` nese jen odeslaná pole (class-validator); mongoose strip undefined v
     // `$set` → partial update. `statblocks`/`status`/`authorId` DTO neobsahuje.
-    const updated = await this.repo.update(id, dto);
+    const updated = await this.repo.update(id, patch, unset);
     if (!updated) throw this.notFound();
     return updated;
   }
@@ -128,16 +148,16 @@ export class PlantsService {
         message: 'Smazat rostlinu může jen autor (návrh) nebo správce.',
       });
     }
-    // Pozn.: úklid osiřelého `imageUrl` blobu (Cloudinary) tu ZATÍM neřešíme —
-    // herbář nemá napojení na `media.orphaned` (bestiae ho má přes EventEmitter).
-    // Viz report / potenciální dluh: hard-delete rostliny s obrázkem = orphan blob.
+    // D-071 — hard-delete s obrázkem: blob by osiřel na Cloudinary → emit
+    // `media.orphaned` (stejný úklid jako bestiae).
+    if (existing.imageUrl)
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
     await this.repo.delete(id);
   }
 
   /**
    * Moderační skrytí/odkrytí (parity s bestiae). Bez autorské/role brány
-   * (autorizuje moderační cesta). Ready pro budoucí enforcement listener (viz
-   * bestiae `moderation-enforcement.listener.ts`); zatím ho volá jen budoucí kód.
+   * (autorizuje moderační cesta) — volá `PlantsModerationEnforcementListener`.
    */
   async moderationSetHidden(
     id: string,
@@ -146,6 +166,19 @@ export class PlantsService {
   ): Promise<boolean> {
     const updated = await this.repo.setModeration(id, hidden, reason);
     return updated !== null;
+  }
+
+  /**
+   * D-070 — moderační smazání (M4). Rostliny nemají soft-delete → hard delete
+   * (revert M4 je NEVRATNÝ, listener to loguje). Blob úklid jako u `remove`.
+   */
+  async moderationRemove(id: string): Promise<boolean> {
+    const existing = await this.repo.findById(id);
+    if (!existing) return false;
+    if (existing.imageUrl)
+      this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
+    await this.repo.delete(id);
+    return true;
   }
 
   // ───────── Authorization helpers ─────────

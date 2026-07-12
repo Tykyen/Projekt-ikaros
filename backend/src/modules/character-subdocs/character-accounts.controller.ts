@@ -249,11 +249,21 @@ export class CharacterAccountsController {
 
   @Post('accounts/:accountId/undo')
   @ApiOperation({ summary: 'Vrátit poslední transakci' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden (FORBIDDEN_ADJUST nebo PLAYER_ADJUST_DISABLED)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'UNDO_LINKED_TRANSACTION (nákup/převod se vrací stornem)',
+  })
   async undo(
     @Param('accountId') accountId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    await this.accountsService.assertWriteContentAccess(accountId, user);
+    // PT-43d — undo je mutace zůstatku jako adjust → stejný gate. Dřív stačil
+    // write-content, takže hráč obcházel `allowPlayerSelfAdjust:false`.
+    await this.accountsService.assertCanAdjust(accountId, user);
     return this.accountsService.undoLast(accountId);
   }
 

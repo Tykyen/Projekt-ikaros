@@ -150,6 +150,10 @@ export class UsersModerationEnforcementListener {
         bannedAt: now,
         banReason,
         bannedUntil,
+        // D-065 — zdroj banu: revert (overturned odvolání) smí odbanovat JEN
+        // ban téhle moderace; nezávislý admin ban (bannedBy = admin userId)
+        // musí přežít.
+        bannedBy: `moderation:${p.decisionId}`,
       });
       // Vzor admin.banUser: invaliduj/naplň ban cache + force-disconnect živých
       // socketů a signál klientu (kind:'ban' = instant logout ve FE client.ts).
@@ -171,9 +175,10 @@ export class UsersModerationEnforcementListener {
   /**
    * Zruší ban (revert overturned M5/M6). Mirror `admin.unbanUser` —
    * `bannedAt/bannedBy/banReason/bannedUntil` clear + invalidace cache + signál.
-   * Pozn.: nerozlišujeme původ banu — pokud byl účet nezávisle zabanován adminem
-   * z jiného důvodu, revert ho také odblokuje (přijatelné, moderace = zdroj
-   * pravdy pro tento účet; zalogováno).
+   * D-065 — odbanuje JEN pokud aktuální ban pochází z TOHOTO moderačního
+   * rozhodnutí (`bannedBy === 'moderation:<decisionId>'`; legacy bany bez
+   * markeru poznáme podle decisionId v banReason). Nezávislý admin ban nebo
+   * novější moderační ban (eskalace M5→M6) revert nechává být.
    */
   private async applyUnban(p: ModerationEnforcePayload): Promise<void> {
     const userId = p.targetAuthorId;
@@ -194,6 +199,20 @@ export class UsersModerationEnforcementListener {
       if (!user.bannedAt) {
         this.logger.warn(
           `Unban účtu ${userId} — účet není zabanován, no-op (rozhodnutí ${p.decisionId}).`,
+        );
+        return;
+      }
+      // D-065 — shoda zdroje: marker `moderation:<decisionId>`, nebo legacy
+      // moderační ban bez markeru (decisionId je součástí banReason).
+      const fromThisDecision =
+        user.bannedBy === `moderation:${p.decisionId}` ||
+        (user.bannedBy == null &&
+          (user.banReason?.includes(p.decisionId) ?? false));
+      if (!fromThisDecision) {
+        this.logger.warn(
+          `Unban účtu ${userId} přeskočen — aktuální ban nepochází z rozhodnutí ` +
+            `${p.decisionId} (bannedBy=${user.bannedBy ?? 'n/a'}); ` +
+            `nezávislý ban musí přežít revert.`,
         );
         return;
       }

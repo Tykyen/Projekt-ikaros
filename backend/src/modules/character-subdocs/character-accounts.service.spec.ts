@@ -515,6 +515,56 @@ describe('CharacterAccountsService', () => {
       expect(result).toEqual(acc);
       expect(mockAccountsRepo.update).not.toHaveBeenCalled();
     });
+
+    // PT-43b/c — popnutí nákupem/převodem vázané tx = peníze z ničeho
+    // (protistranu undo nevrací). Musí letět 409 UNDO_LINKED_TRANSACTION.
+    it('throw UNDO_LINKED_TRANSACTION pro tx z nákupu (origin=purchase)', async () => {
+      const acc = mockAccount({
+        balance: 900,
+        transactions: [
+          {
+            id: 't1',
+            date: new Date(),
+            delta: -100,
+            description: 'Nákup: Meč',
+            origin: 'purchase' as const,
+            performedByUserId: 'user1',
+          },
+        ],
+      });
+      mockAccountsRepo.findById.mockResolvedValue(acc);
+
+      await expect(service.undoLast('acc1')).rejects.toMatchObject({
+        response: { code: 'UNDO_LINKED_TRANSACTION' },
+      });
+      expect(mockAccountsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('throw UNDO_LINKED_TRANSACTION pro tx z převodu (transferRef)', async () => {
+      const acc = mockAccount({
+        balance: 1100,
+        transactions: [
+          {
+            id: 't1',
+            date: new Date(),
+            delta: 100,
+            description: 'Převod',
+            transferRef: {
+              counterpartyAccountId: 'acc2',
+              counterpartyCharacterId: 'char2',
+              direction: 'in' as const,
+            },
+            performedByUserId: 'user1',
+          },
+        ],
+      });
+      mockAccountsRepo.findById.mockResolvedValue(acc);
+
+      await expect(service.undoLast('acc1')).rejects.toMatchObject({
+        response: { code: 'UNDO_LINKED_TRANSACTION' },
+      });
+      expect(mockAccountsRepo.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('transfer', () => {

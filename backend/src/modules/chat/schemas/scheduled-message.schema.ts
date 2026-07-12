@@ -24,10 +24,11 @@ export class ScheduledMessageSchemaClass {
     type: String,
     required: true,
     default: 'pending',
-    enum: ['pending', 'sent', 'failed'],
+    // `sending` = atomicky claimnutá cronem (multi-instance ochrana).
+    enum: ['pending', 'sending', 'sent', 'failed'],
     index: true,
   })
-  status: 'pending' | 'sent' | 'failed';
+  status: 'pending' | 'sending' | 'sent' | 'failed';
 }
 
 export const ScheduledMessageSchema = SchemaFactory.createForClass(

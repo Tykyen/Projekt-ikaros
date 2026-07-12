@@ -11,6 +11,7 @@ import { PlantsRepository } from './repositories/plants.repository';
 import { PlantsService } from './plants.service';
 import { PlantsController } from './plants.controller';
 import { CommunityPlantReviewProvider } from './community-plant-review.provider';
+import { PlantsModerationEnforcementListener } from './moderation-enforcement.listener';
 import { PendingActionsService } from '../pending-actions/pending-actions.service';
 
 @Module({
@@ -25,6 +26,8 @@ import { PendingActionsService } from '../pending-actions/pending-actions.servic
     PlantsService,
     // 21.5a — pending fronta „rostliny ke schválení".
     CommunityPlantReviewProvider,
+    // D-070 — enforcement moderace 20B (skrýt/smazat rostlinu).
+    PlantsModerationEnforcementListener,
   ],
   exports: [PlantsService],
 })
