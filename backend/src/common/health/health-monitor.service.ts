@@ -25,6 +25,9 @@ import {
 export class HealthMonitorService {
   private readonly logger = new Logger(HealthMonitorService.name);
   private lastDown = new Set<string>();
+  // RSS vzorky (1×/min) pro trend-detekci leaku. Reset při restartu = správně
+  // (nový proces nedědí staré vzorky). Bounded na RSS_WINDOW.
+  private rssHistory: number[] = [];
 
   constructor(
     @InjectConnection() private readonly mongo: Connection,
@@ -79,16 +82,45 @@ export class HealthMonitorService {
       });
     }
 
-    // Paměť — alert při překročení prahu RSS_ALERT_MB (default 1536 MB) = možný
-    // memory leak, než dojde k OOM killu.
+    // Paměť — leak se pozná z TRENDU (trvalý růst), NE z absolutní hodnoty.
+    // Vysoká baseline (např. ~2 GB ONNX embedding modely in-process) je legitimní
+    // a fixní práh na ní jen spamuje „možný leak" à 30 min. Reálný leak = RSS
+    // roste; baseline = RSS je plochá. Držíme okno vzorků (1×/min) a alertujeme:
+    //  (a) TREND: RSS trvale nad minimem okna → možný leak (nezávisle na baseline),
+    //  (b) TVRDÝ STROP: blízko OOM → critical bez ohledu na trend.
     const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
-    const rssLimit = Number(this.config.get<string>('RSS_ALERT_MB') ?? '1536');
-    if (rssMb > rssLimit) {
+    const windowMin = Number(this.config.get<string>('RSS_WINDOW') ?? '30'); // ~30 min
+    this.rssHistory.push(rssMb);
+    if (this.rssHistory.length > windowMin) this.rssHistory.shift();
+
+    // (a) Trend: current výrazně nad MINIMEM okna = RSS leze nahoru. Minimum (ne
+    // nejstarší vzorek) je odolné proti krátkému spiku (export/PDF) na kraji okna.
+    const growthFloorMb = Number(
+      this.config.get<string>('RSS_LEAK_GROWTH_MB') ?? '384',
+    );
+    if (this.rssHistory.length >= windowMin) {
+      const lo = Math.min(...this.rssHistory);
+      const growth = rssMb - lo;
+      if (growth >= growthFloorMb && rssMb >= lo * 1.2) {
+        void this.alert.alert(
+          'warn',
+          'Rostoucí paměť (RSS trend)',
+          `RSS +${growth} MB nad minimum okna (${lo}→${rssMb} MB) za ~${windowMin} min — možný memory leak.`,
+          { dedupeKey: 'rss-leak-trend', cooldownMs: 30 * 60 * 1000 },
+        );
+      }
+    }
+
+    // (b) Tvrdý strop: skutečná blízkost OOM → critical. Default 3500 MB (vysoko,
+    // ať nefiluje na baseline); sniž přes RSS_HARD_MB dle RAM boxu. (Starý
+    // RSS_ALERT_MB se už nepoužívá — nahrazeno trendem + tvrdým stropem.)
+    const rssHard = Number(this.config.get<string>('RSS_HARD_MB') ?? '3500');
+    if (rssMb > rssHard) {
       void this.alert.alert(
-        'warn',
-        'Vysoká paměť (RSS)',
-        `${rssMb} MB > práh ${rssLimit} MB — možný memory leak.`,
-        { dedupeKey: 'rss-high', cooldownMs: 30 * 60 * 1000 },
+        'critical',
+        'Kritická paměť (RSS)',
+        `${rssMb} MB > tvrdý strop ${rssHard} MB — hrozí OOM kill.`,
+        { dedupeKey: 'rss-critical', cooldownMs: 30 * 60 * 1000 },
       );
     }
   }

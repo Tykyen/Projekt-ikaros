@@ -25,7 +25,13 @@ describe('HealthMonitorService (monitoring 3. noha)', () => {
       ping: jest.fn().mockResolvedValue('PONG'),
     } as never;
     const config = {
-      get: () => 'http://localhost:7700',
+      get: (key: string) => {
+        if (key === 'MEILI_HOST') return 'http://localhost:7700';
+        if (key === 'RSS_WINDOW') return '3'; // malé okno pro deterministický test
+        if (key === 'RSS_LEAK_GROWTH_MB') return '384';
+        if (key === 'RSS_HARD_MB') return '3500';
+        return undefined;
+      },
     } as never;
     global.fetch = jest
       .fn()
@@ -33,6 +39,21 @@ describe('HealthMonitorService (monitoring 3. noha)', () => {
     const svc = new HealthMonitorService(mongo, redis, config, alert as never);
     return { svc, alert };
   }
+
+  /** Zafixuje `process.memoryUsage().rss` na danou hodnotu MB (deterministický RSS). */
+  function mockRss(mb: number) {
+    jest.spyOn(process, 'memoryUsage').mockReturnValue({
+      rss: mb * 1024 * 1024,
+      heapTotal: 0,
+      heapUsed: 0,
+      external: 0,
+      arrayBuffers: 0,
+    });
+  }
+  const rssCalls = (alert: { alert: jest.Mock }) =>
+    alert.alert.mock.calls.filter(
+      (c) => typeof c[1] === 'string' && c[1].includes('paměť (RSS'),
+    );
 
   it('vše zdravé → žádný alert', async () => {
     const { svc, alert } = make({});
@@ -105,6 +126,48 @@ describe('HealthMonitorService (monitoring 3. noha)', () => {
       'Závislost OBNOVENA: meili',
       expect.any(String),
       expect.objectContaining({ dedupeKey: 'dep-up:meili' }),
+    );
+  });
+
+  // ── RSS: trend místo absolutního prahu (2026-07-12) ──────────────────────
+
+  // KLÍČOVÝ pin: vysoká, ale PLOCHÁ baseline (např. ~2,46 GB ONNX embedding)
+  // už NESMÍ spamovat „možný leak" à 30 min. Dřív `rss > 1536` = alert pořád.
+  it('RSS: plochá vysoká baseline (2460 MB) → ŽÁDNÝ RSS alert (ne spam)', async () => {
+    const { svc, alert } = make({});
+    mockRss(2460);
+    for (let i = 0; i < 4; i += 1) await svc.check(); // okno se naplní, RSS neroste
+    expect(rssCalls(alert)).toHaveLength(0);
+  });
+
+  // Reálný leak = RSS trvale nad minimem okna → warn trend alert.
+  it('RSS: trvalý růst nad minimum okna → warn „Rostoucí paměť (RSS trend)"', async () => {
+    const { svc, alert } = make({});
+    mockRss(500);
+    await svc.check();
+    await svc.check();
+    mockRss(1000); // lo=500, +500 ≥ 384 a ≥ 20 % → leak signatura
+    await svc.check();
+    const rss = rssCalls(alert);
+    expect(rss).toHaveLength(1);
+    expect(rss[0][0]).toBe('warn');
+    expect(rss[0][1]).toBe('Rostoucí paměť (RSS trend)');
+    expect(rss[0][3]).toEqual(
+      expect.objectContaining({ dedupeKey: 'rss-leak-trend' }),
+    );
+  });
+
+  // Skutečná blízkost OOM → critical bez ohledu na trend.
+  it('RSS: nad tvrdým stropem (3600 > 3500) → critical „Kritická paměť (RSS)"', async () => {
+    const { svc, alert } = make({});
+    mockRss(3600);
+    await svc.check();
+    const rss = rssCalls(alert);
+    expect(rss).toHaveLength(1);
+    expect(rss[0][0]).toBe('critical');
+    expect(rss[0][1]).toBe('Kritická paměť (RSS)');
+    expect(rss[0][3]).toEqual(
+      expect.objectContaining({ dedupeKey: 'rss-critical' }),
     );
   });
 });
