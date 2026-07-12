@@ -445,46 +445,16 @@ export class CampaignPurchaseService {
         message: 'Storno smíš jen u svého nákupu.',
       });
 
-    // RC-E2 fix — atomický flip statusu PŘED kreditem. Souběžná storna téhož
-    // nákupu: jen jedno projde filtrem `{status:'active'}` → peníze se vrátí
-    // max 1×. (Brzký `status!=='active'` check výše zůstává jako rychlá pojistka.)
-    const flipped = await this.purchaseRepo.markRefundedIfActive(purchaseId);
-    if (!flipped)
-      throw new ConflictException({
-        code: 'PURCHASE_ALREADY_REFUNDED',
-        message: 'Nákup už byl vrácen.',
-      });
-
-    // Vrať peníze na účet (tolerantní k chybějícímu účtu při čtení balance).
-    // DUR (styl 43) — kredit je PO atomickém flipu statusu. Když selže, vrať
-    // status na 'active' (kompenzace), ať storno nezůstane 'refunded' bez peněz
-    // = trvalá ztráta + hráč navždy zablokován `PURCHASE_ALREADY_REFUNDED`.
-    // (Reziduum: pád procesu PŘESNĚ mezi flipem a kreditem řeší jen plná
-    // transakce — vyžaduje session-threading přes accountsService.adjust; dluh.)
-    let newBalance = 0;
-    try {
-      if (purchase.paidAmount > 0) {
-        const acc = await this.accountsService.adjust(
-          purchase.accountId,
-          {
-            amount: purchase.paidAmount,
-            reason: `Storno: ${purchase.itemSnapshot.name}`,
-          },
-          requester,
-        );
-        newBalance = acc.balance;
-      } else {
-        const acc = await this.accountsService
-          .getAccount(purchase.accountId)
-          .catch(() => null);
-        newBalance = acc?.balance ?? 0;
-      }
-    } catch (err) {
-      await this.purchaseRepo
-        .markActiveIfRefunded(purchaseId)
-        .catch(() => undefined);
-      throw err;
-    }
+    // DUR (styl 43) — flip statusu + kredit MUSÍ commitnout společně, jinak
+    // pád mezi nimi = status `refunded` bez vrácených peněz (trvalá ztráta +
+    // hráč navždy zablokován `PURCHASE_ALREADY_REFUNDED`). Vzor `purchase`
+    // RC-E5: `withTransaction` (atomicky), fallback bez replica setu =
+    // sekvenční flip→kredit s kompenzací (revert flipu při selhání kreditu).
+    // Odebrání z vybavení je best-effort PO tx (nekritické pro invariant peněz).
+    const { flipped, newBalance } = await this.runRefundSteps(
+      purchase,
+      purchaseId,
+    );
 
     // Odeber položku z vybavení — tolerantně (hráč ji mohl smazat ručně).
     if (character) {
@@ -496,6 +466,130 @@ export class CampaignPurchaseService {
     }
 
     return { purchase: flipped, newBalance };
+  }
+
+  /**
+   * DUR — flip statusu + kredit atomicky. `withTransaction` (replica set) →
+   * obojí commitne společně nebo se rollbackne. Fallback bez replica setu
+   * (dev / single-instance) = sekvenční s kompenzací (vzor `purchase` RC-E5).
+   */
+  private async runRefundSteps(
+    purchase: CampaignPurchase,
+    purchaseId: string,
+  ): Promise<{ flipped: CampaignPurchase; newBalance: number }> {
+    const session = await this.connection.startSession();
+    try {
+      let result: { flipped: CampaignPurchase; newBalance: number } | null =
+        null;
+      try {
+        await session.withTransaction(async () => {
+          result = await this.refundInTransaction(
+            purchase,
+            purchaseId,
+            session,
+          );
+        });
+      } catch (txErr) {
+        const msg = (txErr as Error).message || '';
+        if (
+          msg.includes('replica set') ||
+          msg.includes('Transaction numbers') ||
+          msg.includes('IllegalOperation')
+        ) {
+          this.logger.warn(
+            'Mongo replica set not available, falling back to sequential refund with compensation (DUR).',
+          );
+          return await this.refundSequentialFallback(purchase, purchaseId);
+        }
+        throw txErr;
+      }
+      return result!;
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  /**
+   * Refund uvnitř session: flip `active→refunded` + kredit účtu. Obojí přes
+   * `session` → commit společně. Souběžné storno téhož nákupu: jen jedno projde
+   * `markRefundedIfActive` (druhé dostane null → PURCHASE_ALREADY_REFUNDED).
+   * Chybějící účet u placené položky → throw → tx abort → status zpět `active`.
+   */
+  private async refundInTransaction(
+    purchase: CampaignPurchase,
+    purchaseId: string,
+    session: ClientSession,
+  ): Promise<{ flipped: CampaignPurchase; newBalance: number }> {
+    const flipped = await this.purchaseRepo.markRefundedIfActive(
+      purchaseId,
+      session,
+    );
+    if (!flipped)
+      throw new ConflictException({
+        code: 'PURCHASE_ALREADY_REFUNDED',
+        message: 'Nákup už byl vrácen.',
+      });
+
+    if (purchase.paidAmount > 0) {
+      const acc = await this.accountsService.creditInSession(
+        purchase.accountId,
+        purchase.paidAmount,
+        `Storno: ${purchase.itemSnapshot.name}`,
+        purchase.buyerUserId,
+        session,
+      );
+      return { flipped, newBalance: acc.balance };
+    }
+    // Zdarma položka — žádný kredit; balance jen pro odpověď (tolerant k chybě).
+    const acc = await this.accountsService
+      .getAccount(purchase.accountId)
+      .catch(() => null);
+    return { flipped, newBalance: acc?.balance ?? 0 };
+  }
+
+  /**
+   * DUR fallback bez replica setu — sekvenční flip→kredit s kompenzací: když
+   * kredit po flipu selže, vrať status na `active` (jinak `refunded` bez peněz).
+   * Reziduum: pád procesu PŘESNĚ mezi flipem a kreditem tu tx nekryje (to řeší
+   * jen `withTransaction` výš na replica setu) — na single-instance je okno
+   * malé a status-flip zůstane, což hráč nahlásí (peníze nevrácené, ne ztracené).
+   */
+  private async refundSequentialFallback(
+    purchase: CampaignPurchase,
+    purchaseId: string,
+  ): Promise<{ flipped: CampaignPurchase; newBalance: number }> {
+    const flipped = await this.purchaseRepo.markRefundedIfActive(purchaseId);
+    if (!flipped)
+      throw new ConflictException({
+        code: 'PURCHASE_ALREADY_REFUNDED',
+        message: 'Nákup už byl vrácen.',
+      });
+
+    let newBalance = 0;
+    try {
+      if (purchase.paidAmount > 0) {
+        // Bez session (fallback) — stejná bez-gate cesta jako v tx verzi.
+        const acc = await this.accountsService.creditInSession(
+          purchase.accountId,
+          purchase.paidAmount,
+          `Storno: ${purchase.itemSnapshot.name}`,
+          purchase.buyerUserId,
+        );
+        newBalance = acc.balance;
+      } else {
+        const acc = await this.accountsService
+          .getAccount(purchase.accountId)
+          .catch(() => null);
+        newBalance = acc?.balance ?? 0;
+      }
+    } catch (err) {
+      // Kompenzace — vrať status, ať storno nezůstane refunded bez peněz.
+      await this.purchaseRepo
+        .markActiveIfRefunded(purchaseId)
+        .catch(() => undefined);
+      throw err;
+    }
+    return { flipped, newBalance };
   }
 
   async listPurchases(

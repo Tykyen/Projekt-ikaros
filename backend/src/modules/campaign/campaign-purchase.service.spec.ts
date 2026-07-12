@@ -31,10 +31,12 @@ describe('CampaignPurchaseService', () => {
     update: jest.fn(),
     findMany: jest.fn(),
     markRefundedIfActive: jest.fn(),
+    markActiveIfRefunded: jest.fn(),
   };
   const mockAccounts = {
     assertCanAdjust: jest.fn(),
     adjust: jest.fn(),
+    creditInSession: jest.fn(),
     debitIfSufficient: jest.fn(),
     getAccount: jest.fn(),
   };
@@ -55,12 +57,15 @@ describe('CampaignPurchaseService', () => {
   // (plná kompenzace). Tím unit spec ověřuje právě fallback (single-instance
   // prod) chování; transakční cestu pokrývá race e2e na MongoMemoryReplSet.
   const mockSession = {
-    withTransaction: jest.fn(() =>
-      Promise.reject(
-        new Error(
-          'Transaction numbers are only allowed on a replica set member or mongos',
+    // Přijímá (a ignoruje) callback — konkrétní testy transakční cesty ho přes
+    // `mockImplementationOnce` spustí; default = reject → sekvenční fallback.
+    withTransaction: jest.fn(
+      (_cb?: () => Promise<void>): Promise<void> =>
+        Promise.reject(
+          new Error(
+            'Transaction numbers are only allowed on a replica set member or mongos',
+          ),
         ),
-      ),
     ),
     endSession: jest.fn(() => Promise.resolve(undefined)),
   };
@@ -301,6 +306,7 @@ describe('CampaignPurchaseService', () => {
       id: 'p1',
       worldId: 'w1',
       characterId: 'char1',
+      buyerUserId: 'u1',
       accountId: 'acc1',
       paidAmount: 100,
       inventorySectionId: 'sec1',
@@ -309,13 +315,18 @@ describe('CampaignPurchaseService', () => {
       itemSnapshot: { name: 'Meč' },
     };
 
-    it('vrátí peníze + odebere položku z vybavení', async () => {
+    // Bez replica setu (unit) padá `withTransaction` → sekvenční fallback, kde
+    // se kredit dělá přes `creditInSession` bez session (bez-gate cesta).
+    it('fallback: vrátí peníze (creditInSession) + odebere položku z vybavení', async () => {
       mockPurchaseRepo.findById.mockResolvedValue(activePurchase);
       mockPurchaseRepo.markRefundedIfActive.mockResolvedValue({
         ...activePurchase,
         status: 'refunded',
       });
-      mockAccounts.adjust.mockResolvedValue({ ...account, balance: 300 });
+      mockAccounts.creditInSession.mockResolvedValue({
+        ...account,
+        balance: 300,
+      });
       mockSubdocs.getInventory.mockResolvedValue({
         sections: [{ id: 'sec1', items: [{ id: 'it1' }] }],
       });
@@ -323,10 +334,11 @@ describe('CampaignPurchaseService', () => {
       const res = await service.refund('w1', 'p1', ru('pj1'));
 
       expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalledWith('p1');
-      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+      expect(mockAccounts.creditInSession).toHaveBeenCalledWith(
         'acc1',
-        expect.objectContaining({ amount: 100 }),
-        expect.objectContaining({ id: 'pj1' }),
+        100,
+        expect.stringContaining('Storno'),
+        'u1',
       );
       expect(mockSubdocs.updateInventory).toHaveBeenCalled();
       expect(res.newBalance).toBe(300);
@@ -348,11 +360,72 @@ describe('CampaignPurchaseService', () => {
         ...activePurchase,
         status: 'refunded',
       });
-      mockAccounts.adjust.mockResolvedValue({ ...account, balance: 300 });
+      mockAccounts.creditInSession.mockResolvedValue({
+        ...account,
+        balance: 300,
+      });
       mockSubdocs.getInventory.mockRejectedValue(new Error('gone'));
       const res = await service.refund('w1', 'p1', ru('pj1'));
       expect(res.newBalance).toBe(300);
       expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalled();
+    });
+
+    it('fallback: selhání kreditu po flipu → kompenzace (markActiveIfRefunded) + throw', async () => {
+      mockPurchaseRepo.findById.mockResolvedValue(activePurchase);
+      mockPurchaseRepo.markRefundedIfActive.mockResolvedValue({
+        ...activePurchase,
+        status: 'refunded',
+      });
+      mockAccounts.creditInSession.mockRejectedValue(
+        new NotFoundException({ code: 'ACCOUNT_NOT_FOUND' }),
+      );
+      mockPurchaseRepo.markActiveIfRefunded.mockResolvedValue(undefined);
+
+      await expect(service.refund('w1', 'p1', ru('pj1'))).rejects.toThrow(
+        NotFoundException,
+      );
+      // Kompenzace — status vrácen zpět na active, ať storno nezůstane
+      // refunded bez peněz (trvalá ztráta + hráč zablokován).
+      expect(mockPurchaseRepo.markActiveIfRefunded).toHaveBeenCalledWith('p1');
+    });
+
+    it('transakční cesta (replica set): flip + kredit přes session, bez kompenzace', async () => {
+      // Přemockuj withTransaction, ať spustí callback se session (jako na
+      // replica setu) místo defaultního „throw → fallback".
+      mockSession.withTransaction.mockImplementationOnce(
+        async (cb: () => Promise<void>) => {
+          await cb();
+        },
+      );
+      mockPurchaseRepo.findById.mockResolvedValue(activePurchase);
+      mockPurchaseRepo.markRefundedIfActive.mockResolvedValue({
+        ...activePurchase,
+        status: 'refunded',
+      });
+      mockAccounts.creditInSession.mockResolvedValue({
+        ...account,
+        balance: 300,
+      });
+      mockSubdocs.getInventory.mockResolvedValue({
+        sections: [{ id: 'sec1', items: [{ id: 'it1' }] }],
+      });
+
+      const res = await service.refund('w1', 'p1', ru('pj1'));
+
+      // V tx verzi se flip i kredit volají SE session (2. resp. 5. argument).
+      expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalledWith(
+        'p1',
+        mockSession,
+      );
+      expect(mockAccounts.creditInSession).toHaveBeenCalledWith(
+        'acc1',
+        100,
+        expect.stringContaining('Storno'),
+        'u1',
+        mockSession,
+      );
+      expect(mockPurchaseRepo.markActiveIfRefunded).not.toHaveBeenCalled();
+      expect(res.newBalance).toBe(300);
     });
   });
 });

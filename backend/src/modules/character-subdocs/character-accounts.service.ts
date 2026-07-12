@@ -375,6 +375,41 @@ export class CharacterAccountsService {
   }
 
   /**
+   * DUR (styl 43) — kredit na účet, volitelně v rámci `session` (refund tx).
+   * Bez permission gate — autorizaci řeší volající (`campaign refund` už ověřil
+   * staff/owner; `adjust` gate by na `buyerUserId` mohl selhat). Se session →
+   * kredit commitne SPOLEČNĚ s flipem statusu nákupu (nebo se oboje rollbackne);
+   * bez session = sekvenční fallback bez replica setu. Chybějící účet → throw.
+   */
+  async creditInSession(
+    accountId: string,
+    amount: number,
+    reason: string,
+    performedByUserId: string,
+    session?: ClientSession,
+  ): Promise<CharacterAccount> {
+    const tx: FinanceTransaction = {
+      id: randomUUID(),
+      date: new Date(),
+      inGameDate: null,
+      delta: amount,
+      description: reason,
+      performedByUserId,
+    };
+    const updated = await this.accountsRepo.appendTransaction(
+      accountId,
+      tx,
+      session,
+    );
+    if (!updated)
+      throw new NotFoundException({
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'Účet nenalezen',
+      });
+    return updated;
+  }
+
+  /**
    * Spec 8.x-prep §4.3 (B3) — gate pro `adjust`:
    * - staff (PomocnyPJ+) nebo GlobalAdmin (`isStaff` + R-02 bypass) → vždy
    * - Hráč-vlastník → jen pokud `account.allowPlayerSelfAdjust === true`

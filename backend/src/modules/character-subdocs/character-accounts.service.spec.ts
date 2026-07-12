@@ -567,6 +567,40 @@ describe('CharacterAccountsService', () => {
     });
   });
 
+  // DUR — refund credit bez permission gate (autorizace ve volajícím).
+  describe('creditInSession', () => {
+    it('appendne kladnou tx (delta) se session a vrátí účet', async () => {
+      const acc = mockAccount({ balance: 200 });
+      mockAccountsRepo.appendTransaction.mockResolvedValue({
+        ...acc,
+        balance: 300,
+      });
+      const session = {} as never;
+
+      const res = await service.creditInSession(
+        'acc1',
+        100,
+        'Storno: Meč',
+        'u1',
+        session,
+      );
+
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ delta: 100, description: 'Storno: Meč' }),
+        session,
+      );
+      expect(res.balance).toBe(300);
+    });
+
+    it('chybějící účet → ACCOUNT_NOT_FOUND (tx abort)', async () => {
+      mockAccountsRepo.appendTransaction.mockResolvedValue(null);
+      await expect(
+        service.creditInSession('nope', 100, 'Storno', 'u1'),
+      ).rejects.toMatchObject({ response: { code: 'ACCOUNT_NOT_FOUND' } });
+    });
+  });
+
   describe('transfer', () => {
     it('atomicky strhne ze zdroje + připíše na cíl', async () => {
       const from = mockAccount({ id: 'acc1', balance: 1000, currency: 'ZL' });

@@ -63,16 +63,18 @@ export class MongoCampaignPurchaseRepository
    * ve filtru zajistí, že ze dvou souběžných stornů uspěje právě jedno (druhé
    * dostane null = už není aktivní). Brání double-refundu (peníze 2×).
    */
-  async markRefundedIfActive(id: string): Promise<CampaignPurchase | null> {
+  async markRefundedIfActive(
+    id: string,
+    session?: ClientSession,
+  ): Promise<CampaignPurchase | null> {
     if (!Types.ObjectId.isValid(id)) return null;
-    const doc = await this.model
-      .findOneAndUpdate(
-        { _id: id, status: 'active' },
-        { $set: { status: 'refunded', refundedAt: new Date() } },
-        { new: true },
-      )
-      .lean()
-      .exec();
+    const q = this.model.findOneAndUpdate(
+      { _id: id, status: 'active' },
+      { $set: { status: 'refunded', refundedAt: new Date() } },
+      { new: true },
+    );
+    if (session) q.session(session);
+    const doc = await q.lean().exec();
     return doc
       ? this.toEntity(doc as unknown as Record<string, unknown>)
       : null;
@@ -84,14 +86,17 @@ export class MongoCampaignPurchaseRepository
    * (jinak `refunded` bez vrácených peněz = trvalá ztráta / hráč zablokován).
    * Filtr `status:'refunded'` = idempotence.
    */
-  async markActiveIfRefunded(id: string): Promise<void> {
+  async markActiveIfRefunded(
+    id: string,
+    session?: ClientSession,
+  ): Promise<void> {
     if (!Types.ObjectId.isValid(id)) return;
-    await this.model
-      .updateOne(
-        { _id: id, status: 'refunded' },
-        { $set: { status: 'active' }, $unset: { refundedAt: '' } },
-      )
-      .exec();
+    const q = this.model.updateOne(
+      { _id: id, status: 'refunded' },
+      { $set: { status: 'active' }, $unset: { refundedAt: '' } },
+    );
+    if (session) q.session(session);
+    await q.exec();
   }
 
   protected toEntity(doc: Record<string, unknown>): CampaignPurchase {

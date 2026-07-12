@@ -24,7 +24,10 @@ export interface ICampaignPurchaseRepository {
    * Vrací aktualizovaný doc, nebo null když už nebyl aktivní (= souběžné storno
    * prohrálo závod). Brání double-refundu.
    */
-  markRefundedIfActive(id: string): Promise<CampaignPurchase | null>;
+  markRefundedIfActive(
+    id: string,
+    session?: ClientSession,
+  ): Promise<CampaignPurchase | null>;
   /** DUR — kompenzace: vrať status refunded→active, když kredit po flipu selže. */
-  markActiveIfRefunded(id: string): Promise<void>;
+  markActiveIfRefunded(id: string, session?: ClientSession): Promise<void>;
 }
