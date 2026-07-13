@@ -72,6 +72,18 @@ export class SceneDeactivateOpDto {
 }
 
 /**
+ * D-NEW-INV-MAPS — aktivace scény jako operace (inverse `scene.deactivate`).
+ * PJ-only (authorizer default), idempotent (no-op když už aktivní — CAS).
+ *
+ * POZOR: NEobnovuje member přiřazení (cascade unassign z deactivate) — každý
+ * cascade `member.unassign` má ve worldOperations vlastní inverse
+ * `member.assignToScene`, undo tooling je přehraje zvlášť. Bez body args.
+ */
+export class SceneActivateOpDto {
+  @Equals('scene.activate') type!: 'scene.activate';
+}
+
+/**
  * 10.2c-edit-2 — bulk replace polí scény pro load šablony z knihovny.
  * Klient pošle sekvenci těchto ops po sobě (image, config, fog, effects,
  * npc-templates, tokens.replace-npc, sounds.set). Není transakční celek
@@ -119,6 +131,16 @@ export class SceneNpcTemplatesReplaceOpDto {
 export class SceneTokensReplaceNpcOpDto {
   @Equals('scene.tokens.replace-npc') type!: 'scene.tokens.replace-npc';
   @IsArray() tokens!: unknown[];
+}
+
+/**
+ * D-NEW-INV-MAPS — bulk replace anotací (kreseb). Primárně inverse pro
+ * `drawing.clear` (undo obnoví smazané kresby); vzor `scene.walls.replace`.
+ * PJ-only (authorizer default).
+ */
+export class SceneDrawingsReplaceOpDto {
+  @Equals('scene.drawings.replace') type!: 'scene.drawings.replace';
+  @IsArray() drawings!: unknown[];
 }
 
 export class SceneSoundsSetOpDto {

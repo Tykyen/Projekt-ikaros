@@ -20,6 +20,8 @@ export interface Bestie {
   worldId?: string;
   name: string;
   imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech; staré dokumenty nemají. */
+  imageBytes?: number;
   /** Výřez obrázku — parity s GameEvent/WorldNews/Page (focal + zoom + fit). */
   imageFocalX?: number | null;
   imageFocalY?: number | null;

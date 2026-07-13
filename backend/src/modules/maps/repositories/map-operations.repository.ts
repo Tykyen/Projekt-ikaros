@@ -69,20 +69,32 @@ export class MongoMapOperationsRepository implements IMapOperationsRepository {
     );
   }
 
-  async findLastByUser(
+  async findLastUndoableByUser(
     sceneId: string,
     userId: string,
-    limit: number,
-  ): Promise<MapOperationRecord[]> {
-    const docs = await this.opModel
-      .find({ sceneId, byUserId: userId })
+  ): Promise<MapOperationRecord | null> {
+    // D-DROBNE-UNDO — filtr přímo v query (ne bounded lookback): poslední op
+    // s non-null inverse, která ještě nebyla vrácena / není undo záznamem.
+    const doc = await this.opModel
+      .findOne({
+        sceneId,
+        byUserId: userId,
+        inverse: { $ne: null },
+        undone: { $ne: true },
+      })
       .sort({ seqNumber: -1 })
-      .limit(limit)
       .lean()
       .exec();
-    return docs.map((d) =>
-      this.toEntity(d as unknown as Record<string, unknown>),
-    );
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  async markUndone(recordId: string): Promise<void> {
+    if (!Types.ObjectId.isValid(recordId)) return;
+    await this.opModel
+      .updateOne({ _id: recordId }, { $set: { undone: true } })
+      .exec();
   }
 
   private toEntity(doc: Record<string, unknown>): MapOperationRecord {
@@ -96,6 +108,7 @@ export class MongoMapOperationsRepository implements IMapOperationsRepository {
       byUserId: doc.byUserId as string,
       byUserRole: doc.byUserRole as number,
       appliedAt: doc.appliedAt as Date,
+      undone: (doc.undone as boolean | undefined) ?? false,
     };
   }
 }

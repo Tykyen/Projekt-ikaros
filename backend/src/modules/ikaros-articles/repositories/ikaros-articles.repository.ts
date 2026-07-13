@@ -233,7 +233,7 @@ export class MongoIkarosArticlesRepository implements IIkarosArticlesRepository 
   ): Promise<IkarosArticle[]> {
     const docs = await this.model
       .find({ status: 'Pending' })
-      .sort({ updatedAtUtc: -1 })
+      .sort({ updatedAtUtc: -1, _id: -1 })
       .skip(offset)
       .limit(limit)
       .lean()
@@ -249,6 +249,12 @@ export class MongoIkarosArticlesRepository implements IIkarosArticlesRepository 
 
   async countAll(): Promise<number> {
     return this.model.countDocuments().exec();
+  }
+
+  async countByAuthor(authorId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // článků autora. Index { authorId: 1 } existuje.
+    return this.model.countDocuments({ authorId }).exec();
   }
 
   async countByCategory(category: string): Promise<number> {

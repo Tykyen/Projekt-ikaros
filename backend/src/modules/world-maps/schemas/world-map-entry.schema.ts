@@ -49,6 +49,8 @@ export class WorldMapEntrySchemaClass {
   @Prop({ required: true }) title: string;
   @Prop({ default: '' }) description: string;
   @Prop({ required: true }) imageUrl: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech (kvóty UM-10); staré docs nemají. */
+  @Prop() imageBytes?: number;
   @Prop({ default: 0 }) order: number;
   @Prop({ default: false }) isPublic: boolean;
   @Prop({ type: [String], default: [] }) visibleToPlayerIds: string[];

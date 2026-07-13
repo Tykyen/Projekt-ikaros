@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsBoolean,
   IsArray,
+  IsInt,
   IsNumber,
   ValidateNested,
   ValidateIf,
@@ -67,6 +68,13 @@ export class GalleryImageDto {
 
   @IsString()
   url: string;
+
+  /** D-19.2 — velikost blobu `url` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(104_857_600)
+  bytes?: number;
 
   @IsString()
   caption: string = '';
@@ -280,6 +288,13 @@ export class CreatePageDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(104_857_600)
+  imageBytes?: number;
 
   @IsOptional()
   @IsBoolean()

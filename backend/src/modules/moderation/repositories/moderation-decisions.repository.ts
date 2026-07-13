@@ -84,7 +84,7 @@ export class MongoModerationDecisionsRepository implements IModerationDecisionsR
   async findAll(offset: number, limit: number): Promise<ModerationDecision[]> {
     const docs = await this.model
       .find()
-      .sort({ createdAtUtc: -1 })
+      .sort({ createdAtUtc: -1, _id: -1 })
       .skip(Math.max(0, offset))
       .limit(limit)
       .lean()

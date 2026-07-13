@@ -28,6 +28,7 @@ import { UserRole, User } from '../users/interfaces/user.interface';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { IsBoolean, IsEnum } from 'class-validator';
 import { CreateUserAdminDto } from './dto/create-user-admin.dto';
+import { UpdateUserEmailDto } from './dto/update-user-email.dto';
 import { BanUserDto } from './dto/ban-user.dto';
 import { AdminDeleteUserDto } from './dto/admin-delete-user.dto';
 import { RejectRequestDto } from './dto/reject-request.dto';
@@ -164,6 +165,30 @@ export class AdminController {
       actor as unknown as User,
       id,
       dto.isSupporter,
+    );
+  }
+
+  @Patch('users/:id/email')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.Superadmin)
+  @ApiOperation({
+    summary:
+      'D-NEW-INV-ADMIN-UI — změna e-mailu uživatele (Superadmin; stejný práh jako reset hesla)',
+  })
+  @ApiResponse({ status: 200, description: 'E-mail změněn' })
+  @ApiResponse({ status: 400, description: 'SAME_EMAIL / nevalidní e-mail' })
+  @ApiResponse({ status: 403, description: 'Pouze Superadmin, ne self' })
+  @ApiResponse({ status: 404, description: 'Uživatel nenalezen' })
+  @ApiResponse({ status: 409, description: 'EMAIL_TAKEN — e-mail už existuje' })
+  updateUserEmail(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserEmailDto,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.adminService.updateUserEmail(
+      actor as unknown as User,
+      id,
+      dto.email,
     );
   }
 

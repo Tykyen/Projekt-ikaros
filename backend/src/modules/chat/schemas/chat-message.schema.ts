@@ -18,6 +18,10 @@ export class ChatMessageSchemaClass {
   @Prop({ type: String, default: null }) content: string | null;
   @Prop({ default: false }) isEdited: boolean;
   @Prop({ default: false }) isDeleted: boolean;
+  /** D-066 (spec 20B B4b) — moderační skrytí zprávy (M2/M3). Obsah zůstává
+   *  v DB pro revert; API/WS výstup maskuje repo `toEntity`. */
+  @Prop({ default: false }) moderationHidden: boolean;
+  @Prop({ type: String }) moderationHiddenReason?: string;
   @Prop({ default: false }) isSystem: boolean;
   /** Spec 15.8 — zpráva od hosta (anonyma) v Hospodě. FE rendruje odznak „host"
    *  + placeholder místo avataru. Default false (členské i historické zprávy). */

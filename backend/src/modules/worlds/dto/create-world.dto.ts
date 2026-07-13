@@ -26,6 +26,8 @@ export class CreateWorldDto {
   slug: string;
   @IsOptional() @IsString() @MaxLength(1000) description?: string;
   @IsOptional() @IsString() imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional() @IsInt() @Min(0) @Max(104_857_600) imageBytes?: number;
   @IsOptional() @IsString() genre?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) tones?: string[];
   @IsOptional() @IsString() @MaxLength(500) playersWanted?: string;

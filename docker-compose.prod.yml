@@ -136,6 +136,31 @@ services:
       - uploads-data:/app/uploads
     ports:
       - "${BACKEND_PORT:-3001}:3000"
+    # D-LAUNCH-GAP (2026-07-11) — hardening backend kontejneru:
+    #  • healthcheck: GET /api/health (health modul; globalPrefix=api, uvnitř
+    #    kontejneru PORT=3000). Image je node:20-bookworm-slim BEZ curl/wget →
+    #    node -e s globálním fetch (Node 20). Hlídá se jen HTTP 200 (proces
+    #    žije a odpovídá); status ok/degraded vyhodnocuje monitoring — degraded
+    #    kvůli výpadku závislosti (meili) nemá flipnout kontejner na unhealthy.
+    #  • ulimits nofile: default 1024 je málo pro Socket.IO (500 světů/50 hráčů
+    #    = tisíce souběžných spojení + Mongo/Redis pool).
+    #  • pids_limit: strop na fork-bomb/únik vláken; Node + ONNX embedding
+    #    thready se vejdou do stovek, 512 má rezervu.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    pids_limit: 512
     depends_on:
       mongo:
         condition: service_healthy

@@ -13,6 +13,8 @@ function makeService(opts: {
     acceptedAt?: Date;
   }>;
   users: Record<string, Record<string, unknown> | null>;
+  /** D-NEW-INV-PROFILE — mock counts (chybějící id v mapě → service fallback 0). */
+  worldsCounts?: Record<string, number>;
 }) {
   const friendsRepo = {
     listAcceptedForUser: jest
@@ -22,17 +24,26 @@ function makeService(opts: {
   const usersRepo = {
     findById: jest.fn((id: string) => Promise.resolve(opts.users[id] ?? null)),
   };
-  return new FriendshipsService(
+  const membershipRepo = {
+    countsByUserIdsExcludingDeletedWorlds: jest.fn(() =>
+      Promise.resolve(
+        new Map<string, number>(Object.entries(opts.worldsCounts ?? {})),
+      ),
+    ),
+  };
+  const svc = new FriendshipsService(
     usersRepo as never,
     friendsRepo as never,
     {} as never,
+    membershipRepo as never,
     { emit: jest.fn() } as never,
   );
+  return { svc, membershipRepo };
 }
 
 describe('FriendshipsService.listForUser — enrichment', () => {
   it('dohledá protějška (ten z dvojice, který není aktuální uživatel)', async () => {
-    const svc = makeService({
+    const { svc } = makeService({
       accepted: [
         {
           id: 'f1',
@@ -69,7 +80,7 @@ describe('FriendshipsService.listForUser — enrichment', () => {
   });
 
   it('protějšek funguje i když jsem recipient (ne requester)', async () => {
-    const svc = makeService({
+    const { svc } = makeService({
       accepted: [{ id: 'f2', requesterId: 'other', recipientId: 'me' }],
       users: { other: { id: 'other', username: 'Druhy', role: UserRole.Hrac } },
     });
@@ -79,7 +90,7 @@ describe('FriendshipsService.listForUser — enrichment', () => {
   });
 
   it('smazaný / nedohledaný účet → placeholder „neznámý", deleted=true bez crashe', async () => {
-    const svc = makeService({
+    const { svc } = makeService({
       accepted: [{ id: 'f3', requesterId: 'me', recipientId: 'ghost' }],
       users: { ghost: null },
     });
@@ -91,7 +102,7 @@ describe('FriendshipsService.listForUser — enrichment', () => {
   });
 
   it('pendingDeletion=true když má účet deletionRequestedAt', async () => {
-    const svc = makeService({
+    const { svc } = makeService({
       accepted: [{ id: 'f4', requesterId: 'me', recipientId: 'leaving' }],
       users: {
         leaving: {
@@ -104,5 +115,42 @@ describe('FriendshipsService.listForUser — enrichment', () => {
     });
     const { items } = await svc.listForUser('me', 1, 20);
     expect(items[0].friend.pendingDeletion).toBe(true);
+  });
+
+  // ── D-NEW-INV-PROFILE — worldsCount ve friend shape ──────────────────
+
+  it('worldsCount: 1 batch dotaz pro celou stránku (žádný N+1) + hodnoty z agregace', async () => {
+    const { svc, membershipRepo } = makeService({
+      accepted: [
+        { id: 'f1', requesterId: 'me', recipientId: 'friendA' },
+        { id: 'f2', requesterId: 'friendB', recipientId: 'me' },
+      ],
+      users: {
+        friendA: { id: 'friendA', username: 'A', role: UserRole.Hrac },
+        friendB: { id: 'friendB', username: 'B', role: UserRole.Hrac },
+      },
+      worldsCounts: { friendA: 3, friendB: 0 },
+    });
+    const { items } = await svc.listForUser('me', 1, 20);
+    expect(items[0].friend.worldsCount).toBe(3);
+    expect(items[1].friend.worldsCount).toBe(0);
+    // Jediné volání s VŠEMI friend IDs najednou — repo varianta vylučující
+    // soft-smazané světy.
+    expect(
+      membershipRepo.countsByUserIdsExcludingDeletedWorlds,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      membershipRepo.countsByUserIdsExcludingDeletedWorlds,
+    ).toHaveBeenCalledWith(['friendA', 'friendB']);
+  });
+
+  it('worldsCount: přítel chybějící v counts mapě → fallback 0', async () => {
+    const { svc } = makeService({
+      accepted: [{ id: 'f1', requesterId: 'me', recipientId: 'ghost' }],
+      users: { ghost: { id: 'ghost', username: 'G', role: UserRole.Hrac } },
+      // worldsCounts neuvedeny → prázdná mapa → service musí doplnit 0.
+    });
+    const { items } = await svc.listForUser('me', 1, 20);
+    expect(items[0].friend.worldsCount).toBe(0);
   });
 });

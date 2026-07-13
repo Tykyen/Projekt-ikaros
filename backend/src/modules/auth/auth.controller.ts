@@ -147,8 +147,11 @@ export class AuthController {
     return result;
   }
 
+  // D-SEC-GAP — anti-enumeration mitigace: endpoint záměrně vrací existenci
+  // účtu (UX opora registrace), ale 10/min/IP stačí na debounced check ve
+  // formuláři a zároveň znemožňuje hromadný scraping seznamu účtů.
   @Get('check-username')
-  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({
     summary: 'Zda je přezdívka dostupná pro registraci (public)',
   })
@@ -158,8 +161,9 @@ export class AuthController {
     return this.authService.checkUsername(username ?? '');
   }
 
+  // D-SEC-GAP — anti-enumeration mitigace, viz check-username (10/min/IP).
   @Get('check-email')
-  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @ApiOperation({ summary: 'Zda je e-mail dostupný pro registraci (public)' })
   @ApiQuery({ name: 'e', required: true, description: 'Kandidát na e-mail' })
   @ApiResponse({ status: 200, description: '{ available: boolean }' })

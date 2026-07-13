@@ -20,6 +20,12 @@ export interface CharacterDiary {
   sections: PageSection[];
   personalDiarySchema?: CustomDiaryBlock[];
   customData: Record<string, unknown>;
+  /**
+   * D-066 (spec 20B B4b) — moderační skrytí deníku (M2/M3). Skrytý deník vidí
+   * jen platform reviewer set (vzor pages) — vlastník i PJ dostanou 404.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
   /** D-073 (2026-05-23) — optimistic concurrency token. */
   updatedAt?: Date;
 }

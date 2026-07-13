@@ -31,6 +31,8 @@ export class UserSchemaClass {
 
   @Prop() displayName?: string;
   @Prop() avatarUrl?: string;
+  /** D-19.2 — velikost blobu avataru v bytech (kvóty UM-10); staré docs nemají. */
+  @Prop() avatarBytes?: number;
   @Prop() profileImageUrl?: string;
   @Prop() characterPath?: string;
 
@@ -64,7 +66,6 @@ export class UserSchemaClass {
     type: {
       canManageAdmins: { type: Boolean, default: false },
       canModerateContent: { type: Boolean, default: false },
-      canEditPlatformPages: { type: Boolean, default: false },
     },
     _id: false,
   })
@@ -135,6 +136,8 @@ export class UserSchemaClass {
   @Prop() characterName?: string;
   @Prop() characterBio?: string;
   @Prop() characterAvatarUrl?: string;
+  /** D-19.2 — velikost blobu avataru postavy v bytech; staré docs nemají. */
+  @Prop() characterAvatarBytes?: number;
   @Prop() themeId?: string;
   @Prop({ type: Date }) lastLoginAt?: Date;
 

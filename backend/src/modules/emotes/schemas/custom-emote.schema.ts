@@ -22,6 +22,10 @@ export class CustomEmoteDocument extends Document {
   @Prop({ required: true })
   imageUrl: string;
 
+  /** D-19.2 — velikost blobu `imageUrl` v bytech (kvóty UM-10); staré docs nemají. */
+  @Prop()
+  imageBytes?: number;
+
   @Prop({ type: Types.ObjectId, required: true })
   createdBy: Types.ObjectId;
 

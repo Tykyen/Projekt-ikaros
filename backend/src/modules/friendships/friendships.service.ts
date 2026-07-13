@@ -13,6 +13,7 @@ import type { IUsersRepository } from '../users/interfaces/users-repository.inte
 import { UserRole } from '../users/interfaces/user.interface';
 import type { IFriendshipsRepository } from './interfaces/friendships-repository.interface';
 import type { IFriendBlocksRepository } from './interfaces/friend-blocks-repository.interface';
+import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type {
   Friendship,
   FriendStatusKind,
@@ -30,6 +31,9 @@ export class FriendshipsService {
     private readonly friendsRepo: IFriendshipsRepository,
     @Inject('IFriendBlocksRepository')
     private readonly blocksRepo: IFriendBlocksRepository,
+    // D-NEW-INV-PROFILE — worldsCount ve friend shape (FE FriendsTab).
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
     private readonly events: EventEmitter2,
   ) {}
 
@@ -229,6 +233,7 @@ export class FriendshipsService {
         defaultAvatarType: string;
         role: UserRole;
         city: string | null;
+        worldsCount: number;
         deleted: boolean;
         pendingDeletion: boolean;
       };
@@ -240,6 +245,16 @@ export class FriendshipsService {
       page,
       limit,
     );
+    // D-NEW-INV-PROFILE — worldsCount pro celou stránku jedním aggregate
+    // ($in všech friend IDs + $group, žádný N+1); soft-smazané světy
+    // (30denní recovery okno) se do počtu nepromítají.
+    const friendIds = raw.map((f) =>
+      f.requesterId === userId ? f.recipientId : f.requesterId,
+    );
+    const worldsCounts =
+      await this.membershipRepo.countsByUserIdsExcludingDeletedWorlds(
+        friendIds,
+      );
     // Enrich: friendship drží jen requesterId/recipientId — FE čeká objekt
     // `friend`. Protějšek = ten z dvojice, který není aktuální uživatel.
     // Smazaný / nedohledaný účet → bezpečný placeholder (žádný crash na FE).
@@ -259,6 +274,7 @@ export class FriendshipsService {
             defaultAvatarType: u?.defaultAvatarType ?? 'male',
             role: u?.role ?? UserRole.Hrac,
             city: u?.city ?? null,
+            worldsCount: worldsCounts.get(friendId) ?? 0,
             deleted: u?.isDeleted ?? false,
             pendingDeletion: !!u?.deletionRequestedAt,
           },

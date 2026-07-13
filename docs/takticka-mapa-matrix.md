@@ -1511,7 +1511,7 @@ DELETE /maps/:id                    → delete (PJ membership, 204)
 | Per-systémové deníky | ✅ ANO — zachovat 5 systémů + custom fallback | [project_takticka_mapa_multi_system](../.claude/...) + §23.2 |
 | Fog render-texture + hex log | ✅ Hybrid (texture cache + DB hex array) | §23.3 |
 | Combat tracker subdoc | ✅ ANO — `MapScene.combat` state machine | §23.4 |
-| A* měření | ✅ ANO — klient-side A* respekt barriers | §23.5 |
+| A* měření | ⏳ ODLOŽENO (17.x) — v kódu je jen range-check dosahu (`movement` stat) + přímá hex distance; pathfinding přes překážky neimplementován | §23.5 |
 | Sprite atlas endpoint | ✅ ANO — `GET /maps/:id/sprite-atlas` | §23.6 |
 | Undo/Redo (PJ jen) | ✅ ANO — via inverse ops, per-session stack 20 | §23.7 |
 | Theming CSS vars | ✅ ANO — `--map-*` namespace, scoped `[data-theme]` | §23.8 |
@@ -1860,7 +1860,7 @@ combat?: {
 
 ### 23.5 A* měření vzdálenosti (respekt překážek)
 
-> ⚠️ **Stav k 2026-06-18 (ověřeno v kódu, inventura `docs/funkce/14`):** Tahle sekce je **design/spec, NE realita.** V kódu je `movement` stat jen **dosah (range)** a bariéry pohyb fyzicky neblokují — skutečný A* pathfinding (pohyb ani měření přes překážky) zatím **není implementován**. Status „✅ ANO" v přehledové tabulce (§ výše) znamená „rozhodnuto udělat", ne „hotovo". Dotažení sledováno jako **D-NEW-INV-MAPS** (roadmap2 Průřez Ú).
+> ⚠️ **Stav k 2026-07-12 (D-NEW-INV-MAPS uzavřeno jako doc-fix):** Tahle sekce je **návrh budoucího rozšíření (17.x), NE realita.** Skutečné chování v kódu: `movement` stat = **dosah (range-check)**, měření = **přímá hex distance** — bariéry pohyb fyzicky neblokují a žádný A* pathfinding (pohyb ani měření přes překážky) implementován není. Rozhodnutí: dokumentace opravena na skutečné chování; A* pathfinding zůstává jako **případné budoucí rozšíření 17.x** (přehledová tabulka §21.1 → „⏳ ODLOŽENO").
 
 **Princip:** Místo prosté Manhattan-hex distance měření přes A* pathfinding, který respektuje `barrier` efekty.
 
@@ -2048,7 +2048,7 @@ window.addEventListener('skin-changed', () => { /* re-load colors + redraw */ })
 | **10.2j** Kostky | 23.2 (plugin.rollSkill) | Dice engine 6.3 + per-system rolls |
 | **10.2k** Zvuky | 23.1 | `sound.playlist` op |
 | **10.2l** Deníky na mapě | 23.2 (plugin.DiaryOverlay) | Per-system overlays z registry |
-| **10.2m** Nástroje + oprávnění | 23.5 (A* measure), 23.7 (undo UI), 23.1 (centralizovaný role check) | Vše zapadá |
+| **10.2m** Nástroje + oprávnění | 23.5 (measure — reálně jen hex distance, A* odloženo 17.x), 23.7 (undo UI), 23.1 (centralizovaný role check) | Vše zapadá |
 
 ---
 
@@ -2110,7 +2110,7 @@ S potvrzenými architektonickými principy se mění **pořadí prací** — ně
 │     │                                                            │
 │     ├─→ 10.2l Deníky (plugin.DiaryOverlay)                       │
 │     │                                                            │
-│     └─→ 10.2m Měření (23.5 A*) + Undo UI (23.7) + a11y/mobile    │
+│     └─→ 10.2m Měření (hex distance; A* → 17.x) + Undo UI (23.7)  │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
                               │
@@ -2133,7 +2133,7 @@ S potvrzenými architektonickými principy se mění **pořadí prací** — ně
 | **MVP 2** | 10.2e–h | HP/iniciativa+combat tracker/efekty/fog. Všechny PJ tooly. |
 | **MVP 3** | 10.2i | Multi-client realtime přes operations + catch-up; role gate works server-side |
 | **MVP 4** | 10.2j–l | Kostky (reuse 6.3), zvuky (stub), deníky per-system |
-| **Release** | 10.2m | Měření A*, undo UI, mobil polish, nápověda |
+| **Release** | 10.2m | Měření (hex distance; A* pathfinding odloženo → 17.x), undo UI, mobil polish, nápověda |
 
 Každý milník je vlastní spec-driven cyklus dle `feedback_workflow`.
 

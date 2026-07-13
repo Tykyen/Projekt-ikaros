@@ -8,6 +8,14 @@ export interface ICampaignPurchaseRepository {
   ): Promise<CampaignPurchase[]>;
   findById(id: string): Promise<CampaignPurchase | null>;
   /**
+   * D-PURCHASE-IDEMPOTENCY — najde už zapsaný nákup se shodným nonce (scope
+   * per buyer, zrcadlí unique index). Pro replay původního výsledku při retry.
+   */
+  findByNonce(
+    buyerUserId: string,
+    clientNonce: string,
+  ): Promise<CampaignPurchase | null>;
+  /**
    * RC-E5 — volitelná `session` zařadí purchase log do `withTransaction` scope
    * nákupu (atomicita napříč účet/inventář/log).
    */

@@ -34,6 +34,7 @@ import type { Bestie } from './interfaces/bestie.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 export interface BestiarResponse {
   system: Bestie[];
@@ -139,6 +140,21 @@ export class BestiaeService {
         throw new BadRequestException('worldId required for scope=world');
       }
       await this.assertCanManageWorld(dto.worldId, user);
+      // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+      // world-scope bestií per svět.
+      assertUnderCreationLimit(
+        await this.repo.countByWorldId(dto.worldId),
+        'MAX_BESTIAE_PER_WORLD',
+        'bestií ve světě',
+      );
+    }
+    if (dto.scope === 'user') {
+      // D-SEC-GAP-2026-07-11 — kumulativní strop osobního bestiáře per účet.
+      assertUnderCreationLimit(
+        await this.repo.countByOwner(user.id),
+        'MAX_BESTIAE_PER_USER',
+        'bestií v osobním bestiáři',
+      );
     }
     if (dto.scope === 'system') {
       // Globální (systémový) bestiář spravuje jen platformový Admin/Superadmin.
@@ -172,6 +188,7 @@ export class BestiaeService {
       worldId: dto.scope === 'world' ? dto.worldId : undefined,
       name: dto.name,
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       imageFocalX: dto.imageFocalX,
       imageFocalY: dto.imageFocalY,
       imageZoom: dto.imageZoom,
@@ -308,6 +325,7 @@ export class BestiaeService {
       worldId: dto.scope === 'world' ? dto.worldId : undefined,
       name: dto.newName ?? `${source.name} (kopie)`,
       imageUrl: source.imageUrl,
+      imageBytes: source.imageBytes, // D-19.2 — pár k imageUrl (sdílený blob)
       imageFocalX: source.imageFocalX,
       imageFocalY: source.imageFocalY,
       imageZoom: source.imageZoom,
@@ -355,6 +373,14 @@ export class BestiaeService {
     dto: CreateCommunityBestieDto,
     user: CurrentUser,
   ): Promise<Bestie> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: community návrh vždy
+    // klonuje i user-scope kopii autorovi → strop osobního bestiáře brzdí
+    // i flood community draftů.
+    assertUnderCreationLimit(
+      await this.repo.countByOwner(user.id),
+      'MAX_BESTIAE_PER_USER',
+      'bestií v osobním bestiáři',
+    );
     const result = await this.validateStats(
       dto.systemStats,
       { scope: 'community', systemId: dto.systemId },
@@ -375,6 +401,7 @@ export class BestiaeService {
       kind: dto.kind,
       tags: dto.tags,
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       imageFocalX: dto.imageFocalX,
       imageFocalY: dto.imageFocalY,
       imageZoom: dto.imageZoom,
@@ -430,6 +457,7 @@ export class BestiaeService {
       kind: dto.kind,
       tags: dto.tags,
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       imageFocalX: dto.imageFocalX,
       imageFocalY: dto.imageFocalY,
       imageZoom: dto.imageZoom,
@@ -501,6 +529,7 @@ export class BestiaeService {
       worldId: scope === 'world' ? worldId : undefined,
       name,
       imageUrl: source.imageUrl,
+      imageBytes: source.imageBytes, // D-19.2 — pár k imageUrl (sdílený blob)
       imageFocalX: source.imageFocalX,
       imageFocalY: source.imageFocalY,
       imageZoom: source.imageZoom,

@@ -3,13 +3,15 @@ import {
   UnsupportedMediaTypeException,
   BadGatewayException,
   BadRequestException,
+  ServiceUnavailableException,
   Logger,
 } from '@nestjs/common';
 import { logError } from '../../common/logging/log-error.util';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import { v2 as cloudinary } from 'cloudinary';
-import { writeFile, mkdir, unlink } from 'fs/promises';
+import { writeFile, mkdir, unlink, readdir, stat } from 'fs/promises';
+import type { Dirent } from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { ChatAttachment } from '../chat/interfaces/chat-attachment.interface';
@@ -108,13 +110,26 @@ const LIMIT_DIMENSION_TRANSFORM = {
   crop: 'limit' as const,
 };
 
-/** 3.3a — výsledek image uploadu vč. rozměrů (masonry). */
+/**
+ * 3.3a — výsledek image uploadu vč. rozměrů (masonry).
+ * D-19.2 — `bytes` = velikost uloženého blobu (Cloudinary `bytes`, u disk
+ * fallbacku velikost bufferu). FE ho posílá dál v create/update DTO entit
+ * (`imageBytes`), aby šel měřit storage per svět/uživatel (kvóty UM-10).
+ */
 export interface UploadedImage {
   url: string;
   publicId: string;
   width: number;
   height: number;
+  bytes: number;
 }
+
+/** D-19.2 — cache skenu velikosti fallback adresáře (max 1 sken za minutu). */
+const FALLBACK_SIZE_CACHE_TTL_MS = 60_000;
+/** D-19.2 — strop hloubky rekurze při součtu (uploads/<folder>/<file>). */
+const FALLBACK_SCAN_MAX_DEPTH = 6;
+/** D-19.2 — default cap fallback úložiště v MB (env `UPLOAD_FALLBACK_MAX_MB`). */
+const FALLBACK_MAX_MB_DEFAULT = 2048;
 
 function getResourceType(
   type: 'image' | 'video' | 'document',
@@ -507,6 +522,7 @@ export class UploadService {
       public_id: string;
       width?: number;
       height?: number;
+      bytes?: number;
     };
     try {
       result = await new Promise((resolve, reject) => {
@@ -551,7 +567,89 @@ export class UploadService {
       publicId: result.public_id,
       width: result.width ?? 0,
       height: result.height ?? 0,
+      // D-19.2 — Cloudinary vrací velikost uloženého assetu; fallback na
+      // multer `file.size` (starší mock/edge bez pole).
+      bytes: result.bytes ?? file.size ?? 0,
     };
+  }
+
+  // ── D-19.2 / styl 31 — disk-cap upload fallbacku ─────────────────────────
+  // Fallback sdílí disk s Mongo; bez stropu může série uploadů při Cloudinary
+  // outage zaplnit disk (viz disk incidenty 2026-07). Cap = env
+  // `UPLOAD_FALLBACK_MAX_MB` (default 2048). Velikost adresáře se skenuje
+  // max 1×/min (cache) a po každém zápisu se inkrementuje.
+
+  /** Cache velikosti `uploads/` (bytes) + čas posledního skenu. */
+  private fallbackDirSizeCache: number | null = null;
+  private fallbackDirSizeCheckedAt = 0;
+
+  private getFallbackMaxBytes(): number {
+    const raw = this.configService.get<string | number>(
+      'UPLOAD_FALLBACK_MAX_MB',
+    );
+    const mb = raw === undefined || raw === '' ? NaN : Number(raw);
+    return (
+      (Number.isFinite(mb) && mb > 0 ? mb : FALLBACK_MAX_MB_DEFAULT) *
+      1024 *
+      1024
+    );
+  }
+
+  /** Rekurzivní součet velikostí souborů (strop hloubky, chybějící dir = 0). */
+  private async computeDirSize(dir: string, depth: number): Promise<number> {
+    if (depth > FALLBACK_SCAN_MAX_DEPTH) return 0;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return 0; // adresář (ještě) neexistuje
+    }
+    if (!Array.isArray(entries)) return 0;
+    let total = 0;
+    for (const entry of entries) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        total += await this.computeDirSize(p, depth + 1);
+      } else if (entry.isFile()) {
+        try {
+          total += (await stat(p)).size;
+        } catch {
+          // soubor mezitím smazán — přeskoč
+        }
+      }
+    }
+    return total;
+  }
+
+  /**
+   * D-19.2 — před zápisem fallbacku ověří, že `uploads/` + příchozí soubor
+   * nepřekročí cap. Nad cap → 503 `STORAGE_FULL` (upload se odmítne, disk
+   * s Mongo zůstane živý) + logError pro alert v provozním logu.
+   */
+  private async assertFallbackCapacity(incomingBytes: number): Promise<void> {
+    const now = Date.now();
+    if (
+      this.fallbackDirSizeCache === null ||
+      now - this.fallbackDirSizeCheckedAt > FALLBACK_SIZE_CACHE_TTL_MS
+    ) {
+      this.fallbackDirSizeCache = await this.computeDirSize(
+        path.resolve(process.cwd(), 'uploads'),
+        0,
+      );
+      this.fallbackDirSizeCheckedAt = now;
+    }
+    const maxBytes = this.getFallbackMaxBytes();
+    if (this.fallbackDirSizeCache + incomingBytes > maxBytes) {
+      logError(
+        this.logger,
+        `STORAGE_FULL: disk fallback ${this.fallbackDirSizeCache} B + ${incomingBytes} B > cap ${maxBytes} B (UPLOAD_FALLBACK_MAX_MB) — upload odmítnut`,
+        new Error('upload fallback storage cap exceeded'),
+      );
+      throw new ServiceUnavailableException({
+        code: 'STORAGE_FULL',
+        message: 'Úložiště je dočasně plné, zkus to později.',
+      });
+    }
   }
 
   /**
@@ -562,6 +660,8 @@ export class UploadService {
     file: Express.Multer.File,
     folder: string,
   ): Promise<UploadedImage> {
+    // D-19.2 — disk-cap PŘED zápisem (fallback sdílí disk s Mongo).
+    await this.assertFallbackCapacity(file.buffer.length);
     // 10.2c-edit-2 cleanup — dříve dynamic import; failed v jest env bez
     // --experimental-vm-modules. Static import je standardní + funguje v testech.
     const uploadsRoot = path.resolve(process.cwd(), 'uploads', folder);
@@ -571,6 +671,10 @@ export class UploadService {
     const filename = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
     const filepath = path.join(uploadsRoot, filename);
     await writeFile(filepath, file.buffer);
+    // D-19.2 — inkrement cache (další uploady v TTL okně počítají s novým souborem).
+    if (this.fallbackDirSizeCache !== null) {
+      this.fallbackDirSizeCache += file.buffer.length;
+    }
 
     const baseUrl =
       this.configService.get<string>('BACKEND_BASE_URL') ??
@@ -580,6 +684,7 @@ export class UploadService {
       publicId: `local:${folder}/${filename}`,
       width: 0,
       height: 0,
+      bytes: file.buffer.length,
     };
   }
 
@@ -614,7 +719,7 @@ export class UploadService {
     file: Express.Multer.File,
     folderPath: string,
     size: number,
-  ): Promise<{ url: string; publicId: string }> {
+  ): Promise<{ url: string; publicId: string; bytes: number }> {
     const allowedImageTypes = [
       'image/jpeg',
       'image/png',
@@ -628,7 +733,7 @@ export class UploadService {
     }
     assertMagicBytes(file); // UM-07
 
-    let result: { secure_url: string; public_id: string };
+    let result: { secure_url: string; public_id: string; bytes?: number };
     try {
       result = await new Promise((resolve, reject) => {
         cloudinary.uploader
@@ -661,7 +766,12 @@ export class UploadService {
       );
     }
 
-    return { url: result.secure_url, publicId: result.public_id };
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+      // D-19.2 — velikost uloženého avataru (webp po transformaci).
+      bytes: result.bytes ?? file.size ?? 0,
+    };
   }
 
   /**

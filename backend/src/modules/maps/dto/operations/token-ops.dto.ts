@@ -3,6 +3,7 @@ import {
   IsString,
   IsNotEmpty,
   IsInt,
+  IsOptional,
   Min,
   Max,
   IsObject,
@@ -51,4 +52,16 @@ export class TokenUpdateOpDto {
   @Equals('token.update') type!: 'token.update';
   @IsString() @IsNotEmpty() tokenId!: string;
   @IsObject() patch!: Record<string, unknown>;
+  /**
+   * D-LAUNCH-GAP — relativní změna HP (damage/heal) místo absolutního
+   * `patch.currentHp`. Server ji aplikuje ATOMICKY proti aktuální DB hodnotě
+   * (aggregation pipeline s clampem 0..maxHp) → dva souběžné zásahy se
+   * NEztratí (absolutní set = last-write-wins na stale klientské bázi).
+   * Jen bestie tokeny (PC/NPC HP žije v deníku postavy). Nesmí se kombinovat
+   * s ne-prázdným `patch` (server vrací 400). `@IsInt` bez implicit convert
+   * → string "5" spadne na 400 (CH-122: žádná tichá koerce na vstupu).
+   */
+  @IsOptional() @IsInt() @Min(-100000) @Max(100000) hpDelta?: number;
+  /** D-LAUNCH-GAP — relativní změna `injury` (vzor hpDelta, clamp ≥ 0). */
+  @IsOptional() @IsInt() @Min(-100000) @Max(100000) injuryDelta?: number;
 }

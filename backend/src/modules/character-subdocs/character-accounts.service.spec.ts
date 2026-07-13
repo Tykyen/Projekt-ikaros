@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { CharacterAccountsService } from './character-accounts.service';
@@ -34,6 +34,8 @@ describe('CharacterAccountsService', () => {
     update: jest.fn(),
     appendTransaction: jest.fn(),
     appendTransactionIfSufficient: jest.fn(),
+    // D-PURCHASE-IDEMPOTENCY — čištění nonce v revert-on-fail větvi.
+    clearTransactionNonce: jest.fn(),
     replaceMoneyFields: jest.fn(),
     deleteById: jest.fn(),
     countByOwnerCharacterId: jest.fn(),
@@ -472,6 +474,209 @@ describe('CharacterAccountsService', () => {
     });
   });
 
+  describe('money hygiene (D-SEC-GAP float)', () => {
+    const staffOk = (acc: CharacterAccount) => {
+      mockAccountsRepo.findById.mockResolvedValue(acc);
+      mockCharactersService.isWorldStaff.mockResolvedValue(true);
+    };
+
+    it('adjust: string "9e9" → 400 AMOUNT_INVALID, žádný zápis (CH-122)', async () => {
+      await expect(
+        service.adjust(
+          'acc1',
+          { amount: '9e9' as unknown as number, reason: 'X' },
+          ru('pj1'),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockAccountsRepo.appendTransaction).not.toHaveBeenCalled();
+    });
+
+    it('adjust: NaN → 400 AMOUNT_INVALID, žádný zápis', async () => {
+      await expect(
+        service.adjust('acc1', { amount: NaN, reason: 'X' }, ru('pj1')),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockAccountsRepo.appendTransaction).not.toHaveBeenCalled();
+    });
+
+    it('adjust: driftová částka (0.1+0.2) se uloží jako přesně 0.3', async () => {
+      const acc = mockAccount({ balance: 0 });
+      staffOk(acc);
+      mockAccountsRepo.appendTransaction.mockResolvedValue({ ...acc });
+
+      await service.adjust(
+        'acc1',
+        { amount: 0.1 + 0.2, reason: 'Vklad' },
+        ru('pj1'),
+      );
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ delta: 0.3 }),
+      );
+    });
+
+    it('adjust: částka pod granularitou (zaokrouhlí se na 0) → AMOUNT_INVALID', async () => {
+      await expect(
+        service.adjust('acc1', { amount: 0.00001, reason: 'X' }, ru('pj1')),
+      ).rejects.toThrow(/Částka/);
+      expect(mockAccountsRepo.appendTransaction).not.toHaveBeenCalled();
+    });
+
+    it('transfer: driftová částka → txOut/txIn delta i sufficiency práh přesně 0.3', async () => {
+      const from = mockAccount({ id: 'accA', balance: 1 });
+      const to = mockAccount({
+        id: 'accB',
+        primaryOwnerId: 'char2',
+        ownerCharacterIds: ['char2'],
+      });
+      mockAccountsRepo.findById.mockImplementation((id: string) =>
+        Promise.resolve(id === 'accA' ? from : to),
+      );
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValue({
+        ...from,
+        balance: 0.7,
+      });
+      mockAccountsRepo.appendTransaction.mockResolvedValue({ ...to });
+
+      await service.transfer(
+        {
+          fromAccountId: 'accA',
+          toAccountId: 'accB',
+          amount: 0.1 + 0.2,
+          description: 'Test',
+        },
+        'pj1',
+      );
+
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).toHaveBeenCalledWith(
+        'accA',
+        expect.objectContaining({ delta: -0.3 }),
+        0.3,
+        undefined,
+        null,
+      );
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
+        'accB',
+        expect.objectContaining({ delta: 0.3 }),
+      );
+    });
+
+    it('transfer: string "9e9" → 400, žádný debet (CH-122)', async () => {
+      await expect(
+        service.transfer(
+          {
+            fromAccountId: 'accA',
+            toAccountId: 'accB',
+            amount: '9e9' as unknown as number,
+            description: 'X',
+          },
+          'pj1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('undoLast: nová balance se zaokrouhlí (drift z historie se nepropíše)', async () => {
+      const acc = mockAccount({
+        balance: 0.30000000000000004,
+        transactions: [
+          {
+            id: 't1',
+            date: new Date(),
+            delta: 0.1,
+            description: 'a',
+            performedByUserId: 'u1',
+          },
+        ],
+      });
+      mockAccountsRepo.findById.mockResolvedValue(acc);
+      mockAccountsRepo.update.mockResolvedValue({ ...acc, transactions: [] });
+
+      await service.undoLast('acc1');
+
+      expect(mockAccountsRepo.update).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ balance: 0.2 }),
+        undefined,
+      );
+    });
+
+    it('updateAccountContent: částky šablon projdou zaokrouhlením + finite guardem', async () => {
+      const acc = mockAccount();
+      mockAccountsRepo.update.mockResolvedValue(acc);
+
+      await service.updateAccountContent('acc1', {
+        incomeEntries: [{ id: 'i1', label: 'Renta', amount: 0.1 + 0.2 }],
+        expenseEntries: [{ id: 'e1', label: 'Nájem', amount: 0.7000000001 }],
+      });
+
+      expect(mockAccountsRepo.update).toHaveBeenCalledWith('acc1', {
+        incomeEntries: [{ id: 'i1', label: 'Renta', amount: 0.3 }],
+        expenseEntries: [{ id: 'e1', label: 'Nájem', amount: 0.7 }],
+      });
+
+      await expect(
+        service.updateAccountContent('acc1', {
+          incomeEntries: [
+            { id: 'i1', label: 'X', amount: '9e9' as unknown as number },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('addMonthly: delta z driftových šablon se uloží jako přesně 0.3', async () => {
+      const acc = mockAccount({
+        incomeEntries: [
+          { id: 'i1', label: 'a', amount: 0.1 },
+          { id: 'i2', label: 'b', amount: 0.1 },
+          { id: 'i3', label: 'c', amount: 0.1 },
+        ],
+        expenseEntries: [],
+      });
+      mockAccountsRepo.findById.mockResolvedValue(acc);
+      mockAccountsRepo.appendTransaction.mockResolvedValue({ ...acc });
+
+      await service.addMonthly('acc1', 'pj1');
+
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ delta: 0.3 }),
+      );
+    });
+
+    it('creditInSession: kredit se zaokrouhlí PŘED uložením', async () => {
+      const acc = mockAccount();
+      mockAccountsRepo.appendTransaction.mockResolvedValue(acc);
+
+      await service.creditInSession('acc1', 0.1 + 0.2, 'Storno', 'u1');
+
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ delta: 0.3 }),
+        undefined,
+      );
+    });
+
+    it('debitIfSufficient: delta i sufficiency práh jsou zaokrouhlené (stejná hodnota)', async () => {
+      const acc = mockAccount({ balance: 0.7 });
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValue(acc);
+
+      await service.debitIfSufficient('acc1', 0.1 + 0.2, 'Nákup', 'u1');
+
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ delta: -0.3 }),
+        0.3,
+        undefined,
+      );
+    });
+  });
+
   describe('undoLast', () => {
     it('vrátí poslední transakci', async () => {
       const acc = mockAccount({
@@ -648,6 +853,9 @@ describe('CharacterAccountsService', () => {
           performedByUserId: 'user1',
         }),
         300,
+        // Fallback cesta: bez session; bez nonce → guardNonce null.
+        undefined,
+        null,
       );
       expect(mockAccountsRepo.appendTransaction).toHaveBeenCalledWith(
         'acc2',
@@ -793,6 +1001,223 @@ describe('CharacterAccountsService', () => {
           description: expect.stringMatching(/^Revert:/),
         }),
       );
+    });
+  });
+
+  // ── D-PURCHASE-IDEMPOTENCY — clientNonce na transferu ─────────────────────
+  describe('transfer idempotence (clientNonce)', () => {
+    const NONCE = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const origTx = {
+      id: 't-orig',
+      date: new Date(),
+      delta: -300,
+      description: 'Převod',
+      clientNonce: NONCE,
+      transferRef: {
+        counterpartyAccountId: 'acc2',
+        counterpartyCharacterId: 'char2',
+        direction: 'out' as const,
+      },
+      performedByUserId: 'user1',
+    };
+    const input = {
+      fromAccountId: 'acc1',
+      toAccountId: 'acc2',
+      amount: 300,
+      description: 'X',
+      clientNonce: NONCE,
+    };
+
+    it('replay: zdrojový účet už má tx s nonce → vrátí PŮVODNÍ výsledek bez zápisů a bez emitu', async () => {
+      const from = mockAccount({
+        id: 'acc1',
+        balance: 700,
+        transactions: [origTx],
+      });
+      const to = mockAccount({ id: 'acc2', balance: 800 });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from) // from (validace)
+        .mockResolvedValueOnce(to) // to (validace)
+        .mockResolvedValueOnce(to); // replay: counterparty z transferRef
+
+      const res = await service.transfer(input, 'user1');
+
+      expect(res.from.balance).toBe(700);
+      expect(res.to.balance).toBe(800);
+      // Žádný 2. debet, žádný kredit, žádný duplicitní notifikační event.
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).not.toHaveBeenCalled();
+      expect(mockAccountsRepo.appendTransaction).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('nonce se propíše do txOut + guard filtru debetu; txIn nonce nenese', async () => {
+      const from = mockAccount({ id: 'acc1', balance: 1000 });
+      const to = mockAccount({
+        id: 'acc2',
+        primaryOwnerId: 'char2',
+        ownerCharacterIds: ['char2'],
+        balance: 500,
+      });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from)
+        .mockResolvedValueOnce(to);
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce({
+        ...from,
+        balance: 700,
+      });
+      mockAccountsRepo.appendTransaction.mockResolvedValueOnce({
+        ...to,
+        balance: 800,
+      });
+
+      await service.transfer(input, 'user1');
+
+      // Fallback cesta (unit mock session rejectne) → session=undefined,
+      // guardNonce jako 5. argument.
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ clientNonce: NONCE, delta: -300 }),
+        300,
+        undefined,
+        NONCE,
+      );
+      const txInArg = mockAccountsRepo.appendTransaction.mock.calls[0][1] as {
+        clientNonce?: string | null;
+      };
+      expect(txInArg.clientNonce).toBeUndefined();
+    });
+
+    it('race: guardovaný debet vrátí null a nonce už na účtu je → replay místo INSUFFICIENT_FUNDS', async () => {
+      const from = mockAccount({ id: 'acc1', balance: 1000, transactions: [] });
+      const fromFresh = mockAccount({
+        id: 'acc1',
+        balance: 700,
+        transactions: [origTx],
+      });
+      const to = mockAccount({ id: 'acc2', balance: 800 });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from) // from (pre-check nonce nenajde)
+        .mockResolvedValueOnce(to) // to
+        .mockResolvedValueOnce(fromFresh) // nonceAlreadyOnAccount → true
+        .mockResolvedValueOnce(fromFresh) // replay: čerstvý from
+        .mockResolvedValueOnce(to); // replay: counterparty
+      // Guard ve filtru odmítl (vítěz mezitím debet zapsal).
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce(
+        null,
+      );
+
+      const res = await service.transfer(input, 'user1');
+
+      expect(res.from.balance).toBe(700);
+      expect(res.to.balance).toBe(800);
+      expect(mockAccountsRepo.appendTransaction).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('guardovaný debet null a nonce na účtu NENÍ → INSUFFICIENT_FUNDS (jako dřív)', async () => {
+      const from = mockAccount({ id: 'acc1', balance: 100, transactions: [] });
+      const to = mockAccount({ id: 'acc2', balance: 800 });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from)
+        .mockResolvedValueOnce(to)
+        .mockResolvedValueOnce(from); // nonceAlreadyOnAccount → false
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce(
+        null,
+      );
+
+      await expect(service.transfer(input, 'user1')).rejects.toMatchObject({
+        response: { code: 'INSUFFICIENT_FUNDS' },
+      });
+    });
+
+    it('revert po selhání kroku 2 vyčistí nonce z debetu a revert tx ho nenese', async () => {
+      const from = mockAccount({ id: 'acc1', balance: 1000 });
+      const to = mockAccount({ id: 'acc2', balance: 500 });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from)
+        .mockResolvedValueOnce(to);
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce({
+        ...from,
+        balance: 700,
+      });
+      mockAccountsRepo.clearTransactionNonce.mockResolvedValue(undefined);
+      mockAccountsRepo.appendTransaction
+        .mockResolvedValueOnce(null) // krok 2 (kredit cíle) selže
+        .mockResolvedValueOnce({ ...from, balance: 1000 }); // revert OK
+
+      await expect(service.transfer(input, 'user1')).rejects.toMatchObject({
+        response: { code: 'TRANSFER_FAILED' },
+      });
+
+      // Nonce nesmí zůstat spotřebovaný — převod reálně neproběhl.
+      expect(mockAccountsRepo.clearTransactionNonce).toHaveBeenCalledWith(
+        'acc1',
+        expect.any(String),
+      );
+      // Revert tx nese explicitně clientNonce:null (klíč patří jen debetu).
+      expect(mockAccountsRepo.appendTransaction).toHaveBeenLastCalledWith(
+        'acc1',
+        expect.objectContaining({
+          clientNonce: null,
+          description: expect.stringMatching(/^Revert:/),
+        }),
+      );
+    });
+
+    it('neplatný formát nonce → 400 NONCE_INVALID (žádný zápis)', async () => {
+      await expect(
+        service.transfer({ ...input, clientNonce: 'not-a-uuid' }, 'user1'),
+      ).rejects.toMatchObject({ response: { code: 'NONCE_INVALID' } });
+      expect(mockAccountsRepo.findById).not.toHaveBeenCalled();
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('bez nonce → guard se nepředává a chování je beze změny', async () => {
+      const from = mockAccount({ id: 'acc1', balance: 1000 });
+      const to = mockAccount({
+        id: 'acc2',
+        primaryOwnerId: 'char2',
+        ownerCharacterIds: ['char2'],
+        balance: 500,
+      });
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(from)
+        .mockResolvedValueOnce(to);
+      mockAccountsRepo.appendTransactionIfSufficient.mockResolvedValueOnce({
+        ...from,
+        balance: 700,
+      });
+      mockAccountsRepo.appendTransaction.mockResolvedValueOnce({
+        ...to,
+        balance: 800,
+      });
+
+      const res = await service.transfer(
+        {
+          fromAccountId: 'acc1',
+          toAccountId: 'acc2',
+          amount: 300,
+          description: 'X',
+        },
+        'user1',
+      );
+
+      expect(
+        mockAccountsRepo.appendTransactionIfSufficient,
+      ).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ clientNonce: null }),
+        300,
+        undefined,
+        null,
+      );
+      expect(res.from.balance).toBe(700);
     });
   });
 

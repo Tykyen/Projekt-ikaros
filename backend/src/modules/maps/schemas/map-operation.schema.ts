@@ -29,6 +29,11 @@ export class MapOperationSchemaClass {
   @Prop({ required: true }) byUserId: string;
   @Prop({ type: Number, required: true }) byUserRole: number;
   @Prop({ required: true, expires: 60 * 60 * 24 * 30 }) appliedAt: Date;
+  /**
+   * D-DROBNE-UNDO — `true` = op už nelze vrátit přes undo (buď byla vrácena,
+   * nebo je to záznam undo aplikace samotné). Viz `MapOperationRecord.undone`.
+   */
+  @Prop({ type: Boolean, default: false }) undone?: boolean;
 }
 
 export const MapOperationSchema = SchemaFactory.createForClass(

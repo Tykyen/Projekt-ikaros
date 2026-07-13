@@ -33,6 +33,8 @@ export class UpdateWorldDto {
   @ValidateIf((_, v) => v !== null && v !== '')
   @IsUrl()
   imageUrl?: string | null;
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional() @IsInt() @Min(0) @Max(104_857_600) imageBytes?: number;
   @IsOptional() @IsString() genre?: string;
   @IsOptional() @IsArray() tones?: string[];
   @IsOptional() @IsString() @MaxLength(500) playersWanted?: string;
@@ -60,6 +62,12 @@ export class UpdateWorldDto {
   @ValidateIf((_, v) => v !== null)
   @IsString()
   themeBackgroundUrl?: string | null;
+  /** D-19.2 — velikost blobu `themeBackgroundUrl` (FE přeposílá z uploadu). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(104_857_600)
+  themeBackgroundBytes?: number;
 
   @IsOptional()
   @ValidateNested()

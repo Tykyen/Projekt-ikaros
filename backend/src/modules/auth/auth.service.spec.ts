@@ -380,27 +380,29 @@ describe('AuthService', () => {
       expect(saved.hiddenInDirectory).toBeUndefined();
     });
 
-    it('20C — nezletilý (isMinor:true): parentalConsentStatus=pending + bezpečné defaulty', async () => {
+    // D-SEC-GAP — politika 15+ (provozní rámec): deklarace <15 registraci odmítne.
+    it('D-SEC-GAP — <15 (isMinor:true) hodí BadRequest AGE_REQUIREMENT_NOT_MET, bez DB zápisu', async () => {
       mockUsersRepo.findByEmail.mockResolvedValue(null);
       mockUsersRepo.findByUsername.mockResolvedValue(null);
-      mockUsersRepo.save.mockResolvedValue(mockUser);
-      mockRefreshRepo.save.mockResolvedValue({});
-      await service.register({
-        email: 'kid@a.com',
-        username: 'kiddo',
-        password: 'pass123',
-        acceptedTerms: true,
-        isMinor: true,
-      });
-      expect(mockUsersRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
+      try {
+        await service.register({
+          email: 'kid@a.com',
+          username: 'kiddo',
+          password: 'pass1234',
+          acceptedTerms: true,
           isMinor: true,
-          minorSelfDeclaredAt: expect.any(Date),
-          parentalConsentStatus: 'pending',
-          profileVisibility: 'friends',
-          hiddenInDirectory: true,
-        }),
-      );
+        });
+        fail('expected BadRequestException');
+      } catch (err) {
+        expect(err).toBeInstanceOf(BadRequestException);
+        const response = (err as BadRequestException).getResponse();
+        expect(response).toMatchObject({
+          code: 'AGE_REQUIREMENT_NOT_MET',
+          message: 'Platforma je určena uživatelům od 15 let.',
+        });
+      }
+      // věk se vynucuje před DB zápisem (žádný účet, žádný mail/token)
+      expect(mockUsersRepo.save).not.toHaveBeenCalled();
     });
   });
 
@@ -936,6 +938,49 @@ describe('AuthService', () => {
       mockUsersRepo.findByEmail.mockResolvedValue(null);
       await service.forgotPassword('JAN@Example.Com');
       expect(mockUsersRepo.findByEmail).toHaveBeenCalledWith('jan@example.com');
+    });
+
+    // D-AUDIT — per-recipient throttle (max 1 reset mail / e-mail / 2 min).
+    it('throttle — druhý požadavek do 2 min neposílá mail ani nevystaví token, odpověď stále ok', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        isDeleted: false,
+        deletionRequestedAt: undefined,
+      });
+      await service.forgotPassword('a@a.com');
+      const out = await service.forgotPassword('a@a.com');
+      expect(out).toEqual({ ok: true }); // anti-enumeration: nerozlišitelné
+      expect(mockMailer.sendPasswordReset).toHaveBeenCalledTimes(1);
+      expect(mockSecurityTokens.issue).toHaveBeenCalledTimes(1);
+    });
+
+    it('throttle — po vypršení okna (2 min) se mail pošle znovu', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        isDeleted: false,
+        deletionRequestedAt: undefined,
+      });
+      const t0 = Date.now();
+      const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(t0);
+      try {
+        await service.forgotPassword('a@a.com');
+        nowSpy.mockReturnValue(t0 + AuthService.RESET_MAIL_THROTTLE_MS + 1);
+        await service.forgotPassword('a@a.com');
+        expect(mockMailer.sendPasswordReset).toHaveBeenCalledTimes(2);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it('throttle — jiný e-mail není omezen', async () => {
+      mockUsersRepo.findByEmail.mockResolvedValue({
+        ...mockUser,
+        isDeleted: false,
+        deletionRequestedAt: undefined,
+      });
+      await service.forgotPassword('a@a.com');
+      await service.forgotPassword('b@b.com');
+      expect(mockMailer.sendPasswordReset).toHaveBeenCalledTimes(2);
     });
   });
 

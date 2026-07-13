@@ -26,6 +26,7 @@ import { MongoChatMessageRepository } from './repositories/chat-message.reposito
 import { MongoChannelReadStatusRepository } from './repositories/channel-read-status.repository';
 import { MongoScheduledMessageRepository } from './repositories/scheduled-message.repository';
 import { ChatService } from './chat.service';
+import { ChatModerationEnforcementListener } from './moderation-enforcement.listener';
 import { ChatPresenceService } from './chat-presence.service';
 import { ChatController } from './chat.controller';
 import { ChatFeedController } from './chat-feed.controller';
@@ -33,6 +34,7 @@ import { ScheduledMessagesController } from './scheduled-messages.controller';
 import { ScheduledMessagesJob } from './scheduled-messages.job';
 import { ChatGateway } from './chat.gateway';
 import { WorldsModule } from '../worlds/worlds.module';
+import { UsersModule } from '../users/users.module';
 import { CharactersModule } from '../characters/characters.module';
 import { PushModule } from '../push/push.module';
 import { UploadModule } from '../upload/upload.module';
@@ -68,6 +70,9 @@ import { AuthModule } from '../auth/auth.module';
     // forwardRef kvůli cyklu: AuthModule → UsersModule → WorldsModule → … →
     // ChatModule. Bez něj je AuthModule při startu undefined a Nest spadne.
     forwardRef(() => AuthModule),
+    // W-3 dokončení — IUsersRepository pro ChatGateway (presence username/avatar
+    // ze serveru, ne z klientského payloadu). forwardRef kvůli stejnému cyklu.
+    forwardRef(() => UsersModule),
   ],
   controllers: [
     ChatController,
@@ -76,6 +81,8 @@ import { AuthModule } from '../auth/auth.module';
   ],
   providers: [
     ChatService,
+    // D-066 (spec 20B B4b) — moderace chatové zprávy (M2/M3 skrytí, M4 smazání).
+    ChatModerationEnforcementListener,
     ChatPresenceService,
     { provide: 'IChatGroupRepository', useClass: MongoChatGroupRepository },
     { provide: 'IChatChannelRepository', useClass: MongoChatChannelRepository },

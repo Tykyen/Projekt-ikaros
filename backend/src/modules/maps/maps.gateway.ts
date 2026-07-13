@@ -16,6 +16,7 @@ import type { IWorldMembershipRepository } from '../worlds/interfaces/world-memb
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { WorldElevationsService } from '../world-elevations/world-elevations.service';
+import { allowWsEvent } from '../../common/ws/ws-rate-limit';
 
 interface AuthedSocketData {
   user?: { id: string; role: UserRole };
@@ -106,6 +107,8 @@ export class MapsGateway implements OnGatewayConnection {
     @MessageBody() sceneId: string,
     @ConnectedSocket() client: AuthedSocket,
   ): Promise<void> {
+    // D-LAUNCH-GAP — anti-flood (2× DB lookup per event).
+    if (!allowWsEvent(client, 'map:join')) return;
     if (!this.requireAuth(client)) return;
     // Validate scene existuje + user je member jejího worldu (kromě Sa/Admin).
     const scene = await this.mapsRepo.findById(sceneId);
@@ -150,6 +153,7 @@ export class MapsGateway implements OnGatewayConnection {
     @MessageBody() sceneId: string,
     @ConnectedSocket() client: AuthedSocket,
   ): void {
+    if (!allowWsEvent(client, 'map:leave')) return; // D-LAUNCH-GAP
     void client.leave(sceneId);
   }
 
@@ -162,6 +166,8 @@ export class MapsGateway implements OnGatewayConnection {
     @MessageBody() worldId: string,
     @ConnectedSocket() client: AuthedSocket,
   ): Promise<void> {
+    // D-LAUNCH-GAP — anti-flood (DB lookup membership/elevation per event).
+    if (!allowWsEvent(client, 'map:join-world')) return;
     if (!this.requireAuth(client)) return;
     const data = client.data as AuthedSocketData;
     const elevated =
@@ -198,6 +204,7 @@ export class MapsGateway implements OnGatewayConnection {
     @MessageBody() worldId: string,
     @ConnectedSocket() client: AuthedSocket,
   ): void {
+    if (!allowWsEvent(client, 'map:leave-world')) return; // D-LAUNCH-GAP
     void client.leave(`world-ops:${worldId}`); // R-13
   }
 
@@ -214,6 +221,7 @@ export class MapsGateway implements OnGatewayConnection {
     payload: { sceneId: string; x: number; y: number; userName: string },
     @ConnectedSocket() client: AuthedSocket,
   ): void {
+    if (!allowWsEvent(client, 'map:ping')) return; // D-LAUNCH-GAP
     if (!this.requireAuth(client)) return;
     // W-RUN-07-03 (plný audit 2026-06-20) — dřív mohl libovolný přihlášený
     // klient broadcastnout ping do JAKÉKOLIV scény (cross-scene spoof). Teď jen
@@ -240,6 +248,10 @@ export class MapsGateway implements OnGatewayConnection {
     },
     @ConnectedSocket() client: AuthedSocket,
   ): void {
+    // D-LAUNCH-GAP — anti-flood. Pravítko FE legitimně emituje throttled
+    // ~16/s při tažení (viz TacticalMapView) → limit 300/10 s (30/s) s rezervou;
+    // extrémní flood (10× = 3000/10 s) = disconnect.
+    if (!allowWsEvent(client, 'map:ruler', { limit: 300 })) return;
     if (!this.requireAuth(client)) return;
     if (!client.rooms.has(payload.sceneId)) return;
     const data = client.data as AuthedSocketData;
@@ -261,6 +273,7 @@ export class MapsGateway implements OnGatewayConnection {
     @MessageBody() payload: { sceneId: string; tokenId: string },
     @ConnectedSocket() client: AuthedSocket,
   ): Promise<void> {
+    if (!allowWsEvent(client, 'map:spotlight')) return; // D-LAUNCH-GAP
     if (!this.requireAuth(client)) return;
     const data = client.data as AuthedSocketData;
     const scene = await this.mapsRepo.findById(payload.sceneId);

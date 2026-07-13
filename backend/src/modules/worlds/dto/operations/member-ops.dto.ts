@@ -5,7 +5,10 @@ import {
   IsArray,
   ArrayMinSize,
   ArrayMaxSize,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 /**
  * 10.2-prep-1 — member assignment operations DTOs (cross-scene).
@@ -31,4 +34,32 @@ export class MemberBulkAssignToSceneOpDto {
   @IsString({ each: true })
   userIds!: string[];
   @IsString() @IsNotEmpty() sceneId!: string;
+}
+
+/**
+ * D-NEW-INV-MAPS — jedna položka per-member přiřazení pro bulk restore.
+ * `sceneId: null` = unassign (member byl před bulk operací bez scény).
+ */
+export class MemberAssignmentEntryDto {
+  @IsString() @IsNotEmpty() userId!: string;
+  @ValidateIf((_o, value) => value !== null)
+  @IsString()
+  @IsNotEmpty()
+  sceneId!: string | null;
+}
+
+/**
+ * D-NEW-INV-MAPS — inverse pro `member.bulkAssignToScene`: obnoví PŮVODNÍ
+ * per-member přiřazení (každý member může mít jinou cílovou scénu / null).
+ * PJ-only (authorizer: hráč projde jen self `member.unassign`).
+ */
+export class MemberBulkRestoreAssignmentsOpDto {
+  @Equals('member.bulkRestoreAssignments')
+  type!: 'member.bulkRestoreAssignments';
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => MemberAssignmentEntryDto)
+  assignments!: MemberAssignmentEntryDto[];
 }

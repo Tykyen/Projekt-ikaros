@@ -116,6 +116,7 @@ export class EmotesService {
       shortcode: dto.shortcode,
       imageId: dto.imageId,
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       createdBy: userId,
       tags: dto.tags ?? [],
     });
@@ -149,6 +150,7 @@ export class EmotesService {
       shortcode: dto.shortcode,
       imageId: dto.imageId,
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       createdBy: userId,
       tags: dto.tags ?? [],
     });
@@ -200,12 +202,17 @@ export class EmotesService {
       });
 
     const updates: Partial<
-      Pick<CustomEmote, 'name' | 'shortcode' | 'imageId' | 'imageUrl'>
+      Pick<
+        CustomEmote,
+        'name' | 'shortcode' | 'imageId' | 'imageUrl' | 'imageBytes'
+      >
     > = {};
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.shortcode !== undefined) updates.shortcode = dto.shortcode;
     if (dto.imageId !== undefined) updates.imageId = dto.imageId;
     if (dto.imageUrl !== undefined) updates.imageUrl = dto.imageUrl;
+    // D-19.2 — velikost blobu; FE ji posílá spolu s novým imageUrl.
+    if (dto.imageBytes !== undefined) updates.imageBytes = dto.imageBytes;
 
     if (Object.keys(updates).length === 0)
       throw new BadRequestException({

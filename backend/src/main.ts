@@ -38,13 +38,19 @@ async function bootstrap() {
       'Unhandled promise rejection',
       reason instanceof Error ? reason.stack : String(reason),
     );
+    // Monitoring — chyby mimo HTTP request (async/WS) nikdy neprojdou
+    // exception filtrem → záchyt tady. No-op bez SENTRY_DSN.
+    Sentry.captureException(reason);
   });
   process.on('uncaughtException', (err) => {
     bootLogger.error(
       'Uncaught exception',
       err instanceof Error ? err.stack : String(err),
     );
-    process.exit(1);
+    // Monitoring — poslední zpráva před řízeným pádem; flush s 2s timeoutem,
+    // ať event stihne odejít (no-op bez SENTRY_DSN → resolve hned).
+    Sentry.captureException(err);
+    void Sentry.flush(2000).finally(() => process.exit(1));
   });
 
   // LH-02 (log hygiene) — v produkci netiskni debug/verbose, aby debug zbytky
@@ -144,11 +150,16 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   const server = await app.listen(process.env.PORT ?? 3000);
-  // PERF/SCALE (styl 25/26) — anti slow-loris hardening. keepAliveTimeout mírně
-  // NAD proxy keep-alive (Node default 5 s za proxy → sporadické 502);
-  // headersTimeout > keepAliveTimeout. requestTimeout vědomě NEnastavujeme
-  // (default), aby neuřízlo dlouhý export světa / PDF stream.
+  // PERF/SCALE (styl 25/26) + D-LAUNCH-GAP (2026-07-11) — anti slow-loris
+  // hardening. keepAliveTimeout mírně NAD proxy keep-alive (Node default 5 s za
+  // proxy → sporadické 502); headersTimeout > keepAliveTimeout. requestTimeout
+  // = strop na PŘÍJEM celého requestu od klienta (headers + body), NE na dobu
+  // odpovědi → dlouhý export světa / PDF stream neuřízne. 5 min explicitně
+  // (= Node 18+ default, jen viditelně): největší upload je 50 MB (multer
+  // FileInterceptor, mapové podklady → Cloudinary přes BE) a 50 MB / 300 s
+  // zvládne i pomalá linka (~1,4 Mbps); slow-loris body drip přes 5 min dostane 408.
   server.keepAliveTimeout = 61_000;
   server.headersTimeout = 65_000;
+  server.requestTimeout = 300_000;
 }
 void bootstrap();

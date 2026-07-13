@@ -6,6 +6,7 @@ import { FriendshipsPendingActionProvider } from './friendships-pending-action.p
 import { PendingActionsService } from '../pending-actions/pending-actions.service';
 import { PendingActionsModule } from '../pending-actions/pending-actions.module';
 import { FriendshipsRepositoryModule } from './friendships-repository.module';
+import { WorldsModule } from '../worlds/worlds.module';
 
 @Module({
   imports: [
@@ -15,6 +16,10 @@ import { FriendshipsRepositoryModule } from './friendships-repository.module';
     PendingActionsModule,
     // Schema + Mongo repository (bezzávislostní modul — viz jeho doc).
     FriendshipsRepositoryModule,
+    // D-NEW-INV-PROFILE — IWorldMembershipRepository pro worldsCount ve
+    // friend shape (GET /friends). Žádný cyklus: FriendshipsModule nikdo
+    // z grafu WorldsModule neimportuje (jen app.module + data-export).
+    WorldsModule,
   ],
   controllers: [FriendshipsController],
   providers: [

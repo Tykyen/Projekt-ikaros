@@ -113,4 +113,23 @@ export class MongoNaboryRepository implements INaboryRepository {
   async countAll(): Promise<number> {
     return this.model.countDocuments().exec();
   }
+
+  async countActiveByAuthor(authorId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: strop ŽIVÝCH náborů
+    // autora (expirované po 30 dnech se nepočítají — legitimní PJ s novým
+    // náborem každý měsíc strop nikdy nepotká, flood v jednom okně zastaví).
+    // Index { authorId: 1 } existuje.
+    const now = new Date();
+    return this.model
+      .countDocuments({
+        authorId,
+        status: { $ne: 'expired' },
+        $or: [
+          { expiresAtUtc: { $exists: false } },
+          { expiresAtUtc: null },
+          { expiresAtUtc: { $gt: now } },
+        ],
+      })
+      .exec();
+  }
 }

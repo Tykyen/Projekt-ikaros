@@ -42,12 +42,21 @@ export class WorldCurrenciesController {
   @ApiOperation({ summary: 'Úplné přepsání měn světa (PJ/Admin)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
+  @ApiResponse({
+    status: 409,
+    description: 'CURRENCY_CONFLICT — souběžná změna (expectedUpdatedAt)',
+  })
   updateCurrencies(
     @Param('worldId') worldId: string,
     @Body() dto: UpdateWorldCurrenciesDto,
     @CurrentUser() user: CurrencyRequester,
   ) {
-    return this.service.updateCurrencies(worldId, dto.items as never, user);
+    return this.service.updateCurrencies(
+      worldId,
+      dto.items as never,
+      user,
+      dto.expectedUpdatedAt,
+    );
   }
 
   @Post(':worldId/currencies/convert')

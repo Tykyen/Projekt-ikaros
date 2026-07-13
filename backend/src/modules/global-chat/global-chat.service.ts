@@ -446,6 +446,8 @@ export class GlobalChatService implements OnModuleInit {
     // 15.9 — push JEN z Hospody, a to opt-in (kategorie `hospoda`, default VYP).
     // Camp push negeneruje vůbec (dřív sdílená notifyAll spamovala všechny
     // i ze zpráv z Campu). fire-and-forget — nečekáme na výsledek.
+    // D-NEW-INV-PUSH — url = deep-link na platformový chat (FE route /chat);
+    // excludeUserId = odesílatel nedostane push na vlastní zprávu.
     if (room === 'hospoda') {
       void this.pushService
         .notifyAll(
@@ -454,8 +456,10 @@ export class GlobalChatService implements OnModuleInit {
             body:
               (dto.content ?? '').slice(0, 100) ||
               (attachments.length > 0 ? '📎 Příloha' : ''),
+            url: '/chat',
           },
           'hospoda',
+          { excludeUserId: user.id },
         )
         .catch((err: unknown) =>
           logWarn(this.logger, 'notifyAll selhal pro global message', err),

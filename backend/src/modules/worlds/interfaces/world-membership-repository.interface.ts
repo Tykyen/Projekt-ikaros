@@ -27,6 +27,16 @@ export interface IWorldMembershipRepository {
   countsByUserIds(userIds: string[]): Promise<Map<string, number>>;
 
   /**
+   * D-NEW-INV-PROFILE — jako `countsByUserIds`, ale NEZAPOČÍTÁVÁ členství
+   * v soft-smazaných světech (`worlds.deletedAt != null`, 30denní recovery
+   * okno). Použito pro friend shape (`GET /friends`) — smazaný svět navenek
+   * neexistuje, do počtu se nesmí promítnout.
+   */
+  countsByUserIdsExcludingDeletedWorlds(
+    userIds: string[],
+  ): Promise<Map<string, number>>;
+
+  /**
    * Spec 2.4 — počet members napříč N světy s danou rolí.
    * Pokud `worldIds` undefined → global scope (jen pro Admin/Superadmin).
    * Pokud prázdné pole → 0.

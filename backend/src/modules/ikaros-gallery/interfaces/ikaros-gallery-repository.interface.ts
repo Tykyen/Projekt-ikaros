@@ -29,6 +29,8 @@ export interface IIkarosGalleryRepository {
   countPending(): Promise<number>;
   /** 12.1 — celkový počet obrázků (admin dashboard). */
   countAll(): Promise<number>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet obrázků autora (creation cap). */
+  countByAuthor(authorId: string): Promise<number>;
   findPendingPaginated(
     offset: number,
     limit: number,

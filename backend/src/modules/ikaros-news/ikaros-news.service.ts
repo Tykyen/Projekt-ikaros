@@ -130,6 +130,9 @@ export class IkarosNewsService {
         {
           title: 'Nová novinka na Ikarosu',
           body: item.title.slice(0, 100),
+          // D-NEW-INV-PUSH — deep-link: klik otevře stránku novinek (FE
+          // detail route neexistuje, novinky žijí jen na /ikaros/novinky).
+          url: '/ikaros/novinky',
         },
         'ikarosNews',
       )

@@ -51,6 +51,11 @@ interface TransferBody {
   description: string;
   /** Spec 8.x-prep §4.4 (B4) — herní datum. */
   inGameDate?: FantasyDateLike | null;
+  /**
+   * D-PURCHASE-IDEMPOTENCY — klientský nonce (UUID v4); retry se stejným
+   * nonce = replay původního převodu. Formát validuje service (NONCE_INVALID).
+   */
+  clientNonce?: string | null;
 }
 
 interface AddMonthlyBody {
@@ -284,6 +289,8 @@ export class CharacterAccountsController {
         amount: body.amount,
         description: body.description,
         inGameDate: body.inGameDate ?? null,
+        // D-PURCHASE-IDEMPOTENCY — volitelný nonce pro idempotentní retry.
+        clientNonce: body.clientNonce ?? null,
       },
       user.id,
     );

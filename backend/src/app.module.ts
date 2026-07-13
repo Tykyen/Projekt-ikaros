@@ -76,7 +76,11 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnv }),
-    EventEmitterModule.forRoot(),
+    // maxListeners: default 10 nestačí (>10 @OnEvent listenerů na jeden event,
+    // např. user.deletion.* + moderation.enforce) — eventemitter2 pak volá
+    // process.emitWarning, což pod Node 24 v jest sandboxu shodí app.init()
+    // (cross-realm TypeError). Zvýšení řeší i produkční warning spam.
+    EventEmitterModule.forRoot({ maxListeners: 30 }),
     ScheduleModule.forRoot(),
     // Default: 100 requestů/min/IP. Citlivé endpointy mají vlastní @Throttle (login, register, refresh, exists).
     // D-028: storage je opt-in Redis (THROTTLER_REDIS=1) pro multi-instance, jinak in-memory — viz throttler.config.

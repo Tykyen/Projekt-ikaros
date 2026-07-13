@@ -90,6 +90,8 @@ export interface PageSectionItem {
 export interface GalleryImage {
   id: string;
   url: string;
+  /** D-19.2 — velikost blobu `url` v bytech; staré položky nemají. */
+  bytes?: number;
   caption?: string;
   order: number;
 }
@@ -192,6 +194,8 @@ export interface Page {
   /** Pravidlová kniha — taháková rekapitulace pro HUD „Rychlý přehled". */
   quickRef?: string;
   imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech; staré dokumenty nemají. */
+  imageBytes?: number;
   bigImage?: boolean;
   // Parita s GameEvent — výřez hlavního obrázku (focal point + zoom + fit).
   // null = default (focal 50/50, zoom 100, fit cover); řeší FE getImageStyle.

@@ -22,6 +22,8 @@ export class MongoCustomEmotesRepository implements ICustomEmotesRepository {
       shortcode: doc.shortcode as string,
       imageId: doc.imageId as string,
       imageUrl: doc.imageUrl as string,
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: doc.imageBytes as number | undefined,
       createdBy: String(doc.createdBy),
       tags: (doc.tags as string[]) ?? [],
       createdAt: doc.createdAt as Date,
@@ -75,6 +77,7 @@ export class MongoCustomEmotesRepository implements ICustomEmotesRepository {
       shortcode: data.shortcode,
       imageId: data.imageId,
       imageUrl: data.imageUrl,
+      imageBytes: data.imageBytes, // D-19.2
       createdBy: new Types.ObjectId(data.createdBy),
     });
     return this.toEntity(doc.toObject() as unknown as Record<string, unknown>);
@@ -83,7 +86,10 @@ export class MongoCustomEmotesRepository implements ICustomEmotesRepository {
   async updateById(
     id: string,
     updates: Partial<
-      Pick<CustomEmote, 'name' | 'shortcode' | 'imageId' | 'imageUrl'>
+      Pick<
+        CustomEmote,
+        'name' | 'shortcode' | 'imageId' | 'imageUrl' | 'imageBytes'
+      >
     >,
   ): Promise<CustomEmote | null> {
     if (!Types.ObjectId.isValid(id)) return null;

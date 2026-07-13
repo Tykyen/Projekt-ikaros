@@ -44,6 +44,13 @@ import {
   type WorldExportManifest,
 } from './interfaces/world-export-payload.interface';
 import { MAX_MEDIA_BYTES, isMediaUrl } from './media-url.guard';
+// D-NEW-INV-SEC persona-on-server — PJ persona (6.8) v exportovaném chatu.
+import { makePjPersonaResolver } from '../worlds/pj-persona.util';
+import { applyPjPersonaToExportMessages } from './export-persona.util';
+// D-066-ZBYTKY b — moderačně skrytý deník (20B B4b) se z exportu vynechává.
+import { omitModerationHiddenDiaries } from './export-moderation.util';
+import type { WorldMembership } from '../worlds/interfaces/world-membership.interface';
+import type { WorldSettings } from '../worlds/interfaces/world-settings.interface';
 
 export interface ExportOptions {
   /** Zahrnout chat (kanály/zprávy). Default false — viz spec 14.7 B3. (Zatím no-op.) */
@@ -339,7 +346,9 @@ export class WorldExportService {
       Promise.all(charIds.map((id) => this.notesRepo.findByCharacterId(id))),
     ]);
 
-    const chat = includeChat ? await this.collectChat(worldId) : undefined;
+    const chat = includeChat
+      ? await this.collectChat(worldId, members, settings)
+      : undefined;
 
     return {
       world: await this.worldsRepo.findById(worldId),
@@ -357,7 +366,8 @@ export class WorldExportService {
       // Bestie světa (system/user scope jsou globální → do zálohy světa nepatří).
       bestiae: bestieAll.filter((b) => b.scope === 'world'),
       characterSubdocs: {
-        diaries: compact(diaries),
+        // D-066-ZBYTKY b — skrytý deník PJ v UI nevidí (404) → ani v záloze.
+        diaries: omitModerationHiddenDiaries(compact(diaries)),
         finances: compact(finances),
         inventories: compact(inventories),
         notes: compact(notes),
@@ -380,7 +390,11 @@ export class WorldExportService {
   }
 
   /** Volitelný chat — skupiny + kanály + zprávy (limit 2000 / kanál). */
-  private async collectChat(worldId: string) {
+  private async collectChat(
+    worldId: string,
+    members: WorldMembership[],
+    settings: WorldSettings | null,
+  ) {
     const [groups, channels] = await Promise.all([
       this.chatGroupRepo.findByWorldId(worldId),
       this.chatChannelRepo.findByWorldId(worldId),
@@ -390,7 +404,14 @@ export class WorldExportService {
         this.chatMessageRepo.findByChannelId(ch.id, { limit: 2000 }),
       ),
     );
-    return { groups, channels, messages: perChannel.flat() };
+    // D-NEW-INV-SEC persona-on-server — `senderName` od vedení v exportu
+    // nahrazujeme personou PJ (6.8): archiv je surový JSON a sdílí se dál.
+    // DB se nemění; `senderId` zůstává (import fidelity).
+    const messages = applyPjPersonaToExportMessages(
+      perChannel.flat(),
+      makePjPersonaResolver(members, settings?.pjChatPersona),
+    );
+    return { groups, channels, messages };
   }
 
   /** Rekurzivně posbírá z JSON stromu všechny URL na naše média. */

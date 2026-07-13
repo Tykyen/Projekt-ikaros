@@ -4,6 +4,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IUsersRepository } from '../interfaces/users-repository.interface';
 import { MailerService } from '../../mailer/mailer.service';
 import { UserBanCacheService } from './user-ban-cache.service';
+import { CronLockService } from '../../../common/locks/cron-lock.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -32,15 +33,21 @@ export class AccountCleanupCron {
     private readonly mailer: MailerService,
     // FIX-A část 2 (2026-07) — invalidate + force-disconnect (viz sweep()).
     private readonly banCache: UserBanCacheService,
+    private readonly cronLock: CronLockService,
   ) {
     void this.mailer;
   }
 
   // Spec 1.3c ř.393 — denně 03:00 Europe/Prague (mimo špičku).
+  // CronLock — při 2+ replikách BE sweep proběhne jen na jedné instanci.
   @Cron('0 3 * * *', {
     name: 'account-hard-delete',
     timeZone: 'Europe/Prague',
   })
+  async sweepCron(): Promise<void> {
+    await this.cronLock.withLock('account-hard-delete', () => this.sweep());
+  }
+
   async sweep(): Promise<void> {
     const cutoff = new Date(
       Date.now() - AccountCleanupCron.GRACE_PERIOD_DAYS * DAY_MS,

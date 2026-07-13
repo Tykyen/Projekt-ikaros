@@ -6,6 +6,7 @@ import type { IIkarosMessagesRepository } from './interfaces/ikaros-messages-rep
 import type { IkarosMessage } from './interfaces/ikaros-message.interface';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../users/interfaces/user.interface';
+import { PushService } from '../push/push.service';
 
 const makeMsg = (overrides: Partial<IkarosMessage> = {}): IkarosMessage => ({
   id: 'msg1',
@@ -32,6 +33,7 @@ describe('IkarosMessagesService', () => {
   let usersService: { findById: jest.Mock };
   let friendsRepo: { findActiveBetween: jest.Mock };
   let eventEmitter: jest.Mocked<EventEmitter2>;
+  let pushService: { notify: jest.Mock };
 
   const sender = { id: 'sender1', username: 'Alice', role: UserRole.Hrac };
 
@@ -49,6 +51,7 @@ describe('IkarosMessagesService', () => {
     usersService = { findById: jest.fn() };
     friendsRepo = { findActiveBetween: jest.fn() };
     eventEmitter = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
+    pushService = { notify: jest.fn().mockResolvedValue(undefined) };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -57,6 +60,7 @@ describe('IkarosMessagesService', () => {
         { provide: UsersService, useValue: usersService },
         { provide: 'IFriendshipsRepository', useValue: friendsRepo },
         { provide: EventEmitter2, useValue: eventEmitter },
+        { provide: PushService, useValue: pushService },
       ],
     }).compile();
 
@@ -96,6 +100,47 @@ describe('IkarosMessagesService', () => {
           messageId: 'msg1',
         }),
       );
+    });
+
+    // D-NEW-INV-PUSH — pošta dřív nepushovala vůbec (jen WS gateway).
+    it('pushne příjemci s deep-linkem /ikaros/posta a kategorií posta', async () => {
+      usersService.findById.mockResolvedValue({ profileVisibility: 'public' });
+      msgRepo.save.mockResolvedValue(makeMsg());
+
+      await service.create(
+        {
+          subject: 'Ahoj',
+          body: 'Jak se máš?',
+          recipientId: 'recipient1',
+          recipientName: 'Bob',
+        },
+        sender,
+      );
+
+      expect(pushService.notify).toHaveBeenCalledWith(
+        'recipient1',
+        expect.objectContaining({ url: '/ikaros/posta' }),
+        'posta',
+      );
+    });
+
+    it('zpráva sám sobě (recipient == sender) push negeneruje', async () => {
+      usersService.findById.mockResolvedValue({ profileVisibility: 'public' });
+      msgRepo.save.mockResolvedValue(
+        makeMsg({ senderId: 'sender1', recipientId: 'sender1' }),
+      );
+
+      await service.create(
+        {
+          subject: 'Poznámka',
+          body: 'pro mě',
+          recipientId: 'sender1',
+          recipientName: 'Alice',
+        },
+        sender,
+      );
+
+      expect(pushService.notify).not.toHaveBeenCalled();
     });
   });
 

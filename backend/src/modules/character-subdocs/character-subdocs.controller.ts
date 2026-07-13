@@ -20,9 +20,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CharactersService } from '../characters/characters.service';
 import { UpdateCharacterDiaryDto } from './dto/update-character-diary.dto';
 import { RemapDiaryKeysDto } from './dto/remap-diary-keys.dto';
+import type { UserRole } from '../users/interfaces/user.interface';
 
 interface RequestUser {
   id: string;
+  /** D-066 — platformová role pro gate moderačně skrytého deníku. */
+  role: UserRole;
 }
 
 @ApiTags('Character Subdocs')
@@ -49,7 +52,8 @@ export class CharacterSubdocsController {
       worldId,
       user.id,
     );
-    return this.subdocsService.getDiary(character.id, worldId);
+    // D-066 — role rozhoduje, zda viewer smí vidět moderačně skrytý deník.
+    return this.subdocsService.getDiary(character.id, worldId, user.role);
   }
 
   @Patch('diary')
@@ -70,6 +74,8 @@ export class CharacterSubdocsController {
     return this.subdocsService.updateDiary(
       character.id,
       dto as unknown as Parameters<typeof this.subdocsService.updateDiary>[1],
+      // D-066 — skrytý deník needituje nikdo mimo reviewer set.
+      user.role,
     );
   }
 

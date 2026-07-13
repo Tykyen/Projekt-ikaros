@@ -14,6 +14,8 @@ export interface IScheduledMessageRepository {
     ownerId: string,
     worldId: string,
   ): Promise<ScheduledMessage[]>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet pending zpráv světa (creation cap). */
+  countPendingByWorld(worldId: string): Promise<number>;
   findById(id: string): Promise<ScheduledMessage | null>;
   setStatus(id: string, status: ScheduledMessage['status']): Promise<void>;
   delete(id: string): Promise<boolean>;

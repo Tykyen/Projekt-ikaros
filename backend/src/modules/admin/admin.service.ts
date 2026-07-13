@@ -5,6 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
@@ -41,6 +42,9 @@ import { BulkBanDto } from './dto/bulk-ban.dto';
 import { BulkUnbanDto } from './dto/bulk-unban.dto';
 import { BulkRoleChangeDto } from './dto/bulk-role-change.dto';
 import { assertCanChangeRole, assertCanModerate } from './helpers/hierarchy';
+// D-DROBNE — notifikace na starou adresu při admin změně e-mailu (vzor
+// self-service `requestEmailChange` v users.service). MailerModule je @Global.
+import { MailerService } from '../mailer/mailer.service';
 
 interface AdminUser {
   id: string;
@@ -56,6 +60,8 @@ function stripPassword(user: User): SafeUser {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @Inject('IUsersRepository') private readonly usersRepo: IUsersRepository,
     @Inject('IUsernameChangeRequestsRepository')
@@ -73,6 +79,8 @@ export class AdminService {
     // 1.7 — emit eventů pro notifikační maily (D-026 + admin delete D-036)
     private readonly eventEmitter: EventEmitter2,
     private readonly configService: ConfigService,
+    // D-DROBNE — mail na starou adresu při admin změně e-mailu.
+    private readonly mailer: MailerService,
   ) {}
 
   /** 1.7 — hold dní pro soft-delete (sdílené s UsersService přes ENV `DELETION_HOLD_DAYS`). */
@@ -145,16 +153,12 @@ export class AdminService {
     /** 1.3c — viditelnost tombstone řádků; default false (skrývá `isDeleted=true`) */
     includeDeleted?: boolean;
   }) {
+    // FIX-1 (BE oprava dávka, 2026-07) + D-NEW-INV-CLEANUP — isDeleted i
+    // `hasPendingDeletion` filtry řeší repository query přímo, takže stránkování
+    // je korektní (dřívější in-memory filtr po paginaci vracel děravé stránky
+    // a total neodpovídal items).
     const result = await this.usersRepo.findAllPaginated(opts);
-    // FIX-1 (BE oprava dávka, 2026-07) — isDeleted filtr (a `total`) teď řeší
-    // repository query přímo (`includeDeleted`), takže total odpovídá items.
-    // `hasPendingDeletion` repo zatím neumí → zůstává in-memory po vytahu;
-    // pro malé limity (≤ 100) přijatelné, DB-level refactor je dluh.
-    let items = result.items;
-    if (opts.hasPendingDeletion) {
-      items = items.filter((u) => !!u.deletionRequestedAt);
-    }
-    return { items: items.map(stripPassword), total: result.total };
+    return { items: result.items.map(stripPassword), total: result.total };
   }
 
   async updateUserRole(actor: User, userId: string, role: UserRole) {
@@ -215,6 +219,90 @@ export class AdminService {
       });
     }
     return user ? stripPassword(user) : null;
+  }
+
+  /**
+   * D-NEW-INV-ADMIN-UI — přímá změna e-mailu uživatele adminem. Práh stejný
+   * jako admin reset hesla (`users.controller` resetPassword) = Superadmin.
+   * Na rozdíl od self-service flow (requestEmailChange + confirm token) se
+   * nová adresa nastaví rovnou a NENÍ ověřená → `emailVerified: false`.
+   */
+  async updateUserEmail(
+    actor: User,
+    userId: string,
+    email: string,
+  ): Promise<SafeUser> {
+    // Defense-in-depth k controller gate (@Roles(Superadmin)) — vzor
+    // resetPassword (PASSWORD_RESET_REQUIRES_SUPERADMIN).
+    if (actor.role !== UserRole.Superadmin) {
+      throw new ForbiddenException({
+        code: 'EMAIL_CHANGE_REQUIRES_SUPERADMIN',
+        message: 'Změnu e-mailu může provést jen Superadmin',
+      });
+    }
+    const target = await this.usersRepo.findById(userId);
+    if (!target)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    // Hierarchie + self-deny (vlastní e-mail se mění self-service flow
+    // s ověřovacím mailem, ne admin zkratkou).
+    assertCanModerate(actor, target, 'EMAIL_CHANGE');
+
+    const normalized = email.toLowerCase().trim();
+    if (normalized === target.email.toLowerCase()) {
+      throw new BadRequestException({
+        code: 'SAME_EMAIL',
+        message: 'Nový email je stejný jako aktuální',
+      });
+    }
+    const existing = await this.usersRepo.findByEmail(normalized);
+    if (existing && existing.id !== userId) {
+      throw new ConflictException({
+        code: 'EMAIL_TAKEN',
+        message: 'Email už používá jiný uživatel',
+      });
+    }
+
+    const updated = await this.usersRepo.update(userId, {
+      email: normalized,
+      // Nová adresa neprošla confirm flow → není ověřená.
+      emailVerified: false,
+    });
+    if (!updated)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    await this.audit(
+      actor,
+      target,
+      'EMAIL_CHANGE',
+      { email: target.email },
+      { email: updated.email },
+    );
+    // D-DROBNE — notifikace na STAROU adresu („e-mail byl změněn z X na Y,
+    // pokud jsi to nebyl ty, ozvi se správci") — vzor self-service
+    // `requestEmailChange`. Fire-and-forget: mailer fail nesmí shodit změnu.
+    try {
+      await this.mailer.sendEmailChangeNotice({
+        to: target.email,
+        username: target.username,
+        oldEmail: target.email,
+        newEmail: updated.email,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `updateUserEmail notice mailer fail for ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    // C-31 — real-time signál cílovému uživateli (refetch identity/profilu).
+    this.eventEmitter.emit('user.identity.changed', {
+      userId,
+      kind: 'email',
+    });
+    return stripPassword(updated);
   }
 
   async createUser(actor: User, dto: CreateUserAdminDto): Promise<SafeUser> {
@@ -737,8 +825,6 @@ export class AdminService {
       canManageAdmins: dto.canManageAdmins ?? currentPerms.canManageAdmins,
       canModerateContent:
         dto.canModerateContent ?? currentPerms.canModerateContent,
-      canEditPlatformPages:
-        dto.canEditPlatformPages ?? currentPerms.canEditPlatformPages,
     };
     const updated = await this.usersRepo.update(userId, {
       adminPermissions: nextPermissions,

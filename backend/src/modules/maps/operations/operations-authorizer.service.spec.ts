@@ -630,4 +630,50 @@ describe('OperationsAuthorizer', () => {
       ).rejects.toThrow(ForbiddenException);
     });
   });
+
+  // D-DROBNE-UNDO — gate undo endpointu (POST /maps/:id/operations/undo)
+  describe('assertCanUndo', () => {
+    it('PJ světa projde', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      await expect(
+        authorizer.assertCanUndo(player, makeScene()),
+      ).resolves.toBeUndefined();
+    });
+
+    it('PomocnyPJ projde (stejný práh jako ops)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PomocnyPJ,
+      });
+      await expect(
+        authorizer.assertCanUndo(player, makeScene()),
+      ).resolves.toBeUndefined();
+    });
+
+    it('Sa s elevací má bypass bez membership lookupu', async () => {
+      await expect(
+        authorizer.assertCanUndo(sa, makeScene()),
+      ).resolves.toBeUndefined();
+      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('Hráč světa → 403 MAP_OP_FORBIDDEN', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.Hrac,
+      });
+      const promise = authorizer.assertCanUndo(player, makeScene());
+      await expect(promise).rejects.toThrow(ForbiddenException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'MAP_OP_FORBIDDEN' },
+      });
+    });
+
+    it('Non-member → 403 MAP_OP_FORBIDDEN', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        authorizer.assertCanUndo(player, makeScene()),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

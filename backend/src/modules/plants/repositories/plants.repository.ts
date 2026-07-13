@@ -37,6 +37,8 @@ export class PlantsRepository {
       name: o.name as string,
       aliases: o.aliases as string | undefined,
       imageUrl: o.imageUrl as string | undefined,
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: o.imageBytes as number | undefined,
       imageFocalX: (o.imageFocalX as number | null) ?? null,
       imageFocalY: (o.imageFocalY as number | null) ?? null,
       imageZoom: (o.imageZoom as number | null) ?? null,
@@ -71,7 +73,9 @@ export class PlantsRepository {
   }
 
   async findMany(filter: PlantListFilter): Promise<Plant[]> {
-    let query = this.model.find(this.buildQuery(filter)).sort({ name: 1 });
+    let query = this.model
+      .find(this.buildQuery(filter))
+      .sort({ name: 1, _id: 1 });
     if (filter.skip) query = query.skip(filter.skip);
     if (filter.limit) query = query.limit(filter.limit);
     const docs = await query.exec();

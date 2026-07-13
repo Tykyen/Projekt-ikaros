@@ -5,6 +5,7 @@ import type { IChatMessageRepository } from '../chat/interfaces/chat-message-rep
 import { GlobalChatService } from './global-chat.service';
 import { UploadService } from '../upload/upload.service';
 import { HOURS_2_MS } from '../../common/constants/time.constants';
+import { CronLockService } from '../../common/locks/cron-lock.service';
 
 @Injectable()
 export class CleanMessagesJob {
@@ -15,9 +16,17 @@ export class CleanMessagesJob {
     private readonly messageRepo: IChatMessageRepository,
     private readonly globalChatService: GlobalChatService,
     private readonly uploadService: UploadService,
+    private readonly cronLock: CronLockService,
   ) {}
 
+  // CronLock — při 2+ replikách BE prune (DB delete + Cloudinary) jen na jedné.
   @Cron(CronExpression.EVERY_2_HOURS)
+  async cleanCron(): Promise<void> {
+    await this.cronLock.withLock('global-chat-clean-messages', () =>
+      this.clean(),
+    );
+  }
+
   async clean(): Promise<void> {
     const channelIds = this.globalChatService.getAllChannelIds();
     if (channelIds.length === 0) return;

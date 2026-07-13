@@ -72,6 +72,13 @@ export interface FinanceTransaction {
    * tx nesmí popnout — vrácení řeší storno nákupu, ne undo.
    */
   origin?: 'purchase';
+  /**
+   * D-PURCHASE-IDEMPOTENCY — klientský nonce (UUID v4) na odchozí (`out`)
+   * transakci transferu. Retry / double-click se stejným nonce = replay
+   * původního převodu (guard přímo ve filtru atomického debetu), NE 2. odečet.
+   * Jen txOut zdrojového účtu; txIn/adjust/purchase tx ho nemají.
+   */
+  clientNonce?: string | null;
   /** Audit — user (ne character), který akci provedl. */
   performedByUserId: string;
 }

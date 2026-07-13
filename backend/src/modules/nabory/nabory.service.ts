@@ -16,6 +16,7 @@ import type { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.s
 import { UserRole } from '../users/interfaces/user.interface';
 import type { CreateNaborDto } from './dto/create-nabor.dto';
 import type { PatchNaborDto } from './dto/patch-nabor.dto';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 // 19.3 — nábor je platformový obsah → moderace jen globální role (žádný world PJ).
 const ADMIN_ROLES = [
@@ -103,11 +104,18 @@ export class NaboryService {
     return updated !== null;
   }
 
-  create(
+  async create(
     dto: CreateNaborDto,
     userId: string,
     username: string,
   ): Promise<Nabor> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // živých náborů per účet (expirované se nepočítají).
+    assertUnderCreationLimit(
+      await this.repo.countActiveByAuthor(userId),
+      'MAX_NABORY_PER_USER',
+      'aktivních náborů na účet',
+    );
     const isPj = dto.strana === 'hledam-hrace';
     const expiresAtUtc = new Date(Date.now() + EXPIRY_DAYS * 86_400_000);
     return this.repo.create({

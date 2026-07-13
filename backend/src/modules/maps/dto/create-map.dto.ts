@@ -3,7 +3,10 @@ import {
   IsString,
   IsBoolean,
   IsArray,
+  IsInt,
   IsNumber,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -26,6 +29,8 @@ export class HexConfigDto {
 export class CreateMapDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional() @IsInt() @Min(0) @Max(104_857_600) imageBytes?: number;
   @IsOptional() @IsString() worldId?: string;
   @IsOptional() @IsString() folder?: string;
   @IsOptional() @IsString() templateId?: string;

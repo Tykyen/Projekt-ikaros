@@ -17,7 +17,7 @@ Zpracovává typing indikátory a presence konverzací. Zprávy, kanály, skupin
 |---|---|---|---|
 | `typing:start` | `{ channelId: string; characterName: string }` | ne | Zahájí indikátor psaní v dané konverzaci; automaticky expiruje po 5 s |
 | `typing:stop` | `{ channelId: string; characterName: string }` | ne | Okamžitě ukončí indikátor psaní |
-| `chat:channel:join` | `{ channelId: string; userId: string; username: string; avatarUrl?: string }` | ne | Přihlásí uživatele do presence konverzace (krok 6.1d); `worldRole` doplní server z membership |
+| `chat:channel:join` | `{ channelId: string }` | ano (JWT handshake) | Přihlásí uživatele do presence konverzace (krok 6.1d). Identita (`userId`/`username`/`avatarUrl`) jde VÝHRADNĚ z ověřeného JWT + DB, `worldRole` z membership (anti-spoof W-3) — případná klientská pole v payloadu se ignorují |
 | `chat:channel:leave` | `{ channelId: string }` | ne | Odhlásí socket z presence konverzace |
 
 ### Odchozí eventy
@@ -55,9 +55,11 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 |---|---|---|---|
 | `map:join` | `string` (sceneId) | ano | Vstup do roomu scény (BE ověří read-access). **Po reconnectu klient re-emituje** (rooms se ztrácejí). |
 | `map:leave` | `string` (sceneId) | ano | Odchod z roomu scény |
-| `map:join-world` | `string` (worldId) | ano (**PJ+**) | Vstup do `world:{worldId}` roomu — PJ orchestrátor (cross-scene log) |
+| `map:join-world` | `string` (worldId) | ano (**PJ+**) | Vstup do `world-ops:{worldId}` roomu (R-13) — PJ orchestrátor (cross-scene log) |
+| `map:leave-world` | `string` (worldId) | ano | Odchod z `world-ops:{worldId}` roomu (N-28 — FE `useActiveScenes` při unmount PJ panelu) |
 | `map:spotlight` | `{ sceneId: string; tokenId: string }` | ano (**PJ+**) | Ephemeral „ukazováček" PJ — rozsvítí token všem na scéně ~3 s |
 | `map:ping` | `{ sceneId: string; x: number; y: number; userName: string }` | ano | Ephemeral ping na plochu (mapa-space `x`/`y`); relay ostatním na scéně |
+| `map:ruler` | `{ sceneId: string; line: { x1; y1; x2; y2 } \| null; userName: string }` | ano | 15.3 — sdílené pravítko (ephemeral, vzor ping); `line=null` = konec měření; relay jako `map:rulered` jen do scény, kde klient je |
 
 > Pohyb tokenu / efekty / fog / scéna / combat / zvuky / kostky **nejsou** WS eventy —
 > jdou přes `POST /maps/:id/operations` (per-scene) a `POST /worlds/:worldId/operations`
@@ -74,6 +76,7 @@ handshake (`handshake.auth.token`), po ověření server auto-joinne `user:{user
 | `map:reassigned` | `{ newSceneId: string \| null }` | `user:{userId}` | Privát: PJ přesunul mě na jinou scénu (`null` = unassign) |
 | `map:spotlight` | `{ tokenId: string }` | `{sceneId}` | Ephemeral spotlight (relay z příchozího `map:spotlight`) |
 | `map:pinged` | `x, y, userName` (poziční argumenty) | `{sceneId}` | Ephemeral ping (relay z `map:ping`) — pozor: poziční args, ne objekt |
+| `map:rulered` | `{ userId: string; userName: string; line: { x1; y1; x2; y2 } \| null }` | `{sceneId}` | 15.3 — relay pravítka (z `map:ruler`); `userId` doplňuje server z autentizace (klíč per-uživatel, ne z payloadu) |
 | `weather:updated` | `{ worldId; generatorId: string \| null; generatorName: string \| null; weather: WeatherResult \| null; activeMapWeather?: null }` | `world:{worldId}` | Počasí vyslané/zrušené PJ (10.2i). `weather:null` = PJ vypnul počasí na mapě. Reaguje na interní `weather.updated`. |
 
 ### Catch-up (REST, ne WS)
@@ -103,10 +106,10 @@ registrovaní). Každá je samostatný kanál — presence i historie jsou per-m
 
 | Event | Payload | Auth | Popis |
 |---|---|---|---|
-| `chat:hospoda:join` | `{ username: string; userId: string }` | ne | Registrace presence v Hospodě + vstup do `user:{userId}` roomu (krok 4.1, beze změny) |
-| `chat:hospoda:leave` | `{ username: string }` | ne | Odregistrace presence z Hospody |
-| `chat:room:join` | `{ room: RoomKey; username: string; userId: string }` | ne | Registrace presence v dané místnosti (Camp); `room` mimo povolené hodnoty se ignoruje |
-| `chat:room:leave` | `{ room: RoomKey; username: string }` | ne | Odregistrace presence z místnosti |
+| `chat:hospoda:join` | *(bez payloadu)* | ano (JWT/guest handshake) | Registrace presence v Hospodě + vstup do `user:{userId}` roomu (krok 4.1). Identita (`userId`, `username`/`anonName`, avatar) VÝHRADNĚ z ověřeného JWT + DB (anti-spoof W-10) — případný klientský payload se ignoruje celý |
+| `chat:hospoda:leave` | *(bez payloadu)* | ne | Odregistrace presence z Hospody |
+| `chat:room:join` | `{ room: RoomKey }` | ano (JWT/guest handshake) | Registrace presence v dané místnosti (Camp); `room` mimo povolené hodnoty se ignoruje; host (guest) smí jen `hospoda`. Identita VÝHRADNĚ z ověřeného JWT + DB (anti-spoof W-10) — klientská pole `username`/`userId` se ignorují |
+| `chat:room:leave` | `{ room: RoomKey }` | ne | Odregistrace presence z místnosti |
 | `ikaros:whisper` | `{ toUserId: string; content?: string; color?: string; room?: RoomKey; replyToId?: string; attachments?: ChatAttachment[] }` | ne | Šeptaná zpráva (vyžaduje předchozí `join`); `color` = hex barva textu; `room` určuje kanál uložení (default = místnost odesílatele); `replyToId` = ID zprávy, na kterou se odpovídá (krok 4.3a); `attachments` = přílohy nahrané přes `POST /global-chat/upload` (krok 4.3b — `content` smí být prázdné, má-li whisper přílohu) |
 | `chat:heartbeat` | `{}` | ne | Udržuje presence „naživu" — obnovuje `lastSeen` socketu (krok 4.2c §5). FE posílá ~á 5 min; výpadek (zavřená/uspaná záložka) > 60 min → auto-odhlášení |
 | `chat:reaction:toggle` | `{ room?: RoomKey; messageId: string; emoji: string }` | ne | Přepne emoji reakci odesílatele na zprávě (krok 4.3a). Druhá reakce stejným emoji ji odebere. U whisperu smí reagovat jen účastník. `emoji` max 16 znaků |
@@ -233,6 +236,23 @@ Interní chat správy platformy (`/admin/chat`, 20.5). Sdílí socket server; ro
 | `platform-chat:message:deleted` | `{ messageId, channelId }` | `platform-chat:{channelId}` | Zpráva smazána (Superadmin nebo odesílatel) — 2026-07-04 |
 | `platform-chat:typing` | `{ channelId, username, isTyping }` | `platform-chat:{channelId}` | Kdo právě píše (broadcast ostatním, ne sobě) — 2026-07-04 |
 | `platform-chat:message:updated` | `ChatMessage` | `platform-chat:{channelId}` | Změna zprávy (emoji reakce) — celá zpráva; REST toggle `PUT .../messages/:id/reactions/:emoji` — 2026-07-05 |
+
+---
+
+## Rate limity (D-LAUNCH-GAP, 2026-07-11)
+
+Všechny klientské `@SubscribeMessage` handlery jsou chráněné in-memory
+sliding-window rate-limitem **per socket × event** (`common/ws/ws-rate-limit.ts`).
+Překročení limitu = **tiché zahození** eventu (klient nedostane error; server
+zaloguje jeden warn na okno). Dosažení **10× limitu** v jednom okně = server
+socket **odpojí** (`disconnect`).
+
+| Event(y) | Limit | Okno |
+|---|---|---|
+| default (vše níže neuvedené — chat typing/join/leave, presence idle/active, map join/leave/ping/spotlight, …) | 20 | 10 s |
+| `room:join` / `room:leave` (AppGateway) | 30 | 10 s |
+| `map:ruler` (throttled tažení ~16/s) | 300 | 10 s |
+| `sound:play` / `sound:stop` | 10 | 10 s |
 
 ---
 

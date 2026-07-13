@@ -137,6 +137,9 @@ Každá operace je objekt `{ type: '...', ...args }`. Server validuje args per `
 | `token.move` | `{ tokenId, q, r }` | `tokens.$.q = q, tokens.$.r = r` (positional) | `token.move { tokenId, oldQ, oldR }` (oldQ/oldR computed serverem) |
 | `token.remove` | `{ tokenId }` | `$pull tokens` | `token.add { token: <snapshot> }` (kompletní snapshot stavu před removem) |
 | `token.update` | `{ tokenId, patch: Partial<MapToken> }` | per field `tokens.$.<field> = value` | `token.update { tokenId, patch: <oldPatch> }` |
+| `token.update` (delta) | `{ tokenId, patch: {}, hpDelta?: int, injuryDelta?: int }` | aggregation pipeline: `currentHp = clamp(currentHp + hpDelta, 0, maxHp > 0 ? maxHp : ∞)`, `injury = max(0, injury + injuryDelta)` — atomicky proti aktuální DB hodnotě | `token.update { tokenId, patch: { currentHp: <old> / injury: <old> } }` |
+
+**Delta varianta `token.update` (D-LAUNCH-GAP, fix lost update):** absolutní `patch.currentHp` počítá klient ze stale cache → dva souběžné zásahy čtou stejnou bázi a druhý `$set` první přepíše. `hpDelta`/`injuryDelta` řeší damage/heal server-side: pipeline update počítá novou hodnotu z aktuálního stavu dokumentu (Mongo zápisy na dokument serializuje → všechny souběžné delty se projeví). Pravidla: **jen bestie tokeny** (`templateId` / `characterId` prefix `bestie:`) — HP PC/NPC žije v deníku postavy; `patch` musí být prázdný (delta + absolutní set → 400). Po zápisu server op **normalizuje**: do `patch` doplní výslednou absolutní hodnotu z post-update dokumentu, takže log/broadcast/201 response nesou absolutní stav a klienti bez znalosti delty (FE `applyOperationToScene`) fungují beze změny. Testy: `map-operations.service.spec.ts` (describe D-LAUNCH-GAP) + `test/race/maps-token-hp.race.e2e-spec.ts`.
 
 ### Effect operace
 

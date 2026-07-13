@@ -109,6 +109,31 @@ export class MongoMapsRepository
   }
 
   /**
+   * D-LAUNCH-GAP — atomic update s vrácením post-update dokumentu
+   * (`{ new: true }`). Update smí být aggregation pipeline (array) — server-side
+   * delta s clampem (token.update hpDelta). Viz interface doc.
+   */
+  async atomicUpdateAndFetch(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | Record<string, unknown>[],
+  ): Promise<MapScene | null> {
+    const doc = await this.model
+      .findOneAndUpdate(filter, update as never, {
+        returnDocument: 'after',
+        // Mongoose pole-update odmítá bez explicitního opt-in
+        // („Cannot pass an array to query updates unless the
+        // `updatePipeline` option is set") — aggregation pipeline
+        // updaty jsou záměr (server-side delta s clampem).
+        updatePipeline: Array.isArray(update),
+      })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  /**
    * 10.2-prep-1 — list aktivních scén ve světě. PJ orchestrator panel
    * `GET /maps?worldId=&isActive=true` zobrazí všechny.
    */
@@ -128,6 +153,8 @@ export class MongoMapsRepository
       worldId: doc.worldId as string,
       name: (doc.name as string) ?? '',
       imageUrl: (doc.imageUrl as string) ?? '',
+      // D-19.2 — velikost blobu podkladu; staré dokumenty undefined.
+      imageBytes: doc.imageBytes as number | undefined,
       folder: doc.folder as string | undefined,
       config: (doc.config as HexConfig) ?? {
         size: 40,

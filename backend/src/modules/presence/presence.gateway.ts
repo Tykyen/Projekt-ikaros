@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Socket } from 'socket.io';
 import { BaseGateway } from '../../gateways/base.gateway';
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
+import { allowWsEvent } from '../../common/ws/ws-rate-limit';
 
 interface PresenceSocketData {
   presenceUserId?: string;
@@ -112,6 +113,8 @@ export class PresenceGateway extends BaseGateway {
 
   @SubscribeMessage('presence:idle')
   onIdle(@ConnectedSocket() client: Socket): void {
+    // D-LAUNCH-GAP — anti-flood (recompute + případný broadcast všem).
+    if (!allowWsEvent(client, 'presence:idle')) return;
     const userId = (client.data as PresenceSocketData).presenceUserId;
     if (!userId) return;
     let set = this.idleSockets.get(userId);
@@ -125,6 +128,7 @@ export class PresenceGateway extends BaseGateway {
 
   @SubscribeMessage('presence:active')
   onActive(@ConnectedSocket() client: Socket): void {
+    if (!allowWsEvent(client, 'presence:active')) return; // D-LAUNCH-GAP
     const userId = (client.data as PresenceSocketData).presenceUserId;
     if (!userId) return;
     this.idleSockets.get(userId)?.delete(client.id);

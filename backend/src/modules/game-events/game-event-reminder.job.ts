@@ -9,6 +9,7 @@ import type {
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { PushService } from '../push/push.service';
+import { CronLockService } from '../../common/locks/cron-lock.service';
 import {
   HOURS_23_MS,
   HOURS_25_MS,
@@ -26,10 +27,19 @@ export class GameEventReminderJob {
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
     private readonly pushService: PushService,
+    private readonly cronLock: CronLockService,
   ) {}
 
   // 15.9 — à 15 min (dřív hourly), aby 1h okno (0.75–1.25h) trefilo přesně.
+  // CronLock — při 2+ replikách BE jen jedna instance; jinak dvojí push
+  // (markReminderSent přijde až PO odeslání → gate sám o sobě nestačí).
   @Cron('*/15 * * * *')
+  async sendRemindersCron(): Promise<void> {
+    await this.cronLock.withLock('game-event-reminders', () =>
+      this.sendReminders(),
+    );
+  }
+
   async sendReminders(): Promise<void> {
     const now = Date.now();
     // 24h připomínka — okno 23–25h, gate `reminderSent`.

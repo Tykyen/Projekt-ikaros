@@ -20,6 +20,8 @@ describe('WorldCalendarConfigService', () => {
 
   const mockRepo = {
     findAllByWorldId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default hluboko pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findBySlug: jest.fn(),
     create: jest.fn(),
     patch: jest.fn(),

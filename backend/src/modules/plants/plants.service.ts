@@ -66,6 +66,7 @@ export class PlantsService {
       name: dto.name,
       aliases: dto.aliases,
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       imageFocalX: dto.imageFocalX,
       imageFocalY: dto.imageFocalY,
       imageZoom: dto.imageZoom,

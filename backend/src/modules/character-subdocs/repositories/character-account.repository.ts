@@ -7,6 +7,7 @@ import type {
   FantasyDateLike,
   FinanceTransaction,
 } from '../interfaces/character-account.interface';
+import { MONEY_EPSILON } from '../../../common/money/money.util';
 
 @Injectable()
 export class CharacterAccountRepository {
@@ -103,15 +104,35 @@ export class CharacterAccountRepository {
    * atomicky při zápisu). Vrací null při nedostatku NEBO neexistujícím účtu →
    * volající rozliší přes předchozí `findById`. Brání TOCTOU overdraftu: dva
    * souběžné nákupy nemůžou oba projít, protože druhý už nesplní `$gte`.
+   *
+   * D-PURCHASE-IDEMPOTENCY — `guardNonce`: filtr navíc vyžaduje, že žádná
+   * existující transakce účtu nemá tento `clientNonce`. Podmínka je součástí
+   * JEDNOHO atomického findOneAndUpdate → dva paralelní transfery se stejným
+   * nonce nemůžou projít oba (dokument sám je zdroj pravdy; unique multikey
+   * index by duplicitu UVNITŘ jednoho dokumentu nechytil, guard ve filtru ano).
    */
   async appendTransactionIfSufficient(
     accountId: string,
     tx: FinanceTransaction,
     requiredAbs: number,
     session?: ClientSession,
+    guardNonce?: string | null,
   ): Promise<CharacterAccount | null> {
+    const filter: Record<string, unknown> = {
+      _id: accountId,
+      // D-SEC-GAP float — epsilon tolerance (1e-9 « peněžní granularita 1e-4):
+      // sufficiency zůstává atomicky na DB hodnotě, ale binární šum ULP /
+      // drobný historický drift (balance 0.2999999999999999 ≈ 0.30) nesmí
+      // shodit výběr přesně na hranici. Reálný overdraft to neumožní.
+      balance: { $gte: requiredAbs - MONEY_EPSILON },
+    };
+    if (guardNonce) {
+      filter.transactions = {
+        $not: { $elemMatch: { clientNonce: guardNonce } },
+      };
+    }
     const q = this.model.findOneAndUpdate(
-      { _id: accountId, balance: { $gte: requiredAbs } },
+      filter,
       { $push: { transactions: tx }, $inc: { balance: tx.delta } },
       { new: true },
     );
@@ -120,6 +141,25 @@ export class CharacterAccountRepository {
     return doc
       ? this.toEntity(doc as unknown as Record<string, unknown>)
       : null;
+  }
+
+  /**
+   * D-PURCHASE-IDEMPOTENCY — vyčistí `clientNonce` konkrétní transakce.
+   * Používá se v revert-on-fail větvi transferu: převod REÁLNĚ neproběhl
+   * (debet byl kompenzován), takže nonce nesmí zůstat „spotřebovaný" — retry
+   * klienta se stejným nonce musí dostat čerstvý pokus, ne falešný replay.
+   */
+  async clearTransactionNonce(
+    accountId: string,
+    transactionId: string,
+  ): Promise<void> {
+    await this.model
+      .updateOne(
+        { _id: accountId },
+        { $unset: { 'transactions.$[t].clientNonce': '' } },
+        { arrayFilters: [{ 't.id': transactionId }] },
+      )
+      .exec();
   }
 
   /**
@@ -196,6 +236,8 @@ export class CharacterAccountRepository {
             | undefined,
           // PT-43 — marker původu (purchase); legacy tx bez pole → undefined.
           origin: t.origin as FinanceTransaction['origin'],
+          // D-PURCHASE-IDEMPOTENCY — nonce odchozí transferové tx.
+          clientNonce: (t.clientNonce as string | null | undefined) ?? null,
           performedByUserId: (t.performedByUserId as string) ?? '',
         }),
       ),

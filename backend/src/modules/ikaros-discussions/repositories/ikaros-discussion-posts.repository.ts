@@ -40,7 +40,7 @@ export class MongoIkarosDiscussionPostsRepository implements IIkarosDiscussionPo
         discussionId,
         ...(includeModerationHidden ? {} : { moderationHidden: { $ne: true } }),
       })
-      .sort({ createdAtUtc: 1 })
+      .sort({ createdAtUtc: 1, _id: 1 })
       .skip(skip)
       .limit(limit)
       .lean()

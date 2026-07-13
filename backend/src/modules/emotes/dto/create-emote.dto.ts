@@ -5,6 +5,9 @@ import {
   IsUrl,
   IsOptional,
   IsArray,
+  IsInt,
+  Min,
+  Max,
   ArrayMaxSize,
   MaxLength,
 } from 'class-validator';
@@ -27,6 +30,13 @@ export class CreateEmoteDto {
   /** Krok 6.4 — Cloudinary URL z `useUploadImage` (FE pošle, BE uloží). */
   @IsUrl({ require_protocol: true })
   imageUrl: string;
+
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(104_857_600)
+  imageBytes?: number;
 
   /** D-NEW-emote-categories — volné tagy (max 10, každý do 32 znaků). */
   @IsOptional()

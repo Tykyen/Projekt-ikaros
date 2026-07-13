@@ -105,7 +105,7 @@ export class MongoFriendshipsRepository implements IFriendshipsRepository {
     const [docs, total] = await Promise.all([
       this.model
         .find(filter)
-        .sort({ acceptedAt: -1 })
+        .sort({ acceptedAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean()
@@ -133,7 +133,7 @@ export class MongoFriendshipsRepository implements IFriendshipsRepository {
     const [docs, total] = await Promise.all([
       this.model
         .find(filter)
-        .sort({ requestedAt: -1 })
+        .sort({ requestedAt: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean()

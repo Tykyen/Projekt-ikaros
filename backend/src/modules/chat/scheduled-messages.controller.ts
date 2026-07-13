@@ -19,6 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
 import { CreateScheduledMessageDto } from './dto/create-scheduled-message.dto';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 import type { IScheduledMessageRepository } from './interfaces/scheduled-message-repository.interface';
 import type { ScheduledMessage } from './interfaces/scheduled-message.interface';
 
@@ -69,6 +70,13 @@ export class ScheduledMessagesController {
       'world-chat/',
       'chat/',
     ]);
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // pending naplánovaných zpráv per svět.
+    assertUnderCreationLimit(
+      await this.repo.countPendingByWorld(worldId),
+      'MAX_SCHEDULED_MESSAGES_PER_WORLD',
+      'naplánovaných zpráv ve světě',
+    );
     return this.repo.create({
       worldId,
       channelId: dto.channelId,

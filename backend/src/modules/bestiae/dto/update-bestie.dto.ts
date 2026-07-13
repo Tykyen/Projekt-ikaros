@@ -4,6 +4,7 @@
  */
 import {
   IsIn,
+  IsInt,
   IsNumber,
   IsObject,
   IsOptional,
@@ -25,6 +26,13 @@ export class UpdateBestieDto {
   @IsString()
   @MaxLength(2048)
   imageUrl?: string;
+
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(104_857_600)
+  imageBytes?: number;
 
   // Výřez obrázku — viz CreateBestieDto. null projde přes @IsOptional.
   @IsOptional()

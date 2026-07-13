@@ -22,11 +22,27 @@ import { CharactersService } from '../../characters/characters.service';
 import type { Character } from '../../characters/interfaces/character.interface';
 import type { PurchaseShopItemDto } from '../dto/purchase-shop-item.dto';
 import type { RequestUser } from '../../../common/interfaces/request-user.interface';
+import {
+  assertFiniteMoney,
+  gteMoney,
+  roundMoney,
+} from '../../../common/money/money.util';
 
 const AUTO_SECTION_TITLE = 'Nakoupeno z obchodu';
 
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000;
+/**
+ * D-PURCHASE-IDEMPOTENCY — E11000 na partial unique indexu
+ * (buyerUserId, clientNonce): druhý paralelní nákup se stejným nonce prohrál
+ * závod na indexu → replay původního výsledku místo chyby / 2. odečtu.
+ */
+function isDuplicateNonceError(err: unknown): boolean {
+  const e = err as { code?: number; message?: string } | null;
+  return (
+    !!e &&
+    e.code === 11000 &&
+    typeof e.message === 'string' &&
+    e.message.includes('clientNonce')
+  );
 }
 
 /**
@@ -83,6 +99,18 @@ export class CampaignPurchaseService {
     const quantity =
       dto.quantity && dto.quantity > 0 ? Math.floor(dto.quantity) : 1;
 
+    // D-PURCHASE-IDEMPOTENCY — retry / double-click se stejným nonce: nákup
+    // už proběhl → vrať PŮVODNÍ výsledek (žádný 2. odečet). Před validacemi
+    // schválně — replay musí projít i když mezitím zmizela položka z katalogu.
+    // Scope per buyer (findByNonce filtruje buyerUserId) → žádný cross-user leak.
+    if (dto.clientNonce) {
+      const replayed = await this.replayPurchaseByNonce(
+        buyerUserId,
+        dto.clientNonce,
+      );
+      if (replayed) return replayed;
+    }
+
     const item = await this.shopRepo.findById(itemId);
     if (!item || item.worldId !== worldId)
       throw new NotFoundException({
@@ -137,8 +165,13 @@ export class CampaignPurchaseService {
       ? await this.shopGroupRepo.findById(item.subgroupId)
       : null;
     const discount = this.effectiveDiscount(item, group, subgroup);
-    const unitEff = round4(item.price * (1 - discount / 100));
-    const totalEff = round4(unitEff * quantity);
+    // D-SEC-GAP float — sdílený `roundMoney` (4 des., dřívější lokální round4);
+    // finite guard na ceně z DB: NaN/Infinity by jinak prošla jako „zdarma"
+    // (`paidAmount > 0` je pro NaN false).
+    const unitEff = roundMoney(
+      assertFiniteMoney(item.price) * (1 - discount / 100),
+    );
+    const totalEff = roundMoney(unitEff * quantity);
 
     const itemCurrency = item.currencyCode || account.currency;
     let paidAmount = totalEff;
@@ -150,9 +183,12 @@ export class CampaignPurchaseService {
       );
       paidAmount = conv.result;
     }
-    paidAmount = round4(paidAmount);
+    paidAmount = roundMoney(assertFiniteMoney(paidAmount));
 
-    if (paidAmount > 0 && account.balance < paidAmount)
+    // D-SEC-GAP float — pre-check přes gteMoney: binární šum / historický
+    // drift v balance (0.2999999999999999 ≈ 0.30) nesmí shodit nákup přesně
+    // na hranici. Atomický $gte floor v debitIfSufficient zůstává autoritou.
+    if (paidAmount > 0 && !gteMoney(account.balance, paidAmount))
       throw new ConflictException({
         code: 'INSUFFICIENT_FUNDS',
         message: 'Na účtu není dostatek prostředků.',
@@ -202,6 +238,11 @@ export class CampaignPurchaseService {
       inventorySectionId: sectionId,
       inventoryItemId: invItemId,
       status: 'active',
+      // D-PURCHASE-IDEMPOTENCY — nonce se ukládá uvnitř atomické větve
+      // (create purchase logu = poslední krok tx / fallbacku). Unique index
+      // (buyerUserId, clientNonce) je zdroj pravdy — race dvou paralelních
+      // requestů se stejným nonce nemůže commitnout dvakrát.
+      clientNonce: dto.clientNonce ?? null,
     });
 
     const session = await this.connection.startSession();
@@ -228,20 +269,45 @@ export class CampaignPurchaseService {
           this.logger.warn(
             'Mongo replica set not available, falling back to sequential purchase with compensation (RC-E5).',
           );
-          return await this.purchaseSequentialFallback(
-            {
-              worldId,
-              item,
-              quantity,
-              paidAmount,
-              reason,
-              dto,
-              buyerUserId,
-              requester,
-            },
-            character,
-            buildPurchaseData,
+          try {
+            return await this.purchaseSequentialFallback(
+              {
+                worldId,
+                item,
+                quantity,
+                paidAmount,
+                reason,
+                dto,
+                buyerUserId,
+                requester,
+              },
+              character,
+              buildPurchaseData,
+            );
+          } catch (fbErr) {
+            // D-PURCHASE-IDEMPOTENCY — dup na nonce ve fallbacku: kompenzace
+            // (revert účtu + odebrání inventáře) už proběhla v kroku (3),
+            // takže replay vítěze je bezpečný (žádný 2. odečet nezůstal).
+            if (dto.clientNonce && isDuplicateNonceError(fbErr)) {
+              const replayed = await this.replayPurchaseByNonce(
+                buyerUserId,
+                dto.clientNonce,
+              );
+              if (replayed) return replayed;
+            }
+            throw fbErr;
+          }
+        }
+        // D-PURCHASE-IDEMPOTENCY — prohraný závod na unique nonce indexu:
+        // tx cesta = abort rollbackl odečet i inventář; fallback cesta = plná
+        // kompenzace už proběhla (revert účtu + odebrání inventáře). V obou
+        // případech je správná odpověď PŮVODNÍ nákup vítěze závodu.
+        if (dto.clientNonce && isDuplicateNonceError(txErr)) {
+          const replayed = await this.replayPurchaseByNonce(
+            buyerUserId,
+            dto.clientNonce,
           );
+          if (replayed) return replayed;
         }
         throw txErr;
       }
@@ -249,6 +315,25 @@ export class CampaignPurchaseService {
     } finally {
       await session.endSession();
     }
+  }
+
+  /**
+   * D-PURCHASE-IDEMPOTENCY — replay: najdi nákup dle (buyer, nonce) a vrať ho
+   * jako úspěch s AKTUÁLNÍM zůstatkem účtu (odečet proběhl už v 1. requestu).
+   */
+  private async replayPurchaseByNonce(
+    buyerUserId: string,
+    clientNonce: string,
+  ): Promise<{ purchase: CampaignPurchase; newBalance: number } | null> {
+    const existing = await this.purchaseRepo.findByNonce(
+      buyerUserId,
+      clientNonce,
+    );
+    if (!existing) return null;
+    const acc = await this.accountsService
+      .getAccount(existing.accountId)
+      .catch(() => null);
+    return { purchase: existing, newBalance: acc?.balance ?? 0 };
   }
 
   /**

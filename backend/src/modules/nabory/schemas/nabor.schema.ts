@@ -20,7 +20,8 @@ export class NaborSchemaClass {
   @Prop() seatsTotal?: number;
   @Prop({ default: 0 }) seatsTaken: number;
   @Prop({ default: 'open' }) status: string;
-  @Prop({ required: true }) authorId: string;
+  // D-SEC-GAP-2026-07-11 — index pro creation-cap countActiveByAuthor.
+  @Prop({ required: true, index: true }) authorId: string;
   @Prop({ required: true }) authorName: string;
   // Post-moderace: userId nahlašovatelů (idempotentní, reportCount = length).
   @Prop({ type: [String], default: [] }) reportedBy: string[];

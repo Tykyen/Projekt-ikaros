@@ -25,6 +25,8 @@ export interface IkarosGalleryItem {
   publicId: string;
   width: number;
   height: number;
+  /** D-19.2 — velikost blobu v bytech; staré dokumenty pole nemají. */
+  bytes?: number;
   category: string;
   authorId: string;
   authorName: string;

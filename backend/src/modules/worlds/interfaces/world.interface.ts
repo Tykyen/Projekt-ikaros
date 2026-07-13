@@ -50,6 +50,8 @@ export interface World {
   previousSlugs?: string[];
   description?: string;
   imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech; staré dokumenty nemají. */
+  imageBytes?: number;
   genre?: string;
   tones?: string[];
   playersWanted?: string;
@@ -74,6 +76,8 @@ export interface World {
   themeOverrides: Record<string, string>;
   /** Krok 5.0 — custom theme: URL vlastního pozadí světa. */
   themeBackgroundUrl?: string;
+  /** D-19.2 — velikost blobu `themeBackgroundUrl` v bytech; staré docs nemají. */
+  themeBackgroundBytes?: number;
   /** 10.2i — počasí vyslané na taktickou mapu (PJ broadcast). `null` = žádné. */
   activeMapWeather?: ActiveMapWeather | null;
   /** 10.2j — viditelnost hodů na mapě. `undefined` = výchozí (jen vlastní + spoluhráči). */

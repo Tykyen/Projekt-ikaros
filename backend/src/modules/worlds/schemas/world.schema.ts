@@ -15,6 +15,8 @@ export class WorldSchemaClass {
   @Prop({ type: [String], default: [] }) previousSlugs: string[];
   @Prop() description?: string;
   @Prop() imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech (kvóty UM-10); staré docs nemají. */
+  @Prop() imageBytes?: number;
   @Prop() genre?: string;
   @Prop({ type: [String], default: [] }) tones: string[];
   @Prop() playersWanted?: string;
@@ -46,6 +48,8 @@ export class WorldSchemaClass {
   @Prop({ type: Object, default: {} }) themeOverrides: Record<string, string>;
   /** Custom theme — URL vlastního pozadí; přebíjí pozadí presetu. */
   @Prop() themeBackgroundUrl?: string;
+  /** D-19.2 — velikost blobu `themeBackgroundUrl` v bytech; staré docs nemají. */
+  @Prop() themeBackgroundBytes?: number;
 
   /**
    * 10.2-prep-1 — atomic counter pro world operations API (cross-scene log).

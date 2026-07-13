@@ -11,7 +11,6 @@ describe('hierarchy', () => {
     adminPermissions: {
       canManageAdmins: false,
       canModerateContent: true,
-      canEditPlatformPages: false,
     },
   };
   const hrac = { id: 'h', role: UserRole.Hrac };

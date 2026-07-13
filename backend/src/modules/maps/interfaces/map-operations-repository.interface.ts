@@ -34,12 +34,18 @@ export interface IMapOperationsRepository {
   ): Promise<MapOperationRecord[]>;
 
   /**
-   * Posledních `limit` operací daného uživatele na scéně (descending). Pro
-   * undo stack lookup („vrátit mou poslední akci").
+   * D-DROBNE-UNDO — poslední VRATITELNÁ operace daného uživatele na scéně:
+   * non-null `inverse` a `undone !== true`, nejvyšší `seqNumber`. `null` =
+   * nic k vrácení. (Nahrazuje dřívější `findLastByUser` bez callerů —
+   * undo lookup potřebuje filtr přímo v query, ne bounded lookback.)
    */
-  findLastByUser(
+  findLastUndoableByUser(
     sceneId: string,
     userId: string,
-    limit: number,
-  ): Promise<MapOperationRecord[]>;
+  ): Promise<MapOperationRecord | null>;
+
+  /**
+   * D-DROBNE-UNDO — označí záznam `undone: true` (vyřazení z undo stacku).
+   */
+  markUndone(recordId: string): Promise<void>;
 }

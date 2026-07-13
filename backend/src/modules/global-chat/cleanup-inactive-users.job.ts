@@ -13,6 +13,8 @@ export class CleanupInactiveUsersJob {
 
   // Threshold je 60 min, ale kontrolujeme po 5 min — jinak by se reálné
   // odpojení rozjelo na 60–120 min podle fáze hodinového cronu.
+  // Bez CronLock (záměrně) — čistí per-instance in-memory presence gatewaye;
+  // při 2+ replikách musí běžet na KAŽDÉ (lock by nechal ghost presence).
   @Cron(CronExpression.EVERY_5_MINUTES)
   cleanup(): void {
     try {

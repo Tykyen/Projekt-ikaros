@@ -54,6 +54,12 @@ import { isEffectiveSupporter } from '../users/supporter.util';
 import type { World } from '../worlds/interfaces/world.interface';
 import type { WorldSettings } from '../worlds/interfaces/world-settings.interface';
 import { WorldsService } from '../worlds/worlds.service';
+// D-NEW-INV-SEC persona-on-server — PJ persona (6.8) pro cesty mimo render-time FE.
+import {
+  makePjPersonaResolver,
+  resolvePjPersona,
+  type PjPersonaDisplay,
+} from '../worlds/pj-persona.util';
 import { CharactersService } from '../characters/characters.service';
 import { PushService } from '../push/push.service';
 import {
@@ -62,6 +68,7 @@ import {
 } from './chat-presence.service';
 import { UploadService } from '../upload/upload.service';
 import { WorldElevationsService } from '../world-elevations/world-elevations.service';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 @Injectable()
 export class ChatService implements OnApplicationBootstrap {
@@ -402,6 +409,13 @@ export class ChatService implements OnApplicationBootstrap {
       });
     }
     const count = await this.groupRepo.countByWorldId(worldId);
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // skupin (FE „kanálů") per svět; count už načtený kvůli `order`.
+    assertUnderCreationLimit(
+      count,
+      'MAX_CHAT_GROUPS_PER_WORLD',
+      'kanálů chatu ve světě',
+    );
     const group = await this.groupRepo.save({
       worldId,
       name: dto.name,
@@ -544,6 +558,14 @@ export class ChatService implements OnApplicationBootstrap {
         message: 'Nedostatečná oprávnění',
       });
     }
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // konverzací per svět (ruční PJ tvorba; systémové ensureCharacterChannel
+    // je bounded počtem členů světa).
+    assertUnderCreationLimit(
+      await this.channelRepo.countByWorldId(group.worldId),
+      'MAX_CHAT_CHANNELS_PER_WORLD',
+      'konverzací chatu ve světě',
+    );
     const existing = await this.channelRepo.findByGroupId(groupId);
     const channel = await this.channelRepo.save({
       groupId,
@@ -1078,11 +1100,24 @@ export class ChatService implements OnApplicationBootstrap {
       Array.from(new Set(filtered.map((m) => m.senderId))),
     );
 
+    // D-NEW-INV-SEC persona-on-server — výsledky hledání rendruje FE přímo
+    // (ChatSearchModal bez persona resolveru) → jméno vedení dosadí server
+    // (PJ persona 6.8; NPC override má přednost).
+    const [settings, worldMembers] = await Promise.all([
+      this.worldsService.getSettings(worldId),
+      this.membershipRepo.findByWorldId(worldId),
+    ]);
+    const personaFor = makePjPersonaResolver(
+      worldMembers ?? [],
+      settings?.pjChatPersona,
+    );
+
     return filtered.map((m) => ({
       messageId: m.id,
       channelId: m.channelId,
       channelName: nameById.get(m.channelId) ?? '',
-      senderName: m.overrideName ?? m.senderName,
+      senderName:
+        m.overrideName ?? personaFor(m.senderId)?.name ?? m.senderName,
       senderIsDeleted: m.overrideName
         ? false
         : (info.get(m.senderId)?.isDeleted ?? false),
@@ -1217,10 +1252,45 @@ export class ChatService implements OnApplicationBootstrap {
       }),
     );
 
+    // D-NEW-INV-SEC persona-on-server — feed rendruje FE bez world kontextu
+    // (ChatFeedTab nemá members/settings resolver), personu PJ (6.8) proto
+    // dosazuje server. NPC override má přednost; historická data se nemění.
+    const personaByWorld = new Map<
+      string,
+      (userId: string) => PjPersonaDisplay | null
+    >();
+    await Promise.all(
+      worldIds.map(async (wid) => {
+        try {
+          const [settings, worldMembers] = await Promise.all([
+            this.worldsService.getSettings(wid),
+            this.membershipRepo.findByWorldId(wid),
+          ]);
+          personaByWorld.set(
+            wid,
+            makePjPersonaResolver(worldMembers ?? [], settings?.pjChatPersona),
+          );
+        } catch {
+          // best-effort (jako worldNames) — bez resolveru zůstane reálné jméno
+        }
+      }),
+    );
+
     return enriched.map((m) => {
       const meta = channelMeta.get(m.channelId);
+      // Persona přepisuje `senderName` i pod NPC overridem — override zůstává
+      // a při zobrazení vyhrává, ale surový payload nesmí nést reálné jméno.
+      const persona = meta
+        ? (personaByWorld.get(meta.worldId)?.(m.senderId) ?? null)
+        : null;
       return {
         ...m,
+        ...(persona
+          ? {
+              senderName: persona.name,
+              senderAvatarUrl: persona.avatarUrl ?? undefined,
+            }
+          : {}),
         worldId: meta?.worldId ?? m.worldId,
         worldName: meta ? (worldNames.get(meta.worldId) ?? '') : '',
         worldSlug: meta ? (worldSlugs.get(meta.worldId) ?? '') : '',
@@ -1515,10 +1585,22 @@ export class ChatService implements OnApplicationBootstrap {
           // tag = slučování na zařízení; topic = server-side collapse offline
           // fronty (víc zpráv z jedné konverzace → jen poslední, ne hromada).
           const collapseKey = `chat-${channelId}`;
+          // D-NEW-INV-SEC persona-on-server — titulek pushe od vedení nese
+          // personu PJ (6.8), ne reálné jméno (FE render-time resolver na push
+          // payload nedosáhne). NPC override má přednost (jako na FE).
+          const persona =
+            membership && membership.role >= WorldRole.PomocnyPJ
+              ? resolvePjPersona(
+                  membership,
+                  (await this.worldsService.getSettings(channel.worldId))
+                    ?.pjChatPersona,
+                )
+              : null;
           await this.pushService.notifyUsers(
             pushIds,
             {
-              title: message.overrideName ?? message.senderName,
+              title:
+                message.overrideName ?? persona?.name ?? message.senderName,
               body: (message.content ?? '').slice(0, 100),
               url,
               tag: collapseKey,
@@ -1744,6 +1826,70 @@ export class ChatService implements OnApplicationBootstrap {
       attachments: msg.attachments,
     });
     return { message: 'Zpráva smazána' };
+  }
+
+  // ─── Moderace (D-066, spec 20B B4b) ───────────────────────────────────────
+
+  /**
+   * M2/M3 — moderační skrytí / odkrytí zprávy (a revert). Systémová cesta
+   * z enforcement listeneru; bez requester guardu (zásah autorizovala
+   * moderace). Originál zůstává v DB (revert), API/WS výstup maskuje repo
+   * `toEntity`. Živý signál: `chat.message.updated` s maskovanou (při revertu
+   * obnovenou) zprávou — klienti v roomu obsah vymění bez reloadu (kontrakt
+   * `chat:message:updated`, docs/websocket-api.md). Globální chat
+   * (worldId=null) updated relay nemá → maskuje se při dalším fetchi (zprávy
+   * mají TTL 1 h). `false` = zpráva nenalezena / smazaná, nikdy nehází.
+   */
+  async moderationSetMessageHidden(
+    messageId: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const msg = await this.messageRepo.findById(messageId);
+    if (!msg || msg.isDeleted) return false;
+    const updated = await this.messageRepo.update(messageId, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    if (!updated) return false;
+    if (msg.worldId) {
+      this.eventEmitter.emit('chat.message.updated', {
+        channelId: msg.channelId,
+        message: updated,
+      });
+    }
+    return true;
+  }
+
+  /**
+   * M4 — moderační odstranění zprávy. Zrcadlí `deleteMessage` (soft delete +
+   * náhradní content + delete event → WS odstranění živě u klientů + úklid
+   * Cloudinary příloh v UploadService). Nevratné — obsah je nahrazen. Globální
+   * chat (worldId=null) používá `chat.global.message.deleted` (vlastní gateway
+   * i úklidový listener). `false` = zpráva nenalezena / už smazaná.
+   */
+  async moderationRemoveMessage(messageId: string): Promise<boolean> {
+    const msg = await this.messageRepo.findById(messageId);
+    if (!msg || msg.isDeleted) return false;
+    const updated = await this.messageRepo.update(messageId, {
+      isDeleted: true,
+      content: '*Zpráva odstraněna moderací*',
+      // Úklid případného předchozího M2/M3 — jinak by maska v `toEntity`
+      // přepsala tombstone text a skryla přílohy před Cloudinary úklidem.
+      moderationHidden: false,
+    });
+    if (!updated) return false;
+    this.eventEmitter.emit(
+      msg.worldId ? 'chat.message.deleted' : 'chat.global.message.deleted',
+      {
+        channelId: msg.channelId,
+        messageId,
+        // Z `updated` (post-update, už nemaskováno) — `msg` mohl mít přílohy
+        // maskované předchozím skrytím a Cloudinary úklid by je minul.
+        attachments: updated.attachments ?? [],
+      },
+    );
+    return true;
   }
 
   // ─── Read status ─────────────────────────────────────────────────────────

@@ -26,6 +26,9 @@ describe('Auth throttle (e2e smoke)', () => {
       refresh: jest.fn(),
       logout: jest.fn(),
       logoutAll: jest.fn(),
+      // D-SEC-GAP — anti-enumeration: check endpointy vrací konstantní tvar.
+      checkUsername: jest.fn().mockResolvedValue({ available: true }),
+      checkEmail: jest.fn().mockResolvedValue({ available: true }),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -62,5 +65,35 @@ describe('Auth throttle (e2e smoke)', () => {
 
     const sixth = await request(server).post('/auth/login').send(payload);
     expect(sixth.status).toBe(429);
+  });
+
+  // D-SEC-GAP — anti-enumeration mitigace: check-username/check-email vrací
+  // existenci účtu (záměrná UX opora registrace) → přísný limit 10/min/IP
+  // proti hromadnému scrapingu. Response musí zůstat konstantní tvar
+  // { available: boolean } — žádné detaily.
+  it('/auth/check-username: 10 pokusů projde, 11. = 429', async () => {
+    const server = app.getHttpServer();
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(server).get('/auth/check-username?u=hrdina');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ available: true });
+    }
+
+    const eleventh = await request(server).get('/auth/check-username?u=hrdina');
+    expect(eleventh.status).toBe(429);
+  });
+
+  it('/auth/check-email: 10 pokusů projde, 11. = 429', async () => {
+    const server = app.getHttpServer();
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(server).get('/auth/check-email?e=a@b.cz');
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ available: true });
+    }
+
+    const eleventh = await request(server).get('/auth/check-email?e=a@b.cz');
+    expect(eleventh.status).toBe(429);
   });
 });

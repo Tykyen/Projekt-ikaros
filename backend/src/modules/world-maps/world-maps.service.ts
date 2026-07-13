@@ -25,6 +25,7 @@ import type { UpdatePinDto } from './dto/update-pin.dto';
 import type { CreateFolderDto } from './dto/create-folder.dto';
 import type { UpdateFolderDto } from './dto/update-folder.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 @Injectable()
 export class WorldMapsService {
@@ -174,6 +175,13 @@ export class WorldMapsService {
 
   async create(worldId: string, dto: CreateMapDto): Promise<WorldMapEntry> {
     const maps = await this.repo.findByWorld(worldId);
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop map
+    // atlasu per svět; seznam už načtený kvůli `order`, žádná query navíc.
+    assertUnderCreationLimit(
+      maps.length,
+      'MAX_WORLD_MAPS_PER_WORLD',
+      'map atlasu ve světě',
+    );
     const now = new Date().toISOString();
     const entry: WorldMapEntry = {
       id: randomUUID(),
@@ -181,6 +189,7 @@ export class WorldMapsService {
       title: dto.title.trim(),
       description: dto.description?.trim() ?? '',
       imageUrl: dto.imageUrl,
+      imageBytes: dto.imageBytes, // D-19.2 — velikost blobu z uploadu
       order: maps.length,
       isPublic: dto.isPublic ?? false,
       visibleToPlayerIds: dto.visibleToPlayerIds ?? [],
@@ -208,6 +217,8 @@ export class WorldMapsService {
     if (dto.description !== undefined)
       patch.description = dto.description.trim();
     if (dto.imageUrl !== undefined) patch.imageUrl = dto.imageUrl;
+    // D-19.2 — velikost blobu; FE ji posílá spolu s novým imageUrl.
+    if (dto.imageBytes !== undefined) patch.imageBytes = dto.imageBytes;
     if (dto.isPublic !== undefined) patch.isPublic = dto.isPublic;
     if (dto.visibleToPlayerIds !== undefined)
       patch.visibleToPlayerIds = dto.visibleToPlayerIds;

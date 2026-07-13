@@ -3,6 +3,7 @@ import type {
   IMailerProvider,
   MailerTemplate,
   MailerPayload,
+  RenderedMailMessage,
 } from '../interfaces/mailer-provider.interface';
 
 /**
@@ -21,6 +22,12 @@ import type {
  */
 @Injectable()
 export class LogMailerProvider implements IMailerProvider {
+  /**
+   * Dev/test stub → BEZ outboxu (maily jdou přímo do logu, žádné čekání na
+   * cron; developer vidí token hned).
+   */
+  readonly queueable = false;
+
   private readonly logger = new Logger(LogMailerProvider.name);
 
   send(template: MailerTemplate, payload: MailerPayload): Promise<void> {
@@ -46,5 +53,27 @@ export class LogMailerProvider implements IMailerProvider {
       }),
     );
     return Promise.resolve();
+  }
+
+  /**
+   * Outbox cesta — u LogMaileru nenastává (queueable=false, nic se
+   * neenqueuuje), implementace jen drží interface poctivý. Stejný prod gate
+   * jako `send` (LH-04): v produkci žádný obsah do logu.
+   */
+  sendRendered(mail: RenderedMailMessage): Promise<string | undefined> {
+    if (process.env.NODE_ENV === 'production') {
+      this.logger.warn(
+        'mailer není nakonfigurován (chybí SMTP_HOST/SMTP_USER) — mail z outboxu NEBYL odeslán. Nastav SMTP env.',
+      );
+      return Promise.resolve(undefined);
+    }
+    this.logger.log(
+      JSON.stringify({
+        event: 'mailer.sendRendered',
+        to: mail.to,
+        subject: mail.subject,
+      }),
+    );
+    return Promise.resolve(undefined);
   }
 }

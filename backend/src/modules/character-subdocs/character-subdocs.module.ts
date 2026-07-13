@@ -31,6 +31,7 @@ import { CharacterInventoryRepository } from './repositories/character-inventory
 import { CharacterNotesRepository } from './repositories/character-notes.repository';
 import { CharacterAccountRepository } from './repositories/character-account.repository';
 import { CharacterSubdocsService } from './character-subdocs.service';
+import { CharacterDiaryModerationEnforcementListener } from './moderation-enforcement.listener';
 import { CharacterAccountsService } from './character-accounts.service';
 import { CharacterAccountsGateway } from './character-accounts.gateway';
 import { CharacterSubdocsController } from './character-subdocs.controller';
@@ -76,6 +77,8 @@ import { WorldCurrenciesModule } from '../world-currencies/world-currencies.modu
   ],
   providers: [
     CharacterSubdocsService,
+    // D-066 (spec 20B B4b) — moderace deníku postavy (M2/M3 skrytí, M4 smazání).
+    CharacterDiaryModerationEnforcementListener,
     CharacterAccountsService,
     CharacterAccountsGateway,
     CharacterAccountRepository,

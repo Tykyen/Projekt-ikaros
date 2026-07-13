@@ -13,4 +13,6 @@ export class UpdateNotificationPreferencesDto {
   @IsOptional() @IsBoolean() worldNews?: boolean;
   @IsOptional() @IsBoolean() ikarosNews?: boolean;
   @IsOptional() @IsBoolean() hospoda?: boolean;
+  @IsOptional() @IsBoolean() posta?: boolean;
+  @IsOptional() @IsBoolean() adminChat?: boolean;
 }

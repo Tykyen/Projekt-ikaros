@@ -34,6 +34,7 @@ import type { AkjType } from '../worlds/interfaces/world-settings.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
 // B4b — „kdo vidí moderačně skrytý obsah" = generický reviewer set (spec 20B).
 import { isContentReviewer } from '../moderation/moderation.constants';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 export interface PagesRequester {
   id: string;
@@ -290,6 +291,14 @@ export class PagesService {
     requester: PagesRequester,
   ): Promise<Page> {
     await this.assertCanWrite(worldId, requester);
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // stránek per svět (Pages+Characters sjednoceny → jeden count zde; přímou
+    // characters route jistí existující WORLD_CHARACTER_QUOTA v characters.service).
+    assertUnderCreationLimit(
+      await this.pagesRepo.countByWorld(worldId),
+      'MAX_PAGES_PER_WORLD',
+      'stránek ve světě',
+    );
     // FIX-21 — dřív reject (409 PAGE_SLUG_TAKEN) na kolizi. Uživatel chce
     // dosažitelnou stránku, ne chybu → auto-suffix (`mapa` → `mapa-2` ...),
     // dokud slug není volný ANI rezervovaný world route (RESERVED_PAGE_SLUGS).
@@ -411,6 +420,15 @@ export class PagesService {
    * obsazený jinou stránkou), jinak `base-2`, `base-3`, ... až do prvního
    * volného. Cap na 500 pokusů jako pojistka proti nekonečné smyčce (extrémně
    * nepravděpodobné v praxi) — pak radši 409 než zaseknutý request.
+   *
+   * D-SEC-GAP (slug kolize diakritiky) — kontroluje i `characters` kolekci:
+   * FE slugify strhává diakritiku („Šíp" i „Sip" → `sip`), persona/Lokace
+   * stránka pak tvoří Character se STEJNÝM slugem ({worldId, slug} unique).
+   * Bez tohoto checku by charactersService.create hodil 409
+   * CHARACTER_SLUG_TAKEN na slug osiřelé/přímo vytvořené postavy, ačkoli
+   * FIX-21 slibuje auto-suffix. Page.slug == Character.slug je invariant
+   * (image mirror mapping v characters.getDirectory) → suffix musí padnout
+   * už tady, ne až v characters.
    */
   private async ensureAvailableSlug(
     base: string,
@@ -420,7 +438,8 @@ export class PagesService {
     for (let attempt = 1; attempt <= 500; attempt++) {
       const collision =
         RESERVED_PAGE_SLUGS.has(candidate) ||
-        (await this.pagesRepo.existsBySlugAndWorld(candidate, worldId));
+        (await this.pagesRepo.existsBySlugAndWorld(candidate, worldId)) ||
+        (await this.charactersService.existsBySlug(candidate, worldId));
       if (!collision) return candidate;
       candidate = `${base}-${attempt + 1}`;
     }
@@ -670,17 +689,17 @@ export class PagesService {
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
   ) {
-    // R-AUDIT — world-view brána (jen s userId; interní/legacy callers bez usera
-    // skip). Bez ní přihlášený nečlen privátního světa viděl celý adresář stránek
-    // (id/slug/title/type/imageUrl + existence AKJ přes shieldedBy).
-    if (userId) {
-      await this.assertCanViewWorld(
-        worldId,
-        userId,
-        platformRole,
-        elevatedWorldIds,
-      );
-    }
+    // R-AUDIT — world-view brána: přihlášený nečlen privátního světa nesmí
+    // vidět adresář stránek (id/slug/title/type/imageUrl + existence AKJ přes
+    // shieldedBy). D-DATA-SYNC-ZBYTKY a — brána běží VŽDY (i bez userId):
+    // route má OptionalJwtAuthGuard, anonym smí JEN veřejný svět (parita
+    // s legacy characters directory / assertCanViewDirectory).
+    await this.assertCanViewWorld(
+      worldId,
+      userId,
+      platformRole,
+      elevatedWorldIds,
+    );
     const allEntries = await this.pagesRepo.findDirectory(worldId, types);
     // B4b — moderačně skryté stránky vynech z adresáře pro všechny mimo reviewer
     // set (globální zásah, platí i pro PJ světa).
@@ -1143,7 +1162,7 @@ export class PagesService {
    */
   private async assertCanViewWorld(
     worldId: string,
-    userId: string,
+    userId: string | undefined,
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
   ): Promise<void> {
@@ -1161,10 +1180,10 @@ export class PagesService {
       worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)
     )
       return;
-    const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
-      worldId,
-    );
+    // Anonym (OptionalJwt na directory route) nemá membership → deny.
+    const membership = userId
+      ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+      : null;
     if (membership) return;
     throw new ForbiddenException({
       code: 'WORLD_ACCESS_DENIED',

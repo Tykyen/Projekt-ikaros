@@ -7,15 +7,18 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Inject } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import type { ChatGroup } from './interfaces/chat-group.interface';
 import type { ChatChannel } from './interfaces/chat-channel.interface';
 import type { ChatMessage } from './interfaces/chat-message.interface';
 import { ChatService } from './chat.service';
 import { ChatPresenceService } from './chat-presence.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { allowWsEvent } from '../../common/ws/ws-rate-limit';
 
 // PC-13: WS CORS řeší CustomIoAdapter (server-level); dekorátorový cors byl mrtvý.
 @WebSocketGateway({})
@@ -28,6 +31,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private readonly chatService: ChatService,
     private readonly presence: ChatPresenceService,
     private readonly jwtService: JwtService,
+    // W-3 dokončení — presence jméno/avatar se dotahují z DB (server identity).
+    @Inject('IUsersRepository')
+    private readonly usersRepo: IUsersRepository,
   ) {}
 
   /**
@@ -96,12 +102,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody()
     payload: {
       channelId: string;
-      userId: string;
-      username: string;
-      avatarUrl?: string;
     },
     @ConnectedSocket() client: Socket,
   ): Promise<void> {
+    // D-LAUNCH-GAP — anti-flood (handler dělá DB lookup role + broadcast).
+    if (!allowWsEvent(client, 'chat:channel:join')) return;
     // W-3 — identita z OVĚŘENÉHO JWT handshake (`client.data.userId`), NE z
     // klientského payloadu. Jinak hráč pošle cizí `userId` a vyrobí falešnou
     // presence s cizí identitou/rolí v PJ panelu (stejná třída jako N-9 sound).
@@ -113,10 +118,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       userId,
     );
     if (worldRole === null) return;
+    // W-3 dokončení — i username/avatar ze SERVERU (DB), ne z payloadu.
+    // Jinak hráč broadcastne do presence panelu cizí jméno/avatar (spoof
+    // identity ve stejné třídě jako userId výše). Klientská pole se ignorují.
+    const account = await this.usersRepo.findById(userId);
+    if (!account) return;
     const user = {
       userId,
-      username: payload.username,
-      avatarUrl: payload.avatarUrl,
+      username: account.username,
+      avatarUrl: account.avatarUrl,
       worldRole,
     };
     const { alreadyPresent } = this.presence.join(
@@ -137,6 +147,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() payload: { channelId: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    if (!allowWsEvent(client, 'chat:channel:leave')) return; // D-LAUNCH-GAP
     const left = this.presence.leave(payload.channelId, client.id);
     if (!left || left.stillPresent) return;
     this.server.to(`chat:${payload.channelId}`).emit('chat:presence', {
@@ -153,6 +164,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() payload: { channelId: string; characterName: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    // D-LAUNCH-GAP — anti-flood; každý event alokuje setTimeout + broadcast.
+    // FE emituje 1× za typing session (flag), 20/10 s má velkou rezervu.
+    if (!allowWsEvent(client, 'typing:start')) return;
     const key = `${client.id}:${payload.channelId}`;
     const existing = this.typingTimeouts.get(key);
     if (existing) clearTimeout(existing);
@@ -180,6 +194,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() payload: { channelId: string; characterName: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    if (!allowWsEvent(client, 'typing:stop')) return; // D-LAUNCH-GAP
     const key = `${client.id}:${payload.channelId}`;
     const existing = this.typingTimeouts.get(key);
     if (existing) {
@@ -210,6 +225,9 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       loop?: boolean;
     },
   ): Promise<void> {
+    // D-LAUNCH-GAP — anti-flood; přísnější limit (DB lookup + broadcast všem,
+    // legitimně jde o jednotky přehrání za minutu).
+    if (!allowWsEvent(client, 'sound:play', { limit: 10 })) return;
     const userId = (client.data as { userId?: string }).userId;
     if (!userId) return;
     const worldRole = await this.chatService.resolveChannelPresenceRole(
@@ -231,6 +249,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() payload: { channelId: string },
   ): Promise<void> {
+    if (!allowWsEvent(client, 'sound:stop', { limit: 10 })) return; // D-LAUNCH-GAP
     const userId = (client.data as { userId?: string }).userId;
     if (!userId) return;
     const worldRole = await this.chatService.resolveChannelPresenceRole(

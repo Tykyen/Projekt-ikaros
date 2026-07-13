@@ -10,6 +10,12 @@ import type {
 import type { ChatAttachment } from '../interfaces/chat-attachment.interface';
 import type { IChatMessageRepository } from '../interfaces/chat-message-repository.interface';
 
+/**
+ * D-066 (spec 20B B4b) — náhradní text moderačně skryté zprávy (M2/M3).
+ * Konvence FE tombstone textů (vzor `*Zpráva byla smazána autorem*`).
+ */
+export const MODERATION_HIDDEN_CONTENT = '*Zpráva skryta moderací*';
+
 @Injectable()
 export class MongoChatMessageRepository
   extends BaseMongoRepository<ChatMessage>
@@ -64,6 +70,9 @@ export class MongoChatMessageRepository
       .find({
         channelId: { $in: channelIds },
         isDeleted: { $ne: true },
+        // D-066 — skrytou zprávu nesmí najít ani substring hledání (obsah v DB
+        // zůstává kvůli revertu; match by prozradil, CO skrytá zpráva obsahuje).
+        moderationHidden: { $ne: true },
         content: { $regex: escaped, $options: 'i' },
       })
       .sort({ _id: -1 })
@@ -100,6 +109,8 @@ export class MongoChatMessageRepository
     if (or.length === 0) return [];
     const filter: Record<string, unknown> = {
       isDeleted: { $ne: true },
+      // D-066 — moderačně skrytá zpráva do souhrnu chatů nepatří (jako smazaná).
+      moderationHidden: { $ne: true },
       // Feed = „co napsali ostatní" → vlastní zprávy se nezobrazují.
       senderId: { $ne: opts.userId },
       $or: or,
@@ -324,6 +335,11 @@ export class MongoChatMessageRepository
   }
 
   protected toEntity(doc: Record<string, unknown>): ChatMessage {
+    // D-066 (B4b) — moderačně skrytá zpráva (M2/M3): originál zůstává v DB
+    // (revert), ale ven NIKDY neodchází. Maskuje se content, attachments,
+    // mapRef i dicePayload pro VŠECHNY viewery (vlastník i PJ; moderátor má
+    // snapshot v moderačním logu). Jediný choke-point pro world i global chat.
+    const moderationHidden = (doc.moderationHidden as boolean) ?? false;
     return {
       id: String(doc._id),
       channelId: doc.channelId as string,
@@ -334,9 +350,12 @@ export class MongoChatMessageRepository
       overrideName: doc.overrideName as string | undefined,
       overrideAvatarUrl: doc.overrideAvatarUrl as string | undefined,
       overridePageSlug: doc.overridePageSlug as string | undefined,
-      content: doc.content as string | null,
+      content: moderationHidden
+        ? MODERATION_HIDDEN_CONTENT
+        : (doc.content as string | null),
       isEdited: (doc.isEdited as boolean) ?? false,
       isDeleted: (doc.isDeleted as boolean) ?? false,
+      moderationHidden,
       isSystem: (doc.isSystem as boolean) ?? false,
       isAnonymous: (doc.isAnonymous as boolean) ?? false,
       rpDate: doc.rpDate as string | undefined,
@@ -345,8 +364,12 @@ export class MongoChatMessageRepository
       replyToSenderName: doc.replyToSenderName as string | undefined,
       visibleTo: doc.visibleTo as string[] | undefined,
       reactions: (doc.reactions as Record<string, string[]>) ?? {},
-      attachments: (doc.attachments as ChatAttachment[]) ?? [],
-      mapRef: (doc.mapRef as ChatMapRef | null | undefined) ?? null,
+      attachments: moderationHidden
+        ? []
+        : ((doc.attachments as ChatAttachment[]) ?? []),
+      mapRef: moderationHidden
+        ? null
+        : ((doc.mapRef as ChatMapRef | null | undefined) ?? null),
       expiresAt: doc.expiresAt as Date | undefined,
       customFont: (doc.customFont as string | null) ?? null,
       customFontSize: (doc.customFontSize as string | null) ?? null,
@@ -354,8 +377,10 @@ export class MongoChatMessageRepository
       isDiceRoll: (doc.isDiceRoll as boolean) ?? false,
       clientNonce: (doc.clientNonce as string | null | undefined) ?? null,
       mentions: (doc.mentions as string[] | undefined) ?? [],
-      dicePayload:
-        (doc.dicePayload as Record<string, unknown> | null | undefined) ?? null,
+      dicePayload: moderationHidden
+        ? null
+        : ((doc.dicePayload as Record<string, unknown> | null | undefined) ??
+          null),
       diceSkin: (doc.diceSkin as string | null | undefined) ?? null,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,

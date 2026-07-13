@@ -15,6 +15,8 @@ export interface MapTemplate {
   ownerId: string;
   name: string;
   imageUrl: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech; staré dokumenty nemají. */
+  imageBytes?: number;
   config: HexConfig;
   npcTemplates: MapSceneNpc[];
   tokens: MapToken[];

@@ -10,6 +10,8 @@ export interface IWorldsRepository {
   renameSlug(worldId: string, newSlug: string): Promise<World | null>;
   existsBySlug(slug: string): Promise<boolean>;
   findByOwnerId(ownerId: string): Promise<World[]>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet VŠECH světů účtu (i soft-deleted). */
+  countByOwnerId(ownerId: string): Promise<number>;
   findDeleted(): Promise<World[]>;
   findExpiredDeleted(cutoff: Date): Promise<World[]>;
   findAll(): Promise<World[]>;

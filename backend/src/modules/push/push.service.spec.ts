@@ -104,6 +104,27 @@ describe('PushService', () => {
     expect(webpush.sendNotification).toHaveBeenCalledTimes(2);
   });
 
+  // D-NEW-INV-PUSH — odesílatel broadcast zprávy nedostane push na vlastní zprávu.
+  it('notifyAll s excludeUserId — vynechá všechna zařízení odesílatele', async () => {
+    repo.findAll.mockResolvedValue([
+      makeSub(),
+      makeSub({
+        id: 'sub1b',
+        userId: 'user1',
+        endpoint: 'https://push.example.com/sub1b',
+      }),
+      makeSub({
+        id: 'sub2',
+        userId: 'user2',
+        endpoint: 'https://push.example.com/sub2',
+      }),
+    ]);
+    await service.notifyAll({ title: 'Test', body: 'Ahoj' }, undefined, {
+      excludeUserId: 'user1',
+    });
+    expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+  });
+
   it('auto-cleanup — smaže subscription při 410', async () => {
     repo.findByUserId.mockResolvedValue([makeSub()]);
     (webpush.sendNotification as jest.Mock).mockRejectedValue({
@@ -177,7 +198,8 @@ describe('PushService', () => {
     expect(webpush.sendNotification).toHaveBeenCalledWith(
       expect.anything(),
       expect.any(String),
-      expect.objectContaining({ TTL: 4 * 60 * 60 }),
+      // D-AUDIT: timeout 10 s — anti-hang na push providera.
+      expect.objectContaining({ TTL: 4 * 60 * 60, timeout: 10_000 }),
     );
   });
 
@@ -192,7 +214,7 @@ describe('PushService', () => {
     });
     const [, sentBody, sentOpts] = (webpush.sendNotification as jest.Mock).mock
       .calls[0] as [unknown, string, { TTL: number; topic?: string }];
-    expect(sentOpts).toEqual({ TTL: 120, topic: 'chat-abc' });
+    expect(sentOpts).toEqual({ TTL: 120, topic: 'chat-abc', timeout: 10_000 });
     const parsed = JSON.parse(sentBody) as Record<string, unknown>;
     expect(parsed.tag).toBe('chat-abc'); // tag klientovi ANO
     expect(parsed).not.toHaveProperty('ttl'); // transport-only NE
@@ -288,6 +310,22 @@ describe('PushService', () => {
       ]);
       await service.notifyAll({ title: 'T', body: 'B' }, 'ikarosNews');
       // jen user1 subscription → 1 odeslání
+      expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+    });
+
+    it('notifyAll s kategorií + excludeUserId — exclude platí i s filtrem preferencí', async () => {
+      repo.findAll.mockResolvedValue([
+        makeSub({ userId: 'user1', endpoint: 'e1' }),
+        makeSub({ userId: 'user2', endpoint: 'e2' }),
+      ]);
+      usersRepo.findByIds.mockResolvedValue([
+        { id: 'user2', notificationPreferences: { hospoda: true } },
+      ]);
+      await service.notifyAll({ title: 'T', body: 'B' }, 'hospoda', {
+        excludeUserId: 'user1',
+      });
+      // user1 vyloučen ještě před filtrem kategorií → nefigurovat ani v lookupu
+      expect(usersRepo.findByIds).toHaveBeenCalledWith(['user2']);
       expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
     });
 

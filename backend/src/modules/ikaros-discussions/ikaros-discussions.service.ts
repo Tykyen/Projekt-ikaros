@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
-  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { sanitizeRichText } from '../../common/utils/sanitize-rich-text';
@@ -21,9 +20,14 @@ import type { IUsersRepository } from '../users/interfaces/users-repository.inte
 import { UsersService } from '../users/users.service';
 import type { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 import { UserRole } from '../users/interfaces/user.interface';
-import type { User } from '../users/interfaces/user.interface';
+import {
+  MAX_PINNED,
+  toggleFavoriteId,
+  togglePinnedId,
+} from '../users/favorites-toggle.util';
 import type { CreateDiscussionDto } from './dto/create-discussion.dto';
 import type { PatchDiscussionDto } from './dto/patch-discussion.dto';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 // 3.4 — diskuze je platformový obsah → bez world-scoped PJ (memory pravidlo).
 const ADMIN_ROLES = [
@@ -32,8 +36,11 @@ const ADMIN_ROLES = [
   UserRole.SpravceDiskuzi,
 ];
 const SYSTEM_SENDER = { id: 'system', username: 'Systém' };
-// 3.7 — max připnutých položek na typ obsahu (sidebar)
-const MAX_PINNED = 5;
+// 3.7 — favorites/pin toggle sdílený helper (D-NEW-INV-CLEANUP)
+const FAVORITE_FIELDS = {
+  favorites: 'favoriteDiscussionIds',
+  pinned: 'pinnedDiscussionIds',
+} as const;
 
 @Injectable()
 export class IkarosDiscussionsService {
@@ -241,6 +248,17 @@ export class IkarosDiscussionsService {
     return { items: enriched, total };
   }
 
+  /**
+   * D-DROBNE — všechny diskuze tvůrce vč. pending/uzamčených (zrcadlo
+   * `findMy` v ikaros-articles/gallery; profil „Moje diskuze"). Tvůrce má na
+   * vlastní diskuzi vždy přístup (viz canAccessDiscussion/FIX-64), takže
+   * access filtr netřeba — repo filtruje výhradně dle `creatorId`.
+   */
+  async findMy(userId: string): Promise<IkarosDiscussion[]> {
+    const discussions = await this.repo.findByCreator(userId);
+    return this.enrichTombstoneCreators(discussions);
+  }
+
   async findPending(
     role: UserRole,
     username: string,
@@ -292,6 +310,13 @@ export class IkarosDiscussionsService {
     role: UserRole,
     username: string,
   ): Promise<IkarosDiscussion> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // diskuzí per účet.
+    assertUnderCreationLimit(
+      await this.repo.countByCreator(creatorId),
+      'MAX_DISCUSSIONS_PER_USER',
+      'diskuzí na účet',
+    );
     const isApproved = this.isAdmin(role, username);
     const discussion = await this.repo.create({
       title: dto.title,
@@ -434,37 +459,27 @@ export class IkarosDiscussionsService {
     return updated!;
   }
 
-  async toggleFavorite(
-    discussionId: string,
-    userId: string,
-  ): Promise<{ isFavorite: boolean }> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
-    // FIX-9 — existence check před zápisem (vzor togglePin níže).
+  /** Existence check pro favorites/pin toggle (sdílený helper; FIX-9). */
+  private async requireDiscussionExists(discussionId: string): Promise<void> {
     const discussion = await this.repo.findById(discussionId);
     if (!discussion)
       throw new NotFoundException({
         code: 'DISCUSSION_NOT_FOUND',
         message: 'Diskuze nenalezena',
       });
-    const favorites = user.favoriteDiscussionIds ?? [];
-    const isFavorite = favorites.includes(discussionId);
-    const newFavorites = isFavorite
-      ? favorites.filter((id) => id !== discussionId)
-      : [...favorites, discussionId];
-    const update: Partial<User> = { favoriteDiscussionIds: newFavorites };
-    // 3.7 cascade — odebrání z oblíbených zároveň odepne ze sidebaru
-    if (isFavorite) {
-      const pinned = user.pinnedDiscussionIds ?? [];
-      if (pinned.includes(discussionId))
-        update.pinnedDiscussionIds = pinned.filter((id) => id !== discussionId);
-    }
-    await this.usersRepo.update(userId, update);
-    return { isFavorite: !isFavorite };
+  }
+
+  async toggleFavorite(
+    discussionId: string,
+    userId: string,
+  ): Promise<{ isFavorite: boolean }> {
+    return toggleFavoriteId({
+      usersRepo: this.usersRepo,
+      userId,
+      itemId: discussionId,
+      fields: FAVORITE_FIELDS,
+      ensureItemExists: () => this.requireDiscussionExists(discussionId),
+    });
   }
 
   // 3.7 — připnutí diskuze do sidebaru; max 5, jen oblíbenou
@@ -472,35 +487,17 @@ export class IkarosDiscussionsService {
     discussionId: string,
     userId: string,
   ): Promise<{ isPinned: boolean }> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
-    const discussion = await this.repo.findById(discussionId);
-    if (!discussion)
-      throw new NotFoundException({
-        code: 'DISCUSSION_NOT_FOUND',
-        message: 'Diskuze nenalezena',
-      });
-    if (!(user.favoriteDiscussionIds ?? []).includes(discussionId))
-      throw new ConflictException({
-        code: 'NOT_FAVORITE',
-        message: 'Připnout lze jen oblíbenou diskuzi',
-      });
-    const pinned = user.pinnedDiscussionIds ?? [];
-    const isPinned = pinned.includes(discussionId);
-    if (!isPinned && pinned.length >= MAX_PINNED)
-      throw new ConflictException({
-        code: 'PIN_LIMIT',
-        message: `Připnout lze max ${MAX_PINNED} diskuzí`,
-      });
-    const newPinned = isPinned
-      ? pinned.filter((id) => id !== discussionId)
-      : [...pinned, discussionId];
-    await this.usersRepo.update(userId, { pinnedDiscussionIds: newPinned });
-    return { isPinned: !isPinned };
+    return togglePinnedId({
+      usersRepo: this.usersRepo,
+      userId,
+      itemId: discussionId,
+      fields: FAVORITE_FIELDS,
+      ensureItemExists: () => this.requireDiscussionExists(discussionId),
+      messages: {
+        notFavorite: 'Připnout lze jen oblíbenou diskuzi',
+        pinLimit: `Připnout lze max ${MAX_PINNED} diskuzí`,
+      },
+    });
   }
 
   async getPosts(

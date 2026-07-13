@@ -167,6 +167,8 @@ export interface MapScene {
   worldId: string;
   name: string;
   imageUrl: string;
+  /** D-19.2 — velikost blobu `imageUrl` (podklad) v bytech; staré docs nemají. */
+  imageBytes?: number;
   folder?: string;
   config: HexConfig;
   tokens: MapToken[];

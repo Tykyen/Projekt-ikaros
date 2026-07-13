@@ -13,7 +13,10 @@ export interface ICustomEmotesRepository {
   updateById(
     id: string,
     updates: Partial<
-      Pick<CustomEmote, 'name' | 'shortcode' | 'imageId' | 'imageUrl'>
+      Pick<
+        CustomEmote,
+        'name' | 'shortcode' | 'imageId' | 'imageUrl' | 'imageBytes'
+      >
     >,
   ): Promise<CustomEmote | null>;
   deleteById(id: string): Promise<boolean>;

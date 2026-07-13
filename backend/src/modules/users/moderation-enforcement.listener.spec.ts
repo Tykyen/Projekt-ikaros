@@ -111,4 +111,57 @@ describe('UsersModerationEnforcementListener', () => {
       expect.objectContaining({ bannedAt: undefined }),
     );
   });
+
+  // D-066 — content-level M2–M4: profil zůstává logWarn no-op; character_diary
+  // a chat_message už users listener NEřeší (enforcement mají content moduly
+  // character-subdocs / chat), takže žádný warn ani zásah do účtu.
+  describe('content-level M2–M4 (D-066)', () => {
+    const contentPayload = (
+      targetType: string,
+      action: ModerationAction,
+    ): ModerationEnforcePayload =>
+      ({
+        decisionId: 'dec1',
+        action,
+        targetType,
+        targetId: 't1',
+        targetAuthorId: 'u1',
+      }) as unknown as ModerationEnforcePayload;
+
+    it('M2–M4 na profil jen zaloguje (logWarn zůstává, žádný ban)', async () => {
+      const warnSpy = jest
+        .spyOn(listener['logger'], 'warn')
+        .mockImplementation(() => undefined);
+      for (const action of [
+        ModerationAction.HidePart,
+        ModerationAction.HideTemp,
+        ModerationAction.Remove,
+      ]) {
+        await listener.onEnforce(contentPayload('profile', action));
+      }
+      expect(warnSpy).toHaveBeenCalledTimes(3);
+      expect(usersRepo.update).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it.each(['character_diary', 'chat_message'])(
+      'M2–M4 na %s neřeší (enforcement má content modul) — žádný warn ani ban',
+      async (targetType) => {
+        const warnSpy = jest
+          .spyOn(listener['logger'], 'warn')
+          .mockImplementation(() => undefined);
+        for (const action of [
+          ModerationAction.HidePart,
+          ModerationAction.HideTemp,
+          ModerationAction.Remove,
+        ]) {
+          await listener.onEnforce(contentPayload(targetType, action));
+        }
+        expect(warnSpy).not.toHaveBeenCalled();
+        expect(usersRepo.update).not.toHaveBeenCalled();
+        expect(usersRepo.findById).not.toHaveBeenCalled();
+        warnSpy.mockRestore();
+      },
+    );
+  });
 });

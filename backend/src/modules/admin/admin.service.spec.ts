@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { AdminService } from './admin.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import { UserBanCacheService } from '../users/services/user-ban-cache.service';
+import { MailerService } from '../mailer/mailer.service';
 
 describe('AdminService', () => {
   let service: AdminService;
@@ -56,6 +57,10 @@ describe('AdminService', () => {
     update: jest.fn(),
     delete: jest.fn(),
   };
+  // D-DROBNE — notifikační mail na starou adresu při admin změně e-mailu.
+  const mockMailer = {
+    sendEmailChangeNotice: jest.fn().mockResolvedValue(undefined),
+  };
   // 1.3c — PJ handover potřebuje IWorldsRepository
   const mockWorldsRepo = {
     findById: jest.fn(),
@@ -99,6 +104,7 @@ describe('AdminService', () => {
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
         { provide: UserBanCacheService, useValue: mockBanCache },
+        { provide: MailerService, useValue: mockMailer },
         // 1.7 — emit eventy pro D-026 + D-036
         { provide: EventEmitter2, useValue: mockEvents },
         {
@@ -130,7 +136,6 @@ describe('AdminService', () => {
       adminPermissions: {
         canManageAdmins: false,
         canModerateContent: false,
-        canEditPlatformPages: false,
       },
     };
 
@@ -161,7 +166,6 @@ describe('AdminService', () => {
                 adminPermissions: {
                   canManageAdmins: true,
                   canModerateContent: false,
-                  canEditPlatformPages: false,
                 },
               }
             : targetAdmin,
@@ -182,7 +186,6 @@ describe('AdminService', () => {
         adminPermissions: {
           canManageAdmins: false,
           canModerateContent: false,
-          canEditPlatformPages: false,
         },
       });
       const actor = { id: 'adm-plain', role: UserRole.Admin } as never;
@@ -229,6 +232,136 @@ describe('AdminService', () => {
         role: UserRole.Admin,
       });
       expect(result?.role).toBe(UserRole.Admin);
+    });
+  });
+
+  // D-NEW-INV-ADMIN-UI — přímá změna e-mailu uživatele (Superadmin-only).
+  describe('updateUserEmail', () => {
+    const target = {
+      id: 'u1',
+      role: UserRole.Ikarus,
+      username: 'cil',
+      email: 'stary@x.cz',
+      passwordHash: 'hash',
+    };
+
+    it('happy path: normalizuje e-mail, emailVerified=false, audit + identity signál, bez passwordHash', async () => {
+      mockUsersRepo.findById.mockResolvedValue(target);
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.update.mockResolvedValue({
+        ...target,
+        email: 'novy@x.cz',
+        emailVerified: false,
+      });
+      const result = await service.updateUserEmail(
+        superadmin,
+        'u1',
+        '  Novy@X.cz ',
+      );
+      expect(mockUsersRepo.update).toHaveBeenCalledWith('u1', {
+        email: 'novy@x.cz',
+        emailVerified: false,
+      });
+      expect(mockAuditRepo.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'EMAIL_CHANGE',
+          before: { email: 'stary@x.cz' },
+          after: { email: 'novy@x.cz' },
+        }),
+      );
+      expect(mockEvents.emit).toHaveBeenCalledWith('user.identity.changed', {
+        userId: 'u1',
+        kind: 'email',
+      });
+      // D-DROBNE — notifikace jde na STAROU adresu (obrana proti tichému převzetí).
+      expect(mockMailer.sendEmailChangeNotice).toHaveBeenCalledWith({
+        to: 'stary@x.cz',
+        username: 'cil',
+        oldEmail: 'stary@x.cz',
+        newEmail: 'novy@x.cz',
+      });
+      expect(result.email).toBe('novy@x.cz');
+      expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('D-DROBNE — selhání maileru změnu neshodí (fire-and-forget + logWarn)', async () => {
+      mockUsersRepo.findById.mockResolvedValue(target);
+      mockUsersRepo.findByEmail.mockResolvedValue(null);
+      mockUsersRepo.update.mockResolvedValue({
+        ...target,
+        email: 'novy@x.cz',
+        emailVerified: false,
+      });
+      mockMailer.sendEmailChangeNotice.mockRejectedValueOnce(
+        new Error('SMTP down'),
+      );
+      const result = await service.updateUserEmail(
+        superadmin,
+        'u1',
+        'novy@x.cz',
+      );
+      expect(result.email).toBe('novy@x.cz');
+      // změna i signál proběhly navzdory mailer failu
+      expect(mockEvents.emit).toHaveBeenCalledWith('user.identity.changed', {
+        userId: 'u1',
+        kind: 'email',
+      });
+    });
+
+    it('D-DROBNE — při odmítnuté změně (409 EMAIL_TAKEN) se mail neposílá', async () => {
+      mockUsersRepo.findById.mockResolvedValue(target);
+      mockUsersRepo.findByEmail.mockResolvedValue({ id: 'u2' });
+      await expect(
+        service.updateUserEmail(superadmin, 'u1', 'obsazeny@x.cz'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockMailer.sendEmailChangeNotice).not.toHaveBeenCalled();
+    });
+
+    it('ne-Superadmin (Admin) → 403 EMAIL_CHANGE_REQUIRES_SUPERADMIN', async () => {
+      const admin = { id: 'adm', role: UserRole.Admin } as never;
+      await expect(
+        service.updateUserEmail(admin, 'u1', 'novy@x.cz'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockUsersRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('self-target → 403 (hierarchy helper SELF_MODIFICATION)', async () => {
+      mockUsersRepo.findById.mockResolvedValue({
+        ...target,
+        id: 'sa',
+        role: UserRole.Superadmin,
+      });
+      await expect(
+        service.updateUserEmail(superadmin, 'sa', 'novy@x.cz'),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockUsersRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('neexistující uživatel → 404', async () => {
+      mockUsersRepo.findById.mockResolvedValue(null);
+      await expect(
+        service.updateUserEmail(superadmin, 'ghost', 'novy@x.cz'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'USER_NOT_FOUND' }),
+      });
+    });
+
+    it('kolize e-mailu s jiným uživatelem → 409 EMAIL_TAKEN', async () => {
+      mockUsersRepo.findById.mockResolvedValue(target);
+      mockUsersRepo.findByEmail.mockResolvedValue({ id: 'u2' });
+      await expect(
+        service.updateUserEmail(superadmin, 'u1', 'obsazeny@x.cz'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockUsersRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('stejný e-mail jako aktuální → 400 SAME_EMAIL', async () => {
+      mockUsersRepo.findById.mockResolvedValue(target);
+      await expect(
+        service.updateUserEmail(superadmin, 'u1', 'STARY@x.cz'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockUsersRepo.findByEmail).not.toHaveBeenCalled();
+      expect(mockUsersRepo.update).not.toHaveBeenCalled();
     });
   });
 

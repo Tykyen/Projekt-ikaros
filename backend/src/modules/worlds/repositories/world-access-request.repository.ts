@@ -53,7 +53,7 @@ export class MongoWorldAccessRequestRepository
     const total = await this.model.countDocuments(query).exec();
     const docs = await this.model
       .find(query)
-      .sort({ requestedAt: -1 })
+      .sort({ requestedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean()

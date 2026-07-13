@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import {
+  BadRequestException,
   ForbiddenException,
   ConflictException,
   NotFoundException,
@@ -27,6 +28,8 @@ describe('CampaignPurchaseService', () => {
   const mockShopGroupRepo = { findById: jest.fn() };
   const mockPurchaseRepo = {
     findById: jest.fn(),
+    // D-PURCHASE-IDEMPOTENCY — lookup nákupu dle (buyer, nonce) pro replay.
+    findByNonce: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     findMany: jest.fn(),
@@ -136,6 +139,7 @@ describe('CampaignPurchaseService', () => {
     mockPurchaseRepo.create.mockImplementation((d: Record<string, unknown>) =>
       Promise.resolve({ id: 'p1', ...d }),
     );
+    mockPurchaseRepo.findByNonce.mockResolvedValue(null);
   });
 
   const dto = { characterId: 'char1', accountId: 'acc1' };
@@ -252,6 +256,56 @@ describe('CampaignPurchaseService', () => {
       );
     });
 
+    it('D-SEC-GAP float: cena 0.1 × 3 ks → debet přesně 0.3 (žádný drift)', async () => {
+      mockShopRepo.findById.mockResolvedValue(makeItem({ price: 0.1 }));
+      mockAccounts.debitIfSufficient.mockResolvedValue({
+        ...account,
+        balance: 199.7,
+        transactions: [{ id: 'tx1' }],
+      });
+      await service.purchase('w1', 'item1', ru('pj1'), { ...dto, quantity: 3 });
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
+        'acc1',
+        0.3,
+        expect.stringContaining('Nákup'),
+        'pj1',
+      );
+    });
+
+    it('D-SEC-GAP float: hraniční nákup projde i s binárním šumem v balance (gteMoney)', async () => {
+      // Historický drift: balance uložená jako 0.2999999999999999 ≈ 0.30.
+      // Dřívější `balance < paidAmount` by nákup za 0.30 shodil na haléřích.
+      mockShopRepo.findById.mockResolvedValue(makeItem({ price: 0.3 }));
+      mockAccounts.assertCanAdjust.mockResolvedValue({
+        ...account,
+        balance: 0.2999999999999999,
+      });
+      mockAccounts.debitIfSufficient.mockResolvedValue({
+        ...account,
+        balance: 0,
+        transactions: [{ id: 'tx1' }],
+      });
+
+      const res = await service.purchase('w1', 'item1', ru('pj1'), dto);
+
+      expect(mockAccounts.debitIfSufficient).toHaveBeenCalledWith(
+        'acc1',
+        0.3,
+        expect.stringContaining('Nákup'),
+        'pj1',
+      );
+      expect(res.newBalance).toBe(0);
+    });
+
+    it('D-SEC-GAP float: NaN cena položky → 400, žádný zápis (nesmí projít jako „zdarma")', async () => {
+      mockShopRepo.findById.mockResolvedValue(makeItem({ price: NaN }));
+      await expect(
+        service.purchase('w1', 'item1', ru('pj1'), dto),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockSubdocs.appendInventoryItem).not.toHaveBeenCalled();
+      expect(mockAccounts.debitIfSufficient).not.toHaveBeenCalled();
+    });
+
     it('nedostatek prostředků → 409, žádný zápis', async () => {
       mockShopRepo.findById.mockResolvedValue(makeItem({ price: 500 }));
       await expect(
@@ -298,6 +352,114 @@ describe('CampaignPurchaseService', () => {
       await expect(
         service.purchase('w1', 'item1', ru('pj1'), dto),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── D-PURCHASE-IDEMPOTENCY — clientNonce (vzor chat 6.2h) ────────────────
+  describe('idempotence (clientNonce)', () => {
+    const NONCE = '123e4567-e89b-42d3-a456-426614174000';
+
+    it('replay: nákup se stejným nonce už existuje → vrátí PŮVODNÍ výsledek, žádné zápisy', async () => {
+      mockPurchaseRepo.findByNonce.mockResolvedValue({
+        id: 'p-orig',
+        accountId: 'acc1',
+        clientNonce: NONCE,
+        status: 'active',
+      });
+      mockAccounts.getAccount.mockResolvedValue({ ...account, balance: 100 });
+
+      const res = await service.purchase('w1', 'item1', ru('pj1'), {
+        ...dto,
+        clientNonce: NONCE,
+      });
+
+      // Scope per buyer — lookup jde přes (buyerUserId, nonce).
+      expect(mockPurchaseRepo.findByNonce).toHaveBeenCalledWith('pj1', NONCE);
+      expect(res.purchase.id).toBe('p-orig');
+      expect(res.newBalance).toBe(100);
+      // Žádný 2. odečet / 2. položka / 2. log.
+      expect(mockShopRepo.findById).not.toHaveBeenCalled();
+      expect(mockSubdocs.appendInventoryItem).not.toHaveBeenCalled();
+      expect(mockAccounts.debitIfSufficient).not.toHaveBeenCalled();
+      expect(mockPurchaseRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('bez nonce → žádný nonce lookup, nákup proběhne jako dřív (zpětná kompatibilita)', async () => {
+      mockShopRepo.findById.mockResolvedValue(makeItem());
+      mockAccounts.debitIfSufficient.mockResolvedValue({
+        ...account,
+        balance: 100,
+        transactions: [{ id: 'tx1', delta: -100 }],
+      });
+
+      const res = await service.purchase('w1', 'item1', ru('pj1'), dto);
+
+      expect(mockPurchaseRepo.findByNonce).not.toHaveBeenCalled();
+      expect(mockPurchaseRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ clientNonce: null }),
+      );
+      expect(res.newBalance).toBe(100);
+    });
+
+    it('nonce se ukládá do purchase logu (součást atomické větve)', async () => {
+      mockShopRepo.findById.mockResolvedValue(makeItem());
+      mockAccounts.debitIfSufficient.mockResolvedValue({
+        ...account,
+        balance: 100,
+        transactions: [{ id: 'tx1', delta: -100 }],
+      });
+
+      await service.purchase('w1', 'item1', ru('pj1'), {
+        ...dto,
+        clientNonce: NONCE,
+      });
+
+      expect(mockPurchaseRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ clientNonce: NONCE }),
+      );
+    });
+
+    it('E11000 na nonce (prohraný závod) → kompenzace + replay vítěze, ne chyba', async () => {
+      mockShopRepo.findById.mockResolvedValue(makeItem());
+      mockAccounts.debitIfSufficient.mockResolvedValue({
+        ...account,
+        balance: 100,
+        transactions: [{ id: 'tx1', delta: -100 }],
+      });
+      // Unique index (buyerUserId, clientNonce) odmítne 2. insert.
+      const dupErr = Object.assign(
+        new Error(
+          'E11000 duplicate key error collection: test.campaignPurchases index: buyerUserId_1_clientNonce_1 dup key',
+        ),
+        { code: 11000 },
+      );
+      mockPurchaseRepo.create.mockRejectedValueOnce(dupErr);
+      mockPurchaseRepo.findByNonce
+        .mockResolvedValueOnce(null) // pre-check: vítěz ještě nedopsal
+        .mockResolvedValueOnce({
+          id: 'p-winner',
+          accountId: 'acc1',
+          clientNonce: NONCE,
+        }); // po E11000: vítěz už je zapsaný
+      mockAccounts.adjust.mockResolvedValue({ ...account });
+      mockAccounts.getAccount.mockResolvedValue({ ...account, balance: 100 });
+
+      const res = await service.purchase('w1', 'item1', ru('pj1'), {
+        ...dto,
+        clientNonce: NONCE,
+      });
+
+      // Vrácen PŮVODNÍ nákup vítěze (žádná výjimka ven).
+      expect(res.purchase.id).toBe('p-winner');
+      expect(res.newBalance).toBe(100);
+      // Fallback (unit = bez replica setu) musel odečet KOMPENZOVAT
+      // (revert účtu + odebrání položky) — jinak by zůstal 2. odečet.
+      expect(mockAccounts.adjust).toHaveBeenCalledWith(
+        'acc1',
+        expect.objectContaining({ amount: 100 }),
+        expect.anything(),
+      );
+      expect(mockSubdocs.updateInventory).toHaveBeenCalled();
     });
   });
 

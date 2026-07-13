@@ -1,6 +1,7 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ConflictException,
   BadRequestException,
@@ -31,6 +32,10 @@ import type { IWorldOperationsRepository } from '../../worlds/interfaces/world-o
 import { SystemStatsValidatorService } from '../schemas/system-entity-schema/system-stats-validator.service';
 import { sanitizeDicePayload } from '../../../common/dice/dice-payload.validator';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+// D-NEW-INV-DATA-SYNC — token HP PC/NPC → diary customData postavy
+import type { ICharactersRepository } from '../../characters/interfaces/characters-repository.interface';
+import type { CharacterDiaryRepository } from '../../character-subdocs/repositories/character-diary.repository';
+import { buildDiaryHpPatch } from './token-hp-diary-map';
 
 export interface ApplyMapOperationResult {
   recordId: string;
@@ -83,7 +88,15 @@ export class MapOperationsService {
     @Inject('IWorldOperationsRepository')
     private readonly worldOpsRepo: IWorldOperationsRepository,
     private readonly eventEmitter: EventEmitter2,
+    // D-NEW-INV-DATA-SYNC — token.update HP PC/NPC → diary.customData postavy.
+    // Stejné provider tokeny jako MapsService (enrichTokens čte, my zapisujeme).
+    @Inject('ICharactersRepository')
+    private readonly charactersRepo: ICharactersRepository,
+    @Inject('ICharacterDiaryRepository')
+    private readonly diaryRepo: CharacterDiaryRepository,
   ) {}
+
+  private readonly logger = new Logger(MapOperationsService.name);
 
   async apply(
     sceneId: string,
@@ -175,6 +188,59 @@ export class MapOperationsService {
     return this.opsRepo.findSince(sceneId, since, limit);
   }
 
+  /**
+   * D-DROBNE-UNDO — vrátí POSLEDNÍ vlastní operaci uživatele na scéně.
+   *
+   * Sémantika:
+   *  1. Gate: jen PJ / PomocnyPJ (`assertCanUndo`) — stejný práh jako ops,
+   *     které undo typicky vrací.
+   *  2. Lookup: poslední op tohoto uživatele s non-null `inverse` a
+   *     `undone !== true` (scope = scéna; filtr přímo v Mongo query).
+   *  3. Aplikace inverse jde STANDARDNÍ pipeline `apply()` (validace →
+   *     authorizer → atomic → seq → log → broadcast) — žádný bypass. Undo
+   *     záznam má vlastní seqNumber, klienti ho dostanou jako běžnou op.
+   *  4. Po úspěchu se flagne `undone: true` na PŮVODNÍ záznam (opakované
+   *     undo nevrací tutéž op dvakrát) I na nový undo záznam (undo-of-undo
+   *     / redo záměrně neděláme — konzervativní MVP).
+   *
+   * Nic k vrácení → 404 `NOTHING_TO_UNDO` (friendly, FE ukáže nenápadný
+   * toast). Idempotentní v tom smyslu, že opakované volání postupuje undo
+   * stackem dál (nikdy netočí tutéž op).
+   */
+  async undoLast(
+    sceneId: string,
+    user: OperationRequestUser,
+  ): Promise<ApplyMapOperationResult> {
+    const scene = await this.mapsRepo.findById(sceneId);
+    if (!scene) {
+      throw new NotFoundException({
+        code: 'MAP_SCENE_NOT_FOUND',
+        message: 'Scéna nenalezena',
+      });
+    }
+    await this.authorizer.assertCanUndo(user, scene);
+
+    const target = await this.opsRepo.findLastUndoableByUser(sceneId, user.id);
+    if (!target || !target.inverse) {
+      throw new NotFoundException({
+        code: 'NOTHING_TO_UNDO',
+        message: 'Není co vrátit',
+      });
+    }
+
+    // Standardní pipeline — když inverse nejde aplikovat (např. token mezitím
+    // zmizel), chyba propadne ven a původní op zůstane undoable (retry-able).
+    const result = await this.apply(sceneId, target.inverse, user);
+
+    // Flag až PO úspěšné aplikaci. `applied: false` (idempotent NOOP, např.
+    // scene.activate na už aktivní scénu) flagujeme taky — cílový stav platí.
+    await this.opsRepo.markUndone(target.id);
+    if (result.recordId) {
+      await this.opsRepo.markUndone(result.recordId);
+    }
+    return result;
+  }
+
   // ───────────────────────────────────────────────────────────────────────
   // Inverse computation per typ
   // ───────────────────────────────────────────────────────────────────────
@@ -217,6 +283,12 @@ export class MapOperationsService {
         for (const key of Object.keys(op.patch)) {
           oldPatch[key] = (token as unknown as Record<string, unknown>)[key];
         }
+        // D-LAUNCH-GAP — delta op (hpDelta/injuryDelta) nenese patch klíče;
+        // undo vrací starou ABSOLUTNÍ hodnotu ze snapshotu. Pod souběhem je
+        // to aproximace (jako u ostatních inverse snapshotů) — undo je PJ
+        // tooling, ne CRDT.
+        if (op.hpDelta !== undefined) oldPatch.currentHp = token.currentHp;
+        if (op.injuryDelta !== undefined) oldPatch.injury = token.injury;
         return {
           type: 'token.update',
           tokenId: op.tokenId,
@@ -274,8 +346,20 @@ export class MapOperationsService {
         } as unknown as MapOperationPayload;
       }
 
+      // D-NEW-INV-MAPS — undo obnoví celý snapshot kreseb (vzor scene.tokens.clear
+      // → scene.tokens.replace). Dřív null („clear není undoable"), before-stav
+      // ale ve snapshotu je.
       case 'drawing.clear':
-        return null;
+        return {
+          type: 'scene.drawings.replace',
+          drawings: scene.drawings ?? [],
+        };
+
+      case 'scene.drawings.replace':
+        return {
+          type: 'scene.drawings.replace',
+          drawings: scene.drawings ?? [],
+        };
 
       case 'fog.set':
         return {
@@ -350,12 +434,15 @@ export class MapOperationsService {
           folder: scene.folder ?? null,
         };
 
+      // D-NEW-INV-MAPS — undo deaktivace = aktivace zpět (CAS, idempotent).
+      // Member přiřazení se tudy NEobnovují: každý cascade `member.unassign`
+      // má ve worldOperations vlastní inverse `member.assignToScene` (viz
+      // applyAtomic scene.deactivate) — undo tooling je přehraje zvlášť.
       case 'scene.deactivate':
-        // 10.2c-edit-1 — undo by potřeboval `scene.activate-with-members
-        // { previousMemberIds: string[] }` který znovu nastaví všem affected
-        // hráčům currentSceneId zpět. Pro MVP držíme inverse = null (PJ musí
-        // znovu aktivovat ručně + ručně přiřadit hráče).
-        return null;
+        return { type: 'scene.activate' };
+
+      case 'scene.activate':
+        return { type: 'scene.deactivate' };
 
       // 10.2c-edit-2 — load šablony sekvence: inverse = snapshot předchozího stavu
       case 'scene.fog.replace':
@@ -427,6 +514,9 @@ export class MapOperationsService {
       case 'combat.end': {
         const order =
           (scene.combat as { order?: string[] } | null)?.order ?? [];
+        // Prázdný order → null: combat.start vyžaduje ≥1 token (ArrayMinSize),
+        // není z čeho boj rekonstruovat. Jinak PARTIAL undo — obnoví se jen
+        // order (round/currentTokenId/endOfTurnEffects combat.start resetuje).
         if (order.length === 0) return null;
         return {
           type: 'combat.start',
@@ -567,6 +657,8 @@ export class MapOperationsService {
       }
 
       default:
+        // dice.roll — hody jsou append-only log, undo-irelevantní (záměr,
+        // viz spec test „computeInverse je no-op"). Jiné typy sem nespadnou.
         return null;
     }
   }
@@ -640,6 +732,15 @@ export class MapOperationsService {
             (op.patch as { systemStats: Record<string, unknown> }).systemStats,
           );
         }
+        // D-LAUNCH-GAP — server-side HP/injury DELTA (damage/heal). Absolutní
+        // `patch.currentHp` je z klienta počítaný ze STALE cache → dva souběžné
+        // zásahy = lost update (last-write-wins). Delta se aplikuje atomicky
+        // proti aktuální DB hodnotě (pipeline s clampem), Mongo per-dokument
+        // zápisy serializuje → oba zásahy se projeví.
+        if (op.hpDelta !== undefined || op.injuryDelta !== undefined) {
+          await this.applyTokenDelta(sceneId, scene, op);
+          return;
+        }
         // GI (styl 46) — server-authoritativní clamp herního stavu tokenu.
         // Hráč smí patchovat vlastní currentHp/injury/initiative (authorizer:152),
         // ale klient je ne-důvěryhodný: záporné ani nadmaxové HP není platný stav
@@ -683,22 +784,19 @@ export class MapOperationsService {
             message: 'Token nenalezen',
           });
         }
-        // 10.2e C6 — Character sync (token → character) pro PC/NPC postavy.
-        // Bestie tokeny mají snapshot semantics → skip.
-        // ⚠️ Soft mode: Character.systemStats jako pole zatím není rozšířené
-        // v 8.x reload (krok defer). Sync se zapne automaticky až Character
-        // dostane systemStats; teď jen log debug.
-        if (
-          (op.patch as { systemStats?: Record<string, unknown> }).systemStats
-        ) {
-          const tokenInScene = scene.tokens.find((t) => t.id === op.tokenId);
+        // 10.2e C6 / D-NEW-INV-DATA-SYNC — token → postava sync pro PC/NPC.
+        // HP PC/NPC žije v diary.customData postavy (memory
+        // project_token_hp_architecture); mapový patch `currentHp`/`maxHp`
+        // (po clampu) se propíše na per-system klíče deníku (zrcadlo FE
+        // `resolveCharacterHp`). Bestie token = nezávislá instance (snapshot
+        // semantics) → sync se NEDĚLÁ, záměr. `systemStats`/`injury`/
+        // `initiative` v deníku domov nemají (jiný keyspace) → nesyncují se.
+        {
           const isBestie =
-            !!tokenInScene?.templateId ||
-            tokenInScene?.characterId.startsWith('bestie:');
-          if (!isBestie) {
-            // TODO 10.2e-sync (postpone 8.x reload): volat
-            //   charactersService.updatePartialSystemStats(characterId, patch.systemStats)
-            // Mezitím UI musí Character refresh ručně.
+            !!tokenNow?.templateId ||
+            tokenNow?.characterId.startsWith('bestie:');
+          if (tokenNow && !isBestie) {
+            await this.syncTokenHpToDiary(scene, tokenNow, patch);
           }
         }
         return;
@@ -771,6 +869,20 @@ export class MapOperationsService {
         await this.mapsRepo.atomicUpdate(
           { _id: sceneId },
           { $set: { drawings: [], lastModified: now } },
+        );
+        return;
+      }
+
+      // D-NEW-INV-MAPS — bulk replace kreseb (inverse pro drawing.clear).
+      case 'scene.drawings.replace': {
+        await this.mapsRepo.atomicUpdate(
+          { _id: sceneId },
+          {
+            $set: {
+              drawings: op.drawings as unknown as MapDrawing[],
+              lastModified: now,
+            },
+          },
         );
         return;
       }
@@ -864,11 +976,11 @@ export class MapOperationsService {
           { $set: { imageUrl: op.imageUrl, lastModified: now } },
         );
         // FIX-31 — úklid starého blobu pozadí scény při in-place výměně
-        // (deleteScene už fix má, UM-05). Pozn.: `scene.image` má `inverse`
-        // (undo stack, 10.2m) — dnes ale žádný endpoint undo nevolá
-        // (`findLastByUser` bez callerů), takže okamžitý cleanup nic
-        // nerozbíjí. Až bude undo skutečně zapojené, přehodnotit (obnova by
-        // ukázala smazaný blob).
+        // (deleteScene už fix má, UM-05). Pozn. (D-DROBNE-UNDO): undo je teď
+        // zapojené (`undoLast`) — undo `scene.image` obnoví PŮVODNÍ URL,
+        // jejíž blob už mohl být uklizen (obrázek se nezobrazí, PJ nahraje
+        // znovu). Přijatá limitace MVP; alternativa (odklad cleanupu o TTL
+        // undo okna) zvážit, až to bude reálně bolet.
         if (op.imageUrl !== scene.imageUrl && scene.imageUrl) {
           this.eventEmitter.emit('media.orphaned', { urls: [scene.imageUrl] });
         }
@@ -956,6 +1068,24 @@ export class MapOperationsService {
           // WS — privát map:reassigned (klient zjistí, že přišel o scénu →
           // FE invaliduje active scene query → empty state).
           this.gateway.emitReassigned(memb.userId, null);
+        }
+        return;
+      }
+
+      // D-NEW-INV-MAPS — inverse scene.deactivate. CAS isActive: false → true;
+      // už aktivní → MAP_OP_NOOP (idempotent, viz deactivate). Uvolněná
+      // isActive semantika (10.2c-edit-3) dovoluje víc aktivních scén — žádná
+      // jiná se nedeaktivuje. Member přiřazení neobnovuje (viz computeInverse).
+      case 'scene.activate': {
+        const result = await this.mapsRepo.atomicUpdate(
+          { _id: sceneId, isActive: false },
+          { $set: { isActive: true, lastModified: now } },
+        );
+        if (result.matchedCount === 0) {
+          throw new ConflictException({
+            code: 'MAP_OP_NOOP',
+            message: 'Scéna už je aktivní',
+          });
         }
         return;
       }
@@ -1066,6 +1196,17 @@ export class MapOperationsService {
         );
         return;
 
+      // Vztah `combat.order` × live-sort (prošetřeno 2026-07-12, D-NEW-INV-MAPS):
+      // `order` je persistovaný SNAPSHOT pořadí při startu boje. Zobrazované
+      // pořadí tahů řídí FE ŽIVĚ dle `initiative` (záměrná featura 10.2f) a
+      // posílá `combat.turn` s explicitním tokenId+round — `order` tedy NENÍ
+      // zdroj pravdy pro zobrazení a může zastarat. Zůstává kvůli:
+      //  (a) legacy fallback `combat.turn` BEZ tokenId (BC, next-in-order),
+      //  (b) inverse `combat.end` → `combat.start` (undo restart se stejným
+      //      orderem),
+      //  (c) validace permutace v `combat.reorder`.
+      // Neodstraňovat: FE typ `CombatState.order` pole čte (patcher
+      // applyOperationToScene zrcadlí BE zápisy).
       case 'combat.start': {
         if ((scene.combat as { isActive?: boolean } | null)?.isActive) {
           throw new ConflictException({
@@ -1381,6 +1522,192 @@ export class MapOperationsService {
           message: 'Neznámý typ operace (interní)',
         });
       }
+    }
+  }
+
+  /**
+   * D-LAUNCH-GAP — atomická delta HP/injury bestie tokenu (damage/heal).
+   *
+   * Proč delta a ne absolutní set: FE tlačítka ±X počítají novou hodnotu
+   * z klientské cache → dva souběžné zásahy čtou stejnou (stale) bázi a
+   * druhý `$set` první přepíše (lost update). Delta se počítá AŽ v Mongu
+   * (aggregation pipeline update = jeden atomický dokumentový zápis; Mongo
+   * per-dokument zápisy serializuje → oba zásahy se projeví):
+   *   currentHp' = clamp(currentHp + hpDelta, 0, maxHp > 0 ? maxHp : ∞)
+   *   injury'    = max(0, injury + injuryDelta)
+   * DB hodnoty koercuje `$convert` (onError/onNull → 0), legacy ne-čísla
+   * pipeline neshodí (CH-122 vzor server-side).
+   *
+   * Omezení (záměr):
+   *  - JEN bestie tokeny (templateId / characterId `bestie:`). PC/NPC HP
+   *    žije v deníku postavy (memory project_token_hp_architecture) — delta
+   *    proti stored token.currentHp (mirror, typicky 0) by byla špatně.
+   *  - `patch` musí být prázdný — kombinace delta + absolutní set je
+   *    nejednoznačná (400).
+   *
+   * Po zápisu se op NORMALIZUJE: do `op.patch` se doplní výsledná absolutní
+   * hodnota z post-update dokumentu (FINÁLNÍ zapsaný stav, ne vstup) →
+   * log/broadcast/201 response nesou absolutní hodnotu a stávající FE
+   * (`applyOperationToScene` zná jen `patch`) funguje beze změny.
+   */
+  private async applyTokenDelta(
+    sceneId: string,
+    scene: MapScene,
+    op: Extract<MapOperationPayload, { type: 'token.update' }>,
+  ): Promise<void> {
+    if (Object.keys(op.patch).length > 0) {
+      throw new BadRequestException({
+        code: 'MAP_OP_INVALID',
+        message:
+          'hpDelta/injuryDelta nelze kombinovat s patch — pošli deltu samostatně',
+      });
+    }
+    const tokenNow = scene.tokens.find((t) => t.id === op.tokenId);
+    if (!tokenNow) {
+      throw new NotFoundException({
+        code: 'MAP_TOKEN_NOT_FOUND',
+        message: 'Token nenalezen',
+      });
+    }
+    const isBestie =
+      !!tokenNow.templateId || tokenNow.characterId.startsWith('bestie:');
+    if (!isBestie) {
+      throw new BadRequestException({
+        code: 'MAP_OP_INVALID',
+        message:
+          'HP delta je jen pro bestie tokeny — HP postavy (PC/NPC) žije v deníku',
+      });
+    }
+    // Defenzivní koerce (DTO už vynucuje int; PT-46d-bypass vzor).
+    const dHp = op.hpDelta !== undefined ? Number(op.hpDelta) : 0;
+    const dInjury = op.injuryDelta !== undefined ? Number(op.injuryDelta) : 0;
+    if (!Number.isFinite(dHp) || !Number.isFinite(dInjury)) {
+      throw new BadRequestException({
+        code: 'MAP_TOKEN_STATS_INVALID',
+        message: 'Neplatná číselná delta.',
+      });
+    }
+    const num = (path: string) => ({
+      $convert: { input: path, to: 'double', onError: 0, onNull: 0 },
+    });
+    const deltaFields: Record<string, unknown> = {};
+    if (op.hpDelta !== undefined) {
+      deltaFields.currentHp = {
+        $let: {
+          vars: {
+            raw: { $add: [num('$$t.currentHp'), dHp] },
+            mx: num('$$t.maxHp'),
+          },
+          in: {
+            $cond: [
+              { $gt: ['$$mx', 0] },
+              { $min: ['$$mx', { $max: [0, '$$raw'] }] },
+              { $max: [0, '$$raw'] },
+            ],
+          },
+        },
+      };
+    }
+    if (op.injuryDelta !== undefined) {
+      deltaFields.injury = {
+        $max: [0, { $add: [num('$$t.injury'), dInjury] }],
+      };
+    }
+    const updated = await this.mapsRepo.atomicUpdateAndFetch(
+      { _id: sceneId, 'tokens.id': op.tokenId },
+      [
+        {
+          $set: {
+            tokens: {
+              $map: {
+                input: '$tokens',
+                as: 't',
+                in: {
+                  $cond: [
+                    // $literal — tokenId je user input; bez obalu by string
+                    // začínající `$` byl interpretován jako field path.
+                    { $eq: ['$$t.id', { $literal: op.tokenId }] },
+                    { $mergeObjects: ['$$t', deltaFields] },
+                    '$$t',
+                  ],
+                },
+              },
+            },
+            lastModified: new Date(),
+          },
+        },
+      ],
+    );
+    if (!updated) {
+      throw new NotFoundException({
+        code: 'MAP_TOKEN_NOT_FOUND',
+        message: 'Token nenalezen',
+      });
+    }
+    // Normalizace op z výsledku atomického updatu.
+    const finalTok = updated.tokens.find((t) => t.id === op.tokenId);
+    if (finalTok) {
+      if (op.hpDelta !== undefined) op.patch.currentHp = finalTok.currentHp;
+      if (op.injuryDelta !== undefined) op.patch.injury = finalTok.injury;
+    }
+    // Diary sync se tu NEvolá — delta je bestie-only a bestie se nesyncují
+    // (nezávislá instance; viz syncTokenHpToDiary doc).
+  }
+
+  /**
+   * D-NEW-INV-DATA-SYNC — propíše HP z mapového `token.update` patche do
+   * deníku PC/NPC postavy (`CharacterDiary.customData`, per-system klíče —
+   * viz `token-hp-diary-map.ts`). Volat JEN pro ne-bestie tokeny (caller
+   * filtruje; bestie = nezávislá instance, sync je záměrně vynechán).
+   *
+   * Best-effort: token update už atomicky proběhl — selhání sync se jen
+   * zaloguje (op nesmí spadnout po commitu). Skip s logem když: svět bez
+   * `system`, systém bez jednoznačného HP mapování, postava nenalezena,
+   * postava nemá deník (lazy-create tu neděláme — držíme read-path semantiku
+   * `enrichTokens`: bez deníku není HP bar, tudíž ani co syncovat), nebo je
+   * deník moderačně skrytý (D-066 — repo write by obešel service gate).
+   */
+  private async syncTokenHpToDiary(
+    scene: MapScene,
+    token: MapToken,
+    patch: Record<string, unknown>,
+  ): Promise<void> {
+    if (!('currentHp' in patch) && !('maxHp' in patch)) return;
+    try {
+      const world = await this.worldsRepo.findById(scene.worldId);
+      const systemId = (world as { system?: string } | null)?.system;
+      if (!systemId) return; // BC: pre-multi-system worlds
+      const diaryPatch = buildDiaryHpPatch(systemId, {
+        currentHp: 'currentHp' in patch ? Number(patch.currentHp) : undefined,
+        maxHp: 'maxHp' in patch ? Number(patch.maxHp) : undefined,
+      });
+      if (!diaryPatch) return; // systém bez jednoznačného HP mapování
+      if (!token.characterSlug) return;
+      const char = await this.charactersRepo.findBySlugAndWorld(
+        token.characterSlug,
+        scene.worldId,
+      );
+      if (!char) {
+        this.logger.debug(
+          `Token→diary HP sync skip: postava slug=${token.characterSlug} nenalezena (svět ${scene.worldId})`,
+        );
+        return;
+      }
+      const diary = await this.diaryRepo.findByCharacterId(char.id);
+      if (!diary) {
+        this.logger.debug(
+          `Token→diary HP sync skip: postava ${char.id} nemá deník`,
+        );
+        return;
+      }
+      if (diary.moderationHidden) return;
+      await this.diaryRepo.updateWithCustomDataPatch(char.id, {}, diaryPatch);
+    } catch (e) {
+      this.logger.warn(
+        `Token→diary HP sync selhal (scéna ${scene.id}, token ${token.id}): ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
     }
   }
 

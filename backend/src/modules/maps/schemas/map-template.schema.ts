@@ -17,6 +17,8 @@ export class MapTemplateSchemaClass {
   @Prop({ required: true, index: true }) ownerId: string;
   @Prop({ required: true, minlength: 1, maxlength: 100 }) name: string;
   @Prop({ required: true, minlength: 1 }) imageUrl: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech; staré docs nemají. */
+  @Prop() imageBytes?: number;
   @Prop({
     type: Object,
     default: { size: 40, originX: 0, originY: 0, showGrid: true },

@@ -17,6 +17,7 @@ import {
 } from '@nestjs/swagger';
 import { PagesService } from './pages.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreatePageDto } from './dto/create-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
@@ -54,15 +55,20 @@ export class PagesController {
   }
 
   @Get('directory')
-  @UseGuards(JwtAuthGuard)
+  // D-DATA-SYNC-ZBYTKY a — parita s legacy characters directory: OptionalJwt,
+  // anonym smí VEŘEJNÝ svět, privátní jen členové (brána v service.findDirectory).
+  // POZOR (CH-120): Optional guard platí JEN pro tuhle route — sourozenci
+  // zůstávají na JwtAuthGuard.
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
     summary:
-      'Adresářový přehled stránek (?type=A,B filtruje na konkrétní typy)',
+      'Adresářový přehled stránek (?type=A,B filtruje na konkrétní typy); veřejný svět i anonymně',
   })
   @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Privátní svět — jen členové' })
   getDirectory(
     @Param('worldId') worldId: string,
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user?: RequestUser,
     @Query('type') type?: string,
   ) {
     // ?type=PostavaHrace,NPC → CSV split; ?type=PostavaHrace → single item
@@ -75,9 +81,9 @@ export class PagesController {
     return this.pagesService.findDirectory(
       worldId,
       types,
-      user.id,
-      user.role,
-      user.elevatedWorldIds,
+      user?.id,
+      user?.role,
+      user?.elevatedWorldIds,
     );
   }
 

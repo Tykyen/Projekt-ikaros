@@ -16,6 +16,9 @@ import { randomUUID } from 'node:crypto';
 import type { IGameEventRepository } from './interfaces/game-event-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
 import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
+import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
+// D-NEW-INV-SEC persona-on-server — PJ persona (6.8) v komentářích/účastech.
+import { makePjPersonaResolver } from '../worlds/pj-persona.util';
 import type { GameEvent } from './interfaces/game-event.interface';
 import type { RequestUser } from '../worlds/worlds.service';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
@@ -45,9 +48,55 @@ export class GameEventsService {
     @Inject('IWorldMembershipRepository')
     private readonly membershipRepo: IWorldMembershipRepository,
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
+    // D-NEW-INV-SEC persona-on-server — settings kvůli `pjChatPersona` (6.8).
+    @Inject('IWorldSettingsRepository')
+    private readonly settingsRepo: IWorldSettingsRepository,
     private readonly pushService: PushService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  /**
+   * D-NEW-INV-SEC persona-on-server — komentáře (`authorName`) a potvrzení
+   * účasti (`userName`) ukládají username autora v čase zápisu; u vedení
+   * (PomocnyPJ+) by tak hráčům prosáklo reálné jméno PJ (FE EventComments
+   * žádný persona resolver nemá). Persona PJ (6.8) se dosazuje read-time —
+   * uložená data se NEmění a změna nastavení se projeví i zpětně, stejně jako
+   * ve world chatu.
+   */
+  private async applyPjPersona<T extends GameEvent>(
+    worldId: string,
+    events: T[],
+  ): Promise<T[]> {
+    const needsMapping = events.some(
+      (e) => e.comments.length > 0 || e.confirmedBy.length > 0,
+    );
+    if (!needsMapping) return events;
+    const [settings, members] = await Promise.all([
+      this.settingsRepo.findByWorldId(worldId),
+      this.membershipRepo.findByWorldId(worldId),
+    ]);
+    const personaFor = makePjPersonaResolver(
+      members ?? [],
+      settings?.pjChatPersona,
+    );
+    return events.map((e) => ({
+      ...e,
+      confirmedBy: e.confirmedBy.map((c) => {
+        const persona = personaFor(c.userId);
+        return persona ? { ...c, userName: persona.name } : c;
+      }),
+      comments: e.comments.map((c) => {
+        const persona = personaFor(c.authorId);
+        return persona ? { ...c, authorName: persona.name } : c;
+      }),
+    }));
+  }
+
+  /** Persona mapping pro jeden event (detail / návrat mutace). */
+  private async applyPjPersonaOne(event: GameEvent): Promise<GameEvent> {
+    const [mapped] = await this.applyPjPersona(event.worldId, [event]);
+    return mapped;
+  }
 
   // ─── Permission helpers ───────────────────────────────────────────────────
 
@@ -113,7 +162,7 @@ export class GameEventsService {
         message: 'Event nenalezen',
       });
     await this.assertViewOrThrow(user, event);
-    return event;
+    return this.applyPjPersonaOne(event);
   }
 
   async findList(
@@ -169,14 +218,20 @@ export class GameEventsService {
       toDate: effectiveFilters.toDate,
     });
 
-    if (!membership) return events; // global admin/superadmin
+    if (!membership) {
+      // global admin/superadmin
+      return this.applyPjPersona(filters.worldId, events);
+    }
 
     const m = membership;
-    return events.filter((e) => {
-      if (!e.groupOnly) return true;
-      if (m.role >= WorldRole.PomocnyPJ) return true;
-      return e.targetGroup !== null && m.group === e.targetGroup;
-    });
+    return this.applyPjPersona(
+      filters.worldId,
+      events.filter((e) => {
+        if (!e.groupOnly) return true;
+        if (m.role >= WorldRole.PomocnyPJ) return true;
+        return e.targetGroup !== null && m.group === e.targetGroup;
+      }),
+    );
   }
 
   async findUpcomingForUser(
@@ -331,7 +386,7 @@ export class GameEventsService {
     ) {
       this.eventEmitter.emit('media.orphaned', { urls: [existing.imageUrl] });
     }
-    return updated;
+    return this.applyPjPersonaOne(updated);
   }
 
   async delete(id: string, user: RequestUser): Promise<void> {
@@ -376,7 +431,7 @@ export class GameEventsService {
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
-    return updated;
+    return this.applyPjPersonaOne(updated);
   }
 
   async addComment(
@@ -425,7 +480,7 @@ export class GameEventsService {
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
-    return updated;
+    return this.applyPjPersonaOne(updated);
   }
 
   async editComment(
@@ -473,7 +528,7 @@ export class GameEventsService {
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
-    return updated;
+    return this.applyPjPersonaOne(updated);
   }
 
   async deleteComment(
@@ -514,7 +569,7 @@ export class GameEventsService {
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
-    return updated;
+    return this.applyPjPersonaOne(updated);
   }
 
   async reactToComment(
@@ -540,7 +595,7 @@ export class GameEventsService {
     const target = event.comments[idx];
 
     // Reakce na smazaný komentář se tiše ignoruje
-    if (target.isDeleted) return event;
+    if (target.isDeleted) return this.applyPjPersonaOne(event);
 
     const reactions: Record<string, string[]> = { ...target.reactions };
     const userIds = reactions[dto.emoji] ?? [];
@@ -562,7 +617,7 @@ export class GameEventsService {
         code: 'EVENT_NOT_FOUND',
         message: 'Event nenalezen',
       });
-    return updated;
+    return this.applyPjPersonaOne(updated);
   }
 
   private async notifyOnCreate(event: GameEvent): Promise<void> {

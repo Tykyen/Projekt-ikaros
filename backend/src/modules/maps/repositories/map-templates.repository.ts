@@ -88,6 +88,8 @@ export class MongoMapTemplatesRepository
       ownerId: (doc.ownerId as string) ?? '',
       name: (doc.name as string) ?? '',
       imageUrl: (doc.imageUrl as string) ?? '',
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: doc.imageBytes as number | undefined,
       config: (doc.config as HexConfig) ?? {
         size: 40,
         originX: 0,

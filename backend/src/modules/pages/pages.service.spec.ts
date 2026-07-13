@@ -53,6 +53,8 @@ describe('PagesService', () => {
     findBySlugAndWorld: jest.fn(),
     findByWorld: jest.fn(),
     existsBySlugAndWorld: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default hluboko pod stropem.
+    countByWorld: jest.fn().mockResolvedValue(0),
     save: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -76,6 +78,9 @@ describe('PagesService', () => {
       .fn()
       .mockResolvedValue({ id: 'mock-char-1', slug: 'mock', kind: 'persona' }),
     delete: jest.fn(),
+    // D-SEC-GAP (slug kolize diakritiky) — ensureAvailableSlug kontroluje
+    // i characters kolekci; default = volno.
+    existsBySlug: jest.fn().mockResolvedValue(false),
   };
 
   beforeEach(async () => {
@@ -85,6 +90,9 @@ describe('PagesService', () => {
       slug: 'mock',
       kind: 'persona',
     });
+    mockCharactersService.existsBySlug.mockResolvedValue(false);
+    // D-SEC-GAP-2026-07-11 — default pod stropem (testy capu si přepíšou).
+    mockPagesRepo.countByWorld.mockResolvedValue(0);
     // RC-D2 — assertCanWrite nově ověřuje, že svět je aktivní. Default = živý
     // svět (jednotlivé testy si ho přepisují na null / soft-smazaný dle potřeby).
     mockWorldsRepo.findById.mockResolvedValue({
@@ -263,6 +271,50 @@ describe('PagesService', () => {
     });
   });
 
+  describe('create — D-SEC-GAP-2026-07-11 creation-flood cap', () => {
+    it('2000 stránek ve světě → 409 LIMIT_REACHED (nic se nezapíše)', async () => {
+      mockPagesRepo.countByWorld.mockResolvedValue(2000);
+      await expect(
+        service.create(
+          { slug: 'flood', type: 'Lokace', title: 'Flood' },
+          'world1',
+          adminRequester,
+        ),
+      ).rejects.toMatchObject({ response: { code: 'LIMIT_REACHED' } });
+      expect(mockPagesRepo.save).not.toHaveBeenCalled();
+      expect(mockCharactersService.create).not.toHaveBeenCalled();
+    });
+
+    it('pod stropem (1999) → create projde', async () => {
+      mockPagesRepo.countByWorld.mockResolvedValue(1999);
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockPagesRepo.save.mockResolvedValue({ ...mockPage, slug: 'pod-capem' });
+      await expect(
+        service.create(
+          { slug: 'pod-capem', type: 'Lokace', title: 'X' },
+          'world1',
+          adminRequester,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it('env MAX_PAGES_PER_WORLD přepíše default', async () => {
+      process.env.MAX_PAGES_PER_WORLD = '5';
+      try {
+        mockPagesRepo.countByWorld.mockResolvedValue(5);
+        await expect(
+          service.create(
+            { slug: 'env-cap', type: 'Lokace', title: 'X' },
+            'world1',
+            adminRequester,
+          ),
+        ).rejects.toMatchObject({ response: { code: 'LIMIT_REACHED' } });
+      } finally {
+        delete process.env.MAX_PAGES_PER_WORLD;
+      }
+    });
+  });
+
   describe('create', () => {
     // FIX-21 — kolize slugu (jiná stránka NEBO reserved world route) se dřív
     // řešila 409 reject; teď auto-suffix (`mapa` → `mapa-2` ...), aby stránka
@@ -295,6 +347,33 @@ describe('PagesService', () => {
       );
       expect(mockPagesRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ slug: 'mapa-2' }),
+      );
+    });
+
+    // D-SEC-GAP (slug kolize diakritiky) — „Šíp" i „Sip" dají po slugify
+    // stejný slug `sip`. Persona/Lokace page tvoří Character se stejným
+    // slugem ({worldId, slug} unique v characters) → kolize s existující
+    // postavou (osiřelou / vytvořenou přímým POST /characters) musí dostat
+    // suffix už při volbě page slugu, ne 409 CHARACTER_SLUG_TAKEN.
+    it('D-SEC-GAP — auto-suffixuje slug obsazený postavou v characters kolekci', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockCharactersService.existsBySlug
+        .mockResolvedValueOnce(true) // 'sip' drží existující Character
+        .mockResolvedValueOnce(false); // 'sip-2' volný
+      mockPagesRepo.save.mockResolvedValue({ ...mockPage, slug: 'sip-2' });
+      await service.create(
+        { slug: 'sip', type: 'NPC', title: 'Šíp' },
+        'world1',
+        adminRequester,
+      );
+      expect(mockPagesRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'sip-2' }),
+      );
+      // Character se tvoří se STEJNÝM (suffixovaným) slugem — invariant
+      // page.slug == character.slug.
+      expect(mockCharactersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ slug: 'sip-2' }),
+        'world1',
       );
     });
 
@@ -589,6 +668,90 @@ describe('PagesService', () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ akj: 5 });
       const result = await service.findDirectory('world1', undefined, 'u1');
       expect(result[0].shieldedBy).toBeUndefined();
+    });
+
+    // D-DATA-SYNC-ZBYTKY a — characterId v directory entry (FE migrace
+    // z legacy characters directory). entry.id zůstává page ID.
+    it('entry postavy nese characterId, čistá stránka null', async () => {
+      mockPagesRepo.findDirectory = jest.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          slug: 'gandalf',
+          title: 'Gandalf',
+          type: 'PostavaHrace',
+          order: 0,
+          characterId: 'char1',
+        },
+        {
+          id: 'p2',
+          slug: 'lokace',
+          title: 'Lokace',
+          type: 'Lokace',
+          order: 1,
+          characterId: null,
+        },
+      ]);
+      const result = await service.findDirectory('world1', undefined, 'u1');
+      expect(result[0].id).toBe('p1'); // id = page ID, ne characterId
+      expect(result[0].characterId).toBe('char1');
+      expect(result[1].characterId).toBeNull();
+    });
+
+    // D-DATA-SYNC-ZBYTKY a — guard parita s legacy characters directory:
+    // OptionalJwt → anonym (bez userId) smí VEŘEJNÝ svět, privátní jen členové.
+    describe('world-view brána (anonym / člen × veřejný / privátní)', () => {
+      beforeEach(() => {
+        mockPagesRepo.findDirectory = jest.fn().mockResolvedValue([]);
+      });
+
+      it('anonym + veřejný svět → projde', async () => {
+        mockWorldsRepo.findById.mockResolvedValue({
+          id: 'world1',
+          accessMode: 'public',
+        });
+        await expect(service.findDirectory('world1')).resolves.toEqual([]);
+      });
+
+      it('anonym + privátní svět → ForbiddenException', async () => {
+        mockWorldsRepo.findById.mockResolvedValue({
+          id: 'world1',
+          accessMode: 'private',
+        });
+        await expect(service.findDirectory('world1')).rejects.toThrow(
+          ForbiddenException,
+        );
+        // Membership lookup se pro anonyma vůbec nevolá.
+        expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+      });
+
+      it('anonym + neexistující svět → NotFoundException', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(null);
+        await expect(service.findDirectory('world1')).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+
+      it('člen + privátní svět → projde', async () => {
+        mockWorldsRepo.findById.mockResolvedValue({
+          id: 'world1',
+          accessMode: 'private',
+        });
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockMembership);
+        await expect(
+          service.findDirectory('world1', undefined, 'user1', UserRole.Hrac),
+        ).resolves.toEqual([]);
+      });
+
+      it('přihlášený nečlen + privátní svět → ForbiddenException (R-AUDIT)', async () => {
+        mockWorldsRepo.findById.mockResolvedValue({
+          id: 'world1',
+          accessMode: 'private',
+        });
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+        await expect(
+          service.findDirectory('world1', undefined, 'cizak', UserRole.Hrac),
+        ).rejects.toThrow(ForbiddenException);
+      });
     });
   });
 

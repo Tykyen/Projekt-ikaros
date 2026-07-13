@@ -24,6 +24,19 @@ export interface IMapsRepository {
   ): Promise<{ matchedCount: number; modifiedCount: number }>;
 
   /**
+   * D-LAUNCH-GAP — atomic update + atomické vrácení POST-update dokumentu
+   * (`findOneAndUpdate { new: true }`). Pro server-side delta operace
+   * (token.update hpDelta): update může být aggregation pipeline (pole) a
+   * volající potřebuje FINÁLNÍ zapsanou hodnotu (clamp počítá Mongo) pro
+   * normalizaci broadcastu/logu — read-after-write by pod souběhem vrátil
+   * cizí novější stav. `null` = filter nematchoval (scéna/token zmizel).
+   */
+  atomicUpdateAndFetch(
+    filter: Record<string, unknown>,
+    update: Record<string, unknown> | Record<string, unknown>[],
+  ): Promise<MapScene | null>;
+
+  /**
    * 10.2-prep-1 — list scén ve světě s filtrem `isActive=true`. PJ orchestrator.
    */
   findActiveScenesByWorld(worldId: string): Promise<MapScene[]>;

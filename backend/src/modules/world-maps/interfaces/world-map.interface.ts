@@ -33,6 +33,8 @@ export interface WorldMapEntry {
   title: string;
   description: string;
   imageUrl: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech; staré dokumenty nemají. */
+  imageBytes?: number;
   order: number;
   isPublic: boolean;
   /** userIds hráčů, kteří mapu vidí (ignoruje se když `isPublic`). PJ-only. */

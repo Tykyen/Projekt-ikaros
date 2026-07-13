@@ -260,6 +260,31 @@ export class OperationsAuthorizer {
   }
 
   /**
+   * D-DROBNE-UNDO — undo poslední vlastní operace
+   * (`POST /maps/:id/operations/undo`).
+   *
+   * Jen PJ / PomocnyPJ (stejný práh jako ops, které undo typicky vrací).
+   * Inverse op pak stejně projde standardním `assertCanDo` v apply pipeline
+   * — tohle je jen vstupní brána endpointu (hráč nedostane ani lookup logu).
+   */
+  async assertCanUndo(
+    user: OperationRequestUser,
+    scene: MapScene,
+  ): Promise<void> {
+    if (worldAdminBypass(user, scene.worldId)) return;
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      user.id,
+      scene.worldId,
+    );
+    if (!membership || membership.role < WorldRole.PomocnyPJ) {
+      throw new ForbiddenException({
+        code: 'MAP_OP_FORBIDDEN',
+        message: 'Vrácení operace je dostupné jen PJ / Pomocnému PJ',
+      });
+    }
+  }
+
+  /**
    * 10.2c-edit-1 — read access pro samotnou scénu (`GET /maps/:id`).
    *
    * Paralelní s `assertCanReadSceneLog`, ale s vlastním error code

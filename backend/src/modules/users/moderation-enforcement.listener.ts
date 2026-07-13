@@ -71,23 +71,12 @@ export class UsersModerationEnforcementListener {
       case ModerationAction.Remove:
         // M2–M4 na profil nemá „obsah" ke skrytí/smazání → no-op (ban účtu je
         // M5/M6). Ostatní typy (article/gallery/nabor/page/world_news/bestie/
-        // mail_message) řeší content moduly.
+        // discussion_post/plant/mail_message) řeší content moduly; D-066 doplnil
+        // character_diary (character-subdocs) a chat_message (chat).
         if (p.targetType === ReportTargetType.Profile) {
           this.logger.warn(
             `M2–M4 na profil ${p.targetId} nemá obsah ke skrytí/smazání — ` +
               `no-op (omezení účtu se řeší akcí M5/M6). Rozhodnutí ${p.decisionId}.`,
-          );
-        } else if (
-          p.targetType === ReportTargetType.CharacterDiary ||
-          p.targetType === ReportTargetType.ChatMessage
-        ) {
-          // B5 — deník postavy (subdokument) a chatová zpráva (WS gateway)
-          // nemají přímočarý content-level enforcement → zatím JEN account-level
-          // zásah (ban autora M5/M6). Vynucení skrytí/smazání obsahu je TODO.
-          this.logger.warn(
-            `Content-level ${p.action} pro ${p.targetType} ${p.targetId} zatím ` +
-              `není vynuceno (subdoc / WS gateway) — dostupný je jen ` +
-              `account-level zásah (ban M5/M6) autora. Rozhodnutí ${p.decisionId}.`,
           );
         }
         break;

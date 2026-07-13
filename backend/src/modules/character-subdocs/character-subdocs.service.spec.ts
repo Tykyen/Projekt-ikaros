@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { CharacterSubdocsService } from './character-subdocs.service';
+import { UserRole } from '../users/interfaces/user.interface';
 
 const mockDiary = {
   id: 'd1',
@@ -134,11 +135,9 @@ describe('CharacterSubdocsService', () => {
   });
 
   describe('onCharacterCreated — NPC', () => {
-    it('8.1-FIR — NPC dostane všech 5 subdoců (Matrix to nedělil)', async () => {
+    it('D-NEW-INV-DATA-SYNC — NPC dostane diary+calendar+notes, ale NE finance/inventory (EC-03 je stejně blokuje 404)', async () => {
       mockDiaryRepo.create.mockResolvedValue(mockDiary);
       mockCalendarRepo.create.mockResolvedValue(mockCalendar);
-      mockFinanceRepo.create.mockResolvedValue(mockFinance);
-      mockInventoryRepo.create.mockResolvedValue(mockInventory);
       mockNotesRepo.create.mockResolvedValue(mockNotes);
 
       await service.onCharacterCreated({
@@ -151,16 +150,14 @@ describe('CharacterSubdocsService', () => {
       expect(mockDiaryRepo.create).toHaveBeenCalled();
       expect(mockCalendarRepo.create).toHaveBeenCalled();
       expect(mockNotesRepo.create).toHaveBeenCalled();
-      expect(mockFinanceRepo.create).toHaveBeenCalledWith('char1');
-      expect(mockInventoryRepo.create).toHaveBeenCalledWith('char1');
+      expect(mockFinanceRepo.create).not.toHaveBeenCalled();
+      expect(mockInventoryRepo.create).not.toHaveBeenCalled();
     });
   });
 
   describe('onCharacterCreated — lokace', () => {
-    it('8.1-FIR — lokace dostane calendar + finance + inventory (bez diary/notes)', async () => {
+    it('D-NEW-INV-DATA-SYNC — lokace dostane jen calendar (finance/inventory/diary/notes ne)', async () => {
       mockCalendarRepo.create.mockResolvedValue(mockCalendar);
-      mockFinanceRepo.create.mockResolvedValue(mockFinance);
-      mockInventoryRepo.create.mockResolvedValue(mockInventory);
 
       await service.onCharacterCreated({
         characterId: 'loc1',
@@ -171,8 +168,8 @@ describe('CharacterSubdocsService', () => {
       });
 
       expect(mockCalendarRepo.create).toHaveBeenCalledWith('loc1', 'w1');
-      expect(mockFinanceRepo.create).toHaveBeenCalledWith('loc1');
-      expect(mockInventoryRepo.create).toHaveBeenCalledWith('loc1');
+      expect(mockFinanceRepo.create).not.toHaveBeenCalled();
+      expect(mockInventoryRepo.create).not.toHaveBeenCalled();
       expect(mockDiaryRepo.create).not.toHaveBeenCalled();
       expect(mockNotesRepo.create).not.toHaveBeenCalled();
     });
@@ -552,6 +549,84 @@ describe('CharacterSubdocsService', () => {
         /Deník nenalezen/,
       );
       expect(mockDiaryRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── D-066 (spec 20B B4b) — moderace deníku ────────────────────────────
+
+  describe('D-066 — moderačně skrytý deník (M2/M3)', () => {
+    const hiddenDiary = {
+      ...mockDiary,
+      moderationHidden: true,
+      moderationHiddenReason: 'Skryto moderací — rozhodnutí dec1',
+    };
+
+    it('getDiary — vlastník/PJ (Hrac) dostane 404 (globální zásah, vzor pages)', async () => {
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(hiddenDiary);
+      await expect(
+        service.getDiary('char1', 'w1', UserRole.Hrac),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('getDiary — bez role (legacy volání) dostane 404', async () => {
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(hiddenDiary);
+      await expect(service.getDiary('char1', 'w1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('getDiary — platform reviewer (Admin) skrytý deník vidí', async () => {
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(hiddenDiary);
+      const result = await service.getDiary('char1', 'w1', UserRole.Admin);
+      expect(result.moderationHidden).toBe(true);
+    });
+
+    it('updateDiary — skrytý deník needituje ne-reviewer (404)', async () => {
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(hiddenDiary);
+      await expect(
+        service.updateDiary(
+          'char1',
+          { customDataPatch: { x: 1 } },
+          UserRole.Hrac,
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockDiaryRepo.updateWithCustomDataPatch).not.toHaveBeenCalled();
+    });
+
+    it('setDiaryModerationHidden — skryje (flag + důvod) a vrátí true', async () => {
+      mockDiaryRepo.update.mockResolvedValue(hiddenDiary);
+      const ok = await service.setDiaryModerationHidden(
+        'char1',
+        true,
+        'Skryto moderací — rozhodnutí dec1',
+      );
+      expect(ok).toBe(true);
+      expect(mockDiaryRepo.update).toHaveBeenCalledWith('char1', {
+        moderationHidden: true,
+        moderationHiddenReason: 'Skryto moderací — rozhodnutí dec1',
+      });
+    });
+
+    it('setDiaryModerationHidden — neznámý deník vrátí false (best-effort)', async () => {
+      mockDiaryRepo.update.mockResolvedValue(null);
+      const ok = await service.setDiaryModerationHidden('ghost', true, 'x');
+      expect(ok).toBe(false);
+    });
+  });
+
+  describe('D-066 — moderationRemoveDiary (M4)', () => {
+    it('smaže deníkový subdokument a vrátí true', async () => {
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(mockDiary);
+      const ok = await service.moderationRemoveDiary('char1');
+      expect(ok).toBe(true);
+      expect(mockDiaryRepo.deleteByCharacterId).toHaveBeenCalledWith('char1');
+    });
+
+    it('neexistující deník → false, nic nemaže', async () => {
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(null);
+      const ok = await service.moderationRemoveDiary('ghost');
+      expect(ok).toBe(false);
+      expect(mockDiaryRepo.deleteByCharacterId).not.toHaveBeenCalled();
     });
   });
 

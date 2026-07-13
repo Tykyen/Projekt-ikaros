@@ -19,8 +19,7 @@ describe('isEffectiveSupporter (19.4)', () => {
     expect(isEffectiveSupporter(UserRole.SpravceDiskuzi)).toBe(true);
   });
 
-  it('role bez privilegií (Hrac/Ctenar) bez flagu → NENÍ podporovatel', () => {
+  it('role bez privilegií (Hrac) bez flagu → NENÍ podporovatel', () => {
     expect(isEffectiveSupporter(UserRole.Hrac, false)).toBe(false);
-    expect(isEffectiveSupporter(UserRole.Ctenar, false)).toBe(false);
   });
 });

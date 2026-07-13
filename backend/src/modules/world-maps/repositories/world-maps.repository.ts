@@ -180,6 +180,8 @@ export class MongoWorldMapsRepository implements IWorldMapsRepository {
       title: d.title ?? '',
       description: d.description ?? '',
       imageUrl: d.imageUrl ?? '',
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: d.imageBytes,
       order: d.order ?? 0,
       isPublic: d.isPublic ?? false,
       visibleToPlayerIds: d.visibleToPlayerIds ?? [],

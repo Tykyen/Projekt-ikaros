@@ -9,7 +9,8 @@ export class IkarosDiscussionSchemaClass {
   @Prop({ required: true }) title: string;
   @Prop({ default: '' }) description: string;
   @Prop({ default: '' }) bulletin: string;
-  @Prop({ required: true }) creatorId: string;
+  // D-SEC-GAP-2026-07-11 — index pro creation-cap countByCreator.
+  @Prop({ required: true, index: true }) creatorId: string;
   @Prop({ required: true }) creatorName: string;
   @Prop({ default: false }) isApproved: boolean;
   @Prop({ default: true }) isOpen: boolean;

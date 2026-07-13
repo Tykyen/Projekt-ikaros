@@ -75,7 +75,7 @@ export class MongoUsernameChangeRequestsRepository implements IUsernameChangeReq
     const [docs, total] = await Promise.all([
       this.model
         .find(filter)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(opts.limit)
         .lean()

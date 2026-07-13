@@ -108,6 +108,63 @@ export class MongoWorldMembershipRepository
     return map;
   }
 
+  /**
+   * D-NEW-INV-PROFILE — varianta `countsByUserIds` bez soft-smazaných světů
+   * (`worlds.deletedAt != null`). Jeden aggregate pro celou dávku userIds
+   * (žádný N+1): $lookup do `worlds` přes pipeline, protože `worldId` je
+   * string FK a `worlds._id` ObjectId — `$convert` s onError/onNull: null
+   * zajistí, že membership s nevalidním ref se prostě nezapočítá.
+   */
+  async countsByUserIdsExcludingDeletedWorlds(
+    userIds: string[],
+  ): Promise<Map<string, number>> {
+    if (userIds.length === 0) return new Map();
+    const rows = (await this.model
+      .aggregate([
+        { $match: { userId: { $in: userIds } } },
+        {
+          $lookup: {
+            from: 'worlds',
+            let: { wid: '$worldId' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      {
+                        $eq: [
+                          '$_id',
+                          {
+                            $convert: {
+                              input: '$$wid',
+                              to: 'objectId',
+                              onError: null,
+                              onNull: null,
+                            },
+                          },
+                        ],
+                      },
+                      // missing deletedAt (legacy doc) == null → počítá se.
+                      { $eq: ['$deletedAt', null] },
+                    ],
+                  },
+                },
+              },
+              { $project: { _id: 1 } },
+            ],
+            as: 'world',
+          },
+        },
+        { $match: { 'world.0': { $exists: true } } },
+        { $group: { _id: '$userId', count: { $sum: 1 } } },
+      ])
+      .exec()) as Array<{ _id: string; count: number }>;
+    const map = new Map<string, number>();
+    for (const r of rows) map.set(r._id, r.count);
+    for (const uid of userIds) if (!map.has(uid)) map.set(uid, 0);
+    return map;
+  }
+
   async countByRoleAcrossWorlds(
     role: number,
     worldIds: string[] | undefined,
@@ -130,7 +187,7 @@ export class MongoWorldMembershipRepository
     const total = await this.model.countDocuments(query).exec();
     const docs = await this.model
       .find(query)
-      .sort({ joinedAt: -1 })
+      .sort({ joinedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
       .lean()

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -16,6 +17,7 @@ import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { ConvertCurrencyDto } from './dto/convert-currency.dto';
+import { assertFiniteMoney, roundMoney } from '../../common/money/money.util';
 
 export interface CurrencyRequester {
   id: string;
@@ -48,10 +50,12 @@ export class WorldCurrenciesService {
     worldId: string,
     items: WorldCurrencyItem[],
     requester: CurrencyRequester,
+    expectedUpdatedAt?: string,
   ): Promise<WorldCurrencies> {
     // Spec 11.4 §4.8b — PomocnyPJ smí edit existujících měn (rate/name/symbol),
     // ale add/delete (změna sady `code`) dál vyžaduje PJ+.
-    const current = (await this.repo.findByWorldId(worldId))?.items ?? [];
+    const currentDoc = await this.repo.findByWorldId(worldId);
+    const current = currentDoc?.items ?? [];
     const metadataOnly = this.isMetadataOnlyEdit(current, items);
     if (metadataOnly) {
       await this.assertCanEdit(worldId, requester);
@@ -76,6 +80,29 @@ export class WorldCurrenciesService {
       ...item,
       id: item.id ?? crypto.randomUUID(),
     }));
+    // D-NEW-INV-DATA-SYNC — PUT je ZÁMĚRNĚ full-replace: FE kontrakt posílá
+    // vždy kompletní sadu (smazání měny = poslání pole bez ní; „set as base"
+    // = reorder celé sady) — delta merge dle id by mazání tiše rozbil.
+    // Ochranu proti ztrátě měny při souběhu / zastaralém FE stavu dává
+    // optimistic lock (vzor pages RC-P1 / D-073): klient pošle
+    // `expectedUpdatedAt` z posledního GET a zápis projde atomicky JEN nad
+    // nezměněnou verzí; jinak 409 a FE si načte aktuální stav.
+    if (expectedUpdatedAt && currentDoc) {
+      const updated = await this.repo.replaceIfUnchanged(
+        worldId,
+        normalized,
+        new Date(expectedUpdatedAt),
+      );
+      if (!updated)
+        throw new ConflictException({
+          code: 'CURRENCY_CONFLICT',
+          message:
+            'Měny světa mezitím upravil někdo jiný. Načti si aktuální stav a zkus to znovu.',
+        });
+      return updated;
+    }
+    // Bez tokenu (legacy klient) nebo dokument ještě neexistuje (první sada —
+    // není co ztratit) → prostý upsert.
     return this.repo.upsert(worldId, normalized);
   }
 
@@ -121,10 +148,19 @@ export class WorldCurrenciesService {
         message: `Měna '${dto.to}' neexistuje`,
       });
 
-    const raw = dto.amount * (fromCurrency.rate / toCurrency.rate);
-    const result = Math.round(raw * 10000) / 10000;
+    // D-SEC-GAP float — kurz = násobení: vstup i výsledek přes finite guard
+    // (kurz 0 → dělení nulou → Infinity; NaN nesmí uniknout do zápisů) a
+    // sdílené zaokrouhlení `roundMoney` (4 des., stejné jako dřív).
+    const amount = assertFiniteMoney(dto.amount);
+    if (fromCurrency.rate <= 0 || toCurrency.rate <= 0)
+      throw new BadRequestException({
+        code: 'CURRENCY_RATE_MISSING',
+        message: 'Pro převod musí mít obě měny kladný kurz.',
+      });
+    const raw = amount * (fromCurrency.rate / toCurrency.rate);
+    const result = roundMoney(assertFiniteMoney(raw));
 
-    return { from: dto.from, to: dto.to, amount: dto.amount, result };
+    return { from: dto.from, to: dto.to, amount, result };
   }
 
   /**

@@ -9,6 +9,7 @@ const mockRepo: jest.Mocked<IIkarosArticlesRepository> = {
   searchPublishedAndPending: jest.fn(),
   findPending: jest.fn(),
   findByAuthor: jest.fn(),
+  countByAuthor: jest.fn(),
   findByIds: jest.fn(),
   findById: jest.fn(),
   create: jest.fn(),

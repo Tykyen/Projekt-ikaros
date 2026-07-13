@@ -74,6 +74,7 @@ describe('GlobalChatService', () => {
   let eventEmitter: jest.Mocked<EventEmitter2>;
   let usersService: { findById: jest.Mock };
   let anonBan: { isBanned: jest.Mock };
+  let pushService: { notifyAll: jest.Mock };
   let savedGameModel: {
     findOne: jest.Mock;
     findOneAndUpdate: jest.Mock;
@@ -97,6 +98,7 @@ describe('GlobalChatService', () => {
       findById: jest.fn(),
       findByGroupId: jest.fn(),
       findByWorldId: jest.fn(),
+      countByWorldId: jest.fn().mockResolvedValue(0),
       save: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -145,6 +147,8 @@ describe('GlobalChatService', () => {
     // 15.8 — default: host není zabanovaný (testy si přepíšou).
     anonBan = { isBanned: jest.fn().mockResolvedValue(false) };
 
+    pushService = { notifyAll: jest.fn().mockResolvedValue(undefined) };
+
     // 16.6 — modely + gateway (testy si návratové hodnoty přepíšou).
     savedGameModel = {
       findOne: jest.fn().mockReturnValue(chain(null)),
@@ -170,10 +174,7 @@ describe('GlobalChatService', () => {
         { provide: 'IChatChannelRepository', useValue: channelRepo },
         { provide: 'IChatMessageRepository', useValue: messageRepo },
         { provide: EventEmitter2, useValue: eventEmitter },
-        {
-          provide: PushService,
-          useValue: { notifyAll: jest.fn().mockResolvedValue(undefined) },
-        },
+        { provide: PushService, useValue: pushService },
         {
           provide: UploadService,
           useValue: {
@@ -403,6 +404,23 @@ describe('GlobalChatService', () => {
       messageRepo.save.mockResolvedValue(makeMsg());
       await service.sendMessage('hospoda', { content: 'ahoj' }, mockUser);
       expect(messageRepo.save.mock.calls[0][0].isAnonymous).toBe(false);
+    });
+
+    // D-NEW-INV-PUSH — push Hospody: deep-link + exclude odesílatele.
+    it('Hospoda push: url /chat, kategorie hospoda, exclude odesílatele', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('hospoda', { content: 'ahoj' }, mockUser);
+      expect(pushService.notifyAll).toHaveBeenCalledWith(
+        expect.objectContaining({ url: '/chat' }),
+        'hospoda',
+        { excludeUserId: mockUser.id },
+      );
+    });
+
+    it('Camp push negeneruje', async () => {
+      messageRepo.save.mockResolvedValue(makeMsg());
+      await service.sendMessage('camp-1', { content: 'ahoj' }, mockUser);
+      expect(pushService.notifyAll).not.toHaveBeenCalled();
     });
 
     it('zabanovaný host → 403 ANON_BANNED, zpráva se neuloží', async () => {

@@ -18,13 +18,21 @@ import type { CharacterNotes } from './interfaces/character-notes.interface';
 import type { IDiarySchemaVersionsRepository } from '../worlds/diary-schema-versions/diary-schema-versions-repository.interface';
 import type { SchemaBlock } from '../characters/interfaces/character.interface';
 import type { ICharactersRepository } from '../characters/interfaces/characters-repository.interface';
+// D-066 (spec 20B B4b) — skrytý deník vidí jen platform reviewer set (vzor pages).
+import { isContentReviewer } from '../moderation/moderation.constants';
+import type { UserRole } from '../users/interfaces/user.interface';
+import { assertFiniteMoney, roundMoney } from '../../common/money/money.util';
 
 interface CharacterCreatedPayload {
   characterId: string;
   worldId: string;
   userId?: string;
   isNpc: boolean;
-  /** Spec 9.2 — `'location'` skipne diary/finance/inventory/notes (jen calendar). */
+  /**
+   * Spec 9.2 — `'location'` skipne diary/finance/inventory/notes (jen
+   * calendar). Finance/inventory navíc dostane JEN PC (EC-03 /
+   * D-NEW-INV-DATA-SYNC), viz `onCharacterCreated`.
+   */
   kind?: 'persona' | 'location';
 }
 
@@ -131,18 +139,28 @@ export class CharacterSubdocsService {
 
   @OnEvent('character.created')
   async onCharacterCreated(payload: CharacterCreatedPayload): Promise<void> {
-    const { characterId, worldId, kind } = payload;
+    const { characterId, worldId, kind, isNpc } = payload;
     const isLocation = kind === 'location';
 
-    // 8.1-FIR (2026-05-24) — Matrix nedělil PC/NPC/Lokaci pro Finance/Výbavu.
-    // Calendar má každá entity (Spec 9.2). Finance + Inventory dostane každá
-    // postava i lokace — `isNpc` už neřídí kaskádu. Deník + Poznámky zůstávají
-    // jen pro persony (Lokace nemá vyprávěcí obsah postavy).
+    // Calendar má každá entity (Spec 9.2). Deník + Poznámky mají jen persony
+    // (Lokace nemá vyprávěcí obsah postavy).
+    //
+    // D-NEW-INV-DATA-SYNC (2026-07-12, revize 8.1-FIR) — Finance + Výbavu
+    // dostane JEN PC: `getFinance`/`getInventory` je pro NPC/Lokaci blokuje
+    // 404 `*_NOT_APPLICABLE` (EC-03), takže subdoc založený pro NPC/Lokaci
+    // byl nečitelný orphan. Doplnění při změně typu řeší `onCharacterConverted`
+    // (NPC→PC create-if-missing) a lazy-create v `getFinance`/`getInventory`.
+    // Úklid historických orphanů: `scripts/cleanup-npc-lokace-finance-inventory`.
+    const isPc = !isNpc && !isLocation;
     const tasks: Promise<unknown>[] = [
       this.calendarRepo.create(characterId, worldId),
-      this.financeRepo.create(characterId),
-      this.inventoryRepo.create(characterId),
     ];
+    if (isPc) {
+      tasks.push(
+        this.financeRepo.create(characterId),
+        this.inventoryRepo.create(characterId),
+      );
+    }
     if (!isLocation) {
       tasks.push(
         this.diaryRepo.create(characterId, worldId),
@@ -200,6 +218,7 @@ export class CharacterSubdocsService {
   async getDiary(
     characterId: string,
     worldId?: string,
+    viewerRole?: UserRole,
   ): Promise<CharacterDiary> {
     let diary = await this.diaryRepo.findByCharacterId(characterId);
     if (!diary) {
@@ -216,6 +235,10 @@ export class CharacterSubdocsService {
         this.diaryRepo.deleteByCharacterId(characterId),
       );
     }
+    // D-066 (B4b) — moderačně skrytý deník (M2/M3) je GLOBÁLNÍ zásah (vzor
+    // pages): nevidí ho ani vlastník, ani PJ — jen platform reviewer set.
+    // 404 neprozrazuje důvod (auth-leak-policy).
+    this.assertDiaryNotModerationHidden(diary, viewerRole);
     // 2026-05-24 (D-040-followup) — read-side coerce ODSTRANĚN. Předtím
     // filtroval `customData` proti aktivnímu schématu, ale ve spárování
     // s starým `$set` write (replace celého objektu) způsoboval DATA LOSS:
@@ -247,6 +270,7 @@ export class CharacterSubdocsService {
     data: Partial<CharacterDiary> & {
       customDataPatch?: Record<string, unknown>;
     },
+    viewerRole?: UserRole,
   ): Promise<CharacterDiary> {
     const existing = await this.diaryRepo.findByCharacterId(characterId);
     if (!existing)
@@ -254,6 +278,8 @@ export class CharacterSubdocsService {
         code: 'DIARY_NOT_FOUND',
         message: 'Deník nenalezen',
       });
+    // D-066 — skrytý deník needituje nikdo mimo reviewer set (symetrie s GET).
+    this.assertDiaryNotModerationHidden(existing, viewerRole);
 
     // Pokud DTO obsahuje `personalDiarySchema` (i null), použij ten;
     // jinak ponech existující.
@@ -308,6 +334,52 @@ export class CharacterSubdocsService {
         message: 'Deník nenalezen',
       });
     return updated;
+  }
+
+  /**
+   * D-066 (spec 20B B4b) — gate: moderačně skrytý deník (M2/M3) vidí/edituje
+   * jen platform reviewer set. Vlastník i PJ dostanou 404 (globální zásah,
+   * vzor pages `isModerationHiddenFor`; 404 neprozrazuje existenci).
+   */
+  private assertDiaryNotModerationHidden(
+    diary: CharacterDiary,
+    viewerRole?: UserRole,
+  ): void {
+    if (!diary.moderationHidden) return;
+    if (viewerRole !== undefined && isContentReviewer(viewerRole)) return;
+    throw new NotFoundException({
+      code: 'DIARY_NOT_FOUND',
+      message: 'Deník nenalezen',
+    });
+  }
+
+  /**
+   * D-066 (spec 20B B4b) — moderační skrytí / odkrytí deníku (M2/M3 a revert).
+   * Systémová cesta z enforcement listeneru; bez access guardu (zásah
+   * autorizovala moderace). `false` = deník nenalezen, nikdy nehází.
+   */
+  async setDiaryModerationHidden(
+    characterId: string,
+    hidden: boolean,
+    reason?: string,
+  ): Promise<boolean> {
+    const updated = await this.diaryRepo.update(characterId, {
+      moderationHidden: hidden,
+      moderationHiddenReason: hidden ? reason : undefined,
+    });
+    return updated !== null;
+  }
+
+  /**
+   * D-066 — M4 (odstranění): smaže deníkový subdokument postavy. Nevratné —
+   * příští GET lazy-create obnoví PRÁZDNÝ deník (obsah je pryč, postava
+   * zůstává funkční). `false` = deník neexistoval.
+   */
+  async moderationRemoveDiary(characterId: string): Promise<boolean> {
+    const existing = await this.diaryRepo.findByCharacterId(characterId);
+    if (!existing) return false;
+    await this.diaryRepo.deleteByCharacterId(characterId);
+    return true;
   }
 
   /**
@@ -447,7 +519,22 @@ export class CharacterSubdocsService {
         message: 'Tato postava finance nemá',
       });
     }
-    const updated = await this.financeRepo.update(characterId, data);
+    // D-SEC-GAP float (CH-122) — FE vlastní celý subdoc (full-replace polí):
+    // peněžní hodnoty projdou finite guardem + zaokrouhlením PŘED uložením.
+    const sanitized = { ...data };
+    if (data.balance !== undefined)
+      sanitized.balance = roundMoney(assertFiniteMoney(data.balance));
+    if (data.entries)
+      sanitized.entries = data.entries.map((e) => ({
+        ...e,
+        amount: roundMoney(assertFiniteMoney(e.amount)),
+      }));
+    if (data.transactions)
+      sanitized.transactions = data.transactions.map((t) => ({
+        ...t,
+        delta: roundMoney(assertFiniteMoney(t.delta)),
+      }));
+    const updated = await this.financeRepo.update(characterId, sanitized);
     if (!updated)
       throw new NotFoundException({
         code: 'FINANCE_NOT_FOUND',
@@ -464,7 +551,10 @@ export class CharacterSubdocsService {
         message: 'Finance nenalezeny',
       });
 
-    const delta = finance.entries.reduce((sum, e) => sum + e.amount, 0);
+    // D-SEC-GAP float — delta i nová balance se zaokrouhlí PŘED uložením.
+    const delta = roundMoney(
+      finance.entries.reduce((sum, e) => sum + e.amount, 0),
+    );
     const transaction = {
       id: randomUUID(),
       date: new Date(),
@@ -473,7 +563,7 @@ export class CharacterSubdocsService {
     };
 
     const updated = await this.financeRepo.update(characterId, {
-      balance: finance.balance + delta,
+      balance: roundMoney(finance.balance + delta),
       lastSyncDate: new Date(),
       transactions: [...finance.transactions, transaction],
     });
@@ -491,7 +581,8 @@ export class CharacterSubdocsService {
 
     const last = finance.transactions[finance.transactions.length - 1];
     const updated = await this.financeRepo.update(characterId, {
-      balance: finance.balance - last.delta,
+      // D-SEC-GAP float — nová balance se zaokrouhlí PŘED uložením.
+      balance: roundMoney(finance.balance - last.delta),
       transactions: finance.transactions.slice(0, -1),
     });
     return updated!;

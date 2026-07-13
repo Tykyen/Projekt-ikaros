@@ -7,13 +7,16 @@ import { ConfigService } from '@nestjs/config';
 import { BadRequestException } from '@nestjs/common';
 import { UploadService } from './upload.service';
 import { v2 as cloudinary } from 'cloudinary';
-import { writeFile, mkdir, unlink } from 'fs/promises';
+import { writeFile, mkdir, unlink, readdir, stat } from 'fs/promises';
 
 // Mock fs/promises pro disk fallback test (saveImageToDisk) + UM-06 cleanup (unlink)
+// D-19.2 — readdir/stat pro disk-cap (měření velikosti fallback adresáře).
 jest.mock('fs/promises', () => ({
   writeFile: jest.fn(),
   mkdir: jest.fn(),
   unlink: jest.fn(),
+  readdir: jest.fn(),
+  stat: jest.fn(),
 }));
 
 jest.mock('cloudinary', () => ({
@@ -97,6 +100,8 @@ describe('UploadService', () => {
     }).compile();
     service = module.get(UploadService);
     jest.clearAllMocks();
+    // D-19.2 — default: prázdný fallback adresář (disk-cap propustí).
+    (readdir as jest.Mock).mockResolvedValue([]);
   });
 
   it('should throw UnsupportedMediaTypeException for blocked MIME type', async () => {
@@ -392,6 +397,7 @@ describe('UploadService', () => {
             public_id: 'gallery/g',
             width: 1200,
             height: 800,
+            bytes: 45_678, // D-19.2 — Cloudinary velikost uloženého assetu
           });
           return mockWritable;
         },
@@ -403,6 +409,7 @@ describe('UploadService', () => {
         publicId: 'gallery/g',
         width: 1200,
         height: 800,
+        bytes: 45_678, // D-19.2 — propaguje se do UploadedImage
       });
     });
   });
@@ -429,6 +436,8 @@ describe('UploadService', () => {
         publicId: 'platform/n',
         width: 640,
         height: 480,
+        // D-19.2 — Cloudinary mock bez `bytes` → fallback multer file.size.
+        bytes: 1024,
       });
     });
 
@@ -461,6 +470,8 @@ describe('UploadService', () => {
         publicId: 'content/c',
         width: 1000,
         height: 700,
+        // D-19.2 — Cloudinary mock bez `bytes` → fallback multer file.size.
+        bytes: 1024,
       });
     });
 
@@ -483,11 +494,100 @@ describe('UploadService', () => {
       (writeFile as jest.Mock).mockResolvedValue(undefined);
       (mkdir as jest.Mock).mockResolvedValue(undefined);
 
-      const result = await service.uploadImage(makeFile('image/jpeg'));
+      const file = makeFile('image/jpeg');
+      const result = await service.uploadImage(file);
       expect(result.url).toContain('/static/platform/');
       expect(result.publicId).toContain('local:platform/');
+      // D-19.2 — fallback vrací velikost zapsaného bufferu.
+      expect(result.bytes).toBe(file.buffer.length);
       expect(writeFile).toHaveBeenCalled();
       expect(mkdir).toHaveBeenCalled();
+    });
+  });
+
+  // D-19.2 / styl 31 — disk-cap upload fallbacku. Fallback sdílí disk s Mongo;
+  // nad cap (env UPLOAD_FALLBACK_MAX_MB) se upload odmítne 503 STORAGE_FULL
+  // místo zápisu (prevence zaplnění disku při Cloudinary outage).
+  describe('D-19.2 — disk-cap upload fallbacku (STORAGE_FULL)', () => {
+    let cappedService: UploadService;
+
+    const cloudinaryDown = () => {
+      const mockWritable = { end: jest.fn() };
+      (cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
+        (_opts, cb) => {
+          cb(new Error('down'), null);
+          return mockWritable;
+        },
+      );
+    };
+
+    beforeEach(async () => {
+      const module = await Test.createTestingModule({
+        providers: [
+          UploadService,
+          {
+            provide: ConfigService,
+            useValue: {
+              get: jest.fn((key: string) => {
+                if (key === 'CLOUDINARY_URL')
+                  return 'cloudinary://test-key:test-secret@test-cloud';
+                if (key === 'UPLOAD_FALLBACK_MAX_MB') return '1'; // 1 MB cap
+                return undefined;
+              }),
+            },
+          },
+        ],
+      }).compile();
+      cappedService = module.get(UploadService);
+      (writeFile as jest.Mock).mockResolvedValue(undefined);
+      (mkdir as jest.Mock).mockResolvedValue(undefined);
+    });
+
+    it('nad cap → 503 STORAGE_FULL, nic se nezapíše', async () => {
+      cloudinaryDown();
+      // uploads/ obsahuje soubor 2 MB > cap 1 MB.
+      (readdir as jest.Mock).mockResolvedValue([
+        { name: 'big.png', isDirectory: () => false, isFile: () => true },
+      ]);
+      (stat as jest.Mock).mockResolvedValue({ size: 2 * 1024 * 1024 });
+
+      await expect(
+        cappedService.uploadImage(makeFile('image/jpeg')),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'STORAGE_FULL' }),
+      });
+      expect(writeFile).not.toHaveBeenCalled();
+    });
+
+    it('pod cap → fallback zápis projde', async () => {
+      cloudinaryDown();
+      (readdir as jest.Mock).mockResolvedValue([
+        { name: 'small.png', isDirectory: () => false, isFile: () => true },
+      ]);
+      (stat as jest.Mock).mockResolvedValue({ size: 100 });
+
+      const result = await cappedService.uploadImage(makeFile('image/jpeg'));
+      expect(result.publicId).toContain('local:platform/');
+      expect(writeFile).toHaveBeenCalled();
+    });
+
+    it('velikost adresáře se skenuje rekurzivně (podadresáře se počítají)', async () => {
+      cloudinaryDown();
+      // uploads/ → podadresář gallery/ se souborem 2 MB > cap 1 MB.
+      (readdir as jest.Mock)
+        .mockResolvedValueOnce([
+          { name: 'gallery', isDirectory: () => true, isFile: () => false },
+        ])
+        .mockResolvedValueOnce([
+          { name: 'big.png', isDirectory: () => false, isFile: () => true },
+        ]);
+      (stat as jest.Mock).mockResolvedValue({ size: 2 * 1024 * 1024 });
+
+      await expect(
+        cappedService.uploadImage(makeFile('image/jpeg')),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'STORAGE_FULL' }),
+      });
     });
   });
 

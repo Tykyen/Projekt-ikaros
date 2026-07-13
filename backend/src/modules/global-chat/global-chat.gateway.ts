@@ -299,30 +299,25 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
 
   // ── Presence — Hospoda (krok 4.1) ──────────────────────────────────────
   @SubscribeMessage('chat:hospoda:join')
-  handleHospodaJoin(
-    @MessageBody() payload: { username: string; userId: string },
-    @ConnectedSocket() client: Socket,
-  ): void {
+  handleHospodaJoin(@ConnectedSocket() client: Socket): void {
     // W-10 — identita z OVĚŘENÉHO JWT handshake (`client.data.userId` nastavuje
     // ChatGateway na sdíleném socketu), NIKDY z payloadu. Jinak by klient mohl
     // poslat cizí `userId`, joinnout cizí `user:{id}` room a odposlouchávat
     // cizí privátní eventy (whispery, poštu, friend, transfery).
+    // W-10 dokončení — i `username` jde ze serveru (guest: anonName z tokenu,
+    // registrovaný: DB profil v registerPresence); payload se ignoruje celý.
     const data = client.data as {
       userId?: string;
       isGuest?: boolean;
       anonName?: string;
     };
     if (!data.userId) return;
-    // 15.8 — host: jméno anonym{N} z OVĚŘENÉHO tokenu, ne z payloadu (anti-spoof).
-    const username = data.isGuest
-      ? (data.anonName ?? payload.username)
-      : payload.username;
     void this.registerPresence(
       client,
       'hospoda',
-      username,
       data.userId,
       data.isGuest,
+      data.anonName,
     );
   }
 
@@ -335,11 +330,12 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   @SubscribeMessage('chat:room:join')
   handleRoomJoin(
     @MessageBody()
-    payload: { room: string; username: string; userId: string },
+    payload: { room: string },
     @ConnectedSocket() client: Socket,
   ): void {
     if (!isRoomKey(payload.room)) return;
-    // W-10 — viz handleHospodaJoin: userId z ověřeného JWT, ne z payloadu.
+    // W-10 — viz handleHospodaJoin: userId (i username) z ověřeného JWT/DB,
+    // ne z payloadu.
     const data = client.data as {
       userId?: string;
       isGuest?: boolean;
@@ -348,15 +344,12 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     if (!data.userId) return;
     // 15.8 — host smí jen Hospodu; join Camp ignorujeme.
     if (data.isGuest && payload.room !== 'hospoda') return;
-    const username = data.isGuest
-      ? (data.anonName ?? payload.username)
-      : payload.username;
     void this.registerPresence(
       client,
       payload.room,
-      username,
       data.userId,
       data.isGuest,
+      data.anonName,
     );
   }
 
@@ -502,13 +495,15 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   /**
    * Přidá socket do místnosti (4.2d §1 — multi-room). Při prvním joinu
    * socketu dotáhne z profilu data postavy (pro zobrazení v Campu, §8).
+   * W-10 dokončení — `username` NIKDY z klientského payloadu: host = anonName
+   * z OVĚŘENÉHO tokenu, registrovaný = DB profil (lookup níže).
    */
   private async registerPresence(
     client: Socket,
     room: RoomKey,
-    username: string,
     userId: string,
     isGuest?: boolean,
+    anonName?: string,
   ): Promise<void> {
     // Záznam vytvoříme a uložíme SYNCHRONNĚ (před `await`) — jinak by dva
     // rychlé joiny téhož socketu oba viděly `undefined` a přepsaly se.
@@ -517,7 +512,9 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     if (!record) {
       record = {
         lastSeen: new Date(),
-        username,
+        // Registrovaný dostane jméno z profilu níže (broadcast je až po
+        // lookupu); fallback se ukáže jen při výpadku DB.
+        username: isGuest ? (anonName ?? 'anonym') : 'Neznámý',
         userId,
         isGuest,
         rooms: new Set<RoomKey>(),
@@ -536,11 +533,13 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     // přetrvávající členství v Putyce po navigaci vypadá jako cizí přítomnost).
     this.emitMyRooms(client, record);
 
-    // Data profilu (avatar účtu + postava) dotáhneme jen při prvním joinu
-    // socketu. 15.8 — host (anonym) nemá DB účet → žádný lookup, bez avataru.
+    // Data profilu (username + avatar účtu + postava) dotáhneme jen při prvním
+    // joinu socketu. 15.8 — host (anonym) nemá DB účet → žádný lookup, bez avataru.
     if (isNew && !isGuest) {
       try {
         const profile = await this.usersService.findById(userId);
+        // W-10 dokončení — autoritativní jméno ze serveru (anti-spoof).
+        record.username = profile.username;
         record.avatarUrl = profile.avatarUrl;
         record.characterName = profile.characterName;
         record.characterAvatarUrl = profile.characterAvatarUrl;
@@ -556,7 +555,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     // server.to → hlášku dostane i joiner sám (4.2d §3).
     this.server.to(`chat:${channelId}`).emit('chat:presence', {
       userId,
-      username,
+      username: record.username,
       avatarUrl: record.avatarUrl,
       characterName: record.characterName,
       characterAvatarUrl: record.characterAvatarUrl,
@@ -569,7 +568,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
       client.emit('chat:room:startHere', { room, startHere });
     }
     void this.globalChatService
-      .saveSystemMessage(room, presenceLine(room, 'join', username))
+      .saveSystemMessage(room, presenceLine(room, 'join', record.username))
       .catch((err: unknown) =>
         logWarn(this.logger, 'saveSystemMessage (join) selhal', err),
       );

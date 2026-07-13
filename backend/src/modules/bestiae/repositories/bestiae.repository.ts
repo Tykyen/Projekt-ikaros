@@ -33,6 +33,8 @@ export class BestiaeRepository {
       worldId: o.worldId as string | undefined,
       name: o.name as string,
       imageUrl: o.imageUrl as string | undefined,
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: o.imageBytes as number | undefined,
       imageFocalX: (o.imageFocalX as number | null) ?? null,
       imageFocalY: (o.imageFocalY as number | null) ?? null,
       imageZoom: (o.imageZoom as number | null) ?? null,
@@ -92,11 +94,26 @@ export class BestiaeRepository {
     limit?: number;
   }): Promise<Bestie[]> {
     const q = this.communityQuery(filter);
-    let query = this.model.find(q).sort({ name: 1 });
+    let query = this.model.find(q).sort({ name: 1, _id: 1 });
     if (filter.skip) query = query.skip(filter.skip);
     if (filter.limit) query = query.limit(filter.limit);
     const docs = await query.exec();
     return docs.map((d) => this.toEntity(d)!).filter(Boolean);
+  }
+
+  /**
+   * D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: počet world-scope bestií
+   * světa (vč. soft-deleted — bloat je bloat). Index { scope, worldId, systemId }.
+   */
+  async countByWorldId(worldId: string): Promise<number> {
+    return this.model.countDocuments({ scope: 'world', worldId }).exec();
+  }
+
+  /** D-SEC-GAP-2026-07-11 — počet user-scope bestií účtu (vč. soft-deleted). */
+  async countByOwner(userId: string): Promise<number> {
+    return this.model
+      .countDocuments({ scope: 'user', ownerUserId: userId })
+      .exec();
   }
 
   /** 16.2b-2 — počet komunitních bytostí (pro pending badge). */

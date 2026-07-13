@@ -69,6 +69,12 @@ export class MongoScheduledMessageRepository
     );
   }
 
+  async countPendingByWorld(worldId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // pending naplánovaných zpráv světa. Index { worldId: 1 } existuje.
+    return this.model.countDocuments({ worldId, status: 'pending' }).exec();
+  }
+
   async findById(id: string): Promise<ScheduledMessage | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model.findById(id).lean().exec();

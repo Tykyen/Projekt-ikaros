@@ -35,6 +35,25 @@ export class MongoCampaignPurchaseRepository
     );
   }
 
+  /**
+   * D-PURCHASE-IDEMPOTENCY — najde nákup dle (buyerUserId, clientNonce);
+   * zrcadlí partial unique index. Používá se pro replay původního výsledku
+   * při retry / prohraném závodu na unique indexu.
+   */
+  async findByNonce(
+    buyerUserId: string,
+    clientNonce: string,
+  ): Promise<CampaignPurchase | null> {
+    if (!clientNonce) return null;
+    const doc = await this.model
+      .findOne({ buyerUserId, clientNonce })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
   async create(
     data: Partial<CampaignPurchase>,
     session?: ClientSession,
@@ -123,6 +142,7 @@ export class MongoCampaignPurchaseRepository
       inventoryItemId: (doc.inventoryItemId as string) ?? '',
       status: (doc.status as 'active' | 'refunded') ?? 'active',
       refundedAt: doc.refundedAt as Date | undefined,
+      clientNonce: (doc.clientNonce as string | null | undefined) ?? null,
       createdAt: doc.createdAt as Date,
       updatedAt: doc.updatedAt as Date,
     };

@@ -52,8 +52,14 @@ describe('GlobalChatGateway', () => {
       getRoomDefault: jest.fn().mockResolvedValue('scifi'),
       randomPlaceId: jest.fn().mockReturnValue('13'),
     };
+    // W-10 dokončení — username presence jde z DB profilu (ne z payloadu);
+    // default mock vrací deterministické jméno odvozené z userId.
     users = {
-      findById: jest.fn().mockResolvedValue({}),
+      findById: jest.fn((id: string) =>
+        Promise.resolve({ username: `jmeno-${id}` } as Awaited<
+          ReturnType<UsersService['findById']>
+        >),
+      ),
     };
     gateway = new GlobalChatGateway(
       service as unknown as GlobalChatService,
@@ -66,23 +72,38 @@ describe('GlobalChatGateway', () => {
     } as unknown as Server;
   });
 
-  describe('W-10 — identita presence z JWT, ne z payloadu', () => {
-    it('joinne ověřený user:{id} room a ignoruje podvržené payload.userId', async () => {
+  describe('W-10 — identita presence z JWT + DB, ne z payloadu', () => {
+    it('joinne ověřený user:{id} room; payload se už vůbec nečte', async () => {
       const sock = mockSocket('s1', 'u1');
-      // Útočník deklaruje cizí userId v payloadu.
-      gateway.handleHospodaJoin({ username: 'Fake', userId: 'victim' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
-      // Socket joinne SVŮJ ověřený room, ne 'user:victim'.
+      // Socket joinne SVŮJ ověřený room (z client.data, ne z payloadu).
       expect(sock.join).toHaveBeenCalledWith('user:u1');
-      expect(sock.join).not.toHaveBeenCalledWith('user:victim');
+      // Jméno z DB profilu (server identity).
+      expect(users.findById).toHaveBeenCalledWith('u1');
       expect(gateway.getPresence('hospoda')).toEqual([
-        { userId: 'u1', username: 'Fake' },
+        { userId: 'u1', username: 'jmeno-u1' },
+      ]);
+    });
+
+    it('W-10 dokončení — spoofnutý username v room join payloadu se nepropíše', async () => {
+      const sock = mockSocket('s1', 'u1');
+      // Útočník pošle cizí jméno v payloadu — handler čte jen `room`.
+      gateway.handleRoomJoin(
+        { room: 'camp-1', username: 'FakeAdmin', userId: 'victim' } as {
+          room: string;
+        },
+        sock,
+      );
+      await flush();
+      expect(gateway.getPresence('camp-1')).toEqual([
+        { userId: 'u1', username: 'jmeno-u1' },
       ]);
     });
 
     it('neautentizovaný socket (bez data.userId) se nezaregistruje', async () => {
       const sock = { id: 's1', data: {}, join: jest.fn() } as unknown as Socket;
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       expect(sock.join).not.toHaveBeenCalled();
       expect(gateway.getPresence('hospoda')).toEqual([]);
@@ -100,8 +121,7 @@ describe('GlobalChatGateway', () => {
 
     it('host: jméno z tokenu (anonName), bez DB profilu, bez avataru', async () => {
       const sock = guestSock('sg', 'anon_1', 'anonym1234');
-      // Útočník v payloadu pošle cizí jméno → ignorováno (anonName z tokenu).
-      gateway.handleHospodaJoin({ username: 'Fake', userId: 'x' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       expect(users.findById).not.toHaveBeenCalled();
       expect(gateway.getPresence('hospoda')).toEqual([
@@ -111,10 +131,7 @@ describe('GlobalChatGateway', () => {
 
     it('host nemůže joinnout Camp (scope — jen Hospoda)', async () => {
       const sock = guestSock('sg2', 'anon_2', 'anonym5678');
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'x', userId: 'x' },
-        sock,
-      );
+      gateway.handleRoomJoin({ room: 'camp-1' }, sock);
       await flush();
       expect(gateway.getPresence('camp-1')).toEqual([]);
     });
@@ -122,42 +139,30 @@ describe('GlobalChatGateway', () => {
 
   describe('presence — multi-room (krok 4.2d §1)', () => {
     it('isolates presence between rooms', async () => {
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'gandalf', userId: 'u1' },
-        mockSocket('s1'),
-      );
-      gateway.handleRoomJoin(
-        { room: 'camp-2', username: 'frodo', userId: 'u2' },
-        mockSocket('s2'),
-      );
+      gateway.handleRoomJoin({ room: 'camp-1' }, mockSocket('s1'));
+      gateway.handleRoomJoin({ room: 'camp-2' }, mockSocket('s2'));
       await flush();
 
       expect(gateway.getPresence('camp-1')).toEqual([
-        { userId: 'u1', username: 'gandalf' },
+        { userId: 'u1', username: 'jmeno-u1' },
       ]);
       expect(gateway.getPresence('camp-2')).toEqual([
-        { userId: 'u2', username: 'frodo' },
+        { userId: 'u2', username: 'jmeno-u2' },
       ]);
       expect(gateway.getPresence('hospoda')).toEqual([]);
     });
 
     it('ignores join with an unknown room key', async () => {
-      gateway.handleRoomJoin(
-        { room: 'camp-9', username: 'x', userId: 'ux' },
-        mockSocket('s9'),
-      );
+      gateway.handleRoomJoin({ room: 'camp-9' }, mockSocket('s9'));
       await flush();
       expect(gateway.getPresence('camp-1')).toEqual([]);
     });
 
     it('one socket can be present in several rooms at once', async () => {
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'a', userId: 'u1' },
-        sock,
-      );
+      gateway.handleRoomJoin({ room: 'camp-1' }, sock);
       await flush();
 
       expect(gateway.getPresence('hospoda')).toHaveLength(1);
@@ -166,11 +171,8 @@ describe('GlobalChatGateway', () => {
 
     it('leave removes the socket from one room only', async () => {
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'a', userId: 'u1' },
-        sock,
-      );
+      gateway.handleHospodaJoin(sock);
+      gateway.handleRoomJoin({ room: 'camp-1' }, sock);
       await flush();
 
       gateway.handleRoomLeave({ room: 'camp-1' }, sock);
@@ -183,14 +185,8 @@ describe('GlobalChatGateway', () => {
 
     it('deduplicates presence by userId across multiple sockets', async () => {
       // Jeden uživatel (u1) na dvou tabech → ověřený userId stejný pro oba.
-      gateway.handleHospodaJoin(
-        { username: 'a', userId: 'u1' },
-        mockSocket('s1', 'u1'),
-      );
-      gateway.handleHospodaJoin(
-        { username: 'a', userId: 'u1' },
-        mockSocket('s2', 'u1'),
-      );
+      gateway.handleHospodaJoin(mockSocket('s1', 'u1'));
+      gateway.handleHospodaJoin(mockSocket('s2', 'u1'));
       await flush();
       expect(gateway.getPresence('hospoda')).toHaveLength(1);
       expect(gateway.getRoomCounts().hospoda).toBe(1);
@@ -198,11 +194,8 @@ describe('GlobalChatGateway', () => {
 
     it('handleDisconnect removes the socket from all its rooms', async () => {
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'a', userId: 'u1' },
-        sock,
-      );
+      gateway.handleHospodaJoin(sock);
+      gateway.handleRoomJoin({ room: 'camp-1' }, sock);
       await flush();
       expect(gateway.getRoomCounts()).toEqual({
         hospoda: 1,
@@ -226,15 +219,13 @@ describe('GlobalChatGateway', () => {
   });
 
   describe('character data v presence (krok 4.2d §8)', () => {
-    it('presence nese characterName/characterAvatarUrl z profilu', async () => {
+    it('presence nese username/characterName/characterAvatarUrl z profilu', async () => {
       users.findById.mockResolvedValue({
+        username: 'tyky',
         characterName: 'Aragorn',
         characterAvatarUrl: 'aragorn.png',
       } as Awaited<ReturnType<UsersService['findById']>>);
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'tyky', userId: 'u1' },
-        mockSocket('s1'),
-      );
+      gateway.handleRoomJoin({ room: 'camp-1' }, mockSocket('s1'));
       await flush();
       expect(gateway.getPresence('camp-1')).toEqual([
         {
@@ -249,12 +240,12 @@ describe('GlobalChatGateway', () => {
 
   describe('17.6 — voice presence (Voice krčma)', () => {
     it('voice:join přidá uživatele do rosteru a broadcastne chat:voice:presence', async () => {
+      users.findById.mockResolvedValue({ username: 'Tyky' } as Awaited<
+        ReturnType<UsersService['findById']>
+      >);
       const sock = mockSocket('s1', 'u1');
       // Realisticky: FE nejdřív joinne místnost (naplní presence jméno), pak hovor.
-      gateway.handleRoomJoin(
-        { room: 'voice-krcma', username: 'Tyky', userId: 'u1' },
-        sock,
-      );
+      gateway.handleRoomJoin({ room: 'voice-krcma' }, sock);
       await flush();
       gateway.handleVoiceJoin({ room: 'voice-krcma' }, sock);
       expect(gateway.getVoiceRoster('voice-krcma')).toEqual([
@@ -359,14 +350,8 @@ describe('GlobalChatGateway', () => {
 
   describe('room counts (krok 4.2c §4)', () => {
     it('getRoomCounts returns presence count per room', async () => {
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'a', userId: 'u1' },
-        mockSocket('s1'),
-      );
-      gateway.handleHospodaJoin(
-        { username: 'b', userId: 'u2' },
-        mockSocket('s2'),
-      );
+      gateway.handleRoomJoin({ room: 'camp-1' }, mockSocket('s1'));
+      gateway.handleHospodaJoin(mockSocket('s2'));
       await flush();
       expect(gateway.getRoomCounts()).toEqual({
         hospoda: 1,
@@ -380,7 +365,7 @@ describe('GlobalChatGateway', () => {
     it('broadcasts chat:rooms:presence on join and leave', async () => {
       const serverEmit = gateway.server.emit as jest.Mock;
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       expect(serverEmit).toHaveBeenLastCalledWith(
         'chat:rooms:presence',
@@ -395,9 +380,12 @@ describe('GlobalChatGateway', () => {
   });
 
   describe('systémové zprávy (krok 4.2d §2)', () => {
-    it('uloží systémovou hlášku při příchodu i odchodu', async () => {
+    it('uloží systémovou hlášku při příchodu i odchodu (jméno z DB)', async () => {
+      users.findById.mockResolvedValue({ username: 'Tyky' } as Awaited<
+        ReturnType<UsersService['findById']>
+      >);
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'Tyky', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       expect(service.saveSystemMessage).toHaveBeenLastCalledWith(
         'hospoda',
@@ -417,7 +405,7 @@ describe('GlobalChatGateway', () => {
       jest.useFakeTimers();
       try {
         const sock = mockSocket('s1');
-        gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+        gateway.handleHospodaJoin(sock);
         await flush();
         jest.advanceTimersByTime(50 * 60_000);
         gateway.handleHeartbeat(sock);
@@ -433,11 +421,8 @@ describe('GlobalChatGateway', () => {
       jest.useFakeTimers();
       try {
         const sock = mockSocket('s1');
-        gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
-        gateway.handleRoomJoin(
-          { room: 'camp-1', username: 'a', userId: 'u1' },
-          sock,
-        );
+        gateway.handleHospodaJoin(sock);
+        gateway.handleRoomJoin({ room: 'camp-1' }, sock);
         await flush();
         jest.advanceTimersByTime(70 * 60_000);
         expect(gateway.cleanupInactive(60 * 60_000)).toBe(1);
@@ -456,7 +441,7 @@ describe('GlobalChatGateway', () => {
   describe('reakce (krok 4.3a)', () => {
     it('chat:reaction:toggle deleguje na service.toggleReaction', async () => {
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       gateway.handleReaction(
         { room: 'hospoda', messageId: 'm1', emoji: '👍' },
@@ -481,7 +466,7 @@ describe('GlobalChatGateway', () => {
 
     it('ignoruje příliš dlouhý emoji', async () => {
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'a', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       gateway.handleReaction(
         { room: 'hospoda', messageId: 'm1', emoji: 'x'.repeat(20) },
@@ -531,8 +516,11 @@ describe('GlobalChatGateway', () => {
     ];
 
     it('předá přílohy do sendWhisper i u whisperu bez textu', async () => {
+      users.findById.mockResolvedValue({ username: 'gandalf' } as Awaited<
+        ReturnType<UsersService['findById']>
+      >);
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'gandalf', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       gateway.handleWhisper(
         { toUserId: 'u2', room: 'hospoda', attachments: att },
@@ -551,7 +539,7 @@ describe('GlobalChatGateway', () => {
 
     it('ignoruje whisper bez textu i bez příloh', async () => {
       const sock = mockSocket('s1');
-      gateway.handleHospodaJoin({ username: 'gandalf', userId: 'u1' }, sock);
+      gateway.handleHospodaJoin(sock);
       await flush();
       gateway.handleWhisper({ toUserId: 'u2', room: 'hospoda' }, sock);
       expect(service.sendWhisper).not.toHaveBeenCalled();
@@ -644,10 +632,7 @@ describe('GlobalChatGateway', () => {
         at: new Date(),
       });
       const sock = mockSocket('s1', 'u1');
-      gateway.handleRoomJoin(
-        { room: 'camp-1', username: 'tyky', userId: 'u1' },
-        sock,
-      );
+      gateway.handleRoomJoin({ room: 'camp-1' }, sock);
       await flush();
       expect(sock.emit).toHaveBeenCalledWith(
         'chat:room:startHere',

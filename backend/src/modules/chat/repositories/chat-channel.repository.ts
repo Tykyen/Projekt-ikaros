@@ -55,6 +55,12 @@ export class MongoChatChannelRepository
     );
   }
 
+  async countByWorldId(worldId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // konverzací světa. Index { worldId: 1, groupId: 1 } (prefix worldId).
+    return this.model.countDocuments({ worldId, isDeleted: false }).exec();
+  }
+
   async findByWorldId(worldId: string): Promise<ChatChannel[]> {
     const docs = await this.model
       .find({ worldId, isDeleted: false })

@@ -21,6 +21,7 @@ import type {
   FinanceTransaction,
 } from './interfaces/character-account.interface';
 import { WorldCurrenciesService } from '../world-currencies/world-currencies.service';
+import { assertFiniteMoney, roundMoney } from '../../common/money/money.util';
 
 /**
  * D-8.6-transfer-notification — Event payload pro WebSocket broadcast
@@ -72,6 +73,12 @@ export interface TransferInput {
   description: string;
   /** Spec 8.x-prep §4.4 (B4) — herní datum transakce. */
   inGameDate?: FantasyDateLike | null;
+  /**
+   * D-PURCHASE-IDEMPOTENCY — klientský nonce (UUID v4, vzor chat 6.2h).
+   * Retry / double-click se stejným nonce = replay původního převodu, NE
+   * 2. odečet. Volitelný (zpětná kompatibilita, FE začne posílat později).
+   */
+  clientNonce?: string | null;
 }
 
 /** Spec 8.x-prep §4.3 (B3) — vstup pro `adjust` (manuální vklad/výběr). */
@@ -83,6 +90,25 @@ export interface AdjustBalanceInput {
 }
 
 const ACCOUNTS_PER_CHARACTER_LIMIT = 20;
+
+/**
+ * D-PURCHASE-IDEMPOTENCY — formát nonce (UUID; TransferBody v controlleru je
+ * plain interface bez class-validatoru, validace tedy tady). Zrcadlí @IsUUID
+ * z chat/purchase DTO.
+ */
+const CLIENT_NONCE_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * D-PURCHASE-IDEMPOTENCY — interní signál „debet neproběhl, protože nonce už
+ * je na účtu spotřebovaný" (prohraný závod / retry). Zachytává se v `transfer`
+ * → replay původního výsledku. Nikdy nesmí uniknout ven ze service.
+ */
+class TransferNonceReplaySignal extends Error {
+  constructor() {
+    super('TRANSFER_NONCE_REPLAY');
+  }
+}
 
 /**
  * 8.6 — Service pro per-postava finanční účty. Vlastnictví je N:N (shared
@@ -173,7 +199,21 @@ export class CharacterAccountsService {
       'label' | 'notes' | 'incomeEntries' | 'expenseEntries'
     >,
   ): Promise<CharacterAccount> {
-    const updated = await this.accountsRepo.update(accountId, patch);
+    // D-SEC-GAP float — šablony příjmů/výdajů jdou z FE bez class-validatoru;
+    // částky projdou finite-checkem + zaokrouhlením PŘED uložením (z šablon
+    // se počítá měsíční delta → drift by se propsal do balance).
+    const sanitized = { ...patch };
+    if (patch.incomeEntries)
+      sanitized.incomeEntries = patch.incomeEntries.map((e) => ({
+        ...e,
+        amount: roundMoney(assertFiniteMoney(e.amount)),
+      }));
+    if (patch.expenseEntries)
+      sanitized.expenseEntries = patch.expenseEntries.map((e) => ({
+        ...e,
+        amount: roundMoney(assertFiniteMoney(e.amount)),
+      }));
+    const updated = await this.accountsRepo.update(accountId, sanitized);
     if (!updated)
       throw new NotFoundException({
         code: 'ACCOUNT_NOT_FOUND',
@@ -255,24 +295,25 @@ export class CharacterAccountsService {
       });
 
     const r = from.rate / to.rate;
-    const round4 = (n: number): number => Math.round(n * 10000) / 10000;
 
+    // D-SEC-GAP float — sdílený `roundMoney` (4 des., stejná sémantika jako
+    // původní lokální round4); kurzový převod = násobení → zaokrouhlit výsledek.
     const transactions = account.transactions.map((t) => ({
       ...t,
-      delta: round4(t.delta * r),
+      delta: roundMoney(t.delta * r),
     }));
     const incomeEntries = account.incomeEntries.map((e) => ({
       ...e,
-      amount: round4(e.amount * r),
+      amount: roundMoney(e.amount * r),
     }));
     const expenseEntries = account.expenseEntries.map((e) => ({
       ...e,
-      amount: round4(e.amount * r),
+      amount: roundMoney(e.amount * r),
     }));
     // Drží invariantu balance = Σ delta; bez transakcí přepočti balance přímo.
     const balance = transactions.length
-      ? round4(transactions.reduce((s, t) => s + t.delta, 0))
-      : round4(account.balance * r);
+      ? roundMoney(transactions.reduce((s, t) => s + t.delta, 0))
+      : roundMoney(account.balance * r);
 
     const updated = await this.accountsRepo.replaceMoneyFields(accountId, {
       currency: newCurrency,
@@ -311,7 +352,8 @@ export class CharacterAccountsService {
     const account = await this.getAccount(accountId);
     const incomeSum = account.incomeEntries.reduce((s, e) => s + e.amount, 0);
     const expenseSum = account.expenseEntries.reduce((s, e) => s + e.amount, 0);
-    const delta = incomeSum - expenseSum;
+    // D-SEC-GAP float — delta se ukládá ($inc balance) → zaokrouhlit.
+    const delta = roundMoney(incomeSum - expenseSum);
 
     const tx: FinanceTransaction = {
       id: randomUUID(),
@@ -344,7 +386,10 @@ export class CharacterAccountsService {
     requester: RequestUser,
   ): Promise<CharacterAccount> {
     const performedByUserId = requester.id;
-    if (!Number.isFinite(input.amount) || input.amount === 0)
+    // D-SEC-GAP float (CH-122) — reject ne-číslo/NaN/Infinity, zaokrouhli
+    // PŘED uložením; částka co se zaokrouhlí na 0 je stejně neplatná jako 0.
+    const amount = roundMoney(assertFiniteMoney(input.amount));
+    if (amount === 0)
       throw new BadRequestException({
         code: 'AMOUNT_INVALID',
         message: 'Částka musí být nenulové číslo.',
@@ -361,7 +406,7 @@ export class CharacterAccountsService {
       id: randomUUID(),
       date: new Date(),
       inGameDate: input.inGameDate ?? null,
-      delta: input.amount,
+      delta: amount,
       description: input.reason.trim(),
       performedByUserId,
     };
@@ -392,7 +437,8 @@ export class CharacterAccountsService {
       id: randomUUID(),
       date: new Date(),
       inGameDate: null,
-      delta: amount,
+      // D-SEC-GAP float — kredit (refund) prochází zaokrouhlením PŘED uložením.
+      delta: roundMoney(assertFiniteMoney(amount)),
       description: reason,
       performedByUserId,
     };
@@ -457,7 +503,9 @@ export class CharacterAccountsService {
     // scope nákupu (atomicita napříč účet/inventář/purchase log).
     session?: ClientSession,
   ): Promise<CharacterAccount> {
-    const abs = Math.abs(amountAbs);
+    // D-SEC-GAP float — zaokrouhlený debet: delta i sufficiency práh jsou
+    // stejná (čistá) hodnota, drift se do balance nepropíše.
+    const abs = roundMoney(Math.abs(assertFiniteMoney(amountAbs)));
     const tx: FinanceTransaction = {
       id: randomUUID(),
       date: new Date(),
@@ -540,7 +588,8 @@ export class CharacterAccountsService {
     const updated = await this.accountsRepo.update(
       accountId,
       {
-        balance: account.balance - last.delta,
+        // D-SEC-GAP float — nová hodnota balance se zaokrouhlí PŘED uložením.
+        balance: roundMoney(account.balance - last.delta),
         transactions: account.transactions.slice(0, -1),
       },
       session,
@@ -554,7 +603,11 @@ export class CharacterAccountsService {
     input: TransferInput,
     performedByUserId: string,
   ): Promise<{ from: CharacterAccount; to: CharacterAccount }> {
-    if (input.amount <= 0)
+    // D-SEC-GAP float (CH-122) — TransferBody je plain interface bez
+    // class-validatoru: reject ne-číslo/NaN/Infinity, zaokrouhli PŘED uložením.
+    // Normalizovaná částka platí pro obě tx i sufficiency práh.
+    const amount = roundMoney(assertFiniteMoney(input.amount));
+    if (amount <= 0)
       throw new BadRequestException({
         code: 'AMOUNT_INVALID',
         message: 'Částka musí být kladná',
@@ -563,6 +616,13 @@ export class CharacterAccountsService {
       throw new BadRequestException({
         code: 'SAME_ACCOUNT',
         message: 'Nelze přesunout na stejný účet',
+      });
+    // D-PURCHASE-IDEMPOTENCY — nonce má FE generovat jako UUID v4; cokoli
+    // jiného odmítni hned (žádný „skoro nonce" jako klíč idempotence).
+    if (input.clientNonce != null && !CLIENT_NONCE_RE.test(input.clientNonce))
+      throw new BadRequestException({
+        code: 'NONCE_INVALID',
+        message: 'clientNonce musí být UUID.',
       });
 
     const from = await this.accountsRepo.findById(input.fromAccountId);
@@ -578,6 +638,17 @@ export class CharacterAccountsService {
         message: 'Účty musí mít stejnou měnu',
       });
 
+    // D-PURCHASE-IDEMPOTENCY — retry se stejným nonce: převod už na zdrojovém
+    // účtu je → vrať PŮVODNÍ výsledek (aktuální stav obou účtů), žádný
+    // 2. odečet a žádný nový notifikační event.
+    if (input.clientNonce) {
+      const replayed = await this.replayTransferByNonce(
+        from,
+        input.clientNonce,
+      );
+      if (replayed) return replayed;
+    }
+
     const now = new Date();
     const txOutId = randomUUID();
     const txInId = randomUUID();
@@ -586,20 +657,23 @@ export class CharacterAccountsService {
       id: txOutId,
       date: now,
       inGameDate: input.inGameDate ?? null,
-      delta: -input.amount,
+      delta: -amount,
       description: input.description || 'Převod',
       transferRef: {
         counterpartyAccountId: to.id,
         counterpartyCharacterId: to.primaryOwnerId,
         direction: 'out',
       },
+      // D-PURCHASE-IDEMPOTENCY — nonce nese JEN odchozí tx zdrojového účtu;
+      // guard v atomickém debetu je zdroj pravdy proti dvojímu odečtu.
+      clientNonce: input.clientNonce ?? null,
       performedByUserId,
     };
     const txIn: FinanceTransaction = {
       id: txInId,
       date: now,
       inGameDate: input.inGameDate ?? null,
-      delta: input.amount,
+      delta: amount,
       description: input.description || 'Převod',
       transferRef: {
         counterpartyAccountId: from.id,
@@ -620,13 +694,28 @@ export class CharacterAccountsService {
         await session.withTransaction(async () => {
           // FIX-13 — debet zdroje musí projít krytím (vzor debitIfSufficient),
           // jinak transfer strhne účet do záporu bez kontroly.
+          // D-PURCHASE-IDEMPOTENCY — guardNonce ve filtru: souběžný request
+          // se stejným nonce neprojde debetem dvakrát (atomický filtr dokumentu).
           fromUpdated = await this.accountsRepo.appendTransactionIfSufficient(
             from.id,
             txOut,
-            input.amount,
+            amount,
             session,
+            input.clientNonce ?? null,
           );
-          if (!fromUpdated) throw new Error('INSUFFICIENT_FUNDS');
+          if (!fromUpdated) {
+            // Rozliš prohraný závod na nonce od nedostatku krytí (se session —
+            // čte snapshot konzistentní s neúspěšným updatem).
+            if (
+              await this.nonceAlreadyOnAccount(
+                from.id,
+                input.clientNonce,
+                session,
+              )
+            )
+              throw new TransferNonceReplaySignal();
+            throw new Error('INSUFFICIENT_FUNDS');
+          }
           toUpdated = await this.accountsRepo.appendTransaction(
             to.id,
             txIn,
@@ -635,7 +724,32 @@ export class CharacterAccountsService {
           if (!toUpdated) throw new Error('TO_NOT_FOUND');
         });
       } catch (txErr) {
+        // D-PURCHASE-IDEMPOTENCY — prohraný závod dvou requestů se stejným
+        // nonce (tx cesta): debet neproběhl, vrať výsledek vítěze.
+        if (txErr instanceof TransferNonceReplaySignal) {
+          const replayed = await this.replayTransferByNonceId(
+            input.fromAccountId,
+            input.clientNonce!,
+          );
+          if (replayed) return replayed;
+          throw new BadRequestException({
+            code: 'TRANSFER_FAILED',
+            message: 'Převod se nezdařil, zkus to znovu',
+          });
+        }
         const msg = (txErr as Error).message || '';
+        // Interní signály z tx callbacku přelož na HTTP kontrakt (jinak by
+        // surový Error propadl jako 500) — stejné kódy jako sekvenční fallback.
+        if (msg === 'INSUFFICIENT_FUNDS')
+          throw new ConflictException({
+            code: 'INSUFFICIENT_FUNDS',
+            message: 'Na účtu není dostatek prostředků.',
+          });
+        if (msg === 'TO_NOT_FOUND')
+          throw new NotFoundException({
+            code: 'ACCOUNT_NOT_FOUND',
+            message: 'Účet nenalezen',
+          });
         // Replica set not configured → fallback path.
         if (
           msg.includes('replica set') ||
@@ -667,7 +781,7 @@ export class CharacterAccountsService {
         recipientCharacterIds: to.ownerCharacterIds,
         fromAccountId: from.id,
         toAccountId: to.id,
-        amount: input.amount,
+        amount,
         currency: to.currency,
         description: input.description || 'Převod',
       };
@@ -677,6 +791,55 @@ export class CharacterAccountsService {
     } finally {
       await session.endSession();
     }
+  }
+
+  /**
+   * D-PURCHASE-IDEMPOTENCY — je nonce už mezi transakcemi účtu? (rozlišení
+   * „prohraný závod na nonce" vs. „nedostatek krytí" po null z guardovaného
+   * debetu). Se session čte snapshot konzistentní s neúspěšným updatem.
+   */
+  private async nonceAlreadyOnAccount(
+    accountId: string,
+    clientNonce: string | null | undefined,
+    session?: ClientSession,
+  ): Promise<boolean> {
+    if (!clientNonce) return false;
+    const account = await this.accountsRepo.findById(accountId, session);
+    return !!account?.transactions.some((t) => t.clientNonce === clientNonce);
+  }
+
+  /**
+   * D-PURCHASE-IDEMPOTENCY — replay převodu podle nonce: najdi původní
+   * odchozí tx na zdrojovém účtu a vrať AKTUÁLNÍ stav obou účtů jako úspěch.
+   * Notifikační event se znovu NEemituje (příjemce už ho dostal poprvé).
+   */
+  private async replayTransferByNonce(
+    from: CharacterAccount,
+    clientNonce: string,
+  ): Promise<{ from: CharacterAccount; to: CharacterAccount } | null> {
+    const original = from.transactions.find(
+      (t) => t.clientNonce === clientNonce,
+    );
+    if (!original) return null;
+    // Cíl ber z transferRef původní tx (kanonický), ne z aktuálního vstupu.
+    const toId = original.transferRef?.counterpartyAccountId;
+    const to = toId ? await this.accountsRepo.findById(toId) : null;
+    if (!to)
+      throw new NotFoundException({
+        code: 'ACCOUNT_NOT_FOUND',
+        message: 'Účet nenalezen',
+      });
+    return { from, to };
+  }
+
+  /** Varianta replaye s čerstvým načtením zdrojového účtu (po prohraném závodu). */
+  private async replayTransferByNonceId(
+    fromAccountId: string,
+    clientNonce: string,
+  ): Promise<{ from: CharacterAccount; to: CharacterAccount } | null> {
+    const from = await this.accountsRepo.findById(fromAccountId);
+    if (!from) return null;
+    return this.replayTransferByNonce(from, clientNonce);
   }
 
   /**
@@ -690,18 +853,36 @@ export class CharacterAccountsService {
     txIn: FinanceTransaction,
     input: TransferInput,
   ): Promise<{ from: CharacterAccount; to: CharacterAccount }> {
+    // D-SEC-GAP float — txIn.delta už je normalizovaná (roundMoney) částka
+    // z `transfer`; fallback ji přebírá, ne surový input.amount.
+    const amount = txIn.delta;
     // FIX-13 — debet zdroje musí projít krytím (vzor debitIfSufficient),
     // jinak transfer strhne účet do záporu bez kontroly.
+    // D-PURCHASE-IDEMPOTENCY — guardNonce: viz tx cesta (atomický filtr).
     const fromUpdated = await this.accountsRepo.appendTransactionIfSufficient(
       from.id,
       txOut,
-      input.amount,
+      amount,
+      undefined,
+      input.clientNonce ?? null,
     );
-    if (!fromUpdated)
+    if (!fromUpdated) {
+      // D-PURCHASE-IDEMPOTENCY — prohraný závod na nonce → replay vítěze.
+      if (
+        input.clientNonce &&
+        (await this.nonceAlreadyOnAccount(from.id, input.clientNonce))
+      ) {
+        const replayed = await this.replayTransferByNonceId(
+          from.id,
+          input.clientNonce,
+        );
+        if (replayed) return replayed;
+      }
       throw new ConflictException({
         code: 'INSUFFICIENT_FUNDS',
         message: 'Na účtu není dostatek prostředků.',
       });
+    }
     try {
       const toUpdated = await this.accountsRepo.appendTransaction(to.id, txIn);
       if (!toUpdated) throw new Error('TO_NOT_FOUND_AFTER_FROM_SUCCESS');
@@ -710,7 +891,7 @@ export class CharacterAccountsService {
         recipientCharacterIds: to.ownerCharacterIds,
         fromAccountId: from.id,
         toAccountId: to.id,
-        amount: input.amount,
+        amount,
         currency: to.currency,
         description: input.description || 'Převod',
       };
@@ -719,15 +900,31 @@ export class CharacterAccountsService {
     } catch (err) {
       logError(
         this.logger,
-        `Transfer revert: krok 2 selhal pro ${input.fromAccountId} → ${input.toAccountId}, amount ${input.amount}.`,
+        `Transfer revert: krok 2 selhal pro ${input.fromAccountId} → ${input.toAccountId}, amount ${amount}.`,
         err,
       );
+      // D-PURCHASE-IDEMPOTENCY — převod NEproběhl (debet se kompenzuje) →
+      // nonce nesmí zůstat spotřebovaný, jinak by retry klienta dostal falešný
+      // replay „úspěchu". Vyčisti ho z původní tx PŘED appendem revertu.
+      if (txOut.clientNonce) {
+        await this.accountsRepo
+          .clearTransactionNonce(from.id, txOut.id)
+          .catch((clearErr) =>
+            logError(
+              this.logger,
+              `Transfer revert: vyčištění clientNonce selhalo pro ${from.id} tx ${txOut.id} — retry se stejným nonce vrátí falešný replay.`,
+              clearErr,
+            ),
+          );
+      }
       try {
         await this.accountsRepo.appendTransaction(from.id, {
           ...txOut,
           id: randomUUID(),
-          delta: input.amount,
+          delta: amount,
           description: `Revert: ${txOut.description}`,
+          // Revert tx nonce nést nesmí (klíč idempotence patří jen debetu).
+          clientNonce: null,
         });
       } catch (revertErr) {
         logError(

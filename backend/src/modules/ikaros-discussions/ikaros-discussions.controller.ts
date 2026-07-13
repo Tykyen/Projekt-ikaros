@@ -66,6 +66,16 @@ export class IkarosDiscussionsController {
     return this.service.findAll(user.id, user.role, user.username);
   }
 
+  // D-DROBNE — statická routa MUSÍ být před `@Get(':id')` (pořadí rout).
+  @Get('my')
+  @ApiOperation({
+    summary: 'Vlastní diskuze aktuálního uživatele (vč. pending)',
+  })
+  @ApiResponse({ status: 200 })
+  findMy(@CurrentUser() user: RequestUser) {
+    return this.service.findMy(user.id);
+  }
+
   @Get('pending')
   @ApiOperation({ summary: 'Diskuze čekající na schválení' })
   @ApiResponse({ status: 200 })

@@ -149,6 +149,16 @@ export class CharactersService {
     return character;
   }
 
+  /**
+   * D-SEC-GAP (slug kolize diakritiky) — existence check pro cizí moduly
+   * (PagesService.ensureAvailableSlug). Characters mají vlastní `{worldId,
+   * slug}` unique index; page slug musí být volný i tady, jinak interní
+   * auto-create postavy (persona/Lokace) spadne na 409 CHARACTER_SLUG_TAKEN.
+   */
+  existsBySlug(slug: string, worldId: string): Promise<boolean> {
+    return this.charRepo.existsBySlugAndWorld(slug, worldId);
+  }
+
   async assertSubdocAccess(
     slug: string,
     worldId: string,
@@ -292,8 +302,9 @@ export class CharactersService {
       });
 
     // ABU (styl 34) — kumulativní strop postav/svět proti flood útoku: 1 create
-    // spustí kaskádu subdoců (calendar/finance/inventory [+diary/notes u persony]).
-    // 5000 je velkorysé i pro NPC-těžký svět; brání zaplavení DB z jednoho účtu.
+    // spustí kaskádu subdoců (calendar [+diary/notes u persony] [+finance/
+    // inventory u PC — D-NEW-INV-DATA-SYNC]). 5000 je velkorysé i pro
+    // NPC-těžký svět; brání zaplavení DB z jednoho účtu.
     const MAX_CHARACTERS_PER_WORLD = 5000;
     const count = await this.charRepo.countByWorld(worldId);
     if (count >= MAX_CHARACTERS_PER_WORLD)

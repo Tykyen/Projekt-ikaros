@@ -35,6 +35,7 @@ describe('NaboryService', () => {
       delete: jest.fn(),
       addReport: jest.fn(),
       countAll: jest.fn(),
+      countActiveByAuthor: jest.fn().mockResolvedValue(0),
     };
     msg = { create: jest.fn().mockResolvedValue({}) };
     service = new NaboryService(

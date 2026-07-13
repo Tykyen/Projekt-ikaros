@@ -34,6 +34,8 @@ describe('IkarosArticlesService — 3.2a reads & anon', () => {
     upsertRating: jest.fn(),
     delete: jest.fn(),
     countByAuthorAndStatus: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByAuthor: jest.fn().mockResolvedValue(0),
     findPendingPaginated: jest.fn(),
     countByStatus: jest.fn(),
     countByCategory: jest.fn(),

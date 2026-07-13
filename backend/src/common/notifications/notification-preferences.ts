@@ -18,7 +18,8 @@ export type NotificationCategory =
   | 'worldNews'
   | 'ikarosNews'
   | 'hospoda'
-  | 'adminChat';
+  | 'adminChat'
+  | 'posta';
 
 export interface NotificationPreferences {
   /** Master vypínač push. Default true. `false` = žádný push bez ohledu na kategorie. */
@@ -39,6 +40,8 @@ export interface NotificationPreferences {
   hospoda?: boolean;
   /** Nová zpráva v interním chatu správy platformy (/admin/chat). Default ZAP. */
   adminChat?: boolean;
+  /** Nová zpráva v Poště (soukromá zpráva / systémové oznámení). Default ZAP. */
+  posta?: boolean;
 }
 
 /** Default stav každé kategorie. Vše ZAP kromě Hospody. */
@@ -54,6 +57,7 @@ export const NOTIFICATION_CATEGORY_DEFAULTS: Record<
   ikarosNews: true,
   hospoda: false,
   adminChat: true,
+  posta: true,
 };
 
 export const NOTIFICATION_CATEGORIES = Object.keys(

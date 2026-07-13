@@ -111,12 +111,16 @@ export class UsersController {
         code: 'NO_FILE',
         message: 'Soubor chybí',
       });
-    const { url } = await this.uploadService.uploadUserImage(
+    const { url, bytes } = await this.uploadService.uploadUserImage(
       file,
       `ikaros/users/${user.id}/avatar`,
       512,
     );
-    return this.usersService.update(user.id, { avatarUrl: url });
+    // D-19.2 — ulož i velikost blobu (měření storage per uživatel).
+    return this.usersService.update(user.id, {
+      avatarUrl: url,
+      avatarBytes: bytes,
+    });
   }
 
   @Delete('me/avatar')
@@ -124,7 +128,11 @@ export class UsersController {
   @ApiOperation({ summary: 'Odebrání vlastního avataru' })
   async deleteAvatar(@CurrentUser() user: Requester) {
     await this.uploadService.deleteUserImage(`ikaros/users/${user.id}/avatar`);
-    return this.usersService.update(user.id, { avatarUrl: '' });
+    // D-19.2 — smazaný avatar = 0 B.
+    return this.usersService.update(user.id, {
+      avatarUrl: '',
+      avatarBytes: 0,
+    });
   }
 
   @Post('me/character/avatar')
@@ -142,12 +150,16 @@ export class UsersController {
         code: 'NO_FILE',
         message: 'Soubor chybí',
       });
-    const { url } = await this.uploadService.uploadUserImage(
+    const { url, bytes } = await this.uploadService.uploadUserImage(
       file,
       `ikaros/users/${user.id}/character`,
       256,
     );
-    return this.usersService.update(user.id, { characterAvatarUrl: url });
+    // D-19.2 — ulož i velikost blobu (měření storage per uživatel).
+    return this.usersService.update(user.id, {
+      characterAvatarUrl: url,
+      characterAvatarBytes: bytes,
+    });
   }
 
   @Delete('me/character/avatar')
@@ -157,7 +169,11 @@ export class UsersController {
     await this.uploadService.deleteUserImage(
       `ikaros/users/${user.id}/character`,
     );
-    return this.usersService.update(user.id, { characterAvatarUrl: '' });
+    // D-19.2 — smazaný avatar postavy = 0 B.
+    return this.usersService.update(user.id, {
+      characterAvatarUrl: '',
+      characterAvatarBytes: 0,
+    });
   }
 
   // ── 8.3 / D-074 — Oblíbené postavy per svět ─────────────────────────

@@ -137,6 +137,14 @@ export class MongoWorldsRepository
     return this.model.countDocuments({ deletedAt: null }).exec();
   }
 
+  async countByOwnerId(ownerId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // světů na účet. Záměrně VČETNĚ soft-deleted (deletedAt != null) — cyklus
+    // „vytvoř → smaž → vytvoř" jinak strop obchází a bloat v DB zůstává.
+    // Index { ownerId: 1 } existuje.
+    return this.model.countDocuments({ ownerId }).exec();
+  }
+
   async findByOwnerId(ownerId: string): Promise<World[]> {
     const docs = await this.model
       .find({ ownerId, isActive: true })
@@ -229,6 +237,8 @@ export class MongoWorldsRepository
       previousSlugs: (doc.previousSlugs as string[]) ?? [],
       description: doc.description as string | undefined,
       imageUrl: doc.imageUrl as string | undefined,
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: doc.imageBytes as number | undefined,
       genre: doc.genre as string | undefined,
       tones: (doc.tones as string[]) ?? [],
       playersWanted: doc.playersWanted as string | undefined,
@@ -249,6 +259,8 @@ export class MongoWorldsRepository
       themeId: (doc.themeId as string) ?? 'modre-nebe',
       themeOverrides: (doc.themeOverrides as Record<string, string>) ?? {},
       themeBackgroundUrl: doc.themeBackgroundUrl as string | undefined,
+      // D-19.2 — velikost blobu pozadí motivu; staré dokumenty undefined.
+      themeBackgroundBytes: doc.themeBackgroundBytes as number | undefined,
       activeMapWeather:
         (doc.activeMapWeather as World['activeMapWeather']) ?? null,
       diceVisibility:

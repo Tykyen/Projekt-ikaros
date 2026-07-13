@@ -26,6 +26,8 @@ export class MongoIkarosGalleryRepository implements IIkarosGalleryRepository {
       publicId: (doc.publicId as string) ?? '',
       width: (doc.width as number) ?? 0,
       height: (doc.height as number) ?? 0,
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      bytes: doc.bytes as number | undefined,
       category: (doc.category as string) ?? 'ostatni',
       authorId: doc.authorId as string,
       authorName: doc.authorName as string,
@@ -194,13 +196,19 @@ export class MongoIkarosGalleryRepository implements IIkarosGalleryRepository {
     return this.model.countDocuments().exec();
   }
 
+  async countByAuthor(authorId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // galerie autora. Index { authorId: 1 } existuje.
+    return this.model.countDocuments({ authorId }).exec();
+  }
+
   async findPendingPaginated(
     offset: number,
     limit: number,
   ): Promise<IkarosGalleryItem[]> {
     const docs = await this.model
       .find({ status: 'Pending' })
-      .sort({ createdAtUtc: -1 })
+      .sort({ createdAtUtc: -1, _id: -1 })
       .skip(offset)
       .limit(limit)
       .lean()

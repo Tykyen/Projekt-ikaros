@@ -91,6 +91,12 @@ export class WorldOperationsService {
         inverse = result.inverse;
         break;
       }
+      case 'member.bulkRestoreAssignments': {
+        const result = await this.handleBulkRestore(worldId, op, user);
+        cascadeMapOpIds = result.cascadeMapOpIds;
+        inverse = result.inverse;
+        break;
+      }
       default: {
         const _exhaustive: never = op;
         void _exhaustive;
@@ -157,6 +163,12 @@ export class WorldOperationsService {
       case 'member.bulkAssignToScene': {
         for (const uid of op.userIds) {
           this.emitForSingleAssign(worldId, uid, op.sceneId);
+        }
+        return;
+      }
+      case 'member.bulkRestoreAssignments': {
+        for (const a of op.assignments) {
+          this.emitForSingleAssign(worldId, a.userId, a.sceneId);
         }
         return;
       }
@@ -390,11 +402,119 @@ export class WorldOperationsService {
       });
     }
 
-    // Inverse: pole jednotlivých per-user assignToScene (nebo unassign).
-    // V MVP držíme bulk inverse jako single bulk-assign zpět na PŮVODNÍ scenes —
-    // ALE bulk by jen jednu cílovou scénu uměl. Proto inverse = null v bulku;
-    // PJ musí undo přes per-user kroky (akceptovatelná limitace MVP).
-    const inverse: WorldOperationPayload | null = null;
+    // D-NEW-INV-MAPS — inverse = `member.bulkRestoreAssignments` s PŮVODNÍM
+    // per-member přiřazením (before-stav z memberships snapshotu načteného
+    // před zápisem; `null` = member byl bez scény → restore ho unassigne).
+    const inverse: WorldOperationPayload = {
+      type: 'member.bulkRestoreAssignments',
+      assignments: op.userIds.map((uid, i) => ({
+        userId: uid,
+        sceneId: memberships[i]!.currentSceneId ?? null,
+      })),
+    };
+
+    return { cascadeMapOpIds, inverse };
+  }
+
+  /**
+   * D-NEW-INV-MAPS — obnoví per-member přiřazení (inverse `bulkAssignToScene`).
+   * Každý member může mít jinou cílovou scénu (nebo `null` = unassign).
+   * PJ-only (authorizer). Vlastní inverse = bulkRestore zpět na stav před
+   * touto operací (redo-friendly).
+   */
+  private async handleBulkRestore(
+    worldId: string,
+    op: {
+      type: 'member.bulkRestoreAssignments';
+      assignments: { userId: string; sceneId: string | null }[];
+    },
+    user: OperationRequestUser,
+  ): Promise<{
+    cascadeMapOpIds: string[];
+    inverse: WorldOperationPayload | null;
+  }> {
+    // Validate cílové scény (distinct, bez null) — existence + patří do světa
+    const targetSceneIds = [
+      ...new Set(
+        op.assignments
+          .map((a) => a.sceneId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    for (const sceneId of targetSceneIds) {
+      const scene = await this.mapsRepo.findById(sceneId);
+      if (!scene) {
+        throw new NotFoundException({
+          code: 'MAP_SCENE_NOT_FOUND',
+          message: 'Cílová scéna nenalezena',
+        });
+      }
+      if (scene.worldId !== worldId) {
+        throw new ConflictException({
+          code: 'MAP_MEMBER_NOT_IN_WORLD',
+          message: 'Scéna patří do jiného světa',
+        });
+      }
+    }
+
+    // Load memberships (before-stav pro vlastní inverse + cascade lookup)
+    const memberships = await Promise.all(
+      op.assignments.map((a) =>
+        this.membershipRepo.findByUserAndWorld(a.userId, worldId),
+      ),
+    );
+    const missingIdx = memberships.findIndex((m) => m === null);
+    if (missingIdx !== -1) {
+      throw new NotFoundException({
+        code: 'MAP_MEMBER_NOT_FOUND',
+        message: `Uživatel ${op.assignments[missingIdx].userId} není member`,
+      });
+    }
+
+    // Cascade token.remove ze staré scény (jen když se scéna reálně mění)
+    const cascadeMapOpIds: string[] = [];
+    for (let i = 0; i < op.assignments.length; i++) {
+      const oldSceneId = memberships[i]!.currentSceneId ?? null;
+      const newSceneId = op.assignments[i].sceneId;
+      if (oldSceneId && oldSceneId !== newSceneId) {
+        const cascadeId = await this.cascadeRemoveTokenFromScene(
+          oldSceneId,
+          op.assignments[i].userId,
+          user,
+        );
+        if (cascadeId) cascadeMapOpIds.push(cascadeId);
+      }
+    }
+
+    // Per-member update (cíle se liší → nelze setCurrentSceneForMany)
+    for (const a of op.assignments) {
+      await this.membershipRepo.setCurrentScene(a.userId, worldId, a.sceneId);
+    }
+
+    // RC-D6 vzor — scéna se mohla smazat v okně validace↔zápis. Re-ověř;
+    // dotčené membery vrať na null (úklid dangling refů) a hoď 404.
+    for (const sceneId of targetSceneIds) {
+      const stillExists = await this.mapsRepo.findById(sceneId);
+      if (!stillExists) {
+        for (const a of op.assignments) {
+          if (a.sceneId === sceneId) {
+            await this.membershipRepo.setCurrentScene(a.userId, worldId, null);
+          }
+        }
+        throw new NotFoundException({
+          code: 'MAP_SCENE_NOT_FOUND',
+          message: 'Cílová scéna byla mezitím smazána',
+        });
+      }
+    }
+
+    const inverse: WorldOperationPayload = {
+      type: 'member.bulkRestoreAssignments',
+      assignments: op.assignments.map((a, i) => ({
+        userId: a.userId,
+        sceneId: memberships[i]!.currentSceneId ?? null,
+      })),
+    };
 
     return { cascadeMapOpIds, inverse };
   }

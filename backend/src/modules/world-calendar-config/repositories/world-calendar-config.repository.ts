@@ -61,6 +61,12 @@ export class MongoWorldCalendarConfigRepository
     );
   }
 
+  async countByWorldId(worldId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // kalendářů světa. Index { worldId: 1 } existuje.
+    return this.model.countDocuments({ worldId }).exec();
+  }
+
   async findBySlug(
     worldId: string,
     slug: string,

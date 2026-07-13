@@ -35,6 +35,8 @@ export class BestieSchemaClass {
 
   @Prop({ required: true }) name!: string;
   @Prop() imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech (kvóty UM-10); staré docs nemají. */
+  @Prop() imageBytes?: number;
   // Výřez obrázku (parity s GameEvent/WorldNews). null = default (focal 50/50).
   @Prop({ type: Number, default: null }) imageFocalX?: number | null;
   @Prop({ type: Number, default: null }) imageFocalY?: number | null;

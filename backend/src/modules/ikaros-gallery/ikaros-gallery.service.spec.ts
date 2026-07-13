@@ -41,6 +41,8 @@ describe('IkarosGalleryService', () => {
     upsertRating: jest.fn(),
     delete: jest.fn(),
     countByAuthorAndStatus: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByAuthor: jest.fn().mockResolvedValue(0),
     countByCategory: jest.fn(),
   };
   const mockUsersRepo = {
@@ -109,6 +111,7 @@ describe('IkarosGalleryService', () => {
         publicId: 'gallery/abc',
         width: 1024,
         height: 768,
+        bytes: 45_678, // D-19.2 — velikost blobu z uploadu
       });
     });
 
@@ -137,6 +140,21 @@ describe('IkarosGalleryService', () => {
           publicId: 'gallery/abc',
           category: 'fanart',
         }),
+      );
+    });
+
+    // D-19.2 — velikost blobu z uploadu se persistuje (měření storage / kvóty).
+    it('D-19.2 — uloží bytes z výsledku uploadu', async () => {
+      mockRepo.create.mockResolvedValue(mockItem);
+      await service.create(
+        { title: 'Test', submit: false, rightsDeclared: true },
+        fakeFile,
+        'user1',
+        'Autor',
+        UserRole.Hrac,
+      );
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ bytes: 45_678 }),
       );
     });
 

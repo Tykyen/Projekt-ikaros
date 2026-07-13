@@ -45,7 +45,7 @@ export class MongoWeatherHistoryRepository implements IWeatherHistoryRepository 
     const safeOffset = Math.max(0, offset);
     const docs = await this.model
       .find({ worldId, generatorId })
-      .sort({ recordedAt: -1 })
+      .sort({ recordedAt: -1, _id: -1 })
       .skip(safeOffset)
       .limit(safeLimit)
       .lean()

@@ -2,6 +2,7 @@ import { ChatGateway } from './chat.gateway';
 import { ChatPresenceService } from './chat-presence.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import type { ChatService } from './chat.service';
+import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import type { JwtService } from '@nestjs/jwt';
 import type { Server, Socket } from 'socket.io';
 
@@ -29,11 +30,23 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
   let gateway: ChatGateway;
   let presence: ChatPresenceService;
   let chatService: { resolveChannelPresenceRole: jest.Mock };
+  let usersRepo: { findById: jest.Mock };
   let srv: ReturnType<typeof mockServer>;
 
   beforeEach(() => {
     presence = new ChatPresenceService();
     chatService = { resolveChannelPresenceRole: jest.fn() };
+    // W-3 dokončení — username/avatar presence se dotahují z DB (server
+    // identity); mock vrací deterministická data odvozená z userId.
+    usersRepo = {
+      findById: jest.fn((id: string) =>
+        Promise.resolve({
+          id,
+          username: `${id}-server`,
+          avatarUrl: `${id}.png`,
+        }),
+      ),
+    };
     const jwtService = {
       verify: jest.fn(() => ({ sub: 'u1' })),
     } as unknown as JwtService;
@@ -41,6 +54,7 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
       chatService as unknown as ChatService,
       presence,
       jwtService,
+      usersRepo as unknown as IUsersRepository,
     );
     srv = mockServer();
     gateway.server = srv.server;
@@ -101,16 +115,19 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
     expect(srv.emit).not.toHaveBeenCalled();
   });
 
-  it('handleChannelJoin broadcastne příchod a uloží presence', async () => {
+  it('handleChannelJoin broadcastne příchod a uloží presence (jméno/avatar z DB)', async () => {
     chatService.resolveChannelPresenceRole.mockResolvedValue(5);
-    await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'Aragorn' },
-      socket('s1'),
-    );
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s1'));
     expect(srv.to).toHaveBeenCalledWith('chat:ch1');
     expect(srv.emit).toHaveBeenCalledWith(
       'chat:presence',
-      expect.objectContaining({ action: 'join', userId: 'u1', worldRole: 5 }),
+      expect.objectContaining({
+        action: 'join',
+        userId: 'u1',
+        worldRole: 5,
+        username: 'u1-server',
+        avatarUrl: 'u1.png',
+      }),
     );
     expect(presence.list('ch1')).toHaveLength(1);
   });
@@ -119,7 +136,7 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
     chatService.resolveChannelPresenceRole.mockResolvedValue(5);
     // Útočník pošle cizí userId v payloadu, ale ověřený socket patří 'u1'.
     await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'victim-id', username: 'Fake' },
+      { channelId: 'ch1', userId: 'victim-id' } as { channelId: string },
       socket('s1', 'u1'),
     );
     // Role se resolvuje pro OVĚŘENÝ userId, ne pro podvržený payload.
@@ -134,45 +151,67 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
     );
   });
 
-  it('W-3 — handleChannelJoin neudělá nic na neautentizovaném socketu (bez data.userId)', async () => {
+  it('W-3 dokončení — spoofnutý username/avatarUrl v payloadu se nepropíše (jde z DB)', async () => {
+    chatService.resolveChannelPresenceRole.mockResolvedValue(5);
     await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'A' },
-      { id: 's1', data: {} } as unknown as Socket,
+      {
+        channelId: 'ch1',
+        username: 'FakePJ',
+        avatarUrl: 'fake.png',
+      } as { channelId: string },
+      socket('s1', 'u1'),
     );
+    // Broadcast i uložená presence nesou serverovou identitu z usersRepo.
+    expect(usersRepo.findById).toHaveBeenCalledWith('u1');
+    expect(srv.emit).toHaveBeenCalledWith(
+      'chat:presence',
+      expect.objectContaining({ username: 'u1-server', avatarUrl: 'u1.png' }),
+    );
+    expect(srv.emit).not.toHaveBeenCalledWith(
+      'chat:presence',
+      expect.objectContaining({ username: 'FakePJ' }),
+    );
+    expect(presence.list('ch1')).toEqual([
+      expect.objectContaining({ username: 'u1-server', avatarUrl: 'u1.png' }),
+    ]);
+  });
+
+  it('W-3 dokončení — uživatel neexistující v DB se do presence nedostane', async () => {
+    chatService.resolveChannelPresenceRole.mockResolvedValue(5);
+    usersRepo.findById.mockResolvedValue(null);
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s1'));
+    expect(srv.emit).not.toHaveBeenCalled();
+    expect(presence.list('ch1')).toHaveLength(0);
+  });
+
+  it('W-3 — handleChannelJoin neudělá nic na neautentizovaném socketu (bez data.userId)', async () => {
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, {
+      id: 's1',
+      data: {},
+    } as unknown as Socket);
     expect(chatService.resolveChannelPresenceRole).not.toHaveBeenCalled();
     expect(srv.emit).not.toHaveBeenCalled();
   });
 
   it('handleChannelJoin nic neudělá když uživatel není člen světa', async () => {
     chatService.resolveChannelPresenceRole.mockResolvedValue(null);
-    await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'X' },
-      socket('s1'),
-    );
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s1'));
+    expect(usersRepo.findById).not.toHaveBeenCalled();
     expect(srv.emit).not.toHaveBeenCalled();
     expect(presence.list('ch1')).toHaveLength(0);
   });
 
   it('handleChannelJoin nebroadcastne podruhé (už přítomen jiným socketem)', async () => {
     chatService.resolveChannelPresenceRole.mockResolvedValue(2);
-    await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'A' },
-      socket('s1'),
-    );
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s1'));
     srv.emit.mockClear();
-    await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'A' },
-      socket('s2'),
-    );
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s2'));
     expect(srv.emit).not.toHaveBeenCalled();
   });
 
   it('handleChannelLeave broadcastne odchod', async () => {
     chatService.resolveChannelPresenceRole.mockResolvedValue(2);
-    await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'A' },
-      socket('s1'),
-    );
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s1'));
     srv.emit.mockClear();
     gateway.handleChannelLeave({ channelId: 'ch1' }, socket('s1'));
     expect(srv.emit).toHaveBeenCalledWith(
@@ -183,14 +222,8 @@ describe('ChatGateway — presence (krok 6.1d)', () => {
 
   it('handleDisconnect odebere presence ze všech konverzací', async () => {
     chatService.resolveChannelPresenceRole.mockResolvedValue(2);
-    await gateway.handleChannelJoin(
-      { channelId: 'ch1', userId: 'u1', username: 'A' },
-      socket('s1'),
-    );
-    await gateway.handleChannelJoin(
-      { channelId: 'ch2', userId: 'u1', username: 'A' },
-      socket('s1'),
-    );
+    await gateway.handleChannelJoin({ channelId: 'ch1' }, socket('s1'));
+    await gateway.handleChannelJoin({ channelId: 'ch2' }, socket('s1'));
     srv.emit.mockClear();
     gateway.handleDisconnect(socket('s1'));
     expect(srv.emit).toHaveBeenCalledTimes(2);

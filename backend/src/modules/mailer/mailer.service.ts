@@ -4,6 +4,7 @@ import type {
   MailerTemplate,
   MailerPayload,
 } from './interfaces/mailer-provider.interface';
+import { MailOutboxService } from './mail-outbox.service';
 
 /**
  * Public API pro odesílání transakčních emailů.
@@ -12,6 +13,12 @@ import type {
  * přes `IMailerProvider` interface. `dispatch()` swallows errors do log
  * — Mailer fail nikdy nebreaké volající flow (anti-enumeration v forgotPassword,
  * resilience proti SMTP timeoutům).
+ *
+ * D-LAUNCH-GAP „SMTP bez fronty": s SMTP providerem (`queueable`) se mail
+ * NEposílá přímo, ale zapíše do Mongo outboxu (`mail_outbox`) — odesílá ho
+ * cron `MailOutboxSender` (denní cap, retry/backoff, priorita reset hesla).
+ * Fail-safe: když zápis do outboxu selže (Mongo down), mail jde PŘÍMO přes
+ * provider — reset hesla nikdy neumře na frontě.
  */
 @Injectable()
 export class MailerService {
@@ -20,6 +27,7 @@ export class MailerService {
   constructor(
     @Inject('IMailerProvider')
     private readonly provider: IMailerProvider,
+    private readonly outbox: MailOutboxService,
   ) {}
 
   async sendPasswordReset(opts: {
@@ -102,6 +110,19 @@ export class MailerService {
     template: MailerTemplate,
     payload: MailerPayload,
   ): Promise<void> {
+    if (this.provider.queueable) {
+      try {
+        await this.outbox.enqueue(template, payload);
+        return;
+      } catch (err) {
+        // Fail-safe: Mongo zápis do outboxu selhal → pošli PŘÍMO (reset hesla
+        // nikdy neumře na frontě) + logError. Bez capu/retry, ale mail odejde.
+        this.logger.error(
+          `Mail outbox enqueue selhal — fallback na přímé odeslání: template=${template} to=${MailerService.mask(payload.to)}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      }
+    }
     try {
       await this.provider.send(template, payload);
     } catch (err) {

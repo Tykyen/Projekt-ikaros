@@ -19,6 +19,9 @@ describe('BestiaeService', () => {
   const mockRepo = {
     findVisible: jest.fn(),
     findById: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood capy; default hluboko pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
+    countByOwner: jest.fn().mockResolvedValue(0),
     create: jest.fn((doc) => Promise.resolve({ id: 'b1', ...doc })),
     updateAtomic: jest.fn(),
     softDelete: jest.fn(),

@@ -6,6 +6,8 @@ export interface IPagesRepository {
   findBySlugAndWorld(slug: string, worldId: string): Promise<Page | null>;
   findByWorld(worldId: string, type?: string): Promise<Page[]>;
   existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet stránek světa (creation cap). */
+  countByWorld(worldId: string): Promise<number>;
   save(page: Partial<Page>): Promise<Page>;
   update(id: string, data: Partial<Page>): Promise<Page | null>;
   /**
@@ -25,7 +27,7 @@ export interface IPagesRepository {
     worldId: string,
     types?: string[],
   ): Promise<
-    Pick<
+    (Pick<
       Page,
       | 'id'
       | 'slug'
@@ -42,7 +44,11 @@ export interface IPagesRepository {
       | 'accessRequirements'
       | 'isWoodWide'
       | 'moderationHidden'
-    >[]
+    > & {
+      /** D-DATA-SYNC-ZBYTKY a — link na Character entity (null = čistá stránka).
+       *  entry.id zůstává page ID; characterId je vedlejší pole. */
+      characterId: string | null;
+    })[]
   >;
   findAllSlugs(worldId: string): Promise<string[]>;
   findRandom(worldId: string, count: number): Promise<Page[]>;

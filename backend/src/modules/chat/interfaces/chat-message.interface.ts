@@ -45,6 +45,13 @@ export interface ChatMessage {
   content: string | null;
   isEdited: boolean;
   isDeleted: boolean;
+  /**
+   * D-066 (spec 20B B4b) — moderační skrytí zprávy (M2/M3). Originální obsah
+   * zůstává v DB (revert), ale ven NIKDY neodchází — `toEntity` maskuje
+   * content/attachments/mapRef/dicePayload pro všechny viewery.
+   */
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string;
   /** Systémová zpráva (příchod/odchod uživatele) — FE ji renderuje jinak. */
   isSystem?: boolean;
   /** Spec 15.8 — zpráva od hosta (anonyma) v Hospodě (odznak „host" na FE). */

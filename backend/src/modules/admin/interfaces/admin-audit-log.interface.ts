@@ -28,7 +28,9 @@ export type AdminAuditAction =
   | 'WORLD_ELEVATION_REVOKED'
   // 19.4 — admin udělil/odebral status Podporovatel.
   | 'SUPPORTER_GRANT'
-  | 'SUPPORTER_REVOKE';
+  | 'SUPPORTER_REVOKE'
+  // D-NEW-INV-ADMIN-UI — Superadmin změnil e-mail uživatele.
+  | 'EMAIL_CHANGE';
 
 /**
  * D-067 — typ cílové entity audit záznamu. `user` = výchozí (akce nad

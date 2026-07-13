@@ -99,6 +99,8 @@ describe('GameEventsService', () => {
     delete: jest.fn(),
   };
   const mockWorldsRepo = { findById: jest.fn(), findByIds: jest.fn() };
+  // D-NEW-INV-SEC persona-on-server — settings (pjChatPersona) pro applyPjPersona.
+  const mockSettingsRepo = { findByWorldId: jest.fn() };
   const mockPushService = {
     notifyUsers: jest.fn().mockResolvedValue(undefined),
   };
@@ -110,6 +112,7 @@ describe('GameEventsService', () => {
         { provide: 'IGameEventRepository', useValue: mockRepo },
         { provide: 'IWorldMembershipRepository', useValue: mockMembershipRepo },
         { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
+        { provide: 'IWorldSettingsRepository', useValue: mockSettingsRepo },
         { provide: PushService, useValue: mockPushService },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
@@ -569,6 +572,114 @@ describe('GameEventsService', () => {
           username: 'h2',
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // D-NEW-INV-SEC persona-on-server — authorName/userName vedení se čte
+  // read-time přes PJ personu (6.8); reálné jméno PJ nesmí hráčům prosáknout.
+  describe('PJ persona v komentářích a účastech', () => {
+    const pjComment = {
+      id: 'c-pj',
+      parentId: null,
+      authorId: 'pj1',
+      authorName: 'pj-realny-login',
+      content: 'Sraz v 18:00',
+      createdAt: new Date(),
+      editedAt: null,
+      reactions: {},
+      isDeleted: false,
+    };
+    const hracComment = {
+      ...pjComment,
+      id: 'c-hrac',
+      authorId: 'h1',
+      authorName: 'hrac',
+    };
+    const eventWithNames = {
+      ...baseEvent,
+      comments: [pjComment, hracComment],
+      confirmedBy: [
+        { userId: 'pj1', userName: 'pj-realny-login' },
+        { userId: 'h1', userName: 'hrac' },
+      ],
+    };
+
+    beforeEach(() => {
+      mockMembershipRepo.findByWorldId.mockResolvedValue([
+        mockPJMembership,
+        mockHracMembership,
+      ]);
+    });
+
+    it('findById: komentář + účast vedení nese personu, hráč reálné jméno', async () => {
+      mockRepo.findById.mockResolvedValue(eventWithNames);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockSettingsRepo.findByWorldId.mockResolvedValue({
+        pjChatPersona: {
+          enabled: true,
+          name: 'Vypravěč',
+          avatarUrl: null,
+          mode: 'unified',
+        },
+      });
+      const result = await service.findById('e1', mockHracUser);
+      expect(result.comments[0].authorName).toBe('Vypravěč');
+      expect(result.comments[1].authorName).toBe('hrac');
+      expect(result.confirmedBy).toEqual([
+        { userId: 'pj1', userName: 'Vypravěč' },
+        { userId: 'h1', userName: 'hrac' },
+      ]);
+    });
+
+    it('bez nastavené persony → default „PJ" (nikdy reálný login)', async () => {
+      mockRepo.findById.mockResolvedValue(eventWithNames);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockSettingsRepo.findByWorldId.mockResolvedValue(null);
+      const result = await service.findById('e1', mockHracUser);
+      expect(result.comments[0].authorName).toBe('PJ');
+      expect(result.confirmedBy[0].userName).toBe('PJ');
+    });
+
+    it('findList: mapuje personu na všech eventech', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockSettingsRepo.findByWorldId.mockResolvedValue({
+        pjChatPersona: {
+          enabled: true,
+          name: 'Kronikář',
+          avatarUrl: null,
+          mode: 'unified',
+        },
+      });
+      mockRepo.findList.mockResolvedValue([eventWithNames]);
+      const result = await service.findList({ worldId: 'w1' }, mockHracUser);
+      expect(result[0].comments[0].authorName).toBe('Kronikář');
+    });
+
+    it('confirm: potvrzení účasti vedení odchází s personou (DB drží login)', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...baseEvent,
+        confirmable: true,
+        confirmedBy: [],
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(mockPJMembership);
+      mockSettingsRepo.findByWorldId.mockResolvedValue(null);
+      mockRepo.update.mockImplementation((_id, data) =>
+        Promise.resolve({ ...baseEvent, confirmable: true, ...data }),
+      );
+      const result = await service.confirm('e1', mockPJUser);
+      // DB zápis nese reálné jméno (historická data se nemění)…
+      const updateArg = mockRepo.update.mock.calls[0][1];
+      expect(updateArg.confirmedBy).toEqual([
+        { userId: 'pj1', userName: 'pj' },
+      ]);
+      // …ale odchozí payload personu.
+      expect(result.confirmedBy).toEqual([{ userId: 'pj1', userName: 'PJ' }]);
     });
   });
 

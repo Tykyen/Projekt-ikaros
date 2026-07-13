@@ -1,5 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MapOperationsService } from './map-operations.service';
 import { OperationPayloadValidator } from './operation-payload-validator.service';
@@ -66,6 +70,8 @@ describe('MapOperationsService', () => {
       matchedCount: 1,
       modifiedCount: 1,
     }),
+    // D-LAUNCH-GAP — server-side HP delta (pipeline update + post-update fetch)
+    atomicUpdateAndFetch: jest.fn(),
     findActiveScenesByWorld: jest.fn(),
   };
   const mockOpsRepo = {
@@ -76,7 +82,9 @@ describe('MapOperationsService', () => {
         Promise.resolve({ id: 'rec1', ...record }),
       ),
     findSince: jest.fn(),
-    findLastByUser: jest.fn(),
+    // D-DROBNE-UNDO
+    findLastUndoableByUser: jest.fn(),
+    markUndone: jest.fn(),
   };
   const mockGateway = {
     emitMapOperation: jest.fn(),
@@ -86,6 +94,8 @@ describe('MapOperationsService', () => {
   };
   const mockAuthorizer = {
     assertCanDo: jest.fn().mockResolvedValue(undefined),
+    // D-DROBNE-UNDO
+    assertCanUndo: jest.fn().mockResolvedValue(undefined),
   };
   const mockWorldsRepo = {
     findById: jest.fn(),
@@ -107,6 +117,14 @@ describe('MapOperationsService', () => {
       ),
   };
   const mockEventEmitter = { emit: jest.fn() };
+  // D-NEW-INV-DATA-SYNC — token HP PC/NPC → diary customData
+  const mockCharactersRepo = {
+    findBySlugAndWorld: jest.fn(),
+  };
+  const mockDiaryRepo = {
+    findByCharacterId: jest.fn(),
+    updateWithCustomDataPatch: jest.fn(),
+  };
 
   const pj = { id: 'pj', role: UserRole.Hrac }; // role gating se děje v authorizer mock
 
@@ -120,6 +138,11 @@ describe('MapOperationsService', () => {
       matchedCount: 1,
       modifiedCount: 1,
     });
+    mockMapsRepo.atomicUpdateAndFetch.mockResolvedValue(null);
+    // D-DROBNE-UNDO — deterministické defaulty
+    mockOpsRepo.findLastUndoableByUser.mockResolvedValue(null);
+    mockOpsRepo.markUndone.mockResolvedValue(undefined);
+    mockAuthorizer.assertCanUndo.mockResolvedValue(undefined);
 
     mockMembershipRepo.findByWorldId.mockResolvedValue([]);
     mockMembershipRepo.setCurrentScene.mockResolvedValue(null);
@@ -127,6 +150,12 @@ describe('MapOperationsService', () => {
     mockWorldOpsRepo.appendOperation.mockImplementation((record) =>
       Promise.resolve({ id: 'wrec1', ...record }),
     );
+    // D-NEW-INV-DATA-SYNC — deterministické defaulty (clearAllMocks nemaže
+    // implementace; bez re-setu by mockResolvedValue z jednoho testu prosákl).
+    mockWorldsRepo.findById.mockResolvedValue(null);
+    mockCharactersRepo.findBySlugAndWorld.mockResolvedValue(null);
+    mockDiaryRepo.findByCharacterId.mockResolvedValue(null);
+    mockDiaryRepo.updateWithCustomDataPatch.mockResolvedValue(null);
 
     const module = await Test.createTestingModule({
       providers: [
@@ -151,6 +180,9 @@ describe('MapOperationsService', () => {
           useValue: mockWorldOpsRepo,
         },
         { provide: EventEmitter2, useValue: mockEventEmitter },
+        // D-NEW-INV-DATA-SYNC
+        { provide: 'ICharactersRepository', useValue: mockCharactersRepo },
+        { provide: 'ICharacterDiaryRepository', useValue: mockDiaryRepo },
       ],
     }).compile();
     service = module.get(MapOperationsService);
@@ -879,6 +911,608 @@ describe('MapOperationsService', () => {
         type: 'scene.sounds.set',
         activeSoundIds: ['old1', 'old2'],
       });
+    });
+  });
+
+  // D-NEW-INV-MAPS — scene.activate (inverse scene.deactivate) + undo roundtrip
+  describe('apply — scene.activate / undo roundtrip (D-NEW-INV-MAPS)', () => {
+    it('scene.deactivate vrací inverse scene.activate', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene({ isActive: true }));
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'scene.deactivate' },
+        pj,
+      );
+
+      expect(result.inverse).toEqual({ type: 'scene.activate' });
+    });
+
+    it('undo roundtrip: deactivate → apply inverse → CAS aktivuje zpět', async () => {
+      // Krok 1 — deactivate aktivní scény
+      mockMapsRepo.findById.mockResolvedValueOnce(
+        makeScene({ isActive: true }),
+      );
+      const deactivated = await service.apply(
+        'scene1',
+        { type: 'scene.deactivate' },
+        pj,
+      );
+      expect(deactivated.inverse).toEqual({ type: 'scene.activate' });
+
+      // Krok 2 — apply inverse na (nyní neaktivní) scénu
+      mockMapsRepo.findById.mockResolvedValueOnce(
+        makeScene({ isActive: false }),
+      );
+      const undone = await service.apply('scene1', deactivated.inverse, pj);
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenLastCalledWith(
+        { _id: 'scene1', isActive: false },
+        expect.objectContaining({
+          $set: expect.objectContaining({ isActive: true }) as unknown,
+        }),
+      );
+      expect(undone.applied).not.toBe(false);
+      // Inverse undo kroku = deactivate (redo-friendly)
+      expect(undone.inverse).toEqual({ type: 'scene.deactivate' });
+    });
+
+    it('idempotent: activate už aktivní scény → applied:false, žádný log', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ isActive: true, lastSeqNumber: 4 }),
+      );
+      // CAS na isActive: false → match miss
+      mockMapsRepo.atomicUpdate.mockResolvedValueOnce({
+        matchedCount: 0,
+        modifiedCount: 0,
+      });
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'scene.activate' },
+        pj,
+      );
+
+      expect(result.applied).toBe(false);
+      expect(result.seqNumber).toBe(4);
+      expect(mockOpsRepo.appendOperation).not.toHaveBeenCalled();
+      expect(mockGateway.emitMapOperation).not.toHaveBeenCalled();
+    });
+  });
+
+  // D-NEW-INV-MAPS — drawing.clear undo přes scene.drawings.replace
+  describe('apply — drawing.clear inverse (D-NEW-INV-MAPS)', () => {
+    const drawings = [
+      {
+        id: 'd1',
+        kind: 'line' as const,
+        points: [0, 0, 10, 10],
+        color: '#ffffff',
+        createdByUserId: 'pj',
+        visibility: 'all' as const,
+      },
+    ];
+
+    it('drawing.clear: inverse = scene.drawings.replace se snapshotem', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene({ drawings }));
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'drawing.clear' },
+        pj,
+      );
+
+      expect(result.inverse).toEqual({
+        type: 'scene.drawings.replace',
+        drawings,
+      });
+    });
+
+    it('undo roundtrip: apply inverse obnoví kresby $setem', async () => {
+      mockMapsRepo.findById.mockResolvedValueOnce(makeScene({ drawings }));
+      const cleared = await service.apply(
+        'scene1',
+        { type: 'drawing.clear' },
+        pj,
+      );
+
+      mockMapsRepo.findById.mockResolvedValueOnce(makeScene({ drawings: [] }));
+      await service.apply('scene1', cleared.inverse, pj);
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenLastCalledWith(
+        { _id: 'scene1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({ drawings }) as unknown,
+        }),
+      );
+    });
+  });
+
+  // D-NEW-INV-DATA-SYNC — token.update HP PC/NPC → diary customData postavy
+  describe('apply — token.update → diary HP sync (D-NEW-INV-DATA-SYNC)', () => {
+    it('PC token currentHp → updateWithCustomDataPatch s per-system klíčem (dnd5e)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [makeToken('t1', 'pj')] }),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'dnd5e',
+      });
+      mockCharactersRepo.findBySlugAndWorld.mockResolvedValue({ id: 'char1' });
+      mockDiaryRepo.findByCharacterId.mockResolvedValue({
+        id: 'diary1',
+        characterId: 'char1',
+        customData: {},
+        moderationHidden: false,
+      });
+
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: 7 } },
+        pj,
+      );
+
+      expect(mockCharactersRepo.findBySlugAndWorld).toHaveBeenCalledWith(
+        'abc',
+        'world1',
+      );
+      expect(mockDiaryRepo.updateWithCustomDataPatch).toHaveBeenCalledWith(
+        'char1',
+        {},
+        { dnd_hpCur: 7 },
+      );
+    });
+
+    it('NPC token (isNpc, bez templateId) se syncuje taky (matrix → matrix_health)', async () => {
+      const npc = { ...makeToken('t1', 'npc-char'), isNpc: true };
+      mockMapsRepo.findById.mockResolvedValue(makeScene({ tokens: [npc] }));
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'matrix',
+      });
+      mockCharactersRepo.findBySlugAndWorld.mockResolvedValue({ id: 'char2' });
+      mockDiaryRepo.findByCharacterId.mockResolvedValue({
+        id: 'diary2',
+        characterId: 'char2',
+        customData: {},
+        moderationHidden: false,
+      });
+
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: 3 } },
+        pj,
+      );
+
+      expect(mockDiaryRepo.updateWithCustomDataPatch).toHaveBeenCalledWith(
+        'char2',
+        {},
+        { matrix_health: 3 },
+      );
+    });
+
+    it('bestie token (templateId / bestie: prefix) → sync se NEDĚLÁ (záměr)', async () => {
+      const bestie = {
+        ...makeToken('t1', 'bestie:x'),
+        templateId: 'tpl1',
+        isNpc: true,
+      };
+      mockMapsRepo.findById.mockResolvedValue(makeScene({ tokens: [bestie] }));
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'dnd5e',
+      });
+
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: 2 } },
+        pj,
+      );
+
+      expect(mockCharactersRepo.findBySlugAndWorld).not.toHaveBeenCalled();
+      expect(mockDiaryRepo.updateWithCustomDataPatch).not.toHaveBeenCalled();
+    });
+
+    it('postava bez deníku → skip bez erroru (žádný lazy-create)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [makeToken('t1', 'pj')] }),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'dnd5e',
+      });
+      mockCharactersRepo.findBySlugAndWorld.mockResolvedValue({ id: 'char1' });
+      mockDiaryRepo.findByCharacterId.mockResolvedValue(null);
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: 5 } },
+        pj,
+      );
+
+      expect(result.seqNumber).toBe(1); // op prošla
+      expect(mockDiaryRepo.updateWithCustomDataPatch).not.toHaveBeenCalled();
+    });
+
+    it('systém bez jednoznačného HP mapování (drd2) → skip', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [makeToken('t1', 'pj')] }),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'drd2',
+      });
+
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: 5 } },
+        pj,
+      );
+
+      expect(mockCharactersRepo.findBySlugAndWorld).not.toHaveBeenCalled();
+      expect(mockDiaryRepo.updateWithCustomDataPatch).not.toHaveBeenCalled();
+    });
+
+    it('selhání diary write nesmí shodit už provedený token update (best-effort)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [makeToken('t1', 'pj')] }),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'dnd5e',
+      });
+      mockCharactersRepo.findBySlugAndWorld.mockResolvedValue({ id: 'char1' });
+      mockDiaryRepo.findByCharacterId.mockResolvedValue({
+        id: 'diary1',
+        characterId: 'char1',
+        customData: {},
+        moderationHidden: false,
+      });
+      mockDiaryRepo.updateWithCustomDataPatch.mockRejectedValue(
+        new Error('mongo down'),
+      );
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { currentHp: 5 } },
+        pj,
+      );
+
+      expect(result.seqNumber).toBe(1);
+      expect(mockOpsRepo.appendOperation).toHaveBeenCalled();
+    });
+
+    it('patch bez HP polí (jen initiative) → diary se nesahá', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [makeToken('t1', 'pj')] }),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'dnd5e',
+      });
+
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 't1', patch: { initiative: 12 } },
+        pj,
+      );
+
+      expect(mockCharactersRepo.findBySlugAndWorld).not.toHaveBeenCalled();
+      expect(mockDiaryRepo.updateWithCustomDataPatch).not.toHaveBeenCalled();
+    });
+  });
+
+  // D-LAUNCH-GAP — server-side HP/injury delta (fix lost update na tokens.$.currentHp)
+  describe('apply — token.update hpDelta/injuryDelta (D-LAUNCH-GAP)', () => {
+    const bestieToken = () => ({
+      ...makeToken('b1', 'bestie:tpl'),
+      isNpc: true,
+      templateId: 'tpl1',
+    }); // currentHp 10 / maxHp 10 z makeToken
+
+    it('hpDelta: pipeline update přes atomicUpdateAndFetch, op normalizován na FINÁLNÍ absolutní hodnotu, inverse nese starou', async () => {
+      const scene = makeScene({ tokens: [bestieToken()] });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+      mockMapsRepo.atomicUpdateAndFetch.mockResolvedValue(
+        makeScene({ tokens: [{ ...bestieToken(), currentHp: 7 }] }),
+      );
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 'b1', patch: {}, hpDelta: -3 },
+        pj,
+      );
+
+      // Atomický pipeline update (array), žádný klasický $set na currentHp
+      expect(mockMapsRepo.atomicUpdateAndFetch).toHaveBeenCalledWith(
+        { _id: 'scene1', 'tokens.id': 'b1' },
+        expect.any(Array),
+      );
+      expect(mockMapsRepo.atomicUpdate).not.toHaveBeenCalled();
+      // Normalizace: response/log/broadcast nesou výslednou absolutní hodnotu
+      // (stávající FE zná jen patch — delta by se mu neaplikovala)
+      expect(
+        (result.op as { patch: Record<string, unknown> }).patch.currentHp,
+      ).toBe(7);
+      const logged = mockOpsRepo.appendOperation.mock.calls[0][0] as {
+        op: { patch: Record<string, unknown> };
+      };
+      expect(logged.op.patch.currentHp).toBe(7);
+      const broadcast = mockGateway.emitMapOperation.mock.calls[0][1] as {
+        op: { patch: Record<string, unknown> };
+      };
+      expect(broadcast.op.patch.currentHp).toBe(7);
+      // Inverse (undo) = stará absolutní hodnota ze snapshotu
+      expect(result.inverse).toEqual({
+        type: 'token.update',
+        tokenId: 'b1',
+        patch: { currentHp: 10 },
+      });
+    });
+
+    it('injuryDelta: normalizuje injury z výsledku + inverse nese starou injury', async () => {
+      const scene = makeScene({ tokens: [{ ...bestieToken(), injury: 1 }] });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+      mockMapsRepo.atomicUpdateAndFetch.mockResolvedValue(
+        makeScene({ tokens: [{ ...bestieToken(), injury: 3 }] }),
+      );
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 'b1', patch: {}, injuryDelta: 2 },
+        pj,
+      );
+
+      expect(
+        (result.op as { patch: Record<string, unknown> }).patch.injury,
+      ).toBe(3);
+      expect(result.inverse).toEqual({
+        type: 'token.update',
+        tokenId: 'b1',
+        patch: { injury: 1 },
+      });
+    });
+
+    it('hpDelta + neprázdný patch → 400 MAP_OP_INVALID (nejednoznačná kombinace)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [bestieToken()] }),
+      );
+      await expect(
+        service.apply(
+          'scene1',
+          {
+            type: 'token.update',
+            tokenId: 'b1',
+            patch: { currentHp: 5 },
+            hpDelta: -1,
+          },
+          pj,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockMapsRepo.atomicUpdateAndFetch).not.toHaveBeenCalled();
+      expect(mockMapsRepo.atomicUpdate).not.toHaveBeenCalled();
+      expect(mockOpsRepo.allocateSeqNumber).not.toHaveBeenCalled();
+    });
+
+    it('hpDelta na PC/NPC token → 400 (HP PC/NPC žije v deníku postavy)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [makeToken('t1', 'pj')] }), // PC: bez templateId/bestie:
+      );
+      await expect(
+        service.apply(
+          'scene1',
+          { type: 'token.update', tokenId: 't1', patch: {}, hpDelta: -2 },
+          pj,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockMapsRepo.atomicUpdateAndFetch).not.toHaveBeenCalled();
+    });
+
+    it('hpDelta: token zmizel mezi load a update (fetch → null) → 404, seq se nealokuje', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [bestieToken()] }),
+      );
+      mockMapsRepo.atomicUpdateAndFetch.mockResolvedValue(null);
+      await expect(
+        service.apply(
+          'scene1',
+          { type: 'token.update', tokenId: 'b1', patch: {}, hpDelta: -2 },
+          pj,
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockOpsRepo.allocateSeqNumber).not.toHaveBeenCalled();
+    });
+
+    it('hpDelta na bestii NEvolá diary sync (bestie = nezávislá instance)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [bestieToken()] }),
+      );
+      mockMapsRepo.atomicUpdateAndFetch.mockResolvedValue(
+        makeScene({ tokens: [{ ...bestieToken(), currentHp: 8 }] }),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        system: 'dnd5e',
+      });
+
+      await service.apply(
+        'scene1',
+        { type: 'token.update', tokenId: 'b1', patch: {}, hpDelta: -2 },
+        pj,
+      );
+
+      expect(mockCharactersRepo.findBySlugAndWorld).not.toHaveBeenCalled();
+      expect(mockDiaryRepo.updateWithCustomDataPatch).not.toHaveBeenCalled();
+    });
+
+    it('hpDelta jako string → 400 na DTO validaci (CH-122: žádná tichá koerce)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(
+        makeScene({ tokens: [bestieToken()] }),
+      );
+      await expect(
+        service.apply(
+          'scene1',
+          { type: 'token.update', tokenId: 'b1', patch: {}, hpDelta: '-2' },
+          pj,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockMapsRepo.atomicUpdateAndFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  // D-DROBNE-UNDO — POST /maps/:id/operations/undo (undoLast)
+  describe('undoLast', () => {
+    const undoableRecord = (
+      overrides: Partial<{
+        id: string;
+        op: Record<string, unknown>;
+        inverse: Record<string, unknown> | null;
+      }> = {},
+    ) => ({
+      id: 'op1',
+      sceneId: 'scene1',
+      worldId: 'world1',
+      seqNumber: 7,
+      op: { type: 'token.update', tokenId: 't1', patch: { currentHp: 3 } },
+      inverse: {
+        type: 'token.update',
+        tokenId: 't1',
+        patch: { currentHp: 10 },
+      },
+      byUserId: 'pj',
+      byUserRole: UserRole.Hrac,
+      appliedAt: new Date(),
+      undone: false,
+      ...overrides,
+    });
+
+    it('vrátí token.update — aplikuje inverse (HP zpět) standardní pipeline + flagne původní op', async () => {
+      const scene = makeScene({
+        tokens: [{ ...makeToken('t1', 'pj'), currentHp: 3 }],
+      });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+      mockOpsRepo.findLastUndoableByUser.mockResolvedValue(undoableRecord());
+
+      const result = await service.undoLast('scene1', pj);
+
+      // Gate + lookup
+      expect(mockAuthorizer.assertCanUndo).toHaveBeenCalledWith(pj, scene);
+      expect(mockOpsRepo.findLastUndoableByUser).toHaveBeenCalledWith(
+        'scene1',
+        'pj',
+      );
+      // Standardní pipeline: authorizer inverse op + atomic update HP zpět na 10
+      expect(mockAuthorizer.assertCanDo).toHaveBeenCalled();
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1', 'tokens.id': 't1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'tokens.$.currentHp': 10,
+          }) as Record<string, unknown>,
+        }),
+      );
+      // Log + broadcast jako běžná op
+      expect(mockOpsRepo.appendOperation).toHaveBeenCalled();
+      expect(mockGateway.emitMapOperation).toHaveBeenCalled();
+      // Flag: původní op + undo záznam (žádné redo)
+      expect(mockOpsRepo.markUndone).toHaveBeenCalledWith('op1');
+      expect(mockOpsRepo.markUndone).toHaveBeenCalledWith('rec1');
+      expect(result.op).toMatchObject({
+        type: 'token.update',
+        tokenId: 't1',
+      });
+    });
+
+    it('undo scene.deactivate → aplikuje scene.activate (CAS aktivuje zpět)', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene({ isActive: false }));
+      mockOpsRepo.findLastUndoableByUser.mockResolvedValue(
+        undoableRecord({
+          op: { type: 'scene.deactivate' },
+          inverse: { type: 'scene.activate' },
+        }),
+      );
+
+      const result = await service.undoLast('scene1', pj);
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenLastCalledWith(
+        { _id: 'scene1', isActive: false },
+        expect.objectContaining({
+          $set: expect.objectContaining({ isActive: true }) as unknown,
+        }),
+      );
+      expect(result.applied).not.toBe(false);
+      expect(mockOpsRepo.markUndone).toHaveBeenCalledWith('op1');
+    });
+
+    it('nic k vrácení → 404 NOTHING_TO_UNDO (friendly), žádná mutace', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene());
+      mockOpsRepo.findLastUndoableByUser.mockResolvedValue(null);
+
+      const promise = service.undoLast('scene1', pj);
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toMatchObject({
+        response: { code: 'NOTHING_TO_UNDO' },
+      });
+      expect(mockMapsRepo.atomicUpdate).not.toHaveBeenCalled();
+      expect(mockOpsRepo.markUndone).not.toHaveBeenCalled();
+    });
+
+    it('hráč (ne-PJ) → 403 z assertCanUndo, ani lookup logu', async () => {
+      mockMapsRepo.findById.mockResolvedValue(makeScene());
+      mockAuthorizer.assertCanUndo.mockRejectedValueOnce(
+        new ForbiddenException({
+          code: 'MAP_OP_FORBIDDEN',
+          message: 'Vrácení operace je dostupné jen PJ / Pomocnému PJ',
+        }),
+      );
+
+      await expect(
+        service.undoLast('scene1', { id: 'player1', role: UserRole.Hrac }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockOpsRepo.findLastUndoableByUser).not.toHaveBeenCalled();
+      expect(mockMapsRepo.atomicUpdate).not.toHaveBeenCalled();
+    });
+
+    it('neexistující scéna → 404 MAP_SCENE_NOT_FOUND', async () => {
+      mockMapsRepo.findById.mockResolvedValue(null);
+      await expect(service.undoLast('missing', pj)).rejects.toMatchObject({
+        response: { code: 'MAP_SCENE_NOT_FOUND' },
+      });
+    });
+
+    it('dvojité undo nevrací tutéž op dvakrát — postupuje stackem dál', async () => {
+      const scene = makeScene({
+        isActive: false,
+        tokens: [{ ...makeToken('t1', 'pj'), currentHp: 3 }],
+      });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+      // 1. undo → poslední undoable je op1 (token.update)
+      mockOpsRepo.findLastUndoableByUser.mockResolvedValueOnce(
+        undoableRecord(),
+      );
+      // 2. undo → op1 už je flagnutá `undone`, repo vrací starší op0
+      mockOpsRepo.findLastUndoableByUser.mockResolvedValueOnce(
+        undoableRecord({
+          id: 'op0',
+          op: { type: 'scene.deactivate' },
+          inverse: { type: 'scene.activate' },
+        }),
+      );
+
+      const first = await service.undoLast('scene1', pj);
+      expect(first.op).toMatchObject({ type: 'token.update' });
+      expect(mockOpsRepo.markUndone).toHaveBeenCalledWith('op1');
+
+      const second = await service.undoLast('scene1', pj);
+      expect(second.op).toMatchObject({ type: 'scene.activate' });
+      expect(mockOpsRepo.markUndone).toHaveBeenCalledWith('op0');
+      // op1 se podruhé NEaplikovala — druhá aplikace byla scene.activate
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenLastCalledWith(
+        { _id: 'scene1', isActive: false },
+        expect.objectContaining({
+          $set: expect.objectContaining({ isActive: true }) as unknown,
+        }),
+      );
     });
   });
 });

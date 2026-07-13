@@ -78,7 +78,7 @@ export class MongoWorldNewsRepository implements IWorldNewsRepository {
     const filter = this.buildFilter(opts.worldId, opts.scope ?? 'active');
     const docs = await this.model
       .find(filter)
-      .sort({ date: -1 })
+      .sort({ date: -1, _id: -1 })
       .skip(opts.offset ?? 0)
       .limit(opts.limit)
       .lean()

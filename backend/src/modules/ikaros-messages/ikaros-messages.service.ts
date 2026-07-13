@@ -1,17 +1,20 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { Types } from 'mongoose';
+import { logWarn } from '../../common/logging/log-error.util';
 import type { IIkarosMessagesRepository } from './interfaces/ikaros-messages-repository.interface';
 import type { IkarosMessage } from './interfaces/ikaros-message.interface';
 import type { CreateIkarosMessageDto } from './dto/create-ikaros-message.dto';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../users/interfaces/user.interface';
 import type { IFriendshipsRepository } from '../friendships/interfaces/friendships-repository.interface';
+import { PushService } from '../push/push.service';
 
 interface SenderRef {
   id: string;
@@ -26,6 +29,8 @@ interface SenderRef {
 
 @Injectable()
 export class IkarosMessagesService {
+  private readonly logger = new Logger(IkarosMessagesService.name);
+
   constructor(
     @Inject('IIkarosMessagesRepository')
     private readonly msgRepo: IIkarosMessagesRepository,
@@ -33,6 +38,8 @@ export class IkarosMessagesService {
     @Inject('IFriendshipsRepository')
     private readonly friendsRepo: IFriendshipsRepository,
     private readonly eventEmitter: EventEmitter2,
+    // D-NEW-INV-PUSH — PushModule je @Global, netřeba import v module.
+    private readonly pushService: PushService,
   ) {}
 
   /**
@@ -103,6 +110,27 @@ export class IkarosMessagesService {
       // jen při systémové zprávě, ne při každé běžné poště (zbytečné refetchy).
       system: msg.senderId === 'system',
     });
+
+    // D-NEW-INV-PUSH — web push příjemci (dřív jen WS, zavřená appka nic
+    // nedostala). Vzor platform-chat: vlastní kategorie (`posta`, default ZAP),
+    // deep-link na Poštu, tag sloučí notifikace téhož vlákna na zařízení.
+    // Odesílatel se nepushuje (zpráva sám sobě). Fire-and-forget.
+    if (msg.recipientId !== sender.id) {
+      void this.pushService
+        .notify(
+          msg.recipientId,
+          {
+            title: 'Nová zpráva v Poště',
+            body: `${msg.senderName}: ${msg.subject}`.slice(0, 120),
+            url: '/ikaros/posta',
+            tag: `posta-${msg.conversationId ?? msg.id}`,
+          },
+          'posta',
+        )
+        .catch((err: unknown) =>
+          logWarn(this.logger, 'push selhal pro zprávu pošty', err),
+        );
+    }
     return msg;
   }
 

@@ -218,6 +218,28 @@ export class MapsController {
   }
 
   @ApiOperation({
+    summary:
+      'D-DROBNE-UNDO — vrátí poslední vlastní operaci (aplikuje inverse z logu)',
+  })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({
+    status: 403,
+    description: 'MAP_OP_FORBIDDEN — undo jen PJ / PomocnyPJ',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'MAP_SCENE_NOT_FOUND / NOTHING_TO_UNDO (není co vrátit)',
+  })
+  @Post(':id/operations/undo')
+  @UseGuards(JwtAuthGuard)
+  async undoOperation(
+    @Param('id') sceneId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.mapOps.undoLast(sceneId, user);
+  }
+
+  @ApiOperation({
     summary: '10.2-prep-1 — catch-up operace od seqNumber (per-scene log)',
   })
   @ApiResponse({ status: 200 })

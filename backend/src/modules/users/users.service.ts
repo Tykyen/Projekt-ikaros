@@ -213,7 +213,16 @@ export class UsersService implements OnModuleInit {
     this.tombstoneCache.delete(userId);
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<SanitizedUser> {
+  async update(
+    id: string,
+    // D-19.2 — avatarBytes/characterAvatarBytes jsou INTERNÍ pole (nastavuje je
+    // jen users.controller z výsledku uploadu), proto nejsou v UpdateUserDto
+    // (PATCH body je nezná → forbidNonWhitelisted je odmítne).
+    dto: UpdateUserDto & {
+      avatarBytes?: number;
+      characterAvatarBytes?: number;
+    },
+  ): Promise<SanitizedUser> {
     const existing = await this.repo.findById(id);
     if (!existing)
       throw new NotFoundException({
@@ -233,6 +242,8 @@ export class UsersService implements OnModuleInit {
     const updateData: Partial<User> = {};
     if (dto.displayName !== undefined) updateData.displayName = dto.displayName;
     if (dto.avatarUrl !== undefined) updateData.avatarUrl = dto.avatarUrl;
+    // D-19.2 — velikost blobu avataru (interní, z upload endpointů).
+    if (dto.avatarBytes !== undefined) updateData.avatarBytes = dto.avatarBytes;
     if (dto.characterPath !== undefined)
       updateData.characterPath = dto.characterPath;
     if (dto.username !== undefined) updateData.username = dto.username;
@@ -260,6 +271,9 @@ export class UsersService implements OnModuleInit {
       updateData.characterBio = dto.characterBio;
     if (dto.characterAvatarUrl !== undefined)
       updateData.characterAvatarUrl = dto.characterAvatarUrl;
+    // D-19.2 — velikost blobu avataru postavy (interní, z upload endpointů).
+    if (dto.characterAvatarBytes !== undefined)
+      updateData.characterAvatarBytes = dto.characterAvatarBytes;
     if (dto.themeId !== undefined) updateData.themeId = dto.themeId;
     if (dto.defaultAvatarType !== undefined)
       updateData.defaultAvatarType = dto.defaultAvatarType;

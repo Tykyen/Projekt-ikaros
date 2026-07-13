@@ -62,7 +62,7 @@ export class MongoModerationAppealsRepository implements IModerationAppealsRepos
   ): Promise<ModerationAppeal[]> {
     const docs = await this.model
       .find({ status })
-      .sort({ createdAtUtc: -1 })
+      .sort({ createdAtUtc: -1, _id: -1 })
       .skip(Math.max(0, offset))
       .limit(limit)
       .lean()

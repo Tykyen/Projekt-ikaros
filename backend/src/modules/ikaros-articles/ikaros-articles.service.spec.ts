@@ -40,6 +40,8 @@ describe('IkarosArticlesService', () => {
     upsertRating: jest.fn(),
     delete: jest.fn(),
     countByAuthorAndStatus: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByAuthor: jest.fn().mockResolvedValue(0),
     // 3.2a — nové metody pro provider + mark-as-read
     findPendingPaginated: jest.fn(),
     countByStatus: jest.fn(),

@@ -163,11 +163,19 @@ export class PushService implements OnModuleInit {
     await Promise.all(allowed.map((id) => this.notify(id, payload)));
   }
 
+  /**
+   * `opts.excludeUserId` (D-NEW-INV-PUSH): vynechá zařízení daného uživatele —
+   * odesílatel broadcast zprávy (Hospoda) nemá dostávat push na vlastní zprávu.
+   */
   async notifyAll(
     payload: PushPayload,
     category?: NotificationCategory,
+    opts?: { excludeUserId?: string },
   ): Promise<void> {
-    const subs = await this.repo.findAll();
+    let subs = await this.repo.findAll();
+    if (opts?.excludeUserId) {
+      subs = subs.filter((s) => s.userId !== opts.excludeUserId);
+    }
     if (!category) {
       await this.sendToSubscriptions(subs, payload);
       return;
@@ -211,6 +219,10 @@ export class PushService implements OnModuleInit {
     const body = JSON.stringify(clientPayload);
     const options: webpush.RequestOptions = {
       TTL: ttl ?? PushService.DEFAULT_TTL_SECONDS,
+      // D-AUDIT (2026-07-11): socket timeout HTTPS requestu na push providera
+      // (web-push ≥3.6 `timeout`) — bez něj visící provider drží Promise.all
+      // (a tím volající flow) donekonečna. 10 s bohatě stačí na push POST.
+      timeout: 10_000,
     };
     if (topic && PushService.TOPIC_RE.test(topic)) options.topic = topic;
     await Promise.all(

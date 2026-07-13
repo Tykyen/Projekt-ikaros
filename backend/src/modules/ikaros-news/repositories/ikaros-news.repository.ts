@@ -56,7 +56,7 @@ export class MongoIkarosNewsRepository implements IIkarosNewsRepository {
     const scope = opts?.scope ?? 'active';
     let query = this.model
       .find(this.buildFilter(scope))
-      .sort({ createdAtUtc: -1 });
+      .sort({ createdAtUtc: -1, _id: -1 });
     if (opts?.offset && opts.offset > 0) query = query.skip(opts.offset);
     if (opts?.limit && opts.limit > 0) query = query.limit(opts.limit);
     const docs = await query.lean().exec();

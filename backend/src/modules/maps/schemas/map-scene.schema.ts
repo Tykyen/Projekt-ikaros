@@ -9,6 +9,8 @@ export class MapSceneSchemaClass {
   @Prop({ required: true }) worldId: string;
   @Prop({ default: '' }) name: string;
   @Prop({ default: '' }) imageUrl: string;
+  /** D-19.2 — velikost blobu `imageUrl` (podklad) v bytech; staré docs nemají. */
+  @Prop() imageBytes?: number;
   @Prop() folder?: string;
   @Prop({
     type: Object,

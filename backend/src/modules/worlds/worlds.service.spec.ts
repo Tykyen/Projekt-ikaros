@@ -49,6 +49,8 @@ describe('WorldsService', () => {
     renameSlug: jest.fn(),
     existsBySlug: jest.fn(),
     findByOwnerId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default hluboko pod stropem.
+    countByOwnerId: jest.fn().mockResolvedValue(0),
     findDeleted: jest.fn(),
     findExpiredDeleted: jest.fn(),
     increment: jest.fn(),
@@ -1369,6 +1371,76 @@ describe('WorldsService', () => {
         service.create({ name: 'Seed', slug: 'seed' }, 'u1'),
       ).resolves.toBeDefined();
       expect(mockWorldsRepo.findByOwnerId).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('create — D-SEC-GAP-2026-07-11 creation-flood cap', () => {
+    it('50 světů na účtu (vč. soft-deleted) → 409 LIMIT_REACHED', async () => {
+      mockWorldsRepo.countByOwnerId.mockResolvedValueOnce(50);
+
+      await expect(
+        service.create({ name: 'Flood', slug: 'flood' }, 'u1', UserRole.Ikarus),
+      ).rejects.toMatchObject({ response: { code: 'LIMIT_REACHED' } });
+      // Strop zafunguje dřív, než se sahá na slug/save.
+      expect(mockWorldsRepo.existsBySlug).not.toHaveBeenCalled();
+      expect(mockWorldsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('pod stropem (49) → create projde', async () => {
+      mockWorldsRepo.countByOwnerId.mockResolvedValueOnce(49);
+      // Supporter → aktivní owner-kvóta (30) se nepočítá přes membershipy.
+      mockUsersService.findById.mockResolvedValueOnce({
+        id: 'u1',
+        role: UserRole.Ikarus,
+        isSupporter: true,
+      });
+      mockWorldsRepo.findByOwnerId.mockResolvedValue(
+        Array.from({ length: 5 }, (_, i) => ({ id: `w${i}` })),
+      );
+      mockWorldsRepo.existsBySlug.mockResolvedValue(false);
+      mockWorldsRepo.save.mockResolvedValue({ ...mockWorld, id: 'W1' });
+      mockSystemPresetsService.findOne.mockReturnValue(null);
+      mockCurrenciesService.seedForWorld.mockResolvedValue(undefined);
+      mockSettingsRepo.upsert.mockResolvedValue({});
+      mockMembershipRepo.save.mockResolvedValue({ id: 'M1' });
+
+      await expect(
+        service.create(
+          { name: 'UnderCap', slug: 'under-cap' },
+          'u1',
+          UserRole.Ikarus,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it('env MAX_WORLDS_PER_USER přepíše default bez rebuildu', async () => {
+      process.env.MAX_WORLDS_PER_USER = '2';
+      try {
+        mockWorldsRepo.countByOwnerId.mockResolvedValueOnce(2);
+        await expect(
+          service.create(
+            { name: 'EnvCap', slug: 'env-cap' },
+            'u1',
+            UserRole.Ikarus,
+          ),
+        ).rejects.toMatchObject({ response: { code: 'LIMIT_REACHED' } });
+      } finally {
+        delete process.env.MAX_WORLDS_PER_USER;
+      }
+    });
+
+    it('Admin je exempt (strop se nečte)', async () => {
+      mockWorldsRepo.countByOwnerId.mockResolvedValueOnce(999);
+      mockWorldsRepo.existsBySlug.mockResolvedValue(false);
+      mockWorldsRepo.save.mockResolvedValue({ ...mockWorld, id: 'W1' });
+      mockSystemPresetsService.findOne.mockReturnValue(null);
+      mockCurrenciesService.seedForWorld.mockResolvedValue(undefined);
+      mockSettingsRepo.upsert.mockResolvedValue({});
+      mockMembershipRepo.save.mockResolvedValue({ id: 'M1' });
+
+      await expect(
+        service.create({ name: 'Adm', slug: 'adm' }, 'admin', UserRole.Admin),
+      ).resolves.toBeDefined();
     });
   });
 

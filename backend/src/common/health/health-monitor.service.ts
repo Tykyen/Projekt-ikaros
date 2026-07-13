@@ -36,6 +36,8 @@ export class HealthMonitorService {
     private readonly alert: AlertService,
   ) {}
 
+  // Bez CronLock (záměrně) — health check je per-instance: každá replika hlídá
+  // SVOJE spojení a SVOJI paměť (RSS); lock by skryl nemocnou repliku.
   @Cron(CronExpression.EVERY_MINUTE)
   async check(): Promise<void> {
     const results: Record<string, CheckResult> = {
@@ -130,7 +132,10 @@ export class HealthMonitorService {
    * aplikace: když tahle zpráva přestane chodit, monitoring/BE nejede (doplňuje
    * externí UptimeRobot, který hlídá z druhé strany).
    */
-  @Cron(CronExpression.EVERY_DAY_AT_NOON)
+  // timeZone — „denně v poledne“ = české poledne (bez tz by běžel 12:00 UTC).
+  // Bez CronLock (záměrně) — dead-man's switch je per-instance (uptime/RSS
+  // procesu); lock by umlčel heartbeat ostatních replik.
+  @Cron(CronExpression.EVERY_DAY_AT_NOON, { timeZone: 'Europe/Prague' })
   heartbeat(): void {
     const rssMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
     const uptimeH = (process.uptime() / 3600).toFixed(1);

@@ -188,6 +188,9 @@ export class CharacterDiaryRepository {
       personalDiarySchema:
         (doc.personalDiarySchema as CustomDiaryBlock[]) ?? undefined,
       customData: (doc.customData as Record<string, unknown>) ?? {},
+      // D-066 — moderační skrytí (M2/M3); service gate podle něj vrací 404.
+      moderationHidden: (doc.moderationHidden as boolean | undefined) ?? false,
+      moderationHiddenReason: doc.moderationHiddenReason as string | undefined,
       // D-073 — optimistic concurrency token.
       updatedAt: doc.updatedAt as Date | undefined,
     };

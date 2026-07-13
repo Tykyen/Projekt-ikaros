@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { Types } from 'mongoose';
 import { createTestApp, TestApp } from './helpers/app-factory';
 import { registerUser, authHeader, type AuthSession } from './helpers/auth';
 import { clearAllCollections } from './helpers/db';
@@ -348,6 +349,77 @@ describe('Friendships flow (e2e)', () => {
       .get('/api/friends')
       .set(authHeader(alice.accessToken));
     expect((aliceList.body as { total: number }).total).toBe(0);
+  });
+
+  // ── D-NEW-INV-PROFILE — worldsCount ve friend shape ─────────────────
+
+  it('list: friend.worldsCount počítá jen členství v nesmazaných světech', async () => {
+    const send = await request(testApp.app.getHttpServer())
+      .post('/api/friends/request')
+      .set(authHeader(alice.accessToken))
+      .send({ userId: bob.userId });
+    const fid = (send.body as { friendship: { id: string } }).friendship.id;
+    await request(testApp.app.getHttpServer())
+      .post(`/api/friends/${fid}/accept`)
+      .set(authHeader(bob.accessToken))
+      .expect(200);
+
+    // Přímý DB seed: 2 světy (aktivní + soft-smazaný v 30denním okně)
+    // a bobova členství v obou — ověřuje reálnou $lookup agregaci.
+    const activeWorldId = new Types.ObjectId();
+    const deletedWorldId = new Types.ObjectId();
+    await testApp.connection.db!.collection('worlds').insertMany([
+      {
+        _id: activeWorldId,
+        name: 'Živý svět',
+        slug: `zivy-${counter}`,
+        ownerId: bob.userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      {
+        _id: deletedWorldId,
+        name: 'Smazaný svět',
+        slug: `smazany-${counter}`,
+        ownerId: bob.userId,
+        isActive: true,
+        deletedAt: new Date(),
+      },
+    ]);
+    await testApp.connection.db!.collection('worldmemberships').insertMany([
+      {
+        userId: bob.userId,
+        worldId: String(activeWorldId),
+        role: 2,
+        joinedAt: new Date(),
+      },
+      {
+        userId: bob.userId,
+        worldId: String(deletedWorldId),
+        role: 2,
+        joinedAt: new Date(),
+      },
+    ]);
+
+    const aliceList = await request(testApp.app.getHttpServer())
+      .get('/api/friends')
+      .set(authHeader(alice.accessToken));
+    expect(aliceList.status).toBe(200);
+    const body = aliceList.body as {
+      items: Array<{ friend: { id: string; worldsCount: number } }>;
+    };
+    expect(body.items[0].friend.id).toBe(bob.userId);
+    // Soft-smazaný svět se do počtu nepromítá → 1, ne 2.
+    expect(body.items[0].friend.worldsCount).toBe(1);
+
+    // Alice nemá žádné členství → 0 (zero-fill, ne undefined).
+    const bobList = await request(testApp.app.getHttpServer())
+      .get('/api/friends')
+      .set(authHeader(bob.accessToken));
+    expect(
+      (bobList.body as { items: Array<{ friend: { worldsCount: number } }> })
+        .items[0].friend.worldsCount,
+    ).toBe(0);
   });
 
   // ── D-055 block flow ────────────────────────────────────────────────

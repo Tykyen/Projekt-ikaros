@@ -38,4 +38,6 @@ export interface IIkarosArticlesRepository {
   findPublishedIds(): Promise<string[]>;
   /** 12.1 — celkový počet článků (admin dashboard). */
   countAll(): Promise<number>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet článků autora (creation cap). */
+  countByAuthor(authorId: string): Promise<number>;
 }

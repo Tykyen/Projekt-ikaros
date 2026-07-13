@@ -50,7 +50,7 @@ export class MongoIkarosDiscussionsRepository implements IIkarosDiscussionsRepos
     const [docs, total] = await Promise.all([
       this.model
         .find()
-        .sort({ lastActivityUtc: -1 })
+        .sort({ lastActivityUtc: -1, _id: -1 })
         .skip(offset)
         .limit(limit)
         .lean()
@@ -78,7 +78,7 @@ export class MongoIkarosDiscussionsRepository implements IIkarosDiscussionsRepos
   ): Promise<IkarosDiscussion[]> {
     const docs = await this.model
       .find({ isApproved: false })
-      .sort({ createdAtUtc: -1 })
+      .sort({ createdAtUtc: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean()
@@ -94,6 +94,27 @@ export class MongoIkarosDiscussionsRepository implements IIkarosDiscussionsRepos
 
   async countAll(): Promise<number> {
     return this.model.countDocuments().exec();
+  }
+
+  async countByCreator(creatorId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // diskuzí zakladatele. Index { creatorId: 1 } existuje.
+    return this.model.countDocuments({ creatorId }).exec();
+  }
+
+  /**
+   * D-DROBNE — všechny diskuze tvůrce vč. pending (profil „Moje diskuze").
+   * Sort createdAtUtc desc s `_id` tiebreakem (konvence modulu).
+   */
+  async findByCreator(creatorId: string): Promise<IkarosDiscussion[]> {
+    const docs = await this.model
+      .find({ creatorId })
+      .sort({ createdAtUtc: -1, _id: -1 })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
   }
 
   /** 3.4 — diskuze, kde je uživatel manažer A zároveň mají čekající join-request. */

@@ -22,6 +22,7 @@ import type { PatchWorldCalendarConfigDto } from './dto/patch-world-calendar-con
 import { calculateCelestialStates } from './world-calendar-config.utils';
 import { GREGORIAN_DEFAULT_TEMPLATE } from './gregorian-default';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 export interface CalendarConfigRequester {
   id: string;
@@ -74,6 +75,13 @@ export class WorldCalendarConfigService {
     requester: CalendarConfigRequester,
   ): Promise<WorldCalendarConfig> {
     await this.assertCanWrite(worldId, requester);
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // kalendářů per svět (seed při tvorbě světa je bounded @ArrayMaxSize(20)).
+    assertUnderCreationLimit(
+      await this.repo.countByWorldId(worldId),
+      'MAX_CALENDARS_PER_WORLD',
+      'kalendářů ve světě',
+    );
     this.validateMonthsAndSeasons(dto.months, dto.seasons);
 
     const data = {

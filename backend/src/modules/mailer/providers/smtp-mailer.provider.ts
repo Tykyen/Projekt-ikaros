@@ -5,6 +5,7 @@ import type {
   IMailerProvider,
   MailerTemplate,
   MailerPayload,
+  RenderedMailMessage,
 } from '../interfaces/mailer-provider.interface';
 import { renderEmail } from '../mailer.templates';
 
@@ -26,6 +27,9 @@ import { renderEmail } from '../mailer.templates';
  */
 @Injectable()
 export class SmtpMailerProvider implements IMailerProvider {
+  /** SMTP = reálné odesílání → maily jdou přes Mongo outbox (cap/retry/priorita). */
+  readonly queueable = true;
+
   private readonly logger = new Logger(SmtpMailerProvider.name);
   private readonly transporter: Transporter;
   private readonly from: string;
@@ -75,8 +79,26 @@ export class SmtpMailerProvider implements IMailerProvider {
       text,
       html,
     });
+    // D-AUDIT (2026-07-11): sendMail resolve ≠ doručeno — SMTP server mail jen
+    // PŘIJAL do fronty (bounce/spam-filter dorazí později, async). Log to musí
+    // říkat přesně, jinak při debugování „mail nedošel" klame.
     this.logger.log(
-      `Sent ${template} → ${SmtpMailerProvider.mask(payload.to)}`,
+      `Předáno SMTP serveru (doručení async): ${template} → ${SmtpMailerProvider.mask(payload.to)}`,
     );
+  }
+
+  /**
+   * Outbox cesta — obsah je už vyrenderovaný v `mail_outbox`. Vrací SMTP
+   * odpověď serveru (uloží se k záznamu jako důkaz PŘEDÁNÍ, ne doručení).
+   */
+  async sendRendered(mail: RenderedMailMessage): Promise<string | undefined> {
+    const info = (await this.transporter.sendMail({
+      from: this.from,
+      to: mail.to,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+    })) as { response?: string } | undefined;
+    return typeof info?.response === 'string' ? info.response : undefined;
   }
 }

@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
-  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { logWarn } from '../../common/logging/log-error.util';
@@ -17,13 +16,18 @@ import { UsersService } from '../users/users.service';
 import type { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 import type { UploadService } from '../upload/upload.service';
 import { UserRole } from '../users/interfaces/user.interface';
-import type { User } from '../users/interfaces/user.interface';
+import {
+  MAX_PINNED,
+  toggleFavoriteId,
+  togglePinnedId,
+} from '../users/favorites-toggle.util';
 import type { CreateGalleryItemDto } from './dto/create-gallery-item.dto';
 import type { UpdateGalleryItemDto } from './dto/update-gallery-item.dto';
 import type { GalleryCategoriesService } from './gallery-categories.service';
 import type { GalleryAiOrigin } from './interfaces/ikaros-gallery.interface';
 // 20D (D3) — doklad souhlasu s právy při uploadu.
 import { UploadConsentsService } from '../upload-consents/upload-consents.service';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 // 3.3a — galerie je platformový obsah → jen globální role, bez world-scoped PJ.
 const ADMIN_ROLES = [
@@ -33,8 +37,11 @@ const ADMIN_ROLES = [
 ];
 const DEFAULT_CATEGORY = 'ostatni';
 const SYSTEM_SENDER = { id: 'system', username: 'Systém' };
-// 3.7 — max připnutých obrázků v sidebaru
-const MAX_PINNED = 5;
+// 3.7 — favorites/pin toggle sdílený helper (D-NEW-INV-CLEANUP)
+const FAVORITE_FIELDS = {
+  favorites: 'favoriteGalleryIds',
+  pinned: 'pinnedGalleryIds',
+} as const;
 
 /** 3.3a — statistiky autora pro tab „Moje obrázky". */
 export interface GalleryStats {
@@ -245,11 +252,18 @@ export class IkarosGalleryService {
         code: 'GALLERY_RIGHTS_NOT_DECLARED',
         message: 'Bez prohlášení o právech k obsahu nelze obrázek nahrát',
       });
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // galerie per účet. Záměrně PŘED uploadem (žádný orphan blob).
+    assertUnderCreationLimit(
+      await this.repo.countByAuthor(authorId),
+      'MAX_GALLERY_ITEMS_PER_USER',
+      'obrázků v galerii na účet',
+    );
     const category = await this.resolveCategory(dto.category);
     // 20D (D1) — self-declared AI původ; cokoli jiného než 'ai_image' → 'none'.
     const aiOrigin: GalleryAiOrigin =
       dto.aiOrigin === 'ai_image' ? 'ai_image' : 'none';
-    const { url, publicId, width, height } =
+    const { url, publicId, width, height, bytes } =
       await this.uploadService.uploadGalleryImage(file);
     const status = dto.submit ? 'Pending' : 'Draft';
     const item = await this.repo.create({
@@ -259,6 +273,7 @@ export class IkarosGalleryService {
       publicId,
       width,
       height,
+      bytes, // D-19.2 — velikost blobu (server-side z uploadu)
       category,
       authorId,
       authorName,
@@ -577,70 +592,43 @@ export class IkarosGalleryService {
     return updated !== null;
   }
 
-  async toggleFavorite(
-    itemId: string,
-    userId: string,
-  ): Promise<{ isFavorite: boolean }> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
+  /** Existence check pro favorites/pin toggle (sdílený helper). */
+  private async requireItemExists(itemId: string): Promise<void> {
     const item = await this.repo.findById(itemId);
     if (!item)
       throw new NotFoundException({
         code: 'GALLERY_ITEM_NOT_FOUND',
         message: 'Obrázek nenalezen',
       });
-    const favorites = user.favoriteGalleryIds ?? [];
-    const isFavorite = favorites.includes(itemId);
-    const newFavorites = isFavorite
-      ? favorites.filter((id) => id !== itemId)
-      : [...favorites, itemId];
-    const update: Partial<User> = { favoriteGalleryIds: newFavorites };
-    // cascade — odebrání z oblíbených zároveň odepne ze sidebaru
-    if (isFavorite) {
-      const pinned = user.pinnedGalleryIds ?? [];
-      if (pinned.includes(itemId))
-        update.pinnedGalleryIds = pinned.filter((id) => id !== itemId);
-    }
-    await this.usersRepo.update(userId, update);
-    return { isFavorite: !isFavorite };
+  }
+
+  async toggleFavorite(
+    itemId: string,
+    userId: string,
+  ): Promise<{ isFavorite: boolean }> {
+    return toggleFavoriteId({
+      usersRepo: this.usersRepo,
+      userId,
+      itemId,
+      fields: FAVORITE_FIELDS,
+      ensureItemExists: () => this.requireItemExists(itemId),
+    });
   }
 
   async togglePin(
     itemId: string,
     userId: string,
   ): Promise<{ isPinned: boolean }> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
-    const item = await this.repo.findById(itemId);
-    if (!item)
-      throw new NotFoundException({
-        code: 'GALLERY_ITEM_NOT_FOUND',
-        message: 'Obrázek nenalezen',
-      });
-    if (!(user.favoriteGalleryIds ?? []).includes(itemId))
-      throw new ConflictException({
-        code: 'NOT_FAVORITE',
-        message: 'Připnout lze jen oblíbený obrázek',
-      });
-    const pinned = user.pinnedGalleryIds ?? [];
-    const isPinned = pinned.includes(itemId);
-    if (!isPinned && pinned.length >= MAX_PINNED)
-      throw new ConflictException({
-        code: 'PIN_LIMIT',
-        message: `Připnout lze max ${MAX_PINNED} obrázků`,
-      });
-    const newPinned = isPinned
-      ? pinned.filter((id) => id !== itemId)
-      : [...pinned, itemId];
-    await this.usersRepo.update(userId, { pinnedGalleryIds: newPinned });
-    return { isPinned: !isPinned };
+    return togglePinnedId({
+      usersRepo: this.usersRepo,
+      userId,
+      itemId,
+      fields: FAVORITE_FIELDS,
+      ensureItemExists: () => this.requireItemExists(itemId),
+      messages: {
+        notFavorite: 'Připnout lze jen oblíbený obrázek',
+        pinLimit: `Připnout lze max ${MAX_PINNED} obrázků`,
+      },
+    });
   }
 }

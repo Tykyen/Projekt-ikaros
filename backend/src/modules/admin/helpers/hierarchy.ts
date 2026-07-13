@@ -13,7 +13,14 @@ interface Target {
   role: UserRole;
 }
 
-export type ModerationAction = 'BAN' | 'UNBAN' | 'DELETE' | 'UNDELETE';
+// D-NEW-INV-ADMIN-UI — 'EMAIL_CHANGE': změna e-mailu uživatele. Endpoint je
+// Superadmin-only (controller gate), helper tu vynucuje self-deny + hierarchii.
+export type ModerationAction =
+  | 'BAN'
+  | 'UNBAN'
+  | 'DELETE'
+  | 'UNDELETE'
+  | 'EMAIL_CHANGE';
 
 const ADMIN_ROLES: ReadonlySet<UserRole> = new Set<UserRole>([
   UserRole.Superadmin,

@@ -3,6 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AccountCleanupCron } from './account-cleanup.cron';
 import { MailerService } from '../../mailer/mailer.service';
 import { UserBanCacheService } from './user-ban-cache.service';
+import { CronLockService } from '../../../common/locks/cron-lock.service';
 import type { User } from '../interfaces/user.interface';
 import { UserRole } from '../interfaces/user.interface';
 
@@ -43,6 +44,12 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
   const banCache: Record<string, jest.Mock> = {
     invalidate: jest.fn(),
   };
+  // CronLock mock — v unit testu lock „vždy získán“ → rovnou spustí fn.
+  const cronLock = {
+    withLock: jest.fn((_name: string, fn: () => Promise<void> | void) =>
+      Promise.resolve(fn()),
+    ),
+  };
 
   beforeEach(async () => {
     events = { emit: jest.fn() } as unknown as jest.Mocked<EventEmitter2>;
@@ -53,10 +60,24 @@ describe('AccountCleanupCron — 1.3c (N-3) hard cleanup', () => {
         { provide: EventEmitter2, useValue: events },
         { provide: MailerService, useValue: mailer },
         { provide: UserBanCacheService, useValue: banCache },
+        { provide: CronLockService, useValue: cronLock },
       ],
     }).compile();
     cron = mod.get(AccountCleanupCron);
     jest.clearAllMocks();
+  });
+
+  it('sweepCron (@Cron handler) deleguje sweep přes distribuovaný lock', async () => {
+    usersRepo.findExpiredPendingDeletion.mockResolvedValue([]);
+
+    await cron.sweepCron();
+
+    expect(cronLock.withLock).toHaveBeenCalledWith(
+      'account-hard-delete',
+      expect.any(Function),
+    );
+    // fn uvnitř locku opravdu spustí sweep (repo dotaz proběhl).
+    expect(usersRepo.findExpiredPendingDeletion).toHaveBeenCalled();
   });
 
   it('cutoff = now − 30 dní', async () => {

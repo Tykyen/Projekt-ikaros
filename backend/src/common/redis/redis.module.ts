@@ -1,5 +1,6 @@
 import { Global, Module, Inject, OnModuleDestroy } from '@nestjs/common';
 import Redis from 'ioredis';
+import { CronLockService } from '../locks/cron-lock.service';
 
 /**
  * D-028 + D-051 + D-NEW-chat-presence-scale — globální Redis client.
@@ -37,8 +38,11 @@ import Redis from 'ioredis';
         return client;
       },
     },
+    // Distribuovaný lock pro @Cron handlery (multi-replica) — sdílí klienta,
+    // proto registrace zde (RedisModule je @Global → injectable všude).
+    CronLockService,
   ],
-  exports: ['REDIS'],
+  exports: ['REDIS', CronLockService],
 })
 export class RedisModule implements OnModuleDestroy {
   constructor(@Inject('REDIS') private readonly redis: Redis) {}

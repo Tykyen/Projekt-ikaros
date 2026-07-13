@@ -3,6 +3,7 @@
  */
 import {
   IsIn,
+  IsInt,
   IsNumber,
   IsObject,
   IsOptional,
@@ -34,6 +35,13 @@ export class CreateBestieDto {
   @IsString()
   @MaxLength(2048)
   imageUrl?: string;
+
+  /** D-19.2 — velikost blobu `imageUrl` (FE přeposílá `bytes` z uploadu). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(104_857_600)
+  imageBytes?: number;
 
   // Výřez obrázku — focal 0–100 %, zoom 100–400 %, fit cover/contain.
   // null (FE bez obrázku) projde přes @IsOptional. MUSÍ být v DTO, jinak

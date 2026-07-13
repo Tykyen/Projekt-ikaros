@@ -5,7 +5,6 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
-  ConflictException,
   forwardRef,
   Logger,
 } from '@nestjs/common';
@@ -20,11 +19,16 @@ import type { IArticleReadsRepository } from './interfaces/article-reads-reposit
 import type { IUsersRepository } from '../users/interfaces/users-repository.interface';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../users/interfaces/user.interface';
-import type { User } from '../users/interfaces/user.interface';
+import {
+  MAX_PINNED,
+  toggleFavoriteId,
+  togglePinnedId,
+} from '../users/favorites-toggle.util';
 import type { CreateArticleDto } from './dto/create-article.dto';
 import type { UpdateArticleDto } from './dto/update-article.dto';
 import type { IkarosMessagesService } from '../ikaros-messages/ikaros-messages.service';
 import { IkarosCategoriesService } from '../ikaros-categories/ikaros-categories.service';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 // N-14 — články jsou platformový obsah → jen globální role, bez world-scoped PJ
 // (sjednoceno s ikaros-discussions/ikaros-gallery; PJ je role ve světě, ne platformě).
@@ -36,8 +40,11 @@ const ADMIN_ROLES = [
 const SYSTEM_SENDER = { id: 'system', username: 'Systém' };
 
 const DEFAULT_CATEGORY = 'ostatni';
-// 3.7 — max připnutých článků v sidebaru
-const MAX_PINNED = 5;
+// 3.7 — favorites/pin toggle sdílený helper (D-NEW-INV-CLEANUP)
+const FAVORITE_FIELDS = {
+  favorites: 'favoriteArticleIds',
+  pinned: 'pinnedArticleIds',
+} as const;
 
 @Injectable()
 export class IkarosArticlesService {
@@ -290,6 +297,13 @@ export class IkarosArticlesService {
     authorName: string,
     _role: UserRole,
   ): Promise<IkarosArticle> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // článků per účet.
+    assertUnderCreationLimit(
+      await this.repo.countByAuthor(authorId),
+      'MAX_ARTICLES_PER_USER',
+      'článků na účet',
+    );
     const category = dto.category ?? DEFAULT_CATEGORY;
     await this.assertCategoryExists(category);
     const status = dto.submit ? 'Pending' : 'Draft';
@@ -694,71 +708,44 @@ export class IkarosArticlesService {
     return updated !== null;
   }
 
-  async toggleFavorite(
-    articleId: string,
-    userId: string,
-  ): Promise<{ isFavorite: boolean }> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
+  /** Existence check pro favorites/pin toggle (sdílený helper). */
+  private async requireArticleExists(articleId: string): Promise<void> {
     const article = await this.repo.findById(articleId);
     if (!article)
       throw new NotFoundException({
         code: 'ARTICLE_NOT_FOUND',
         message: 'Článek nenalezen',
       });
-    const favorites = user.favoriteArticleIds ?? [];
-    const isFavorite = favorites.includes(articleId);
-    const newFavorites = isFavorite
-      ? favorites.filter((id) => id !== articleId)
-      : [...favorites, articleId];
-    const update: Partial<User> = { favoriteArticleIds: newFavorites };
-    // cascade — odebrání z oblíbených zároveň odepne ze sidebaru
-    if (isFavorite) {
-      const pinned = user.pinnedArticleIds ?? [];
-      if (pinned.includes(articleId))
-        update.pinnedArticleIds = pinned.filter((id) => id !== articleId);
-    }
-    await this.usersRepo.update(userId, update);
-    return { isFavorite: !isFavorite };
+  }
+
+  async toggleFavorite(
+    articleId: string,
+    userId: string,
+  ): Promise<{ isFavorite: boolean }> {
+    return toggleFavoriteId({
+      usersRepo: this.usersRepo,
+      userId,
+      itemId: articleId,
+      fields: FAVORITE_FIELDS,
+      ensureItemExists: () => this.requireArticleExists(articleId),
+    });
   }
 
   async togglePin(
     articleId: string,
     userId: string,
   ): Promise<{ isPinned: boolean }> {
-    const user = await this.usersRepo.findById(userId);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
-    const article = await this.repo.findById(articleId);
-    if (!article)
-      throw new NotFoundException({
-        code: 'ARTICLE_NOT_FOUND',
-        message: 'Článek nenalezen',
-      });
-    if (!(user.favoriteArticleIds ?? []).includes(articleId))
-      throw new ConflictException({
-        code: 'NOT_FAVORITE',
-        message: 'Připnout lze jen oblíbený článek',
-      });
-    const pinned = user.pinnedArticleIds ?? [];
-    const isPinned = pinned.includes(articleId);
-    if (!isPinned && pinned.length >= MAX_PINNED)
-      throw new ConflictException({
-        code: 'PIN_LIMIT',
-        message: `Připnout lze max ${MAX_PINNED} článků`,
-      });
-    const newPinned = isPinned
-      ? pinned.filter((id) => id !== articleId)
-      : [...pinned, articleId];
-    await this.usersRepo.update(userId, { pinnedArticleIds: newPinned });
-    return { isPinned: !isPinned };
+    return togglePinnedId({
+      usersRepo: this.usersRepo,
+      userId,
+      itemId: articleId,
+      fields: FAVORITE_FIELDS,
+      ensureItemExists: () => this.requireArticleExists(articleId),
+      messages: {
+        notFavorite: 'Připnout lze jen oblíbený článek',
+        pinLimit: `Připnout lze max ${MAX_PINNED} článků`,
+      },
+    });
   }
 
   /**

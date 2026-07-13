@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { IWorldsRepository } from '../interfaces/worlds-repository.interface';
 import { WorldHardDeleteService } from './world-hard-delete.service';
+import { CronLockService } from '../../../common/locks/cron-lock.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,9 +23,15 @@ export class WorldCleanupCron {
     @Inject('IWorldsRepository') private readonly worldsRepo: IWorldsRepository,
     private readonly hardDelete: WorldHardDeleteService,
     private readonly events: EventEmitter2,
+    private readonly cronLock: CronLockService,
   ) {}
 
+  // CronLock — při 2+ replikách BE sweep proběhne jen na jedné instanci.
   @Cron('30 3 * * *', { name: 'world-hard-delete', timeZone: 'Europe/Prague' })
+  async sweepCron(): Promise<void> {
+    await this.cronLock.withLock('world-hard-delete', () => this.sweep());
+  }
+
   async sweep(): Promise<void> {
     const cutoff = new Date(
       Date.now() - WorldCleanupCron.RECOVERY_WINDOW_DAYS * DAY_MS,

@@ -190,6 +190,22 @@ describe('WorldMapsService', () => {
       expect(res.visibleToPlayerIds).toEqual([]);
       expect(res.id).toBeTruthy();
     });
+
+    // D-19.2 — imageBytes z DTO (FE ho přeposílá z uploadu) se persistuje.
+    it('D-19.2 — uloží imageBytes z DTO', async () => {
+      repo.findByWorld.mockResolvedValue([]);
+      repo.addMap.mockImplementation((_w, e) => Promise.resolve(e));
+      const res = await service.create('w', {
+        title: 'Mapa',
+        imageUrl: 'https://cdn/h.png',
+        imageBytes: 123_456,
+      });
+      expect(res.imageBytes).toBe(123_456);
+      expect(repo.addMap).toHaveBeenCalledWith(
+        'w',
+        expect.objectContaining({ imageBytes: 123_456 }),
+      );
+    });
   });
 
   describe('update / remove', () => {
@@ -198,6 +214,27 @@ describe('WorldMapsService', () => {
       await expect(service.update('w', 'nope', { title: 'X' })).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    // D-19.2 — výměna obrázku nese i novou velikost blobu.
+    it('D-19.2 — update propíše imageBytes do patche', async () => {
+      repo.findByWorld.mockResolvedValue([entry({ id: 'm1' })]);
+      repo.updateMap.mockResolvedValue(
+        entry({ imageUrl: 'https://cdn/new.png', imageBytes: 777 }),
+      );
+      const res = await service.update('w', 'm1', {
+        imageUrl: 'https://cdn/new.png',
+        imageBytes: 777,
+      });
+      expect(repo.updateMap).toHaveBeenCalledWith(
+        'w',
+        'm1',
+        expect.objectContaining({
+          imageUrl: 'https://cdn/new.png',
+          imageBytes: 777,
+        }),
+      );
+      expect(res.imageBytes).toBe(777);
     });
 
     it('remove neexistující mapy → 404', async () => {

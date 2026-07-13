@@ -14,6 +14,8 @@ export class PageSchemaClass {
   // Pravidlová kniha — taháková rekapitulace pro HUD „Rychlý přehled".
   @Prop({ default: '' }) quickRef?: string;
   @Prop() imageUrl?: string;
+  /** D-19.2 — velikost blobu `imageUrl` v bytech (kvóty UM-10); staré docs nemají. */
+  @Prop() imageBytes?: number;
   @Prop({ default: false }) bigImage?: boolean;
   // Parita s GameEvent — výřez hlavního obrázku (focal/zoom/fit), default null.
   @Prop({ default: null, type: Number }) imageFocalX?: number | null;

@@ -15,6 +15,10 @@ export interface IIkarosDiscussionsRepository {
   countPending(): Promise<number>;
   /** 12.1 — celkový počet diskuzí (admin dashboard). */
   countAll(): Promise<number>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet diskuzí zakladatele (creation cap). */
+  countByCreator(creatorId: string): Promise<number>;
+  /** D-DROBNE — všechny diskuze tvůrce vč. pending (profil „Moje diskuze"). */
+  findByCreator(creatorId: string): Promise<IkarosDiscussion[]>;
   findManagedWithJoinRequests(userId: string): Promise<IkarosDiscussion[]>;
   findByIds(ids: string[]): Promise<IkarosDiscussion[]>;
   findById(id: string): Promise<IkarosDiscussion | null>;

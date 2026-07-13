@@ -1,7 +1,10 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { WorldCurrencyItemDto } from './update-world-currencies.dto';
+import {
+  UpdateWorldCurrenciesDto,
+  WorldCurrencyItemDto,
+} from './update-world-currencies.dto';
 
 /** Validní základ — focal pole se testují nad ním. */
 const base = { code: 'GP', name: 'Zlaťák', symbol: 'g', rate: 1 };
@@ -35,5 +38,31 @@ describe('WorldCurrencyItemDto — F-04', () => {
   it('F-04 — odmítne rate mimo rozsah (0.0001–1000000)', async () => {
     expect(await errorProps({ rate: 0 })).toContain('rate');
     expect(await errorProps({ rate: 1000001 })).toContain('rate');
+  });
+});
+
+describe('UpdateWorldCurrenciesDto — expectedUpdatedAt (D-NEW-INV-DATA-SYNC)', () => {
+  async function rootErrorProps(
+    patch: Record<string, unknown>,
+  ): Promise<string[]> {
+    const dto = plainToInstance(UpdateWorldCurrenciesDto, {
+      items: [base],
+      ...patch,
+    });
+    const errors = await validate(dto);
+    return errors.map((e) => e.property);
+  }
+
+  it('přijme validní ISO datum i chybějící token (optional)', async () => {
+    expect(
+      await rootErrorProps({ expectedUpdatedAt: '2026-07-12T10:00:00.000Z' }),
+    ).toEqual([]);
+    expect(await rootErrorProps({})).toEqual([]);
+  });
+
+  it('odmítne ne-datumový string (garbage by v Mongo filtru tiše nikdy nematchnul)', async () => {
+    expect(await rootErrorProps({ expectedUpdatedAt: 'vcera' })).toContain(
+      'expectedUpdatedAt',
+    );
   });
 });

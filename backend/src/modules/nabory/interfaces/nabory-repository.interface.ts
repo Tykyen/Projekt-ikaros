@@ -14,4 +14,6 @@ export interface INaboryRepository {
   /** Idempotentně přidá nahlašovatele; vrací aktualizovaný nábor. */
   addReport(id: string, userId: string): Promise<Nabor | null>;
   countAll(): Promise<number>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet živých náborů autora (creation cap). */
+  countActiveByAuthor(authorId: string): Promise<number>;
 }

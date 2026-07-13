@@ -26,6 +26,8 @@ export interface CampaignPurchase {
   inventoryItemId: string;
   status: 'active' | 'refunded';
   refundedAt?: Date;
+  /** D-PURCHASE-IDEMPOTENCY — klientský nonce (UUID v4); null = bez idempotence. */
+  clientNonce?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

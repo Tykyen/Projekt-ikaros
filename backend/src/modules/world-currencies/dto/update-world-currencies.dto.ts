@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsDateString,
   IsNumber,
   IsOptional,
   IsString,
@@ -25,4 +26,14 @@ export class UpdateWorldCurrenciesDto {
   @ValidateNested({ each: true })
   @Type(() => WorldCurrencyItemDto)
   items: WorldCurrencyItemDto[];
+
+  /**
+   * D-NEW-INV-DATA-SYNC (vzor 7.2k/D-073) — optimistic concurrency token.
+   * PUT je záměrně full-replace (FE posílá vždy KOMPLETNÍ sadu; smazání měny
+   * = poslání pole bez ní). Klient hydratuje z `updatedAt` posledního GET;
+   * při souběžné změně vrátí BE 409 `CURRENCY_CONFLICT` místo tichého
+   * přepsání (ztráta cizí měny). Optional — klient bez tokenu má legacy
+   * chování bez checku.
+   */
+  @IsOptional() @IsDateString() expectedUpdatedAt?: string;
 }

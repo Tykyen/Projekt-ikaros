@@ -50,6 +50,12 @@ export interface IUsersRepository {
     page: number;
     limit: number;
     /**
+     * D-NEW-INV-CLEANUP — jen účty v pending-deletion holdu
+     * (`deletionRequestedAt` existuje a není null); filtr v DB query,
+     * ať stránkování + total sedí. Default false = bez filtru.
+     */
+    hasPendingDeletion?: boolean;
+    /**
      * FIX-1 (BE oprava dávka, 2026-07) — skryje tombstone (`isDeleted:true`)
      * účty z `items` i `total` (vzor `findPublicPaginated`); default false.
      */

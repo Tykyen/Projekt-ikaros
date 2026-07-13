@@ -78,8 +78,16 @@ export class AuthService {
   // selže na náhodném vstupu.
   private readonly timingDummyHash: Promise<string> = bcrypt.hash(uuid(), 10);
 
+  // D-AUDIT — kdy byl naposledy odeslán reset mail na daný e-mail (lowercase).
+  // Plní se JEN pro existující účty → velikost omezena počtem reálných uživatelů.
+  private readonly lastResetMailAt = new Map<string, number>();
+
   static readonly PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hodina
   static readonly EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hodin
+  // D-AUDIT (2026-07-11) — per-recipient throttle reset mailů: max 1 mail na
+  // e-mail za 2 min. IP throttle na endpointu (5/min) nechrání Gmail denní cap
+  // před distribuovaným spamem na JEDEN účet. In-memory Map (single-instance OK).
+  static readonly RESET_MAIL_THROTTLE_MS = 2 * 60 * 1000;
   // F-03 (GDPR) — verze podmínek platná pro nově ukládaný souhlas. Musí sedět s
   // verzí na stránce Podmínky (FE TermsPage). Při změně textu zvyš (provozovatel
   // řeší re-souhlas existujících účtů dle potřeby).
@@ -132,6 +140,17 @@ export class AuthService {
       });
     }
 
+    // D-SEC-GAP — politika 15+ (provozní rámec): deklarace <15 (FE bracket
+    // `under15` → `isMinor:true`) registraci ODMÍTNE. Nahrazuje dřívější 20C
+    // „pending parental consent" tok — rozhodnutá politika žádný consent tok
+    // nemá, platforma je od 15 let. `isMinor` na User zůstává pro legacy účty.
+    if (dto.isMinor === true) {
+      throw new BadRequestException({
+        message: 'Platforma je určena uživatelům od 15 let.',
+        code: 'AGE_REQUIREMENT_NOT_MET',
+      });
+    }
+
     const existing = await this.usersRepo.findByEmail(dto.email);
     if (existing) {
       throw new ConflictException({
@@ -162,11 +181,13 @@ export class AuthService {
       // F-03 (GDPR) — doklad souhlasu s podmínkami.
       acceptedTermsAt: now,
       termsVersion: AuthService.TERMS_VERSION,
-      // 20C (spec-20C §C2) — deklarativní věk. `isMinor` je z FE volby 15+/<15.
+      // 20C (spec-20C §C2) — deklarativní věk. `isMinor` je z FE volby 15+/<15;
+      // <15 je od D-SEC-GAP odmítnuto gate výše → sem dojde vždy `false`.
       isMinor: dto.isMinor,
       minorSelfDeclaredAt: now,
-      // 20C §C2 — souhlas zákonného zástupce: nezletilý → `pending` (jen flag,
-      // NEblokuje registraci — reálný tok řeší právník), dospělý → `not_required`.
+      // 20C §C2 — po D-SEC-GAP gate se nezletilý nezaregistruje → vždy
+      // `not_required`. Větev `pending` (+ minor defaulty níže) drženy pro
+      // tvarovou symetrii se schématem a legacy účty.
       parentalConsentStatus: dto.isMinor ? 'pending' : 'not_required',
       // 20C §C3 — bezpečný default nezletilého (app-side): neveřejný profil +
       // skrytý v adresáři uživatelů. Dospělý dědí schema defaulty (public / viditelný).
@@ -576,6 +597,26 @@ export class AuthService {
     if (!user || user.isDeleted) {
       return { ok: true };
     }
+    // D-AUDIT — per-recipient throttle: max 1 reset mail / e-mail / 2 min.
+    // Odpověď zůstává { ok: true } (anti-enumeration — throttle nesmí být
+    // rozlišitelný zvenku); token se nevystavuje, mail se neposílá.
+    const now = Date.now();
+    const lastSent = this.lastResetMailAt.get(normalized);
+    if (
+      lastSent !== undefined &&
+      now - lastSent < AuthService.RESET_MAIL_THROTTLE_MS
+    ) {
+      return { ok: true };
+    }
+    // Občasný úklid expirovaných záznamů (Map neroste donekonečna).
+    if (this.lastResetMailAt.size > 10_000) {
+      for (const [key, at] of this.lastResetMailAt) {
+        if (now - at >= AuthService.RESET_MAIL_THROTTLE_MS) {
+          this.lastResetMailAt.delete(key);
+        }
+      }
+    }
+    this.lastResetMailAt.set(normalized, now);
     const token = await this.securityTokens.issue(
       user.id,
       'password_reset',

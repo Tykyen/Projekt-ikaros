@@ -6,6 +6,7 @@ import { WorldsService } from '../worlds/worlds.service';
 import { PagesService } from '../pages/pages.service';
 import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 
 const mockCoordinator = {
   search: jest.fn().mockResolvedValue([]),
@@ -37,7 +38,7 @@ const user: RequestUser = {
   id: 'u1',
   email: 'a@b.cz',
   username: 'tester',
-  role: 4,
+  role: UserRole.Hrac,
 } as RequestUser;
 
 describe('SearchController', () => {

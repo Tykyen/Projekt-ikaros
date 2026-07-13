@@ -304,6 +304,7 @@ export class MongoUsersRepository
     role?: UserRole;
     page: number;
     limit: number;
+    hasPendingDeletion?: boolean;
     includeDeleted?: boolean;
   }): Promise<{ items: User[]; total: number }> {
     const query: Record<string, unknown> = {};
@@ -317,11 +318,17 @@ export class MongoUsersRepository
     if (!opts.includeDeleted) {
       query.isDeleted = { $ne: true };
     }
+    // D-NEW-INV-CLEANUP — pending-deletion filtr v DB query (dřív in-memory
+    // po paginaci v AdminService → děravé stránky + špatný total). `$ne: null`
+    // vyžaduje existující non-null hodnotu (vzor `countPendingDeletion`).
+    if (opts.hasPendingDeletion) {
+      query.deletionRequestedAt = { $ne: null };
+    }
     const skip = (opts.page - 1) * opts.limit;
     const [docs, total] = await Promise.all([
       this.model
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(opts.limit)
         .lean()
@@ -356,12 +363,14 @@ export class MongoUsersRepository
       ];
     }
 
+    // `usernameLower` je unique → tiebreak netřeba; ostatní klíče nejsou
+    // unikátní → `_id` tiebreak (stejný směr) pro deterministickou paginaci.
     const sortBy: Record<string, 1 | -1> =
       opts.sort === 'recent'
-        ? { lastSeenAt: -1 }
+        ? { lastSeenAt: -1, _id: -1 }
         : opts.sort === 'username'
           ? { usernameLower: 1 }
-          : { createdAt: -1 };
+          : { createdAt: -1, _id: -1 };
 
     const skip = (opts.page - 1) * opts.limit;
     const [docs, total] = await Promise.all([
@@ -414,6 +423,8 @@ export class MongoUsersRepository
       role: doc.role as UserRole,
       displayName: doc.displayName as string | undefined,
       avatarUrl: doc.avatarUrl as string | undefined,
+      // D-19.2 — velikost blobu avataru; staré dokumenty undefined.
+      avatarBytes: doc.avatarBytes as number | undefined,
       profileImageUrl: doc.profileImageUrl as string | undefined,
       characterPath: doc.characterPath as string | undefined,
       themeSettings: (doc.themeSettings as Record<string, unknown>) ?? {},
@@ -462,6 +473,8 @@ export class MongoUsersRepository
       characterName: doc.characterName as string | undefined,
       characterBio: doc.characterBio as string | undefined,
       characterAvatarUrl: doc.characterAvatarUrl as string | undefined,
+      // D-19.2 — velikost blobu avataru postavy; staré dokumenty undefined.
+      characterAvatarBytes: doc.characterAvatarBytes as number | undefined,
       themeId: doc.themeId as string | undefined,
       lastLoginAt: doc.lastLoginAt as Date | undefined,
 

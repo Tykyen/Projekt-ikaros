@@ -1,15 +1,18 @@
 import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { WorldCurrenciesService } from './world-currencies.service';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
+import { UserRole } from '../users/interfaces/user.interface';
 
 const mockRepo = {
   findByWorldId: jest.fn(),
   upsert: jest.fn(),
+  replaceIfUnchanged: jest.fn(),
 };
 
 const mockMembershipRepo = {
@@ -158,7 +161,7 @@ describe('WorldCurrenciesService', () => {
       const result = await service.updateCurrencies(
         'world1',
         itemsWithoutId as never,
-        { id: 'pj1', role: 4, username: 'pj' },
+        { id: 'pj1', role: UserRole.Hrac, username: 'pj' },
       );
       expect(result.items[0].id).toBeDefined();
       expect(result.items[0].id).toMatch(/^[0-9a-f-]{36}$/);
@@ -182,6 +185,96 @@ describe('WorldCurrenciesService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
       expect(mockRepo.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateCurrencies — full-set sémantika + optimistic concurrency (D-NEW-INV-DATA-SYNC)', () => {
+    const NOW = new Date('2026-07-12T10:00:00.000Z');
+    const existingDoc = {
+      id: 'c1',
+      worldId: 'world1',
+      items: mockItems,
+      updatedAt: NOW,
+    };
+    const pj = { id: 'pj1', role: UserRole.Hrac, username: 'pj' };
+
+    beforeEach(() => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        role: WorldRole.PJ,
+      });
+      mockRepo.findByWorldId.mockResolvedValue(existingDoc);
+    });
+
+    it('smazání měny = poslání sady bez ní (full-replace, PJ) — nezmíněná měna se odstraní', async () => {
+      const withoutMd = mockItems.filter((i) => i.code !== 'MD');
+      mockRepo.upsert.mockResolvedValue({ ...existingDoc, items: withoutMd });
+
+      const result = await service.updateCurrencies('world1', withoutMd, pj);
+      expect(result.items.map((i) => i.code)).toEqual(['ZL', 'ST']);
+      // Perzistence zůstává full-replace (delta merge by rozbil FE mazání).
+      expect(mockRepo.upsert).toHaveBeenCalledWith('world1', withoutMd);
+    });
+
+    it('expectedUpdatedAt match → atomický replaceIfUnchanged, žádný plain upsert', async () => {
+      const edited = mockItems.map((i) =>
+        i.code === 'ST' ? { ...i, rate: 0.2 } : i,
+      );
+      mockRepo.replaceIfUnchanged.mockResolvedValue({
+        ...existingDoc,
+        items: edited,
+        updatedAt: new Date(),
+      });
+
+      const result = await service.updateCurrencies(
+        'world1',
+        edited,
+        pj,
+        NOW.toISOString(),
+      );
+      expect(result.items.find((i) => i.code === 'ST')?.rate).toBe(0.2);
+      expect(mockRepo.replaceIfUnchanged).toHaveBeenCalledWith(
+        'world1',
+        edited,
+        NOW,
+      );
+      expect(mockRepo.upsert).not.toHaveBeenCalled();
+    });
+
+    it('expectedUpdatedAt stale (souběžná změna) → 409 ConflictException, žádný přepis', async () => {
+      mockRepo.replaceIfUnchanged.mockResolvedValue(null); // filtr netrefil verzi
+
+      await expect(
+        service.updateCurrencies(
+          'world1',
+          mockItems,
+          pj,
+          new Date('2026-07-12T09:00:00.000Z').toISOString(),
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(mockRepo.upsert).not.toHaveBeenCalled();
+    });
+
+    it('expectedUpdatedAt bez existujícího dokumentu → upsert (první sada, není co ztratit)', async () => {
+      mockRepo.findByWorldId.mockResolvedValue(null);
+      mockRepo.upsert.mockResolvedValue(existingDoc);
+
+      await service.updateCurrencies(
+        'world1',
+        mockItems,
+        pj,
+        NOW.toISOString(),
+      );
+      expect(mockRepo.upsert).toHaveBeenCalledWith('world1', mockItems);
+      expect(mockRepo.replaceIfUnchanged).not.toHaveBeenCalled();
+    });
+
+    it('bez expectedUpdatedAt → legacy upsert bez concurrency checku', async () => {
+      mockRepo.upsert.mockResolvedValue(existingDoc);
+
+      await service.updateCurrencies('world1', mockItems, pj);
+      expect(mockRepo.upsert).toHaveBeenCalled();
+      expect(mockRepo.replaceIfUnchanged).not.toHaveBeenCalled();
     });
   });
 
@@ -338,6 +431,41 @@ describe('WorldCurrenciesService', () => {
       await expect(
         service.convert('world1', { amount: 1, from: 'ZL', to: 'ST' }, 'user1'),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('D-SEC-GAP float: driftový násobek → přesný výsledek (0.1 ST → 0.01 ZL bez šumu)', async () => {
+      // 0.1 * 0.1 = 0.010000000000000002 bez zaokrouhlení.
+      const result = await service.convert(
+        'world1',
+        { amount: 0.1, from: 'ST', to: 'ZL' },
+        'user1',
+      );
+      expect(result.result).toBe(0.01);
+    });
+
+    it('D-SEC-GAP float: NaN amount → 400 AMOUNT_INVALID (CH-122)', async () => {
+      await expect(
+        service.convert(
+          'world1',
+          { amount: NaN, from: 'ZL', to: 'ST' },
+          'user1',
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('D-SEC-GAP float: kurz ≤ 0 → 400 CURRENCY_RATE_MISSING (žádné Infinity)', async () => {
+      mockRepo.findByWorldId.mockResolvedValue({
+        id: 'c1',
+        worldId: 'world1',
+        items: [
+          { id: '1', code: 'ZL', name: 'Zlaťák', symbol: 'Zl', rate: 1 },
+          { id: '2', code: 'XX', name: 'Rozbitá', symbol: 'X', rate: 0 },
+        ],
+        updatedAt: new Date(),
+      });
+      await expect(
+        service.convert('world1', { amount: 1, from: 'ZL', to: 'XX' }, 'user1'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

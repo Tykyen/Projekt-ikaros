@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { randomUUID } from 'crypto';
 import type { INestApplication } from '@nestjs/common';
 import { createTestApp, type TestApp } from '../helpers/app-factory';
 import { authHeader } from '../helpers/auth';
@@ -323,5 +324,124 @@ describe('Race: ekonomika (e2e)', () => {
     // balance se NESMÍ odečíst a purchase log NESMÍ zůstat (žádný částečný stav).
     expect(after).toBe(before);
     expect(purchaseCount).toBe(0);
+  }, 60_000);
+
+  // ── ✅ D-PURCHASE-IDEMPOTENCY: clientNonce = jeden záměr → jeden odečet ────
+  // Unique index (buyerUserId, clientNonce) na campaignPurchases je zdroj
+  // pravdy: prohraný request dostane E11000 → replay výsledku vítěze.
+  function purchaseWithNonce(itemId: string, accountId: string, nonce: string) {
+    return request(srv())
+      .post(
+        `/api/campaign/shopitems/${itemId}/purchase?worldId=${seed.worldId}`,
+      )
+      .set(tok())
+      .send({ characterId: seed.characterId, accountId, clientNonce: nonce });
+  }
+
+  it('✅ idempotence: 2 souběžné nákupy se stejným clientNonce → 1 odečet + tentýž purchase log', async () => {
+    const acc = await makeAccount(seed.characterSlug, 'zl', 100);
+    const item = await createShopItem(40); // krytí by stačilo na OBA (60/20) — dvojímu odečtu brání JEN nonce
+    const nonce = randomUUID();
+
+    // Čistý inventář — ať jde spočítat, že přibyla právě 1 položka.
+    const invCol = testApp.connection.db!.collection('character_inventories');
+    await invCol.updateOne(
+      { characterId: seed.characterId },
+      { $set: { sections: [] } },
+    );
+
+    const results = await Promise.all([
+      purchaseWithNonce(item, acc, nonce),
+      purchaseWithNonce(item, acc, nonce),
+    ]);
+
+    // Oba requesty uspějí — prohraný dostane replay výsledku vítěze, ne chybu.
+    for (const r of results) expect([200, 201]).toContain(r.status);
+    const ids = results.map((r) =>
+      String(r.body.purchase.id ?? r.body.purchase._id),
+    );
+    expect(ids[0]).toBe(ids[1]);
+
+    // Právě JEDEN odečet a JEDEN purchase log.
+    expect((await getAccount(acc)).balance).toBe(60);
+    const logCount = await testApp.connection
+      .db!.collection('campaignPurchases')
+      .countDocuments({ accountId: acc, clientNonce: nonce });
+    expect(logCount).toBe(1);
+
+    // A právě JEDNA položka ve vybavení (prohraná větev se rollbackla).
+    const inv = await invCol.findOne({ characterId: seed.characterId });
+    const totalItems = (
+      (inv?.sections ?? []) as { items?: unknown[] }[]
+    ).reduce((sum, sec) => sum + (sec.items?.length ?? 0), 0);
+    expect(totalItems).toBe(1);
+  }, 60_000);
+
+  it('✅ idempotence: sekvenční retry nákupu se stejným clientNonce → replay, balance beze změny', async () => {
+    const acc = await makeAccount(seed.characterSlug, 'zl', 100);
+    const item = await createShopItem(40);
+    const nonce = randomUUID();
+
+    const first = await purchaseWithNonce(item, acc, nonce);
+    expect([200, 201]).toContain(first.status);
+    expect((await getAccount(acc)).balance).toBe(60);
+
+    const second = await purchaseWithNonce(item, acc, nonce);
+    expect([200, 201]).toContain(second.status);
+    expect(String(second.body.purchase.id)).toBe(
+      String(first.body.purchase.id),
+    );
+    expect(second.body.newBalance).toBe(60);
+    expect((await getAccount(acc)).balance).toBe(60); // žádný 2. odečet
+  }, 60_000);
+
+  it('✅ idempotence: 2 souběžné transfery se stejným clientNonce → 1 debet (guard ve filtru debetu)', async () => {
+    const a = await makeAccount(seed.characterSlug, 'zl', 100);
+    const b = await makeAccount(seed.characterSlug, 'zl', 0);
+    const nonce = randomUUID();
+    const send = () =>
+      request(srv())
+        .post(`/api/worlds/${seed.worldId}/accounts/${a}/transfer`)
+        .set(tok())
+        .send({
+          toAccountId: b,
+          amount: 30,
+          description: 't',
+          clientNonce: nonce,
+        });
+
+    const results = await Promise.all([send(), send()]);
+    for (const r of results) expect([200, 201]).toContain(r.status);
+
+    // Jeden záměr = jeden pohyb peněz; conservation drží.
+    expect((await getAccount(a)).balance).toBe(70);
+    expect((await getAccount(b)).balance).toBe(30);
+  }, 60_000);
+
+  it('✅ idempotence: sekvenční retry transferu se stejným clientNonce → replay bez 2. debetu', async () => {
+    const a = await makeAccount(seed.characterSlug, 'zl', 100);
+    const b = await makeAccount(seed.characterSlug, 'zl', 0);
+    const nonce = randomUUID();
+    const send = () =>
+      request(srv())
+        .post(`/api/worlds/${seed.worldId}/accounts/${a}/transfer`)
+        .set(tok())
+        .send({
+          toAccountId: b,
+          amount: 30,
+          description: 't',
+          clientNonce: nonce,
+        });
+
+    const first = await send();
+    expect([200, 201]).toContain(first.status);
+    const second = await send();
+    expect([200, 201]).toContain(second.status);
+
+    expect((await getAccount(a)).balance).toBe(70);
+    expect((await getAccount(b)).balance).toBe(30);
+    // Replay vrací stav obou účtů (kontrakt shodný s prvním voláním).
+    expect(second.body.from.balance).toBe(70);
+    expect(second.body.to.balance).toBe(30);
   }, 60_000);
 });

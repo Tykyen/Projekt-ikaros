@@ -111,6 +111,8 @@ describe('ChatService', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -467,6 +469,61 @@ describe('ChatService', () => {
       mockMessageRepo.findFeed.mockResolvedValue([]);
       await service.getFeed(mockPJ, { limit: 500 });
       expect(mockMessageRepo.findFeed.mock.calls[0][0].limit).toBe(100);
+    });
+
+    // D-NEW-INV-SEC persona-on-server — feed rendruje FE bez world resolveru,
+    // personu PJ (6.8) dosazuje server; NPC override při zobrazení vyhrává.
+    it('zpráva vedení nese personu, hráč reálné jméno, override zůstává', async () => {
+      mockMembershipRepo.findByUserId.mockResolvedValue([
+        { ...mockHracMembership, userId: 'user2', worldId: 'world1' },
+      ]);
+      mockChannelRepo.findByWorldId.mockResolvedValue([mockChannel]);
+      mockMembershipRepo.findByWorldId.mockResolvedValue([
+        { ...mockPJMembership, userId: 'pj9' },
+        { ...mockHracMembership, userId: 'user2' },
+      ]);
+      mockWorldsService.findById.mockResolvedValue({
+        id: 'world1',
+        name: 'Svět 1',
+        slug: 'svet-1',
+      });
+      mockWorldsService.getSettings.mockResolvedValue({
+        pjChatPersona: {
+          enabled: true,
+          name: 'Vypravěč',
+          avatarUrl: 'persona.png',
+          mode: 'unified',
+        },
+      });
+      mockMessageRepo.findFeed.mockResolvedValue([
+        {
+          ...baseMsg,
+          id: 'msg-pj',
+          senderId: 'pj9',
+          senderName: 'pj-realny-login',
+        },
+        { ...baseMsg, id: 'msg-hrac', senderId: 'user2', senderName: 'hrac' },
+        {
+          ...baseMsg,
+          id: 'msg-npc',
+          senderId: 'pj9',
+          senderName: 'pj-realny-login',
+          overrideName: 'Hostinský Baram',
+        },
+      ]);
+
+      const res = await service.getFeed(
+        { id: 'user2', role: UserRole.Hrac, username: 'user2' },
+        {},
+      );
+
+      expect(res[0].senderName).toBe('Vypravěč');
+      expect(res[0].senderAvatarUrl).toBe('persona.png');
+      expect(res[1].senderName).toBe('hrac');
+      // NPC override zůstává (vyhrává při zobrazení), surové senderName
+      // pod ním ale nesmí nést reálný login.
+      expect(res[2].overrideName).toBe('Hostinský Baram');
+      expect(res[2].senderName).toBe('Vypravěč');
     });
   });
 
@@ -1091,6 +1148,71 @@ describe('ChatService', () => {
       expect(r[0].channelName).toBe('obecný');
       expect(r[0].content).toBe('našel jsem stopu');
     });
+
+    // D-NEW-INV-SEC persona-on-server — výsledky hledání rendruje FE přímo,
+    // jméno vedení proto dosazuje server (persona 6.8).
+    it('zpráva vedení nese personu, NPC override vyhrává', async () => {
+      mockGroupRepo.findByWorldId.mockResolvedValue([mockGroup]);
+      mockChannelRepo.findByWorldId.mockResolvedValue([mockChannel]);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(
+        mockHracMembership,
+      );
+      mockMembershipRepo.findByWorldId.mockResolvedValue([
+        { ...mockPJMembership, userId: 'pj9' },
+        mockHracMembership,
+      ]);
+      mockWorldsService.getSettings.mockResolvedValue({
+        pjChatPersona: {
+          enabled: true,
+          name: 'Vypravěč',
+          avatarUrl: null,
+          mode: 'unified',
+        },
+      });
+      mockMessageRepo.searchInChannels.mockResolvedValue([
+        {
+          id: 'm1',
+          channelId: 'ch1',
+          senderId: 'pj9',
+          senderName: 'pj-realny-login',
+          content: 'tajná stopa',
+          reactions: {},
+          attachments: [],
+          createdAt: new Date(),
+        },
+        {
+          id: 'm2',
+          channelId: 'ch1',
+          senderId: 'pj9',
+          senderName: 'pj-realny-login',
+          overrideName: 'Hostinský Baram',
+          content: 'stopa od NPC',
+          reactions: {},
+          attachments: [],
+          createdAt: new Date(),
+        },
+        {
+          id: 'm3',
+          channelId: 'ch1',
+          senderId: 'user2',
+          senderName: 'hrac',
+          content: 'stopa hráče',
+          reactions: {},
+          attachments: [],
+          createdAt: new Date(),
+        },
+      ]);
+      const r = await service.searchMessages(
+        'world1',
+        { id: 'user2', role: UserRole.Hrac, username: 'user2' },
+        { q: 'stopa' },
+      );
+      expect(r.map((x) => x.senderName)).toEqual([
+        'Vypravěč',
+        'Hostinský Baram',
+        'hrac',
+      ]);
+    });
   });
 
   describe('sendMessage', () => {
@@ -1476,6 +1598,136 @@ describe('ChatService', () => {
       const [recipientIds] = mockPushService.notifyUsers.mock.calls[0];
       expect(recipientIds).toEqual(expect.arrayContaining(['userB', 'userC']));
       expect(recipientIds).not.toContain('userA');
+    });
+
+    // D-NEW-INV-SEC persona-on-server — titulek pushe od vedení nese personu
+    // PJ (6.8), ne reálné jméno (FE render-time resolver na push nedosáhne).
+    describe('push titulek — PJ persona', () => {
+      const membersChannel = {
+        id: 'chan1',
+        worldId: 'world1',
+        accessMode: 'members',
+        allowedMemberIds: ['userA', 'userB'],
+        allowedRoles: [],
+      };
+      const savedMsg = (over: Record<string, unknown> = {}) => ({
+        id: 'msg1',
+        channelId: 'chan1',
+        worldId: 'world1',
+        senderId: 'userA',
+        senderName: 'pj-realny-login',
+        content: 'Zpráva',
+        createdAt: new Date(),
+        ...over,
+      });
+      const flushPush = () => new Promise((resolve) => setImmediate(resolve));
+
+      it('PJ s nastavenou personou → titulek = jméno persony', async () => {
+        mockChannelRepo.findById.mockResolvedValue(membersChannel);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+          userId: 'userA',
+          worldId: 'world1',
+          role: WorldRole.PJ,
+        });
+        mockWorldsService.getSettings.mockResolvedValue({
+          pjChatPersona: {
+            enabled: true,
+            name: 'Vypravěč',
+            avatarUrl: null,
+            mode: 'unified',
+          },
+        });
+        mockMessageRepo.save.mockResolvedValue(savedMsg());
+        mockChannelRepo.update.mockResolvedValue(undefined);
+
+        await service.sendMessage(
+          'chan1',
+          { content: 'Zpráva' },
+          { id: 'userA', username: 'pj-realny-login', role: UserRole.Hrac },
+        );
+        await flushPush();
+
+        const [, payload] = mockPushService.notifyUsers.mock.calls[0];
+        expect(payload.title).toBe('Vypravěč');
+      });
+
+      it('PJ bez nastavené persony → default „PJ", nikdy reálný login', async () => {
+        mockChannelRepo.findById.mockResolvedValue(membersChannel);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+          userId: 'userA',
+          worldId: 'world1',
+          role: WorldRole.PomocnyPJ,
+        });
+        mockWorldsService.getSettings.mockResolvedValue(null);
+        mockMessageRepo.save.mockResolvedValue(savedMsg());
+        mockChannelRepo.update.mockResolvedValue(undefined);
+
+        await service.sendMessage(
+          'chan1',
+          { content: 'Zpráva' },
+          { id: 'userA', username: 'pj-realny-login', role: UserRole.Hrac },
+        );
+        await flushPush();
+
+        const [, payload] = mockPushService.notifyUsers.mock.calls[0];
+        expect(payload.title).toBe('PJ');
+      });
+
+      it('NPC override vyhrává nad personou', async () => {
+        mockChannelRepo.findById.mockResolvedValue(membersChannel);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+          userId: 'userA',
+          worldId: 'world1',
+          role: WorldRole.PJ,
+        });
+        mockWorldsService.getSettings.mockResolvedValue({
+          pjChatPersona: {
+            enabled: true,
+            name: 'Vypravěč',
+            avatarUrl: null,
+            mode: 'unified',
+          },
+        });
+        mockMessageRepo.save.mockResolvedValue(
+          savedMsg({ overrideName: 'Hostinský Baram' }),
+        );
+        mockChannelRepo.update.mockResolvedValue(undefined);
+
+        await service.sendMessage(
+          'chan1',
+          { content: 'Zpráva', overrideName: 'Hostinský Baram' },
+          { id: 'userA', username: 'pj-realny-login', role: UserRole.Hrac },
+        );
+        await flushPush();
+
+        const [, payload] = mockPushService.notifyUsers.mock.calls[0];
+        expect(payload.title).toBe('Hostinský Baram');
+      });
+
+      it('hráč (ne vedení) → reálné senderName, settings se nečtou', async () => {
+        mockChannelRepo.findById.mockResolvedValue(membersChannel);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+          userId: 'userA',
+          worldId: 'world1',
+          role: WorldRole.Hrac,
+        });
+        mockWorldsService.getSettings.mockResolvedValue(null);
+        mockMessageRepo.save.mockResolvedValue(
+          savedMsg({ senderName: 'hrac-jmeno' }),
+        );
+        mockChannelRepo.update.mockResolvedValue(undefined);
+
+        await service.sendMessage(
+          'chan1',
+          { content: 'Zpráva' },
+          { id: 'userA', username: 'hrac-jmeno', role: UserRole.Hrac },
+        );
+        await flushPush();
+
+        const [, payload] = mockPushService.notifyUsers.mock.calls[0];
+        expect(payload.title).toBe('hrac-jmeno');
+        expect(mockWorldsService.getSettings).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -1945,6 +2197,128 @@ describe('ChatService', () => {
     });
   });
 
+  // D-066 (spec 20B B4b) — moderační skrytí (M2/M3) a odstranění (M4) zprávy.
+  describe('moderace zpráv (D-066)', () => {
+    const worldMsg = {
+      id: 'msg1',
+      channelId: 'ch1',
+      worldId: 'world1',
+      senderId: 'user1',
+      isDeleted: false,
+      attachments: [{ url: 'https://x/att.png' }],
+    };
+
+    it('moderationSetMessageHidden — nastaví flag+důvod a emitne chat.message.updated', async () => {
+      mockMessageRepo.findById.mockResolvedValue(worldMsg);
+      const masked = { ...worldMsg, moderationHidden: true };
+      mockMessageRepo.update.mockResolvedValue(masked);
+
+      const ok = await service.moderationSetMessageHidden(
+        'msg1',
+        true,
+        'Skryto moderací — rozhodnutí dec1',
+      );
+
+      expect(ok).toBe(true);
+      expect(mockMessageRepo.update).toHaveBeenCalledWith('msg1', {
+        moderationHidden: true,
+        moderationHiddenReason: 'Skryto moderací — rozhodnutí dec1',
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'chat.message.updated',
+        { channelId: 'ch1', message: masked },
+      );
+    });
+
+    it('moderationSetMessageHidden — globální zpráva (worldId=null) bez updated relay', async () => {
+      mockMessageRepo.findById.mockResolvedValue({
+        ...worldMsg,
+        worldId: null,
+      });
+      mockMessageRepo.update.mockResolvedValue({
+        ...worldMsg,
+        worldId: null,
+        moderationHidden: true,
+      });
+
+      const ok = await service.moderationSetMessageHidden('msg1', true, 'x');
+
+      expect(ok).toBe(true);
+      expect(mockEventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('moderationSetMessageHidden — neznámá/smazaná zpráva vrátí false', async () => {
+      mockMessageRepo.findById.mockResolvedValue(null);
+      expect(await service.moderationSetMessageHidden('ghost', true)).toBe(
+        false,
+      );
+      mockMessageRepo.findById.mockResolvedValue({
+        ...worldMsg,
+        isDeleted: true,
+      });
+      expect(await service.moderationSetMessageHidden('msg1', true)).toBe(
+        false,
+      );
+      expect(mockMessageRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('moderationRemoveMessage — soft delete + chat.message.deleted (přílohy z post-update)', async () => {
+      mockMessageRepo.findById.mockResolvedValue(worldMsg);
+      mockMessageRepo.update.mockResolvedValue({
+        ...worldMsg,
+        isDeleted: true,
+        content: '*Zpráva odstraněna moderací*',
+        attachments: [{ url: 'https://x/att.png' }],
+      });
+
+      const ok = await service.moderationRemoveMessage('msg1');
+
+      expect(ok).toBe(true);
+      expect(mockMessageRepo.update).toHaveBeenCalledWith('msg1', {
+        isDeleted: true,
+        content: '*Zpráva odstraněna moderací*',
+        moderationHidden: false,
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'chat.message.deleted',
+        {
+          channelId: 'ch1',
+          messageId: 'msg1',
+          attachments: [{ url: 'https://x/att.png' }],
+        },
+      );
+    });
+
+    it('moderationRemoveMessage — globální zpráva emitne chat.global.message.deleted', async () => {
+      mockMessageRepo.findById.mockResolvedValue({
+        ...worldMsg,
+        worldId: null,
+      });
+      mockMessageRepo.update.mockResolvedValue({
+        ...worldMsg,
+        worldId: null,
+        isDeleted: true,
+        attachments: [],
+      });
+
+      await service.moderationRemoveMessage('msg1');
+
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith(
+        'chat.global.message.deleted',
+        expect.objectContaining({ messageId: 'msg1' }),
+      );
+    });
+
+    it('moderationRemoveMessage — už smazaná zpráva vrátí false (idempotence)', async () => {
+      mockMessageRepo.findById.mockResolvedValue({
+        ...worldMsg,
+        isDeleted: true,
+      });
+      expect(await service.moderationRemoveMessage('msg1')).toBe(false);
+      expect(mockMessageRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('ChatMessage interface — reactions field', () => {
     it('mockMsg should have reactions field (type check)', () => {
       const msg: import('./interfaces/chat-message.interface').ChatMessage = {
@@ -2038,6 +2412,8 @@ describe('sendMessage — new fields', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -2309,6 +2685,8 @@ describe('toggleReaction', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -2509,6 +2887,8 @@ describe('sendMessage — character mentions', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -2727,6 +3107,8 @@ describe('sendMessage — attachments', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -2869,6 +3251,8 @@ describe('findChannelForUpload', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
@@ -3017,6 +3401,8 @@ describe('getMessages — whisper filtering', () => {
   const mockChannelRepo = {
     findById: jest.fn(),
     findByGroupId: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByWorldId: jest.fn().mockResolvedValue(0),
     findByWorldId: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),

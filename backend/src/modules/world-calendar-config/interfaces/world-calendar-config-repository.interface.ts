@@ -2,6 +2,8 @@ import type { WorldCalendarConfig } from './world-calendar-config.interface';
 
 export interface IWorldCalendarConfigRepository {
   findAllByWorldId(worldId: string): Promise<WorldCalendarConfig[]>;
+  /** D-SEC-GAP-2026-07-11 — anti-abuse: počet kalendářů světa (creation cap). */
+  countByWorldId(worldId: string): Promise<number>;
   findBySlug(
     worldId: string,
     slug: string,

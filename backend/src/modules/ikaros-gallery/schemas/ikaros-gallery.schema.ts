@@ -22,6 +22,9 @@ export class IkarosGallerySchemaClass {
   // 3.3a — rozměry pro masonry aspect-ratio (0 = starý dokument, FE fallback 1:1)
   @Prop({ default: 0 }) width: number;
   @Prop({ default: 0 }) height: number;
+  // D-19.2 — velikost blobu v bytech (měření storage / kvóty UM-10).
+  // Optional: staré dokumenty pole nemají (retroaktivně nejde doplnit).
+  @Prop() bytes?: number;
   // 3.3a — slug kategorie, FK → gallery_categories.key
   @Prop({ default: 'ostatni' }) category: string;
   @Prop({ required: true }) authorId: string;

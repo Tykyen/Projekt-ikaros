@@ -63,7 +63,7 @@ export class MongoContentReportsRepository implements IContentReportsRepository 
   ): Promise<ContentReport[]> {
     const docs = await this.model
       .find({ status: { $in: statuses } })
-      .sort({ createdAtUtc: -1 })
+      .sort({ createdAtUtc: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean()

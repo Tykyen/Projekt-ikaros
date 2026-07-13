@@ -31,6 +31,7 @@ describe('ScheduledMessagesController', () => {
     create: jest.fn(),
     claimDue: jest.fn(),
     findPendingByOwner: jest.fn(),
+    countPendingByWorld: jest.fn().mockResolvedValue(0),
     findById: jest.fn(),
     setStatus: jest.fn(),
     delete: jest.fn(),

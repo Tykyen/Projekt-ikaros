@@ -18,12 +18,14 @@ import {
   SceneNameOpDto,
   SceneFolderOpDto,
   SceneDeactivateOpDto,
+  SceneActivateOpDto,
   SceneFogReplaceOpDto,
   SceneEffectsReplaceOpDto,
   SceneWallsReplaceOpDto,
   SceneLightsReplaceOpDto,
   SceneNpcTemplatesReplaceOpDto,
   SceneTokensReplaceNpcOpDto,
+  SceneDrawingsReplaceOpDto,
   SceneSoundsSetOpDto,
   SceneActiveCharactersAddOpDto,
   SceneActiveCharactersRemoveOpDto,
@@ -89,6 +91,8 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   'scene.name': SceneNameOpDto,
   'scene.folder': SceneFolderOpDto,
   'scene.deactivate': SceneDeactivateOpDto,
+  // D-NEW-INV-MAPS — inverse pro scene.deactivate (undo aktivuje zpět)
+  'scene.activate': SceneActivateOpDto,
   // 10.2c-edit-2 — load šablony sekvence
   'scene.fog.replace': SceneFogReplaceOpDto,
   'scene.effects.replace': SceneEffectsReplaceOpDto,
@@ -97,6 +101,8 @@ export const MAP_OPERATION_DTOS: Record<string, ClassType<object>> = {
   'scene.lights.replace': SceneLightsReplaceOpDto,
   'scene.npc-templates.replace': SceneNpcTemplatesReplaceOpDto,
   'scene.tokens.replace-npc': SceneTokensReplaceNpcOpDto,
+  // D-NEW-INV-MAPS — inverse pro drawing.clear (undo obnoví kresby)
+  'scene.drawings.replace': SceneDrawingsReplaceOpDto,
   'scene.sounds.set': SceneSoundsSetOpDto,
   // 10.2c-edit-7 — per-scéna whitelist postav a bestií
   'scene.activeCharacters.add': SceneActiveCharactersAddOpDto,
@@ -149,12 +155,14 @@ export type MapOperationPayload =
   | SceneNameOpDto
   | SceneFolderOpDto
   | SceneDeactivateOpDto
+  | SceneActivateOpDto
   | SceneFogReplaceOpDto
   | SceneEffectsReplaceOpDto
   | SceneWallsReplaceOpDto
   | SceneLightsReplaceOpDto
   | SceneNpcTemplatesReplaceOpDto
   | SceneTokensReplaceNpcOpDto
+  | SceneDrawingsReplaceOpDto
   | SceneSoundsSetOpDto
   | SceneActiveCharactersAddOpDto
   | SceneActiveCharactersRemoveOpDto

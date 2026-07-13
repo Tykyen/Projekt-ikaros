@@ -7,6 +7,7 @@ import { Injectable } from '@nestjs/common';
 import { Socket } from 'socket.io';
 import { BaseGateway } from './base.gateway';
 import { ChatService } from '../modules/chat/chat.service';
+import { allowWsEvent } from '../common/ws/ws-rate-limit';
 
 // @Injectable() — AppGateway nemá vlastní @WebSocketGateway (dědí z BaseGateway);
 // dekorátor je nutný, aby TS emitoval `design:paramtypes` pro konstruktor (DI
@@ -24,6 +25,10 @@ export class AppGateway extends BaseGateway {
     @MessageBody() room: string,
     @ConnectedSocket() client: Socket,
   ) {
+    // D-LAUNCH-GAP — anti-flood; `chat:` větev dělá DB access check. Limit 30
+    // (nad default): reconnect re-emituje join všech otevřených roomů najednou.
+    // Tiché zahození (žádný ack) — flooder nedostane zpětnou vazbu.
+    if (!allowWsEvent(client, 'room:join', { limit: 30 })) return;
     if (!AppGateway.ROOM_PATTERN.test(room)) {
       return { error: 'Neplatný formát roomy' };
     }
@@ -60,6 +65,7 @@ export class AppGateway extends BaseGateway {
     @MessageBody() room: string,
     @ConnectedSocket() client: Socket,
   ) {
+    if (!allowWsEvent(client, 'room:leave', { limit: 30 })) return; // D-LAUNCH-GAP
     if (!AppGateway.ROOM_PATTERN.test(room)) {
       return { error: 'Neplatný formát roomy' };
     }

@@ -42,6 +42,7 @@ describe('IkarosNewsService', () => {
     record: jest.fn().mockResolvedValue(undefined),
   };
   const mockEmitter = { emit: jest.fn() };
+  const mockPush = { notifyAll: jest.fn().mockResolvedValue(undefined) };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -51,10 +52,7 @@ describe('IkarosNewsService', () => {
         IkarosNewsService,
         { provide: 'IIkarosNewsRepository', useValue: mockRepo },
         { provide: 'IUsersRepository', useValue: mockUsersRepo },
-        {
-          provide: PushService,
-          useValue: { notifyAll: jest.fn().mockResolvedValue(undefined) },
-        },
+        { provide: PushService, useValue: mockPush },
         { provide: 'IAdminAuditLogRepository', useValue: mockAuditRepo },
         // C-47 — service emituje 'ikaros-news.changed' po mutaci.
         { provide: EventEmitter2, useValue: mockEmitter },
@@ -201,14 +199,18 @@ describe('IkarosNewsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('Korektor nesmí vytvořit novinku', async () => {
-      await expect(
-        service.create(
-          { title: 'X', content: 'Y' },
-          'user1',
-          UserRole.Korektor,
-        ),
-      ).rejects.toThrow(ForbiddenException);
+    // D-NEW-INV-PUSH — push novinky nese deep-link, klik neotevře jen '/'.
+    it('push novinky má url /ikaros/novinky a kategorii ikarosNews', async () => {
+      mockRepo.create.mockResolvedValue(mockItem);
+      await service.create(
+        { title: 'Novinka', content: 'Obsah' },
+        'user1',
+        UserRole.Admin,
+      );
+      expect(mockPush.notifyAll).toHaveBeenCalledWith(
+        expect.objectContaining({ url: '/ikaros/novinky' }),
+        'ikarosNews',
+      );
     });
   });
 

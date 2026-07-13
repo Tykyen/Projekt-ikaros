@@ -58,6 +58,7 @@ import { worldAdminBypass } from '../../common/utils/world-elevation';
 import { WorldElevationsService } from '../world-elevations/world-elevations.service';
 import type { WorldElevationChangedEvent } from '../world-elevations/world-elevations.service';
 import { isEffectiveSupporter } from '../users/supporter.util';
+import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 /**
  * 2.3 D-NEW-quota — maximální počet aktivních světů, které smí mít jeden
@@ -451,6 +452,18 @@ export class WorldsService implements OnApplicationBootstrap {
     ownerId: string,
     ownerRole?: UserRole,
   ): Promise<World> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: tvrdý kumulativní
+    // strop světů na účet VČETNĚ soft-deleted (aktivní kvóty níže jde obejít
+    // cyklem vytvoř→smaž→vytvoř, dokumenty v DB ale zůstávají 30 dní).
+    // Admin/Superadmin exempt (konzistentně s kvótou níže).
+    if (ownerRole != null && ownerRole > UserRole.Admin) {
+      assertUnderCreationLimit(
+        await this.worldsRepo.countByOwnerId(ownerId),
+        'MAX_WORLDS_PER_USER',
+        'světů na účet',
+      );
+    }
+
     // 2.3 D-NEW-quota — Admin/Superadmin (role <= Admin) bez limitu;
     // ostatní max MAX_ACTIVE_WORLDS_PER_OWNER aktivních světů.
     if (ownerRole != null && ownerRole > UserRole.Admin) {
@@ -523,40 +536,54 @@ export class WorldsService implements OnApplicationBootstrap {
       akj: 0,
     });
 
-    await this.currenciesService.seedForWorld(world.id, dto.genre);
-    await this.weatherService.seedDefaultForWorld(
-      world.id,
-      dto.genre ?? 'other',
-    );
+    // D-R-AUDIT-CREATE-TX — svět + membership (výše) jsou kritické; seedy níže
+    // jsou defaulty (backfillovatelné). Bez Mongo cross-doc transakce (chce
+    // replica set + session-threading přes 4 služby) je levná pojistka obalit
+    // seed kroky try/catch: seed-fail zaloguje místo 500, svět NIKDY neskončí
+    // bez membershipu (= bez vlastníka). Tvůrce pak jen nemá část defaultů,
+    // ne ztrátu vlastnictví.
+    try {
+      await this.currenciesService.seedForWorld(world.id, dto.genre);
+      await this.weatherService.seedDefaultForWorld(
+        world.id,
+        dto.genre ?? 'other',
+      );
 
-    // 9.3-F-I — Q1: pokud PJ pošle vlastní `calendars`, seedne všechny.
-    // Jinak BC fallback = auto-seed Gregorian default.
-    if (calendarsFromDto !== undefined) {
-      // PJ explicit volba (i prázdný array = svět bez kalendáře).
-      for (const cal of calendarsFromDto) {
-        await this.calendarConfigService.applyPresetTemplate(world.id, cal);
+      // 9.3-F-I — Q1: pokud PJ pošle vlastní `calendars`, seedne všechny.
+      // Jinak BC fallback = auto-seed Gregorian default.
+      if (calendarsFromDto !== undefined) {
+        // PJ explicit volba (i prázdný array = svět bez kalendáře).
+        for (const cal of calendarsFromDto) {
+          await this.calendarConfigService.applyPresetTemplate(world.id, cal);
+        }
+      } else {
+        // BC — žádné calendars v DTO, auto-seed Gregorian.
+        await this.calendarConfigService.seedGregorianDefault(world.id);
       }
-    } else {
-      // BC — žádné calendars v DTO, auto-seed Gregorian.
-      await this.calendarConfigService.seedGregorianDefault(world.id);
-    }
 
-    // Auto-seed diarySchema z preset (Krok 7d)
-    // 8.5-BE-2: navíc ulož i verzi 1 do diary_schema_versions
-    // (předtím se seedovala jen `world_settings.diarySchema`, tabulka verzí
-    // zůstávala prázdná → GET /diary-schema-versions vracel [] u nového světa).
-    const preset = this.systemPresetsService.findOne(world.system);
-    const seedSchema = preset?.schema ?? [];
-    await this.settingsRepo.upsert(world.id, {
-      diarySchema: seedSchema,
-    });
-    await this.diaryVersionsRepo.create({
-      worldId: world.id,
-      version: 1,
-      system: world.system,
-      schema: seedSchema,
-      archivedAt: null,
-    });
+      // Auto-seed diarySchema z preset (Krok 7d)
+      // 8.5-BE-2: navíc ulož i verzi 1 do diary_schema_versions
+      // (předtím se seedovala jen `world_settings.diarySchema`, tabulka verzí
+      // zůstávala prázdná → GET /diary-schema-versions vracel [] u nového světa).
+      const preset = this.systemPresetsService.findOne(world.system);
+      const seedSchema = preset?.schema ?? [];
+      await this.settingsRepo.upsert(world.id, {
+        diarySchema: seedSchema,
+      });
+      await this.diaryVersionsRepo.create({
+        worldId: world.id,
+        version: 1,
+        system: world.system,
+        schema: seedSchema,
+        archivedAt: null,
+      });
+    } catch (err) {
+      logError(
+        this.logger,
+        `Seed nového světa ${world.id} částečně selhal (svět+membership vznikly, chybí část defaultů — backfillovatelné)`,
+        err,
+      );
+    }
 
     this.eventEmitter.emit('world.created', world);
     return world;

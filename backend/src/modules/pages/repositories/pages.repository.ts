@@ -85,11 +85,17 @@ export class MongoPagesRepository
     return count > 0;
   }
 
+  async countByWorld(worldId: string): Promise<number> {
+    // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
+    // stránek světa. Index { worldId: 1 } existuje.
+    return this.model.countDocuments({ worldId }).exec();
+  }
+
   async findDirectory(
     worldId: string,
     types?: string[],
   ): Promise<
-    Pick<
+    (Pick<
       Page,
       | 'id'
       | 'slug'
@@ -106,7 +112,10 @@ export class MongoPagesRepository
       | 'accessRequirements'
       | 'isWoodWide'
       | 'moderationHidden'
-    >[]
+    > & {
+      /** D-DATA-SYNC-ZBYTKY a — link na Character entity (null = čistá stránka). */
+      characterId: string | null;
+    })[]
   > {
     const filter: Record<string, unknown> = { worldId };
     if (types && types.length > 0) filter.type = { $in: types };
@@ -134,6 +143,9 @@ export class MongoPagesRepository
         isWoodWide: 1,
         // 17.7 — existence familyTree rozlišuje nový Rodokmen od legacy (→ Zoom).
         familyTree: 1,
+        // D-DATA-SYNC-ZBYTKY a — link na Character entity pro FE migraci
+        // z legacy characters directory (adresář postav bez druhého fetche).
+        characterRef: 1,
       })
       .sort({ order: 1 })
       .lean()
@@ -161,6 +173,11 @@ export class MongoPagesRepository
       isWoodWide: (doc as { isWoodWide?: boolean }).isWoodWide ?? false,
       moderationHidden:
         (doc as { moderationHidden?: boolean }).moderationHidden ?? false,
+      // D-DATA-SYNC-ZBYTKY a — entry.id zůstává page ID (viz spec directory_id);
+      // characterId je NOVÉ vedlejší pole. Čistá stránka (bez postavy) → null.
+      characterId:
+        (doc as { characterRef?: { characterId?: string } }).characterRef
+          ?.characterId ?? null,
     }));
   }
 
@@ -255,6 +272,8 @@ export class MongoPagesRepository
       content: (doc.content as string) ?? '',
       quickRef: (doc.quickRef as string) ?? '',
       imageUrl: doc.imageUrl as string | undefined,
+      // D-19.2 — velikost blobu; staré dokumenty undefined.
+      imageBytes: doc.imageBytes as number | undefined,
       bigImage: (doc.bigImage as boolean) ?? false,
       // Parita s GameEvent — výřez hlavního obrázku (focal/zoom/fit).
       imageFocalX: (doc.imageFocalX as number | null) ?? null,
@@ -313,6 +332,8 @@ export class MongoPagesRepository
       ).map((g) => ({
         id: g.id as string,
         url: g.url as string,
+        // D-19.2 — velikost blobu položky galerie; staré položky undefined.
+        bytes: g.bytes as number | undefined,
         caption: g.caption as string | undefined,
         order: (g.order as number) ?? 0,
       })),

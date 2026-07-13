@@ -43,6 +43,10 @@ describe('IkarosDiscussionsService', () => {
     findPending: jest.fn(),
     findPendingPaginated: jest.fn(),
     countPending: jest.fn(),
+    // D-SEC-GAP-2026-07-11 — creation-flood cap; default pod stropem.
+    countByCreator: jest.fn().mockResolvedValue(0),
+    // D-DROBNE — GET /my (profil „Moje diskuze").
+    findByCreator: jest.fn(),
     findManagedWithJoinRequests: jest.fn(),
     findByIds: jest.fn(),
     findById: jest.fn(),
@@ -246,6 +250,40 @@ describe('IkarosDiscussionsService', () => {
         'cizi',
       );
       expect(asStranger).toHaveLength(0);
+    });
+  });
+
+  // D-DROBNE — GET /ikaros-discussions/my (zrcadlo findMy v articles/gallery).
+  describe('findMy', () => {
+    it('vrací VŠECHNY diskuze tvůrce vč. pending i uzamčených (bez access filtru)', async () => {
+      const pending = { ...mockDiscussion, id: 'd1', isApproved: false };
+      const lockedApproved = {
+        ...mockDiscussion,
+        id: 'd2',
+        isApproved: true,
+        isOpen: false,
+      };
+      mockRepo.findByCreator.mockResolvedValue([pending, lockedApproved]);
+      const result = await service.findMy('user1');
+      expect(result).toHaveLength(2);
+      expect(result.map((d) => d.id)).toEqual(['d1', 'd2']);
+    });
+
+    it('dotazuje repo výhradně dle creatorId přihlášeného (cizí se nevrací)', async () => {
+      mockRepo.findByCreator.mockResolvedValue([]);
+      const result = await service.findMy('user1');
+      expect(mockRepo.findByCreator).toHaveBeenCalledTimes(1);
+      expect(mockRepo.findByCreator).toHaveBeenCalledWith('user1');
+      expect(result).toEqual([]);
+    });
+
+    it('D-040 — tvůrci jsou tombstone-enrichnuti (creatorIsDeleted)', async () => {
+      mockRepo.findByCreator.mockResolvedValue([mockDiscussion]);
+      mockUsersService.findManyTombstoneInfo.mockResolvedValueOnce(
+        new Map([['user1', { isDeleted: true, displayName: 'Smazaný účet' }]]),
+      );
+      const result = await service.findMy('user1');
+      expect(result[0].creatorIsDeleted).toBe(true);
     });
   });
 

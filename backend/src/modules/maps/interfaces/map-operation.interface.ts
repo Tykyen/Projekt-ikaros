@@ -13,4 +13,11 @@ export interface MapOperationRecord {
   byUserId: string;
   byUserRole: number;
   appliedAt: Date;
+  /**
+   * D-DROBNE-UNDO — `true` = op je mimo undo stack. Nastavuje se (a) na
+   * vrácenou původní op (opakované undo ji už nenabídne) a (b) na záznam
+   * undo aplikace samotné (undo-of-undo/redo záměrně neděláme). Default
+   * `false`/`undefined` = undoable (má-li non-null `inverse`).
+   */
+  undone?: boolean;
 }

@@ -18,6 +18,9 @@ export class CharacterDiarySchemaClass {
   @Prop({ type: [MixedArraySubSchema] })
   personalDiarySchema?: Record<string, unknown>[];
   @Prop({ type: Object, default: {} }) customData: Record<string, unknown>;
+  /** D-066 (spec 20B B4b) — moderační skrytí deníku (M2/M3); revert vrací false. */
+  @Prop({ default: false }) moderationHidden?: boolean;
+  @Prop() moderationHiddenReason?: string;
 }
 
 export const CharacterDiarySchema = SchemaFactory.createForClass(

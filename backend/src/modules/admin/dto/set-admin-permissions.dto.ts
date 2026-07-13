@@ -11,9 +11,4 @@ export class SetAdminPermissionsDto {
   @IsOptional()
   @IsBoolean()
   canModerateContent?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsBoolean()
-  canEditPlatformPages?: boolean;
 }

@@ -3,12 +3,21 @@ import type { NotificationPreferences } from '../../../common/notifications/noti
 export enum UserRole {
   Superadmin = 1,
   Admin = 2,
+  /**
+   * D-NEW-INV-CLEANUP — legacy GLOBÁLNÍ world role (před D-053; dnes world role
+   * žijí v membershipech jako `WorldRole`). Hodnoty 4 (Korektor), 6 (Ctenar),
+   * 7 (Zadatel), 8 (Zakaz) odstraněny — v kódu se nepoužívaly. Čísla zůstávají
+   * REZERVOVANÁ, nerecyklovat! Kdyby DB (`users.role` = Number) starou hodnotu
+   * přesto držela, čtení nevaliduje a gating je fail-closed (`role <= Admin`,
+   * `=== konkrétní role`) → chová se jako běžný uživatel.
+   *
+   * `PJ` (3) ponechán: runtime reference (default `scheduledMessages.ownerRole`)
+   * + řada specs napříč moduly; globálně ho po D-053 žádný user nemá.
+   */
   PJ = 3,
-  Korektor = 4,
+  /** Běžný uživatel — DEFAULT role při registraci (auth.service, user.schema).
+   *  FE enum tuhle hodnotu nepojmenovává, pracuje s ní jen numericky. */
   Hrac = 5,
-  Ctenar = 6,
-  Zadatel = 7,
-  Zakaz = 8,
   Ikarus = 9,
   SpravceClanku = 10,
   SpravceGalerie = 11,
@@ -23,16 +32,17 @@ export enum UserRole {
   Guest = 99,
 }
 
+// D-NEW-INV-CLEANUP — `canEditPlatformPages` odstraněn (mrtvý flag, R-05:
+// BE ho nikde nevynucoval, FE toggle skryt). Ve starých user docech může
+// hodnota v `adminPermissions` subdoc přežívat — nikde se nečte, neškodí.
 export interface AdminPermissions {
   canManageAdmins: boolean;
   canModerateContent: boolean;
-  canEditPlatformPages: boolean;
 }
 
 export const DEFAULT_ADMIN_PERMISSIONS: AdminPermissions = {
   canManageAdmins: false,
   canModerateContent: false,
-  canEditPlatformPages: false,
 };
 
 /**
@@ -63,6 +73,8 @@ export interface User {
   role: UserRole;
   displayName?: string;
   avatarUrl?: string;
+  /** D-19.2 — velikost blobu avataru v bytech; staré dokumenty nemají. */
+  avatarBytes?: number;
   profileImageUrl?: string;
   characterPath?: string;
   themeSettings: Record<string, unknown>;
@@ -130,6 +142,8 @@ export interface User {
   characterName?: string;
   characterBio?: string;
   characterAvatarUrl?: string;
+  /** D-19.2 — velikost blobu avataru postavy v bytech; staré docs nemají. */
+  characterAvatarBytes?: number;
   themeId?: string;
   lastLoginAt?: Date;
 
