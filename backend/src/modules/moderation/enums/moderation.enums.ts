@@ -3,7 +3,7 @@
  * Stringové hodnoty jsou kontrakt sdílený s FE (ReportModal / ContentReportRenderer).
  */
 
-/** Typ nahlašitelného cíle — 12 ploch (veřejné B2 + soukromé B5 + herbář D-070). */
+/** Typ nahlašitelného cíle — 13 ploch (veřejné B2 + soukromé B5 + herbář D-070 + kouzla 21.5c). */
 export enum ReportTargetType {
   Article = 'article',
   Gallery = 'gallery',
@@ -17,6 +17,7 @@ export enum ReportTargetType {
   ChatMessage = 'chat_message',
   MailMessage = 'mail_message',
   Plant = 'plant',
+  Spell = 'spell',
 }
 
 /**

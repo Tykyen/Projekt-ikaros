@@ -38,4 +38,7 @@ export enum PendingActionType {
   // 21.5a — komunitní rostliny herbáře (scope='community', status='draft')
   // čekající na schválení. Vidí kurátoři (správci diskusí/článků + Admin).
   CommunityPlantPendingReview = 'community_plant_pending_review',
+  // 21.5c — komunitní kouzla (scope='community', status='draft') čekající na
+  // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunitySpellPendingReview = 'community_spell_pending_review',
 }
