@@ -43,6 +43,7 @@ import { PotionsModule } from './modules/potions/potions.module';
 import { ItemsModule } from './modules/items/items.module';
 import { RiddlesModule } from './modules/riddles/riddles.module';
 import { PriceListsModule } from './modules/price-lists/price-lists.module';
+import { NameSetsModule } from './modules/name-sets/name-sets.module';
 import { EntitySchemaVersionsModule } from './modules/entity-schema-versions/entity-schema-versions.module';
 import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
 import { IkarosNewsModule } from './modules/ikaros-news/ikaros-news.module';
@@ -132,6 +133,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     ItemsModule,
     RiddlesModule,
     PriceListsModule,
+    NameSetsModule,
     EntitySchemaVersionsModule,
     DungeonMapsModule,
     IkarosNewsModule,

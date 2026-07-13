@@ -53,4 +53,7 @@ export enum PendingActionType {
   // 21.5f — komunitní ceníky (scope='community', status='draft') čekající na
   // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
   CommunityPriceListPendingReview = 'community_price_list_pending_review',
+  // 21.2a — komunitní jmenné sady (scope='community', status='draft') čekající
+  // na schválení. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunityNameSetPendingReview = 'community_name_set_pending_review',
 }
