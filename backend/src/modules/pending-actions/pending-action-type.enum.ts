@@ -41,4 +41,13 @@ export enum PendingActionType {
   // 21.5c — komunitní kouzla (scope='community', status='draft') čekající na
   // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
   CommunitySpellPendingReview = 'community_spell_pending_review',
+  // 21.5b — komunitní lektvary (scope='community', status='draft') čekající na
+  // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunityPotionPendingReview = 'community_potion_pending_review',
+  // 21.5e — komunitní předměty (scope='community', status='draft') čekající na
+  // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunityItemPendingReview = 'community_item_pending_review',
+  // 21.5d — komunitní hádanky (scope='community', status='draft') čekající na
+  // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunityRiddlePendingReview = 'community_riddle_pending_review',
 }

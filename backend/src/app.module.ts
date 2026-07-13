@@ -39,6 +39,9 @@ import { MapsModule } from './modules/maps/maps.module';
 import { BestiaeModule } from './modules/bestiae/bestiae.module';
 import { PlantsModule } from './modules/plants/plants.module';
 import { SpellsModule } from './modules/spells/spells.module';
+import { PotionsModule } from './modules/potions/potions.module';
+import { ItemsModule } from './modules/items/items.module';
+import { RiddlesModule } from './modules/riddles/riddles.module';
 import { EntitySchemaVersionsModule } from './modules/entity-schema-versions/entity-schema-versions.module';
 import { DungeonMapsModule } from './modules/dungeon-maps/dungeon-maps.module';
 import { IkarosNewsModule } from './modules/ikaros-news/ikaros-news.module';
@@ -124,6 +127,9 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     BestiaeModule,
     PlantsModule,
     SpellsModule,
+    PotionsModule,
+    ItemsModule,
+    RiddlesModule,
     EntitySchemaVersionsModule,
     DungeonMapsModule,
     IkarosNewsModule,
