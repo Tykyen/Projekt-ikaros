@@ -50,4 +50,7 @@ export enum PendingActionType {
   // 21.5d — komunitní hádanky (scope='community', status='draft') čekající na
   // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
   CommunityRiddlePendingReview = 'community_riddle_pending_review',
+  // 21.5f — komunitní ceníky (scope='community', status='draft') čekající na
+  // schválení. Vidí kurátoři (správci diskusí/článků + Admin).
+  CommunityPriceListPendingReview = 'community_price_list_pending_review',
 }
