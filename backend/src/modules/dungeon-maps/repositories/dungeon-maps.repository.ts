@@ -31,6 +31,25 @@ export class MongoDungeonMapsRepository
     );
   }
 
+  async findLibrary(ownerId: string): Promise<DungeonMap[]> {
+    // { worldId: null } matchuje null i chybějící pole (Mongo semantika) —
+    // library položky worldId nemají, world dokumenty ho mají vždy.
+    const docs = await this.model
+      .find({ ownerId, worldId: null })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async deleteLibraryByOwner(ownerId: string): Promise<number> {
+    const result = await this.model
+      .deleteMany({ ownerId, worldId: null })
+      .exec();
+    return result.deletedCount ?? 0;
+  }
+
   async findById(id: string): Promise<DungeonMap | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const doc = await this.model.findById(id).lean().exec();
@@ -71,9 +90,11 @@ export class MongoDungeonMapsRepository
   protected toEntity(doc: Record<string, unknown>): DungeonMap {
     return {
       id: String(doc._id),
-      worldId: doc.worldId as string,
+      // 21.3c — library položky worldId nemají; normalizuj na null.
+      worldId: (doc.worldId as string | undefined) ?? null,
       ownerId: doc.ownerId as string | undefined,
       name: (doc.name as string) ?? '',
+      mapKind: (doc.mapKind as string) === 'city' ? 'city' : 'dungeon',
       gridType: (doc.gridType as string) === 'hex' ? 'hex' : 'square',
       gridWidth: (doc.gridWidth as number) ?? 20,
       gridHeight: (doc.gridHeight as number) ?? 20,
@@ -81,6 +102,7 @@ export class MongoDungeonMapsRepository
       theme: (doc.theme as string) === 'modern' ? 'modern' : 'dyson',
       cells: (doc.cells as DungeonCell[][]) ?? [],
       decorations: (doc.decorations as DungeonDecoration[]) ?? [],
+      notes: (doc.notes as DungeonMap['notes']) ?? [],
       lastModified: doc.lastModified as Date | undefined,
     };
   }

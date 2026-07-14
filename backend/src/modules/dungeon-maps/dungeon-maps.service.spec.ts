@@ -23,11 +23,21 @@ const mockDungeon = {
 // 21.3a — legacy dokument z doby před ownerId: edit jen PJ+.
 const legacyDungeon = { ...mockDungeon, id: 'dunLegacy', ownerId: undefined };
 
+// 21.3c — položka osobní knihovny (bez worldId, owner h1).
+const libraryDungeon = {
+  ...mockDungeon,
+  id: 'dunLib',
+  worldId: null,
+  ownerId: 'h1',
+};
+
 describe('DungeonMapsService', () => {
   let service: DungeonMapsService;
 
   const mockRepo = {
     findByWorld: jest.fn(),
+    findLibrary: jest.fn(),
+    deleteLibraryByOwner: jest.fn(),
     findById: jest.fn(),
     create: jest.fn(),
     replace: jest.fn(),
@@ -261,8 +271,12 @@ describe('DungeonMapsService', () => {
   });
 
   describe('replace (owner ∨ PJ+)', () => {
-    it('PJ nahradí cizí dungeon; ownerId původního vlastníka se zachová', async () => {
-      mockRepo.findById.mockResolvedValue({ ...mockDungeon, ownerId: 'h1' });
+    it('PJ nahradí cizí dungeon; ownerId i mapKind se zachovají (overwrite)', async () => {
+      mockRepo.findById.mockResolvedValue({
+        ...mockDungeon,
+        ownerId: 'h1',
+        mapKind: 'city',
+      });
       memberAs(WorldRole.PJ);
       mockRepo.replace.mockResolvedValue(mockDungeon);
       await service.replace(
@@ -270,10 +284,14 @@ describe('DungeonMapsService', () => {
         { name: 'Nové jméno' },
         { id: 'pj1', role: UserRole.Ikarus },
       );
-      // replace jede overwrite → ownerId musí být explicitně zachován.
+      // replace jede overwrite → ownerId + mapKind musí být explicitně zachovány.
       expect(mockRepo.replace).toHaveBeenCalledWith(
         'dun1',
-        expect.objectContaining({ worldId: 'world1', ownerId: 'h1' }),
+        expect.objectContaining({
+          worldId: 'world1',
+          ownerId: 'h1',
+          mapKind: 'city',
+        }),
       );
     });
 
@@ -348,6 +366,158 @@ describe('DungeonMapsService', () => {
       await expect(
         service.delete('x', { id: 'pj1', role: UserRole.Ikarus }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findLibrary (21.3c)', () => {
+    it('vrací jen vlastní položky (repo filtr ownerId + worldId null)', async () => {
+      mockRepo.findLibrary.mockResolvedValue([libraryDungeon]);
+      const result = await service.findLibrary({
+        id: 'h1',
+        role: UserRole.Ikarus,
+      });
+      expect(result).toEqual([libraryDungeon]);
+      expect(mockRepo.findLibrary).toHaveBeenCalledWith('h1');
+    });
+  });
+
+  describe('copy (21.3c)', () => {
+    it('do knihovny: hráč-Podporovatel (owner) → kopie s worldId null', async () => {
+      mockRepo.findById.mockResolvedValue({ ...mockDungeon, ownerId: 'h1' });
+      memberAs(WorldRole.Hrac);
+      userIs({ isSupporter: true });
+      mockRepo.create.mockResolvedValue(libraryDungeon);
+      await service.copy('dun1', undefined, {
+        id: 'h1',
+        role: UserRole.Ikarus,
+      });
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          worldId: null,
+          ownerId: 'h1',
+          name: 'Kobka',
+        }),
+      );
+    });
+
+    it('do knihovny: PJ zdrojového světa bez Podporovatele → povoleno', async () => {
+      mockRepo.findById.mockResolvedValue(mockDungeon); // owner pj1
+      memberAs(WorldRole.PJ);
+      userIs({ isSupporter: false });
+      mockRepo.create.mockResolvedValue(libraryDungeon);
+      await expect(
+        service.copy('dun1', undefined, { id: 'pj1', role: UserRole.Ikarus }),
+      ).resolves.toBeDefined();
+    });
+
+    it('do knihovny: hráč bez Podporovatele (owner) → 403 NOT_LIBRARY_ELIGIBLE', async () => {
+      mockRepo.findById.mockResolvedValue({ ...mockDungeon, ownerId: 'h1' });
+      memberAs(WorldRole.Hrac);
+      userIs({ isSupporter: false });
+      await expect(
+        service.copy('dun1', undefined, { id: 'h1', role: UserRole.Ikarus }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'NOT_LIBRARY_ELIGIBLE' }),
+      });
+      expect(mockRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('cizí dungeon (ne owner, ne PJ) → 403 ještě před cílem', async () => {
+      mockRepo.findById.mockResolvedValue(mockDungeon); // owner pj1
+      memberAs(WorldRole.Hrac);
+      await expect(
+        service.copy('dun1', undefined, { id: 'h1', role: UserRole.Ikarus }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'NOT_DUNGEON_OWNER' }),
+      });
+    });
+
+    it('do světa: create brána cílového světa (supporter member) + ownerId requester', async () => {
+      // 21.3e — kopie zachovává druh mapy (město zůstává městem).
+      mockRepo.findById.mockResolvedValue({
+        ...libraryDungeon,
+        mapKind: 'city',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockImplementation(
+        (_uid: string, wid: string) =>
+          Promise.resolve(wid === 'world2' ? { role: WorldRole.Hrac } : null),
+      );
+      userIs({ isSupporter: true });
+      mockRepo.create.mockResolvedValue({ ...mockDungeon, worldId: 'world2' });
+      await service.copy('dunLib', 'world2', {
+        id: 'h1',
+        role: UserRole.Ikarus,
+      });
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          worldId: 'world2',
+          ownerId: 'h1',
+          mapKind: 'city',
+        }),
+      );
+    });
+
+    it('do světa: non-member cílového světa → 403', async () => {
+      mockRepo.findById.mockResolvedValue(libraryDungeon);
+      memberAs(null);
+      await expect(
+        service.copy('dunLib', 'world2', { id: 'h1', role: UserRole.Ikarus }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('library položky (21.3c — owner-only)', () => {
+    it('replace: owner edituje, worldId zůstává null', async () => {
+      mockRepo.findById.mockResolvedValue(libraryDungeon);
+      mockRepo.replace.mockResolvedValue(libraryDungeon);
+      await service.replace(
+        'dunLib',
+        { name: 'X' },
+        {
+          id: 'h1',
+          role: UserRole.Ikarus,
+        },
+      );
+      expect(mockRepo.replace).toHaveBeenCalledWith(
+        'dunLib',
+        expect.objectContaining({ worldId: null, ownerId: 'h1' }),
+      );
+      // Membership se u library položky vůbec neřeší.
+      expect(mockMembershipRepo.findByUserAndWorld).not.toHaveBeenCalled();
+    });
+
+    it('cizí library položka → 403 i pro platform Admina', async () => {
+      mockRepo.findById.mockResolvedValue(libraryDungeon); // owner h1
+      await expect(
+        service.delete('dunLib', { id: 'admin', role: UserRole.Admin }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: 'NOT_DUNGEON_OWNER' }),
+      });
+    });
+
+    it('export z knihovny → 403 DUNGEON_EXPORT_NEEDS_WORLD', async () => {
+      mockRepo.findById.mockResolvedValue(libraryDungeon);
+      await expect(
+        service.exportScene('dunLib', 'https://img.png', {
+          id: 'h1',
+          role: UserRole.Ikarus,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: 'DUNGEON_EXPORT_NEEDS_WORLD',
+        }),
+      });
+    });
+  });
+
+  describe('handleAccountHardDeleted (21.3c cleanup)', () => {
+    it('hard-delete účtu smaže JEN knihovnu vlastníka (world stavby zůstávají)', async () => {
+      mockRepo.deleteLibraryByOwner.mockResolvedValue(2);
+      await service.handleAccountHardDeleted({ userId: 'h1' });
+      expect(mockRepo.deleteLibraryByOwner).toHaveBeenCalledWith('h1');
+      // Žádné mazání world dokumentů — o ty se stará world-hard-delete cascade.
+      expect(mockRepo.delete).not.toHaveBeenCalled();
     });
   });
 

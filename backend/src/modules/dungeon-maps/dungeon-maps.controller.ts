@@ -22,6 +22,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
 import { CreateDungeonMapDto } from './dto/create-dungeon-map.dto';
 import { UpdateDungeonMapDto } from './dto/update-dungeon-map.dto';
+import { CopyDungeonMapDto } from './dto/copy-dungeon-map.dto';
 import { ExportTemplateDto } from './dto/export-template.dto';
 import { ExportSceneDto } from './dto/export-scene.dto';
 
@@ -52,6 +53,14 @@ export class DungeonMapsController {
     return this.service.findByWorld(worldId, user);
   }
 
+  // 21.3c — statická route MUSÍ být deklarovaná před `GET :id`.
+  @ApiOperation({ summary: 'Moje osobní knihovna podzemí (cross-world)' })
+  @ApiResponse({ status: 200 })
+  @Get('library')
+  findLibrary(@CurrentUser() user: RequestUser) {
+    return this.service.findLibrary(user);
+  }
+
   @ApiOperation({ summary: 'Detail dungeonu' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403, description: 'NOT_WORLD_PJ' })
@@ -59,6 +68,24 @@ export class DungeonMapsController {
   @Get(':id')
   findById(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.findById(id, user);
+  }
+
+  @ApiOperation({
+    summary: 'Kopie dungeonu do knihovny (bez targetWorldId) nebo do světa',
+  })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({
+    status: 403,
+    description: 'NOT_LIBRARY_ELIGIBLE / NOT_SUPPORTER / NOT_DUNGEON_OWNER',
+  })
+  @ApiResponse({ status: 404 })
+  @Post(':id/copy')
+  copy(
+    @Param('id') id: string,
+    @Body() dto: CopyDungeonMapDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.copy(id, dto.targetWorldId, user);
   }
 
   @ApiOperation({ summary: 'Vytvoření dungeonu' })

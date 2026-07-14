@@ -1,9 +1,11 @@
 import {
   Injectable,
   Inject,
+  Logger,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { OnEvent } from '@nestjs/event-emitter';
 import type { IDungeonMapsRepository } from './interfaces/dungeon-maps-repository.interface';
 import type { DungeonMap } from './interfaces/dungeon-map.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -14,11 +16,14 @@ import { worldAdminBypass } from '../../common/utils/world-elevation';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import { UsersService } from '../users/users.service';
 import { isEffectiveSupporter } from '../users/supporter.util';
+import { dungeonWallsToMapWalls } from './dungeon-walls.util';
 
 type Requester = Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>;
 
 @Injectable()
 export class DungeonMapsService {
+  private readonly logger = new Logger(DungeonMapsService.name);
+
   constructor(
     @Inject('IDungeonMapsRepository')
     private readonly repo: IDungeonMapsRepository,
@@ -86,11 +91,20 @@ export class DungeonMapsService {
    * Podporovatele svoje existující podzemí edituje dál (grandfathering, vzor
    * 19.4 limitu světů — blokuje se jen NOVÁ tvorba). Legacy dokumenty bez
    * ownerId = PJ-owned.
+   * 21.3c — položka knihovny (bez worldId) = čistě owner-only (ani platform
+   * admin do cizí osobní knihovny nevidí).
    */
   private async assertCanEdit(
     requester: Requester,
     dungeon: DungeonMap,
   ): Promise<void> {
+    if (!dungeon.worldId) {
+      if (dungeon.ownerId === requester.id) return;
+      throw new ForbiddenException({
+        code: 'NOT_DUNGEON_OWNER',
+        message: 'Tohle podzemí patří jinému staviteli.',
+      });
+    }
     if (worldAdminBypass(requester, dungeon.worldId)) return;
     const role = await this.membershipRole(requester, dungeon.worldId);
     if (role !== null && role >= WorldRole.PJ) return;
@@ -122,6 +136,93 @@ export class DungeonMapsService {
       });
     if (role >= WorldRole.PJ) return this.repo.findByWorld(worldId);
     return this.repo.findByWorld(worldId, requester.id);
+  }
+
+  /** 21.3c — moje osobní knihovna (cross-world, jen vlastní položky). */
+  async findLibrary(requester: Requester): Promise<DungeonMap[]> {
+    return this.repo.findLibrary(requester.id);
+  }
+
+  /**
+   * 21.3c cleanup — hard-delete účtu: „zmizí vlastník → zmizí jeho knihovní
+   * jeskyně". Library položky (worldId null) nejsou ve world-hard-delete
+   * cascade a bez vlastníka by k nim už nikdo nikdy nedosáhl (owner-only).
+   * Stavby ve ŽIVÝCH světech záměrně zůstávají — jsou obsah světa, spravuje
+   * je PJ (chovají se pak jako legacy PJ-owned). Best-effort, vzor bestiae.
+   */
+  @OnEvent('user.deletion.hardDeleted')
+  async handleAccountHardDeleted(payload: { userId: string }): Promise<void> {
+    const removed = await this.repo.deleteLibraryByOwner(payload.userId);
+    if (removed > 0)
+      this.logger.log(
+        `hard-delete účtu ${payload.userId}: smazáno ${removed} podzemí z osobní knihovny`,
+      );
+  }
+
+  /**
+   * 21.3c — kopie podzemí: bez `targetWorldId` do mé knihovny, s ním do
+   * cílového světa. Vždy KOPIE s `ownerId = requester` (žádné sdílení
+   * referencí přes světy — tenant izolace).
+   */
+  async copy(
+    id: string,
+    targetWorldId: string | undefined,
+    requester: Requester,
+  ): Promise<DungeonMap> {
+    const dungeon = await this.repo.findById(id);
+    if (!dungeon)
+      throw new NotFoundException({
+        code: 'DUNGEON_NOT_FOUND',
+        message: 'Dungeon nenalezen',
+      });
+    // Čtecí přístup ke zdroji = stejná hranice jako edit (owner ∨ PJ+ zdroje).
+    await this.assertCanEdit(requester, dungeon);
+
+    if (targetWorldId) {
+      // Vložení do světa: plná create brána cílového světa.
+      await this.assertCanCreate(requester, targetWorldId);
+    } else {
+      // Uložení do knihovny: Podporovatel ∨ PJ+ zdrojového světa ∨ admin
+      // bypass zdroje. („PJ někde" se odvozuje ze zdroje — žádný nový dotaz.)
+      const eligible = await this.canSaveToLibrary(requester, dungeon);
+      if (!eligible)
+        throw new ForbiddenException({
+          code: 'NOT_LIBRARY_ELIGIBLE',
+          message:
+            'Osobní knihovna podzemí je výhoda Podporovatelů. Podpoř projekt a nos si stavby mezi světy.',
+        });
+    }
+
+    return this.repo.create({
+      worldId: targetWorldId ?? null,
+      ownerId: requester.id,
+      name: dungeon.name,
+      mapKind: dungeon.mapKind,
+      gridType: dungeon.gridType,
+      gridWidth: dungeon.gridWidth,
+      gridHeight: dungeon.gridHeight,
+      cellSize: dungeon.cellSize,
+      theme: dungeon.theme,
+      cells: dungeon.cells,
+      decorations: dungeon.decorations,
+      // 21.3f — klíč mapy cestuje s kopií.
+      notes: dungeon.notes,
+    });
+  }
+
+  private async canSaveToLibrary(
+    requester: Requester,
+    source: DungeonMap,
+  ): Promise<boolean> {
+    if (source.worldId && worldAdminBypass(requester, source.worldId))
+      return true;
+    const user = await this.usersService
+      .findById(requester.id)
+      .catch(() => null);
+    if (user && isEffectiveSupporter(user.role, user.isSupporter)) return true;
+    if (!source.worldId) return false; // library→library nedává smysl bez entitlementu
+    const role = await this.membershipRole(requester, source.worldId);
+    return role !== null && role >= WorldRole.PJ;
   }
 
   async findById(id: string, requester: Requester): Promise<DungeonMap> {
@@ -160,8 +261,10 @@ export class DungeonMapsService {
     const updated = await this.repo.replace(id, {
       ...dto,
       worldId: dungeon.worldId,
-      // replace jede overwrite — bez explicitního ownerId by se vlastník ztratil.
+      // replace jede overwrite — bez explicitních polí by se ztratil vlastník
+      // i druh mapy (mapKind není v update DTO = konverze nejde ani omylem).
       ownerId: dungeon.ownerId,
+      mapKind: dungeon.mapKind,
     });
     return updated!;
   }
@@ -177,6 +280,18 @@ export class DungeonMapsService {
     await this.repo.delete(id);
   }
 
+  /** 21.3c — exporty na TM jedou jen ze světa; library položku nejdřív vlož. */
+  private assertHasWorld(dungeon: DungeonMap): asserts dungeon is DungeonMap & {
+    worldId: string;
+  } {
+    if (!dungeon.worldId)
+      throw new ForbiddenException({
+        code: 'DUNGEON_EXPORT_NEEDS_WORLD',
+        message:
+          'Podzemí z knihovny nejdřív vlož do světa — export míří na jeho taktickou mapu.',
+      });
+  }
+
   async exportTemplate(
     id: string,
     imageUrl: string,
@@ -188,6 +303,7 @@ export class DungeonMapsService {
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
+    this.assertHasWorld(dungeon);
     await this.assertCanManage(requester, dungeon.worldId);
     const template = await this.templateRepo.create({
       name: dungeon.name,
@@ -222,6 +338,7 @@ export class DungeonMapsService {
         code: 'DUNGEON_NOT_FOUND',
         message: 'Dungeon nenalezen',
       });
+    this.assertHasWorld(dungeon);
     await this.assertCanManage(requester, dungeon.worldId);
     const scene = await this.mapsRepo.create({
       name: dungeon.name,
@@ -232,10 +349,15 @@ export class DungeonMapsService {
         originX: 0,
         originY: 0,
         showGrid: true,
+        // 21.3b — dungeon je čtvercový grid; FE renderuje obraz 1:1
+        // (px obrazu = cellSize × grid), takže mřížka scény sedí.
+        gridType: 'square',
       },
       tokens: [],
       npcTemplates: [],
       effects: [],
+      // 21.3b — zdi + dveře pro LoS (visionMode si PJ zapne sám).
+      walls: dungeonWallsToMapWalls(dungeon),
       fogEnabled: false,
       revealedHexes: [],
       isActive: false,

@@ -18,6 +18,10 @@ import {
 export class CreateDungeonMapDto {
   @IsOptional() @IsString() worldId?: string;
   @IsOptional() @IsString() @MaxLength(120) name?: string;
+  // 21.3e+g — druh mapy (jen při create; update ho nemá = žádná konverze).
+  @IsOptional()
+  @IsIn(['dungeon', 'city', 'wilderness'])
+  mapKind?: 'dungeon' | 'city' | 'wilderness';
   @IsOptional() @IsIn(['square', 'hex']) gridType?: 'square' | 'hex';
   @IsOptional() @IsNumber() @Min(10) @Max(100) gridWidth?: number;
   @IsOptional() @IsNumber() @Min(10) @Max(100) gridHeight?: number;
@@ -31,4 +35,9 @@ export class CreateDungeonMapDto {
   @IsArray()
   @ArrayMaxSize(500)
   decorations?: Record<string, unknown>[];
+  // 21.3f — klíč mapy (popisy k popiskům).
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  notes?: Record<string, unknown>[];
 }

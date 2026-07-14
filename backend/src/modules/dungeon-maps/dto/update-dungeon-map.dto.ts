@@ -29,4 +29,9 @@ export class UpdateDungeonMapDto {
   @IsArray()
   @ArrayMaxSize(500)
   decorations?: Record<string, unknown>[];
+  // 21.3f — klíč mapy (popisy k popiskům) se edituje spolu s mapou.
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  notes?: Record<string, unknown>[];
 }
