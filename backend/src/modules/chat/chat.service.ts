@@ -1620,8 +1620,13 @@ export class ChatService implements OnApplicationBootstrap {
             worldId: channel.worldId,
           });
         }
-      } catch {
-        // best-effort
+      } catch (err) {
+        // Best-effort (selhání pushů nesmí shodit odeslání zprávy), ale NE
+        // tiše — bez logu je výpadek doručování nediagnostikovatelný
+        // (audit 2026-07-14: „testerce nechodí notifikace" bez jediné stopy).
+        this.logger.warn(
+          `Push/feed po odeslání zprávy ${message.id} selhal: ${String(err)}`,
+        );
       }
     })();
 

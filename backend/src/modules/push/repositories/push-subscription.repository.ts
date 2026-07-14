@@ -48,6 +48,8 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
       p256dh: data.p256dh,
       auth: data.auth,
       lastUsedAt: data.lastUsedAt,
+      // Re-subscribe = čerstvé klíče → čítač trvalých selhání začíná od nuly.
+      failCount: 0,
     };
     // undefined by Mongo přepsalo na null — nastavíme jen když UA dorazil.
     if (data.userAgent !== undefined) set.userAgent = data.userAgent;
@@ -85,6 +87,21 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
     await this.model.deleteMany({ userId }).exec();
   }
 
+  async incrementFailCount(id: string): Promise<number> {
+    // Atomický $inc (žádný read-modify-write) — souběžné pushe na stejnou
+    // subscription se nesmí navzájem přepsat. Smazaný doc mezitím → 0
+    // (pod prahem, nic dalšího se nestane).
+    const doc = await this.model
+      .findByIdAndUpdate(id, { $inc: { failCount: 1 } }, { new: true })
+      .lean()
+      .exec();
+    return (doc as { failCount?: number } | null)?.failCount ?? 0;
+  }
+
+  async resetFailCount(id: string): Promise<void> {
+    await this.model.updateOne({ _id: id }, { $set: { failCount: 0 } }).exec();
+  }
+
   private toEntity(doc: Record<string, unknown>): PushSubscription {
     return {
       id: String(doc._id),
@@ -96,6 +113,7 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
       createdAt: doc.createdAt as Date,
       // Staré záznamy bez lastUsedAt → fallback na createdAt.
       lastUsedAt: (doc.lastUsedAt ?? doc.createdAt) as Date,
+      failCount: (doc.failCount as number | undefined) ?? 0,
     };
   }
 }

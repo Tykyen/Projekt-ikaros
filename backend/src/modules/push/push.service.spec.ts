@@ -37,6 +37,8 @@ describe('PushService', () => {
       deleteByEndpointOnly: jest.fn(),
       deleteByIdAndUser: jest.fn(),
       deleteByUserId: jest.fn(),
+      incrementFailCount: jest.fn().mockResolvedValue(1),
+      resetFailCount: jest.fn(),
     };
     usersRepo = {
       findByIds: jest.fn().mockResolvedValue([]),
@@ -145,6 +147,71 @@ describe('PushService', () => {
     expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith(
       'https://push.example.com/sub1',
     );
+  });
+
+  // ── Doručovací hygiena (audit 2026-07-14) — trvalá selhání mimo 404/410 ──
+  describe('úklid trvale nedoručitelných subscriptions', () => {
+    it('403 (VAPID mismatch) — inkrementuje čítač, pod prahem NEmaže', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      (webpush.sendNotification as jest.Mock).mockRejectedValue({
+        statusCode: 403,
+      });
+      repo.incrementFailCount.mockResolvedValue(3);
+      await service.notify('user1', { title: 'T', body: 'B' });
+      expect(repo.incrementFailCount).toHaveBeenCalledWith('sub1');
+      expect(repo.deleteByEndpointOnly).not.toHaveBeenCalled();
+    });
+
+    it('403 — po dosažení prahu subscription smaže', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      (webpush.sendNotification as jest.Mock).mockRejectedValue({
+        statusCode: 403,
+      });
+      repo.incrementFailCount.mockResolvedValue(8);
+      await service.notify('user1', { title: 'T', body: 'B' });
+      expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith(
+        'https://push.example.com/sub1',
+      );
+    });
+
+    it('transientní chyba (5xx / bez statusu) — nepočítá se, nemaže se', async () => {
+      repo.findByUserId.mockResolvedValue([
+        makeSub(),
+        makeSub({ id: 'sub2', endpoint: 'https://push.example.com/sub2' }),
+      ]);
+      (webpush.sendNotification as jest.Mock)
+        .mockRejectedValueOnce({ statusCode: 503 })
+        .mockRejectedValueOnce(new Error('socket timeout'));
+      await service.notify('user1', { title: 'T', body: 'B' });
+      expect(repo.incrementFailCount).not.toHaveBeenCalled();
+      expect(repo.deleteByEndpointOnly).not.toHaveBeenCalled();
+    });
+
+    it('úspěch po sérii selhání — vynuluje čítač (jen když je nenulový)', async () => {
+      repo.findByUserId.mockResolvedValue([
+        makeSub({ failCount: 2 }),
+        makeSub({
+          id: 'sub2',
+          endpoint: 'https://push.example.com/sub2',
+          failCount: 0,
+        }),
+      ]);
+      await service.notify('user1', { title: 'T', body: 'B' });
+      expect(repo.resetFailCount).toHaveBeenCalledTimes(1);
+      expect(repo.resetFailCount).toHaveBeenCalledWith('sub1');
+    });
+
+    it('404/410 — maže rovnou bez čítače (stávající chování)', async () => {
+      repo.findByUserId.mockResolvedValue([makeSub()]);
+      (webpush.sendNotification as jest.Mock).mockRejectedValue({
+        statusCode: 410,
+      });
+      await service.notify('user1', { title: 'T', body: 'B' });
+      expect(repo.incrementFailCount).not.toHaveBeenCalled();
+      expect(repo.deleteByEndpointOnly).toHaveBeenCalledWith(
+        'https://push.example.com/sub1',
+      );
+    });
   });
 
   it('subscribe — upsertne subscription s user-agentem a lastUsedAt', async () => {

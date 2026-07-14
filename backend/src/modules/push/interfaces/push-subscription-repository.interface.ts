@@ -12,4 +12,8 @@ export interface IPushSubscriptionRepository {
   deleteByIdAndUser(id: string, userId: string): Promise<boolean>;
   /** GDPR — hard-delete účtu: smaž všechny subscriptions uživatele. */
   deleteByUserId(userId: string): Promise<void>;
+  /** Doručovací hygiena — atomicky navýš čítač trvalých selhání; vrátí novou hodnotu. */
+  incrementFailCount(id: string): Promise<number>;
+  /** Doručovací hygiena — vynuluj čítač po úspěšném doručení. */
+  resetFailCount(id: string): Promise<void>;
 }

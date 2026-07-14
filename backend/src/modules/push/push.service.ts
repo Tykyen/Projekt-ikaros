@@ -55,6 +55,22 @@ export class PushService implements OnModuleInit {
   /** Validní Push Message Topic dle RFC 8030 (URL-safe base64, ≤32 znaků). */
   private static readonly TOPIC_RE = /^[A-Za-z0-9\-_]{1,32}$/;
 
+  /**
+   * Doručovací hygiena (audit 2026-07-14) — HTTP statusy, které provider vrací
+   * pro subscription TRVALE nedoručitelnou (400/401/403 = vadný záznam či
+   * VAPID mismatch po rotaci klíčů, 413 = payload provider odmítá). Na rozdíl
+   * od 404/410 je provider nikdy „nepovýší" na Gone → bez počítání selhání by
+   * mrtvý záznam žil věčně a jen tiše plnil log. Transientní stavy
+   * (429/5xx/network/timeout) se NEpočítají — výpadek providera nesmí smazat
+   * živé odběry.
+   */
+  private static readonly PERMANENT_FAIL_STATUSES = new Set([
+    400, 401, 403, 413,
+  ]);
+
+  /** Po tolika PO SOBĚ JDOUCÍCH trvalých selháních se subscription smaže. */
+  private static readonly MAX_PERMANENT_FAILURES = 8;
+
   constructor(
     @Inject('IPushSubscriptionRepository')
     private readonly repo: IPushSubscriptionRepository,
@@ -236,12 +252,30 @@ export class PushService implements OnModuleInit {
             body,
             options,
           );
+          // Úspěch nuluje sérii trvalých selhání (write jen když je co nulovat).
+          if (sub.failCount) await this.repo.resetFailCount(sub.id);
         } catch (err: unknown) {
           const status = (err as { statusCode?: number }).statusCode;
           if (status === 404 || status === 410) {
             await this.repo.deleteByEndpointOnly(sub.endpoint);
+          } else if (
+            status !== undefined &&
+            PushService.PERMANENT_FAIL_STATUSES.has(status)
+          ) {
+            const fails = await this.repo.incrementFailCount(sub.id);
+            if (fails >= PushService.MAX_PERMANENT_FAILURES) {
+              await this.repo.deleteByEndpointOnly(sub.endpoint);
+              this.logger.warn(
+                `Subscription ${sub.id} smazána po ${fails} po sobě jdoucích trvalých selháních (poslední status ${status}).`,
+              );
+            } else {
+              // FIX-49 (log hygiene): endpoint je PII — loguj jen sub.id.
+              this.logger.warn(
+                `Push failed for subscription ${sub.id} (${fails}/${PushService.MAX_PERMANENT_FAILURES}): ${String(err)}`,
+              );
+            }
           } else {
-            // FIX-49 (log hygiene): endpoint je PII (unikátní push URL) — loguj jen sub.id.
+            // Transientní (429/5xx/network/timeout) — jen log, bez čítače.
             this.logger.warn(
               `Push failed for subscription ${sub.id}: ${String(err)}`,
             );

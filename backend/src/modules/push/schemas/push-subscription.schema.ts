@@ -14,6 +14,8 @@ export class PushSubscriptionSchemaClass {
   @Prop() userAgent?: string;
   /** D-030 — poslední (re)subscribe; default = čas vzniku. */
   @Prop({ type: Date, default: Date.now }) lastUsedAt: Date;
+  /** Po sobě jdoucí trvalá selhání odeslání (viz interface); úspěch nuluje. */
+  @Prop({ type: Number, default: 0 }) failCount: number;
 }
 
 export const PushSubscriptionSchema = SchemaFactory.createForClass(
