@@ -73,6 +73,7 @@ export class PriceListsService {
       imageZoom: dto.imageZoom,
       imageFit: dto.imageFit,
       tags: dto.tags,
+      currency: dto.currency ?? 'gsc', // 21.5g — měna zobrazení
       items: this.normalizeItems(dto.items ?? []),
       status: 'draft',
       authorId: user.id,

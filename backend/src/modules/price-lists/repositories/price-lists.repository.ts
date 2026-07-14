@@ -68,6 +68,7 @@ export class PriceListsRepository {
       imageZoom: (o.imageZoom as number | null) ?? null,
       imageFit: (o.imageFit as PriceList['imageFit']) ?? null,
       tags: o.tags as string[] | undefined,
+      currency: (o.currency as PriceList['currency']) ?? 'gsc', // 21.5g
       items: ((o.items as Record<string, unknown>[]) ?? []).map((it) =>
         this.toItemEntity(it),
       ),

@@ -12,6 +12,14 @@ import { UserRole } from '../../users/interfaces/user.interface';
 /** Max položek jednoho ceníku (= limit bulk dávky obchodu, spec R1). */
 export const PRICE_LIST_MAX_ITEMS = 200;
 
+/**
+ * 21.5g — měna ceníku. Uložení ceny je vždy `{gold,silver,copper}` (1:10:100);
+ * měna určuje jen ZOBRAZENÍ: gsc = zl/st/md, usd = $ (gold=dolary, copper=centy),
+ * credits = kredity (éra Budoucnost, zatím jen rezervovaná hodnota).
+ */
+export const PRICE_LIST_CURRENCIES = ['gsc', 'usd', 'credits'] as const;
+export type PriceListCurrency = (typeof PRICE_LIST_CURRENCIES)[number];
+
 /** Jedna položka ceníku (vnořený subdokument, pořadí = pořadí v poli). */
 export interface PriceListItem {
   /** UUID položky (generuje service při create/update, když chybí). */
@@ -50,6 +58,8 @@ export interface PriceList {
   imageZoom?: number | null;
   imageFit?: 'cover' | 'contain' | null;
   tags?: string[];
+  /** 21.5g — měna zobrazení cen (default 'gsc'; uložení vždy gold/silver/copper). */
+  currency: PriceListCurrency;
   items: PriceListItem[];
   /** 'draft' = knihovna návrhů, 'approved' = schválená knihovna. */
   status: 'draft' | 'approved';

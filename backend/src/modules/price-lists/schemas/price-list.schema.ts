@@ -63,6 +63,14 @@ export class PriceListSchemaClass {
 
   @Prop({ type: [String], default: undefined }) tags?: string[];
 
+  /** 21.5g — měna zobrazení cen; uložení je vždy gold/silver/copper (1:10:100). */
+  @Prop({
+    type: String,
+    enum: ['gsc', 'usd', 'credits'],
+    default: 'gsc',
+  })
+  currency!: 'gsc' | 'usd' | 'credits';
+
   @Prop({ type: [PriceListItemSchema], default: [] })
   items!: PriceListItemSchemaClass[];
 

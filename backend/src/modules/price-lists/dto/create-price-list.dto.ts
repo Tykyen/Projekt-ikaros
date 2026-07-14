@@ -7,6 +7,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -17,7 +18,11 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { PRICE_LIST_MAX_ITEMS } from '../interfaces/price-list.interface';
+import {
+  PRICE_LIST_CURRENCIES,
+  PRICE_LIST_MAX_ITEMS,
+  type PriceListCurrency,
+} from '../interfaces/price-list.interface';
 import { PriceListItemDto } from './price-list-item.dto';
 
 export class CreatePriceListDto {
@@ -71,6 +76,11 @@ export class CreatePriceListDto {
   @IsString({ each: true })
   @MaxLength(40, { each: true })
   tags?: string[];
+
+  /** 21.5g — měna zobrazení cen (default 'gsc'). */
+  @IsOptional()
+  @IsIn(PRICE_LIST_CURRENCIES)
+  currency?: PriceListCurrency;
 
   @IsOptional()
   @IsArray()
