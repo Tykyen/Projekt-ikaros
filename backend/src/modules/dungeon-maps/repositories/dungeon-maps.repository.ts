@@ -22,8 +22,10 @@ export class MongoDungeonMapsRepository
     super(model as never);
   }
 
-  async findByWorld(worldId: string): Promise<DungeonMap[]> {
-    const docs = await this.model.find({ worldId }).lean().exec();
+  async findByWorld(worldId: string, ownerId?: string): Promise<DungeonMap[]> {
+    const filter: Record<string, unknown> = { worldId };
+    if (ownerId !== undefined) filter.ownerId = ownerId;
+    const docs = await this.model.find(filter).lean().exec();
     return docs.map((d) =>
       this.toEntity(d as unknown as Record<string, unknown>),
     );
@@ -70,6 +72,7 @@ export class MongoDungeonMapsRepository
     return {
       id: String(doc._id),
       worldId: doc.worldId as string,
+      ownerId: doc.ownerId as string | undefined,
       name: (doc.name as string) ?? '',
       gridType: (doc.gridType as string) === 'hex' ? 'hex' : 'square',
       gridWidth: (doc.gridWidth as number) ?? 20,

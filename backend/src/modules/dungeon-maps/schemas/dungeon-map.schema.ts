@@ -7,6 +7,8 @@ export type DungeonMapDocument = HydratedDocument<DungeonMapSchemaClass>;
 @Schema({ timestamps: false, collection: 'dungeonMaps' })
 export class DungeonMapSchemaClass {
   @Prop({ required: true }) worldId: string;
+  // 21.3a — tvůrce (server-enforced z requestera); legacy bez ownerId = PJ-owned.
+  @Prop() ownerId?: string;
   @Prop({ default: '' }) name: string;
   @Prop({ default: 'square' }) gridType: string;
   @Prop({ default: 20 }) gridWidth: number;
@@ -30,3 +32,5 @@ export const DungeonMapSchema = SchemaFactory.createForClass(
   DungeonMapSchemaClass,
 );
 DungeonMapSchema.index({ worldId: 1 });
+// 21.3a — seznam „moje podzemí ve světě" (hráč-podporovatel vidí jen svoje).
+DungeonMapSchema.index({ worldId: 1, ownerId: 1 });

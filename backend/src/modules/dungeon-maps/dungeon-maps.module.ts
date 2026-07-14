@@ -9,6 +9,7 @@ import { DungeonMapsService } from './dungeon-maps.service';
 import { DungeonMapsController } from './dungeon-maps.controller';
 import { WorldsModule } from '../worlds/worlds.module';
 import { MapsModule } from '../maps/maps.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -17,6 +18,8 @@ import { MapsModule } from '../maps/maps.module';
     ]),
     WorldsModule,
     MapsModule,
+    // 21.3a — UsersService kvůli supporter gatingu (isSupporter není v JWT).
+    UsersModule,
   ],
   controllers: [DungeonMapsController],
   providers: [
