@@ -53,6 +53,15 @@ export class CreateWorldDto {
   @IsString({ each: true })
   magicTraditions?: string[];
 
+  /** 2.3g — role/přítomnost náboženství (škála 0–14), volí PJ ve formu tvorby. */
+  @IsOptional() @IsInt() @Min(0) @Max(14) religionInfluence?: number;
+
+  /** 2.3g — typy náboženství světa, zatrhané ve formu tvorby. */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  religionTypes?: string[];
+
   /**
    * 9.3-F-I — Q1: volitelný seznam kalendářů k seednutí při tvorbě světa.
    *

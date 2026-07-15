@@ -5,6 +5,7 @@ import { TipTapExtractor } from './tiptap-extractor.service';
 import { SYSTEM_RULES_TEMPLATES } from './system-rules-templates';
 import { buildTechnologyPage } from './technology-template';
 import { buildMagicPage } from './magic-template';
+import { buildReligionPage } from './religion-template';
 import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { World } from '../worlds/interfaces/world.interface';
 import type { Page, PageType } from './interfaces/page.interface';
@@ -24,8 +25,11 @@ const PAGE_TEMPLATES: Array<{
     order: 1,
   },
   { slug: 'technologie', type: 'Ostatní', title: 'Technologie', order: 2 },
-  { slug: 'faq', type: 'Ostatní', title: 'FAQ', order: 3 },
-  { slug: 'videa', type: 'Obrazovka', title: 'Instruktážní videa', order: 4 },
+  // 2.3g — Náboženství vedle Magie/Technologie (worldbuilding osy). Seeduje se
+  // i pro Matrix (Pravidlová kniha náboženství neřeší → NENÍ v REPLACES).
+  { slug: 'nabozenstvi', type: 'Ostatní', title: 'Náboženství', order: 3 },
+  { slug: 'faq', type: 'Ostatní', title: 'FAQ', order: 4 },
+  { slug: 'videa', type: 'Obrazovka', title: 'Instruktážní videa', order: 5 },
 ];
 
 /**
@@ -50,6 +54,7 @@ export class PagesWorldSeedListener {
    * - `pravidla` (2.3c) — per-system tahák dle `world.system`.
    * - `technologie` (2.3d) — univerzální škála TÚ + rozsah tohoto světa.
    * - `magicky-system` (2.3e) — univerzální škála MÚ + zvolené tradice.
+   * - `nabozenstvi` (2.3g) — škála role náboženství + typy + osnova „co řešit".
    * Ostatní stránky zůstávají prázdné.
    */
   private seedContent(slug: string, world: World): string {
@@ -64,6 +69,11 @@ export class PagesWorldSeedListener {
     }
     if (slug === 'magicky-system') {
       return sanitizeRichText(buildMagicPage(world.magicTraditions));
+    }
+    if (slug === 'nabozenstvi') {
+      return sanitizeRichText(
+        buildReligionPage(world.religionInfluence, world.religionTypes),
+      );
     }
     return '';
   }

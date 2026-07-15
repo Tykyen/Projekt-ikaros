@@ -89,6 +89,10 @@ export interface World {
   techLevelMax?: number | null;
   /** 2.3e — typy (tradice) magie světa; seeduje stránku Magický systém. */
   magicTraditions?: string[];
+  /** 2.3g — role/přítomnost náboženství (škála 0–14); seeduje stránku Náboženství. */
+  religionInfluence?: number | null;
+  /** 2.3g — typy náboženství světa; seeduje stránku Náboženství. */
+  religionTypes?: string[];
   createdAt: Date;
   updatedAt: Date;
   /** Spec 2.4 — populated jen při `findById` / `findBySlug` (controller endpointy). */

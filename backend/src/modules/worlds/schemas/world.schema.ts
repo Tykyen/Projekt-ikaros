@@ -97,6 +97,20 @@ export class WorldSchemaClass {
    */
   @Prop({ type: [String], default: [] })
   magicTraditions: string[];
+
+  /**
+   * 2.3g — role/přítomnost náboženství ve světě (škála 0–14). Nastavuje se při
+   * tvorbě světa; seeduje stránku „Náboženství". Po založení se needituje v Nastavení.
+   */
+  @Prop({ type: Number, default: null, min: 0, max: 14 })
+  religionInfluence?: number | null;
+
+  /**
+   * 2.3g — typy náboženství přítomné ve světě. Nastavuje se při tvorbě světa;
+   * seeduje stránku „Náboženství". Po založení se needituje v Nastavení.
+   */
+  @Prop({ type: [String], default: [] })
+  religionTypes: string[];
 }
 
 export const WorldSchema = SchemaFactory.createForClass(WorldSchemaClass);
