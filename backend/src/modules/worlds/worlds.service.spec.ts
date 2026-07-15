@@ -17,6 +17,7 @@ import { WorldWeatherService } from '../world-weather/world-weather.service';
 import { UsersService } from '../users/users.service';
 import { WorldCalendarConfigService } from '../world-calendar-config/world-calendar-config.service';
 import { WorldElevationsService } from '../world-elevations/world-elevations.service';
+import { PagesService } from '../pages/pages.service';
 
 const mockRequester = { id: 'user1', role: UserRole.Ikarus, username: 'user1' };
 
@@ -95,6 +96,23 @@ describe('WorldsService', () => {
     delete: jest.fn(),
     deleteByUserAndWorld: jest.fn(),
   };
+  // 15.10 fáze B — pozvánky do světa.
+  const mockInviteRepo = {
+    create: jest.fn(),
+    findById: jest.fn(),
+    findByToken: jest.fn(),
+    findActiveByWorld: jest.fn(),
+    findPendingUserInvite: jest.fn(),
+    findPendingForUser: jest.fn(),
+    countPendingForUser: jest.fn(),
+    updateStatus: jest.fn(),
+    incrementUsedCount: jest.fn(),
+    delete: jest.fn(),
+  };
+  // 15.10 fáze C — approve žádosti s postavou vytvoří živou stránku postavy.
+  const mockPagesService = {
+    create: jest.fn().mockResolvedValue({ id: 'pg1', slug: 'postava' }),
+  };
   // FIX-18 — updateMemberCharacter ověřuje vlastnictví Character při self-edit.
   const mockCharactersRepo = {
     findBySlugAndWorld: jest.fn(),
@@ -147,6 +165,8 @@ describe('WorldsService', () => {
           provide: 'IWorldAccessRequestRepository',
           useValue: mockAccessRequestRepo,
         },
+        { provide: 'IWorldInviteRepository', useValue: mockInviteRepo },
+        { provide: PagesService, useValue: mockPagesService },
         { provide: 'ICharactersRepository', useValue: mockCharactersRepo },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
         { provide: WorldCurrenciesService, useValue: mockCurrenciesService },
@@ -343,6 +363,418 @@ describe('WorldsService', () => {
       await expect(service.cancelAccessRequest('world1', 'u2')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('getWorldPendingActions (15.10)', () => {
+    const ar = {
+      id: 'ar1',
+      worldId: 'world1',
+      userId: 'u2',
+      requestedAt: new Date('2026-07-15T10:00:00.000Z'),
+    };
+
+    it('owner → mapuje pending žádosti na multi-typ položky', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // ownerId: user1
+      mockAccessRequestRepo.findPaginatedAcrossWorlds.mockResolvedValue({
+        items: [ar],
+        total: 1,
+      });
+      mockUsersService.publicProfile.mockResolvedValue({
+        id: 'u2',
+        username: 'zadatel',
+        avatarUrl: 'a.png',
+      });
+
+      const result = await service.getWorldPendingActions(
+        'world1',
+        mockRequester,
+      );
+
+      expect(
+        mockAccessRequestRepo.findPaginatedAcrossWorlds,
+      ).toHaveBeenCalledWith(['world1'], 1, 500);
+      expect(result).toEqual([
+        {
+          type: 'access-request',
+          id: 'ar1',
+          userId: 'u2',
+          displayName: 'zadatel',
+          avatarUrl: 'a.png',
+          createdAt: '2026-07-15T10:00:00.000Z',
+        },
+      ]);
+    });
+
+    it('co-PJ (ne vlastník, role ≥ PJ) → frontu vidí', async () => {
+      const coPj = { id: 'u99', role: UserRole.Ikarus, username: 'copj' };
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // owner user1 ≠ u99
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        id: 'mem-copj',
+        worldId: 'world1',
+        userId: 'u99',
+        role: WorldRole.PJ,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+      mockAccessRequestRepo.findPaginatedAcrossWorlds.mockResolvedValue({
+        items: [ar],
+        total: 1,
+      });
+
+      const result = await service.getWorldPendingActions('world1', coPj);
+      expect(result).toHaveLength(1);
+      expect(result[0].type).toBe('access-request');
+    });
+
+    it('ne-moderátor (bez membershipu, ne vlastník) → ForbiddenException', async () => {
+      const outsider = { id: 'u99', role: UserRole.Ikarus, username: 'x' };
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      await expect(
+        service.getWorldPendingActions('world1', outsider),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('žádné pending → prázdné pole (bez lookupu profilů žadatelů)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockAccessRequestRepo.findPaginatedAcrossWorlds.mockResolvedValue({
+        items: [],
+        total: 0,
+      });
+      const result = await service.getWorldPendingActions(
+        'world1',
+        mockRequester,
+      );
+      expect(result).toEqual([]);
+      // findById si tahá owner profil (user1); žadatelovy (u2) se ale
+      // při prázdné frontě lookupovat nesmí.
+      expect(mockUsersService.publicProfile).not.toHaveBeenCalledWith('u2');
+    });
+  });
+
+  describe('pozvánky do světa (15.10 fáze B)', () => {
+    const outsider = { id: 'u9', role: UserRole.Ikarus, username: 'x' };
+    const invitee = { id: 'u2', role: UserRole.Ikarus, username: 'zvany' };
+
+    describe('createInvite', () => {
+      it('user → vytvoří cílenou pozvánku (role Čtenář)', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+        mockInviteRepo.findPendingUserInvite.mockResolvedValue(null);
+        mockInviteRepo.create.mockResolvedValue({ id: 'inv1', kind: 'user' });
+        const res = await service.createInvite('world1', mockRequester, {
+          kind: 'user',
+          invitedUserId: 'u2',
+        });
+        expect(mockInviteRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: 'user',
+            invitedUserId: 'u2',
+            role: WorldRole.Ctenar,
+          }),
+        );
+        expect(res.id).toBe('inv1');
+      });
+
+      it('user už člen → ConflictException', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ id: 'm1' });
+        await expect(
+          service.createInvite('world1', mockRequester, {
+            kind: 'user',
+            invitedUserId: 'u2',
+          }),
+        ).rejects.toThrow(ConflictException);
+      });
+
+      it('user s existující pending pozvánkou → ConflictException', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+        mockInviteRepo.findPendingUserInvite.mockResolvedValue({ id: 'old' });
+        await expect(
+          service.createInvite('world1', mockRequester, {
+            kind: 'user',
+            invitedUserId: 'u2',
+          }),
+        ).rejects.toThrow(ConflictException);
+      });
+
+      it('user bez invitedUserId → BadRequestException', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        await expect(
+          service.createInvite('world1', mockRequester, { kind: 'user' }),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it('link → vytvoří odkaz s tokenem', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockInviteRepo.create.mockResolvedValue({ id: 'inv2', kind: 'link' });
+        await service.createInvite('world1', mockRequester, {
+          kind: 'link',
+          maxUses: 5,
+        });
+        expect(mockInviteRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: 'link',
+            maxUses: 5,
+            token: expect.any(String),
+          }),
+        );
+      });
+
+      it('ne-moderátor → ForbiddenException', async () => {
+        mockWorldsRepo.findById.mockResolvedValue({
+          ...mockWorld,
+          ownerId: 'other',
+        });
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+        await expect(
+          service.createInvite('world1', outsider, { kind: 'link' }),
+        ).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    describe('acceptUserInvite', () => {
+      it('pozvaný přijme → membership Čtenář + accepted', async () => {
+        mockInviteRepo.findById.mockResolvedValue({
+          id: 'inv1',
+          worldId: 'world1',
+          kind: 'user',
+          invitedUserId: 'u2',
+          status: 'pending',
+        });
+        mockMembershipRepo.save.mockResolvedValue({
+          id: 'm1',
+          role: WorldRole.Ctenar,
+        });
+        const res = await service.acceptUserInvite('world1', 'inv1', invitee);
+        expect(mockMembershipRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({ userId: 'u2', role: WorldRole.Ctenar }),
+        );
+        expect(mockInviteRepo.updateStatus).toHaveBeenCalledWith(
+          'inv1',
+          'accepted',
+        );
+        expect(res.ok).toBe(true);
+      });
+
+      it('cizí uživatel → ForbiddenException', async () => {
+        mockInviteRepo.findById.mockResolvedValue({
+          id: 'inv1',
+          worldId: 'world1',
+          kind: 'user',
+          invitedUserId: 'u2',
+          status: 'pending',
+        });
+        await expect(
+          service.acceptUserInvite('world1', 'inv1', outsider),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('už není pending → GoneException', async () => {
+        mockInviteRepo.findById.mockResolvedValue({
+          id: 'inv1',
+          worldId: 'world1',
+          kind: 'user',
+          invitedUserId: 'u2',
+          status: 'accepted',
+        });
+        await expect(
+          service.acceptUserInvite('world1', 'inv1', invitee),
+        ).rejects.toThrow(GoneException);
+      });
+    });
+
+    describe('acceptLinkInvite', () => {
+      it('platný odkaz → membership + increment usedCount', async () => {
+        mockInviteRepo.findByToken.mockResolvedValue({
+          id: 'inv2',
+          worldId: 'world1',
+          kind: 'link',
+          status: 'pending',
+          usedCount: 0,
+        });
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+        mockMembershipRepo.save.mockResolvedValue({
+          id: 'm2',
+          role: WorldRole.Ctenar,
+        });
+        mockInviteRepo.incrementUsedCount.mockResolvedValue({
+          id: 'inv2',
+          usedCount: 1,
+        });
+        const res = await service.acceptLinkInvite('tok', outsider);
+        expect(res.worldId).toBe('world1');
+        expect(mockInviteRepo.incrementUsedCount).toHaveBeenCalledWith('inv2');
+      });
+
+      it('expirovaný odkaz → GoneException + status expired', async () => {
+        mockInviteRepo.findByToken.mockResolvedValue({
+          id: 'inv2',
+          worldId: 'world1',
+          kind: 'link',
+          status: 'pending',
+          usedCount: 0,
+          expiresAt: new Date('2020-01-01'),
+        });
+        await expect(service.acceptLinkInvite('tok', outsider)).rejects.toThrow(
+          GoneException,
+        );
+        expect(mockInviteRepo.updateStatus).toHaveBeenCalledWith(
+          'inv2',
+          'expired',
+        );
+      });
+
+      it('vyčerpaný odkaz (usedCount ≥ maxUses) → GoneException', async () => {
+        mockInviteRepo.findByToken.mockResolvedValue({
+          id: 'inv2',
+          worldId: 'world1',
+          kind: 'link',
+          status: 'pending',
+          usedCount: 3,
+          maxUses: 3,
+        });
+        await expect(service.acceptLinkInvite('tok', outsider)).rejects.toThrow(
+          GoneException,
+        );
+      });
+
+      it('už člen → ConflictException', async () => {
+        mockInviteRepo.findByToken.mockResolvedValue({
+          id: 'inv2',
+          worldId: 'world1',
+          kind: 'link',
+          status: 'pending',
+          usedCount: 0,
+        });
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockMembershipRepo.findByUserAndWorld.mockResolvedValue({ id: 'm1' });
+        await expect(service.acceptLinkInvite('tok', outsider)).rejects.toThrow(
+          ConflictException,
+        );
+      });
+
+      it('neexistující token → NotFoundException', async () => {
+        mockInviteRepo.findByToken.mockResolvedValue(null);
+        await expect(service.acceptLinkInvite('tok', outsider)).rejects.toThrow(
+          NotFoundException,
+        );
+      });
+    });
+
+    describe('revokeInvite', () => {
+      it('→ updateStatus revoked', async () => {
+        mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+        mockInviteRepo.findById.mockResolvedValue({
+          id: 'inv1',
+          worldId: 'world1',
+        });
+        const res = await service.revokeInvite('world1', 'inv1', mockRequester);
+        expect(mockInviteRepo.updateStatus).toHaveBeenCalledWith(
+          'inv1',
+          'revoked',
+        );
+        expect(res.ok).toBe(true);
+      });
+    });
+  });
+
+  describe('přihláška s postavou (15.10 fáze C, var. A)', () => {
+    it('requestAccess s návrhem postavy → uloží (trimnutý) characterDraft', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld); // accessMode private
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockAccessRequestRepo.create.mockResolvedValue({ id: 'ar1' });
+      await service.requestAccess('world1', 'u2', {
+        name: '  Vlkodlak  ',
+        note: '  chci hrát drsňáka  ',
+      });
+      expect(mockAccessRequestRepo.create).toHaveBeenCalledWith({
+        worldId: 'world1',
+        userId: 'u2',
+        characterDraft: { name: 'Vlkodlak', note: 'chci hrát drsňáka' },
+      });
+    });
+
+    it('requestAccess s prázdným jménem → prostá žádost (draft undefined)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
+      mockAccessRequestRepo.create.mockResolvedValue({ id: 'ar1' });
+      await service.requestAccess('world1', 'u2', { name: '   ' });
+      expect(mockAccessRequestRepo.create).toHaveBeenCalledWith({
+        worldId: 'world1',
+        userId: 'u2',
+        characterDraft: undefined,
+      });
+    });
+
+    it('approve žádosti S postavou → živá Page + membership Hráč + characterPath', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockAccessRequestRepo.findById.mockResolvedValue({
+        id: 'ar1',
+        worldId: 'world1',
+        userId: 'u2',
+        characterDraft: { name: 'Vlkodlak', note: 'bio' },
+      });
+      mockPagesService.create.mockResolvedValue({
+        id: 'pg1',
+        slug: 'vlkodlak',
+      });
+      mockMembershipRepo.save.mockResolvedValue({
+        id: 'm1',
+        role: WorldRole.Hrac,
+        characterPath: 'vlkodlak',
+      });
+      const res = await service.approveAccessRequest(
+        'world1',
+        'ar1',
+        mockRequester,
+      );
+      expect(mockPagesService.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'Postava hráče',
+          title: 'Vlkodlak',
+          ownerUserId: 'u2',
+        }),
+        'world1',
+        mockRequester,
+      );
+      expect(mockMembershipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'u2',
+          role: WorldRole.Hrac,
+          characterPath: 'vlkodlak',
+        }),
+      );
+      expect(mockAccessRequestRepo.delete).toHaveBeenCalledWith('ar1');
+      expect(res.membership.role).toBe(WorldRole.Hrac);
+    });
+
+    it('approve žádosti BEZ postavy → membership Čtenář (dnešní flow, žádná Page)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue(mockWorld);
+      mockAccessRequestRepo.findById.mockResolvedValue({
+        id: 'ar1',
+        worldId: 'world1',
+        userId: 'u2',
+      });
+      mockMembershipRepo.save.mockResolvedValue({
+        id: 'm1',
+        role: WorldRole.Ctenar,
+      });
+      const res = await service.approveAccessRequest(
+        'world1',
+        'ar1',
+        mockRequester,
+      );
+      expect(mockPagesService.create).not.toHaveBeenCalled();
+      // tx flow volá save(entity, session) — dva argumenty.
+      expect(mockMembershipRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ role: WorldRole.Ctenar }),
+        expect.anything(),
+      );
+      expect(res.membership.role).toBe(WorldRole.Ctenar);
     });
   });
 

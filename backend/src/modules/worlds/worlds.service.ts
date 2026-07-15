@@ -30,6 +30,15 @@ import type {
   WorldAccessRequest,
   MyWorldAccessRequest,
 } from './interfaces/world-access-request.interface';
+import type { WorldPendingActionItem } from './interfaces/world-pending-action.interface';
+import type { IWorldInviteRepository } from './interfaces/world-invite-repository.interface';
+import type {
+  WorldInvite,
+  WorldInviteListItem,
+} from './interfaces/world-invite.interface';
+import { randomBytes } from 'node:crypto';
+import { PagesService } from '../pages/pages.service';
+import { PAGE_TYPES } from '../pages/interfaces/page.interface';
 import { WorldSettings } from './interfaces/world-settings.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { CreateWorldDto } from './dto/create-world.dto';
@@ -164,6 +173,12 @@ export class WorldsService implements OnApplicationBootstrap {
     // FIX-18 — ověření vlastnictví Character při self-assign (updateMemberCharacter).
     @Inject('ICharactersRepository')
     private readonly charactersRepo: ICharactersRepository,
+    // 15.10 fáze B — pozvánky do světa (cílené + odkazové).
+    @Inject('IWorldInviteRepository')
+    private readonly inviteRepo: IWorldInviteRepository,
+    // 15.10 fáze C — approve žádosti s postavou vytvoří živou stránku postavy.
+    @Inject(forwardRef(() => PagesService))
+    private readonly pagesService: PagesService,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
@@ -890,6 +905,7 @@ export class WorldsService implements OnApplicationBootstrap {
   async requestAccess(
     worldId: string,
     userId: string,
+    characterDraft?: { name: string; note?: string },
   ): Promise<WorldAccessRequest> {
     const world = await this.worldsRepo.findById(worldId);
     if (!world)
@@ -922,8 +938,22 @@ export class WorldsService implements OnApplicationBootstrap {
     // 19.4 — nepodporovatel max 3 aktivní světy (blokuj už žádost o vstup).
     await this.assertCanJoinMoreWorlds(userId);
 
+    // 15.10 fáze C — „Chci hrát" přiloží návrh postavy (jméno + poznámka).
+    // Prázdné jméno = prostá žádost o vstup (→ Čtenář při approve).
+    const draft =
+      characterDraft && characterDraft.name?.trim()
+        ? {
+            name: characterDraft.name.trim().slice(0, 120),
+            note: characterDraft.note?.trim().slice(0, 2000) || undefined,
+          }
+        : undefined;
+
     // create() vyhodí ConflictException pri duplicate (unique index).
-    const ar = await this.accessRequestRepo.create({ worldId, userId });
+    const ar = await this.accessRequestRepo.create({
+      worldId,
+      userId,
+      characterDraft: draft,
+    });
 
     this.eventEmitter.emit('world.access.requested', {
       accessRequestId: ar.id,
@@ -990,6 +1020,12 @@ export class WorldsService implements OnApplicationBootstrap {
         code: 'ACCESS_REQUEST_NOT_FOUND',
         message: 'Žádost o vstup nenalezena',
       });
+
+    // 15.10 fáze C (var. A) — žádost s návrhem postavy → vytvoř živou stránku
+    // postavy + membership Hráč. Bez návrhu → Čtenář (dnešní tx flow níže).
+    if (ar.characterDraft) {
+      return this.approveAccessRequestWithCharacter(world, ar, requester);
+    }
 
     // D-061 — pokus o atomic Mongo transaction; fallback na sekvenční flow.
     const session = await this.connection.startSession();
@@ -1097,6 +1133,96 @@ export class WorldsService implements OnApplicationBootstrap {
   }
 
   /**
+   * 15.10 fáze C (var. A) — approve žádosti s návrhem postavy. Vytvoří živou
+   * stránku postavy (Page „Postava hráče" vlastněnou žadatelem) + membership
+   * Hráč s přiřazenou postavou. Postavu tvoří PJ (`requester` má práva) →
+   * žádná relaxace write brány. Page běží mimo Mongo tx (vlastní kaskáda
+   * `character.created`) → sekvenční flow s idempotentním cleanup.
+   */
+  private async approveAccessRequestWithCharacter(
+    world: World,
+    ar: WorldAccessRequest,
+    requester: RequestUser,
+  ): Promise<{ ok: true; membership: WorldMembership }> {
+    const draft = ar.characterDraft;
+    if (!draft)
+      throw new NotFoundException({
+        code: 'ACCESS_REQUEST_NOT_FOUND',
+        message: 'Žádost o vstup nenalezena',
+      });
+
+    const content = draft.note ? `<p>${this.escapeHtml(draft.note)}</p>` : '';
+
+    // Postavu vytvoří PJ (requester) — projde `assertCanWrite`; owner = žadatel.
+    const page = await this.pagesService.create(
+      {
+        slug: this.slugifyName(draft.name),
+        type: PAGE_TYPES.PostavaHrace,
+        title: draft.name,
+        content,
+        ownerUserId: ar.userId,
+      },
+      world.id,
+      requester,
+    );
+
+    // Membership Hráč + přiřazená postava. Idempotent vůči race (unique index).
+    let membership: WorldMembership;
+    try {
+      membership = await this.membershipRepo.save({
+        userId: ar.userId,
+        worldId: world.id,
+        role: WorldRole.Hrac,
+        characterPath: page.slug,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+    } catch (e: unknown) {
+      const existing = await this.membershipRepo.findByUserAndWorld(
+        ar.userId,
+        world.id,
+      );
+      if (!existing) throw e;
+      membership =
+        (await this.membershipRepo.update(existing.id, {
+          role: WorldRole.Hrac,
+          characterPath: page.slug,
+        })) ?? existing;
+    }
+
+    await this.accessRequestRepo.delete(ar.id);
+
+    this.eventEmitter.emit('world.access.approved', {
+      accessRequestId: ar.id,
+      worldId: world.id,
+      worldName: world.name,
+      worldSlug: world.slug,
+      requesterId: ar.userId,
+    });
+    this.eventEmitter.emit('world.membership.changed', {
+      worldId: world.id,
+      membership,
+    });
+    return { ok: true, membership };
+  }
+
+  /** Slug z názvu postavy (diakritika→ascii, mezery→pomlčky). */
+  private slugifyName(name: string): string {
+    const slug = name
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return slug || 'postava';
+  }
+
+  /** Escape HTML entit pro vložení `note` do TipTap `content`. */
+  private escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  /**
    * Spec 2.4 — PJ vlastník (nebo Admin/Superadmin) zamítne žádost o vstup.
    * Smaže AR; žadatel může požádat znovu (vznikne nová AR).
    */
@@ -1157,6 +1283,353 @@ export class WorldsService implements OnApplicationBootstrap {
         };
       })
       .filter((x): x is MyWorldAccessRequest => x !== null);
+  }
+
+  /**
+   * 15.10 — world-scoped fronta „ke zpracování" pro PJ/co-PJ daného světa.
+   * Multi-typ (zatím jen `access-request`; fáze C přidá `character-request`).
+   * Gate = moderátor světa (vlastník / co-PJ ≥ PJ / platform Admin s elevací).
+   */
+  async getWorldPendingActions(
+    worldId: string,
+    requester: RequestUser,
+  ): Promise<WorldPendingActionItem[]> {
+    const world = await this.findById(worldId);
+    await this.assertCanModerateAccessRequests(world, requester);
+
+    const { items } = await this.accessRequestRepo.findPaginatedAcrossWorlds(
+      [worldId],
+      1,
+      500,
+    );
+    if (items.length === 0) return [];
+
+    const uniqueUserIds = Array.from(new Set(items.map((r) => r.userId)));
+    const summaries = await Promise.all(
+      uniqueUserIds.map((uid) =>
+        this.usersService.publicProfile(uid).catch(() => null),
+      ),
+    );
+    const userMap = new Map(
+      summaries
+        .filter((u): u is NonNullable<typeof u> => u !== null)
+        .map((u) => [u.id, u]),
+    );
+
+    return items.map((r) => {
+      const user = userMap.get(r.userId);
+      return {
+        type: 'access-request' as const,
+        id: r.id,
+        userId: r.userId,
+        displayName: user?.username ?? '?',
+        avatarUrl: user?.avatarUrl,
+        createdAt: (r.requestedAt instanceof Date
+          ? r.requestedAt
+          : new Date(r.requestedAt)
+        ).toISOString(),
+        characterName: r.characterDraft?.name,
+      };
+    });
+  }
+
+  // ───────────────────────────────────────────────────────────────────────
+  // 15.10 fáze B — pozvánky do světa (cílené `user` + odkazové `link`)
+  // ───────────────────────────────────────────────────────────────────────
+
+  /**
+   * Vytvoří membership Čtenář (přijatá pozvánka/odkaz). Idempotentní vůči race
+   * (unique index) — při kolizi vrátí existující membership.
+   */
+  private async createCtenarMembership(
+    userId: string,
+    worldId: string,
+  ): Promise<WorldMembership> {
+    try {
+      return await this.membershipRepo.save({
+        userId,
+        worldId,
+        role: WorldRole.Ctenar,
+        joinedAt: new Date(),
+        akj: 0,
+      });
+    } catch (e: unknown) {
+      const existing = await this.membershipRepo.findByUserAndWorld(
+        userId,
+        worldId,
+      );
+      if (!existing) throw e;
+      return existing;
+    }
+  }
+
+  /** PJ/co-PJ vytvoří pozvánku: cílenou (`user`) nebo odkaz (`link`). */
+  async createInvite(
+    worldId: string,
+    requester: RequestUser,
+    input: {
+      kind: 'user' | 'link';
+      invitedUserId?: string;
+      expiresInDays?: number;
+      maxUses?: number;
+    },
+  ): Promise<WorldInvite> {
+    const world = await this.findById(worldId);
+    this.assertWorldActive(world);
+    await this.assertCanModerateAccessRequests(world, requester);
+
+    const expiresAt =
+      input.expiresInDays && input.expiresInDays > 0
+        ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
+        : undefined;
+
+    if (input.kind === 'user') {
+      if (!input.invitedUserId)
+        throw new BadRequestException({
+          code: 'INVITED_USER_REQUIRED',
+          message: 'Chybí pozvaný uživatel',
+        });
+      const existingMember = await this.membershipRepo.findByUserAndWorld(
+        input.invitedUserId,
+        worldId,
+      );
+      if (existingMember)
+        throw new ConflictException({
+          code: 'WORLD_ALREADY_MEMBER',
+          message: 'Uživatel už je členem světa',
+        });
+      const pending = await this.inviteRepo.findPendingUserInvite(
+        worldId,
+        input.invitedUserId,
+      );
+      if (pending)
+        throw new ConflictException({
+          code: 'PENDING_INVITE',
+          message: 'Uživatel už má čekající pozvánku',
+        });
+      const invite = await this.inviteRepo.create({
+        worldId,
+        kind: 'user',
+        invitedUserId: input.invitedUserId,
+        createdBy: requester.id,
+        role: WorldRole.Ctenar,
+        expiresAt,
+      });
+      this.eventEmitter.emit('world.invite.created', {
+        inviteId: invite.id,
+        worldId,
+        worldName: world.name,
+        worldSlug: world.slug,
+        invitedUserId: input.invitedUserId,
+      });
+      return invite;
+    }
+
+    // kind === 'link' — náhodný token, přijímá se přes URL.
+    const token = randomBytes(24).toString('base64url');
+    return this.inviteRepo.create({
+      worldId,
+      kind: 'link',
+      token,
+      createdBy: requester.id,
+      role: WorldRole.Ctenar,
+      expiresAt,
+      maxUses: input.maxUses,
+    });
+  }
+
+  /** Přehled aktivních (pending) pozvánek světa — PJ. */
+  async listInvites(
+    worldId: string,
+    requester: RequestUser,
+  ): Promise<WorldInviteListItem[]> {
+    const world = await this.findById(worldId);
+    await this.assertCanModerateAccessRequests(world, requester);
+    const invites = await this.inviteRepo.findActiveByWorld(worldId);
+    if (invites.length === 0) return [];
+
+    const userIds = Array.from(
+      new Set(
+        invites.map((i) => i.invitedUserId).filter((id): id is string => !!id),
+      ),
+    );
+    const summaries = await Promise.all(
+      userIds.map((uid) =>
+        this.usersService.publicProfile(uid).catch(() => null),
+      ),
+    );
+    const userMap = new Map(
+      summaries
+        .filter((u): u is NonNullable<typeof u> => u !== null)
+        .map((u) => [u.id, u]),
+    );
+
+    return invites.map((inv) => ({
+      id: inv.id,
+      kind: inv.kind,
+      status: inv.status,
+      token: inv.token,
+      invitedUser: (() => {
+        if (!inv.invitedUserId) return undefined;
+        const u = userMap.get(inv.invitedUserId);
+        return u
+          ? { id: u.id, username: u.username, avatarUrl: u.avatarUrl }
+          : undefined;
+      })(),
+      expiresAt: inv.expiresAt
+        ? new Date(inv.expiresAt).toISOString()
+        : undefined,
+      maxUses: inv.maxUses,
+      usedCount: inv.usedCount,
+      createdAt: inv.createdAt
+        ? new Date(inv.createdAt).toISOString()
+        : undefined,
+    }));
+  }
+
+  /** PJ zruší (revoke) pozvánku/odkaz — okamžitě přestane platit. */
+  async revokeInvite(
+    worldId: string,
+    inviteId: string,
+    requester: RequestUser,
+  ): Promise<{ ok: true }> {
+    const world = await this.findById(worldId);
+    await this.assertCanModerateAccessRequests(world, requester);
+    const invite = await this.inviteRepo.findById(inviteId);
+    if (!invite || invite.worldId !== worldId)
+      throw new NotFoundException({
+        code: 'INVITE_NOT_FOUND',
+        message: 'Pozvánka nenalezena',
+      });
+    await this.inviteRepo.updateStatus(inviteId, 'revoked');
+    return { ok: true };
+  }
+
+  /** Pozvaný přijme cílenou pozvánku → membership Čtenář. */
+  async acceptUserInvite(
+    worldId: string,
+    inviteId: string,
+    requester: RequestUser,
+  ): Promise<{ ok: true; membership: WorldMembership }> {
+    const invite = await this.inviteRepo.findById(inviteId);
+    if (!invite || invite.worldId !== worldId || invite.kind !== 'user')
+      throw new NotFoundException({
+        code: 'INVITE_NOT_FOUND',
+        message: 'Pozvánka nenalezena',
+      });
+    if (invite.invitedUserId !== requester.id)
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Tato pozvánka není pro tebe',
+      });
+    if (invite.status !== 'pending')
+      throw new GoneException({
+        code: 'INVITE_INACTIVE',
+        message: 'Pozvánka už není platná',
+      });
+    const membership = await this.createCtenarMembership(requester.id, worldId);
+    await this.inviteRepo.updateStatus(inviteId, 'accepted');
+    this.eventEmitter.emit('world.invite.accepted', {
+      inviteId,
+      worldId,
+      requesterId: requester.id,
+    });
+    this.eventEmitter.emit('world.membership.changed', { worldId, membership });
+    return { ok: true, membership };
+  }
+
+  /** Pozvaný odmítne cílenou pozvánku. */
+  async declineUserInvite(
+    worldId: string,
+    inviteId: string,
+    requester: RequestUser,
+  ): Promise<{ ok: true }> {
+    const invite = await this.inviteRepo.findById(inviteId);
+    if (!invite || invite.worldId !== worldId || invite.kind !== 'user')
+      throw new NotFoundException({
+        code: 'INVITE_NOT_FOUND',
+        message: 'Pozvánka nenalezena',
+      });
+    if (invite.invitedUserId !== requester.id)
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Tato pozvánka není pro tebe',
+      });
+    if (invite.status === 'pending')
+      await this.inviteRepo.updateStatus(inviteId, 'declined');
+    return { ok: true };
+  }
+
+  /** Přijetí pozvacího ODKAZU přihlášeným uživatelem (pre-approved). */
+  async acceptLinkInvite(
+    token: string,
+    requester: RequestUser,
+  ): Promise<{
+    ok: true;
+    worldId: string;
+    worldSlug: string;
+    membership: WorldMembership;
+  }> {
+    const invite = await this.inviteRepo.findByToken(token);
+    if (!invite || invite.kind !== 'link')
+      throw new NotFoundException({
+        code: 'INVITE_NOT_FOUND',
+        message: 'Pozvánka nenalezena',
+      });
+    if (invite.status !== 'pending')
+      throw new GoneException({
+        code: 'INVITE_INACTIVE',
+        message: 'Odkaz už není platný',
+      });
+    if (invite.expiresAt && new Date(invite.expiresAt).getTime() < Date.now()) {
+      await this.inviteRepo.updateStatus(invite.id, 'expired');
+      throw new GoneException({
+        code: 'INVITE_EXPIRED',
+        message: 'Platnost odkazu vypršela',
+      });
+    }
+    if (invite.maxUses !== undefined && invite.usedCount >= invite.maxUses)
+      throw new GoneException({
+        code: 'INVITE_EXHAUSTED',
+        message: 'Odkaz už byl vyčerpán',
+      });
+
+    const world = await this.findById(invite.worldId);
+    this.assertWorldActive(world);
+
+    const existing = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      invite.worldId,
+    );
+    if (existing)
+      throw new ConflictException({
+        code: 'WORLD_ALREADY_MEMBER',
+        message: 'Už jsi členem tohoto světa',
+      });
+
+    const membership = await this.createCtenarMembership(
+      requester.id,
+      invite.worldId,
+    );
+    const updated = await this.inviteRepo.incrementUsedCount(invite.id);
+    // Vyčerpaný odkaz označ jako expired, ať nezůstává v „aktivních".
+    if (
+      updated &&
+      updated.maxUses !== undefined &&
+      updated.usedCount >= updated.maxUses
+    )
+      await this.inviteRepo.updateStatus(invite.id, 'expired');
+
+    this.eventEmitter.emit('world.membership.changed', {
+      worldId: invite.worldId,
+      membership,
+    });
+    return {
+      ok: true,
+      worldId: invite.worldId,
+      worldSlug: world.slug,
+      membership,
+    };
   }
 
   private async assertCanModerateAccessRequests(

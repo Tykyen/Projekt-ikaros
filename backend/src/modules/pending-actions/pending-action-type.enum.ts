@@ -22,6 +22,8 @@ export enum PendingActionType {
   UsernameRequest = 'username_request',
   FriendRequest = 'friend_request',
   WorldAccessRequest = 'world_access_request',
+  // 15.10 fáze B — cílená pozvánka do světa čekající na přijetí POZVANÝM.
+  WorldInvite = 'world_invite',
   ArticlePendingReview = 'article_pending_review',
   GalleryPendingReview = 'gallery_pending_review',
   DiscussionPendingReview = 'discussion_pending_review',

@@ -13,6 +13,12 @@ export interface WorldAccessRequest {
   worldId: string;
   userId: string;
   requestedAt: Date;
+  /**
+   * 15.10 fáze C (var. A) — návrh postavy „Chci hrát" (data, ne živá Page).
+   * Chybí = prostá žádost o vstup (approve → Čtenář); přítomen = approve
+   * vytvoří živou stránku postavy + roli Hráč.
+   */
+  characterDraft?: { name: string; note?: string };
 }
 
 /**
@@ -32,6 +38,8 @@ export interface WorldAccessRequestListItem {
     username: string;
     avatarUrl?: string;
   };
+  /** 15.10 fáze C — jméno navržené postavy („chce hrát jako …"); jinak undefined. */
+  characterName?: string;
 }
 
 /**

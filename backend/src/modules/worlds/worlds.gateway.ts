@@ -151,4 +151,22 @@ export class WorldsGateway implements OnGatewayConnection {
       .to(`user:${payload.ownerId}`)
       .emit('world:access-cancelled', payload);
   }
+
+  /**
+   * 15.10 fáze B — nová cílená pozvánka do světa. Cíl: pozvaný (toast +
+   * invalidate `pending-actions`). Odkazové pozvánky se sem neemitují
+   * (nemají konkrétního adresáta).
+   */
+  @OnEvent('world.invite.created')
+  handleInviteCreated(payload: {
+    inviteId: string;
+    worldId: string;
+    worldName: string;
+    worldSlug: string;
+    invitedUserId: string;
+  }) {
+    this.server
+      .to(`user:${payload.invitedUserId}`)
+      .emit('world:invite-received', payload);
+  }
 }

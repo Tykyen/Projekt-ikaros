@@ -26,6 +26,7 @@ export interface IWorldAccessRequestRepository {
   create(data: {
     worldId: string;
     userId: string;
+    characterDraft?: { name: string; note?: string };
   }): Promise<WorldAccessRequest>;
   /**
    * D-061 — optional `session` umožňuje zařadit delete do `withTransaction()`

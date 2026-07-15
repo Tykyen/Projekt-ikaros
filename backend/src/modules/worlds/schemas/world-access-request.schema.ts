@@ -17,6 +17,11 @@ export class WorldAccessRequestSchemaClass {
   @Prop({ required: true }) worldId: string;
   @Prop({ required: true }) userId: string;
   @Prop({ default: Date.now }) requestedAt: Date;
+  /**
+   * 15.10 fáze C (var. A) — návrh postavy „Chci hrát". Data, ne živá Page:
+   * živá stránka postavy vzniká až při approve. Chybí = prostá žádost (→ Čtenář).
+   */
+  @Prop({ type: Object }) characterDraft?: { name: string; note?: string };
 }
 
 export const WorldAccessRequestSchema = SchemaFactory.createForClass(

@@ -31,6 +31,8 @@ import { UpdateWorldSettingsDto } from './dto/update-world-settings.dto';
 import { UpdateAkjTypesDto } from './dto/update-akj-types.dto';
 import { PatchCalendarDefaultsDto } from './dto/patch-calendar-defaults.dto';
 import { CreateDiarySchemaVersionDto } from './dto/create-diary-schema-version.dto';
+import { CreateWorldInviteDto } from './dto/create-world-invite.dto';
+import { RequestAccessDto } from './dto/request-access.dto';
 import {
   UpdateMemberRoleDto,
   UpdateMemberGroupDto,
@@ -280,8 +282,12 @@ export class WorldsController {
     status: 409,
     description: 'WORLD_ALREADY_MEMBER nebo PENDING_ACCESS_REQUEST',
   })
-  requestAccess(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    return this.worldsService.requestAccess(id, user.id);
+  requestAccess(
+    @Param('id') id: string,
+    @Body() dto: RequestAccessDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.requestAccess(id, user.id, dto?.characterDraft);
   }
 
   @Delete(':id/access-request')
@@ -326,6 +332,107 @@ export class WorldsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.worldsService.rejectAccessRequest(worldId, requestId, user);
+  }
+
+  // 15.10 — world-scoped fronta „ke zpracování" (žádosti o vstup, …) pro
+  // PJ/co-PJ v kontextu světa (drawer/zvoneček/stránka Hráči). Multi-typ.
+  @Get(':worldId/pending-actions')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Fronta ke zpracování pro daný svět (žádosti o vstup)',
+  })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
+  @ApiResponse({ status: 404, description: 'WORLD_NOT_FOUND' })
+  getWorldPendingActions(
+    @Param('worldId') worldId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.getWorldPendingActions(worldId, user);
+  }
+
+  // ── 15.10 fáze B — pozvánky do světa ──
+  @Post(':id/invites')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Vytvořit pozvánku do světa (cílenou / odkaz)' })
+  @ApiResponse({ status: 201, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
+  @ApiResponse({
+    status: 409,
+    description: 'WORLD_ALREADY_MEMBER / PENDING_INVITE',
+  })
+  createInvite(
+    @Param('id') id: string,
+    @Body() dto: CreateWorldInviteDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.createInvite(id, user, dto);
+  }
+
+  @Get(':id/invites')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktivní pozvánky světa (PJ přehled)' })
+  @ApiResponse({ status: 200, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
+  listInvites(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.worldsService.listInvites(id, user);
+  }
+
+  @Delete(':worldId/invites/:inviteId')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Zrušit (revoke) pozvánku' })
+  @ApiResponse({ status: 204, description: 'No Content' })
+  @ApiResponse({ status: 404, description: 'INVITE_NOT_FOUND' })
+  revokeInvite(
+    @Param('worldId') worldId: string,
+    @Param('inviteId') inviteId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.revokeInvite(worldId, inviteId, user);
+  }
+
+  @Post(':worldId/invites/:inviteId/accept')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Pozvaný přijme cílenou pozvánku (→ Čtenář)' })
+  @ApiResponse({ status: 201, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
+  @ApiResponse({ status: 410, description: 'INVITE_INACTIVE' })
+  acceptUserInvite(
+    @Param('worldId') worldId: string,
+    @Param('inviteId') inviteId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.acceptUserInvite(worldId, inviteId, user);
+  }
+
+  @Post(':worldId/invites/:inviteId/decline')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Pozvaný odmítne cílenou pozvánku' })
+  @ApiResponse({ status: 201, description: 'OK' })
+  declineUserInvite(
+    @Param('worldId') worldId: string,
+    @Param('inviteId') inviteId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.declineUserInvite(worldId, inviteId, user);
+  }
+
+  // Přijetí pozvacího ODKAZU (mimo :id kolizní zónu záměrně statickým segmentem).
+  @Post('invite-token/:token/accept')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Přijmout pozvací odkaz (→ Čtenář)' })
+  @ApiResponse({ status: 201, description: 'OK' })
+  @ApiResponse({ status: 404, description: 'INVITE_NOT_FOUND' })
+  @ApiResponse({
+    status: 410,
+    description: 'INVITE_INACTIVE / INVITE_EXPIRED / INVITE_EXHAUSTED',
+  })
+  acceptLinkInvite(
+    @Param('token') token: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.worldsService.acceptLinkInvite(token, user);
   }
 
   @Get(':id/members')

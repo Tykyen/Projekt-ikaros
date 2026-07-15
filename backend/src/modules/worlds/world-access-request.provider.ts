@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { IWorldsRepository } from './interfaces/worlds-repository.interface';
 import type { IWorldAccessRequestRepository } from './interfaces/world-access-request-repository.interface';
+import type { IWorldMembershipRepository } from './interfaces/world-membership-repository.interface';
 import type { WorldAccessRequestListItem } from './interfaces/world-access-request.interface';
+import { WorldRole } from './interfaces/world-membership.interface';
 import { IPendingActionProvider } from '../pending-actions/pending-action-provider.interface';
 import { PendingActionType } from '../pending-actions/pending-action-type.enum';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -12,7 +14,9 @@ import { UsersService } from '../users/users.service';
  *
  * Scope:
  * - Admin/Superadmin → vidí všechny pending AR napříč všemi světy.
- * - PJ vlastník světa → vidí jen pending AR ve světech kde je `ownerId`.
+ * - Vlastník světa NEBO co-PJ (člen role ≥ PJ) → vidí pending AR v těchto
+ *   světech. (Sjednoceno s `assertCanModerateAccessRequests` — dřív jen
+ *   `findByOwnerId`, takže co-PJ měl právo schválit, ale frontu neviděl.)
  * - Ostatní → prázdná queue (canHandle vždy true, list/count vrátí 0).
  *
  * Resolve flow (approve/reject) řeší `WorldsService.approveAccessRequest` /
@@ -28,6 +32,8 @@ export class WorldAccessRequestProvider implements IPendingActionProvider<WorldA
     private readonly worldsRepo: IWorldsRepository,
     @Inject('IWorldAccessRequestRepository')
     private readonly accessRequestRepo: IWorldAccessRequestRepository,
+    @Inject('IWorldMembershipRepository')
+    private readonly membershipRepo: IWorldMembershipRepository,
     private readonly usersService: UsersService,
   ) {}
 
@@ -90,6 +96,7 @@ export class WorldAccessRequestProvider implements IPendingActionProvider<WorldA
           username: user?.username ?? '?',
           avatarUrl: user?.avatarUrl,
         },
+        characterName: r.characterDraft?.name,
       };
     });
 
@@ -98,7 +105,8 @@ export class WorldAccessRequestProvider implements IPendingActionProvider<WorldA
 
   /**
    * Admin/Superadmin → undefined (global scope, vidí všechny AR).
-   * Jinak → list IDs světů kde je user vlastník (může být prázdné = 0 AR).
+   * Jinak → IDs světů kde je user vlastník NEBO co-PJ (member role ≥ PJ);
+   * může být prázdné = 0 AR.
    */
   private async scopeForUser(
     userId: string,
@@ -107,7 +115,14 @@ export class WorldAccessRequestProvider implements IPendingActionProvider<WorldA
     if (role === UserRole.Superadmin || role === UserRole.Admin) {
       return undefined;
     }
-    const ownedWorlds = await this.worldsRepo.findByOwnerId(userId);
-    return ownedWorlds.map((w) => w.id);
+    const [ownedWorlds, memberships] = await Promise.all([
+      this.worldsRepo.findByOwnerId(userId),
+      this.membershipRepo.findByUserId(userId),
+    ]);
+    const ids = new Set(ownedWorlds.map((w) => w.id));
+    for (const m of memberships) {
+      if (m.role >= WorldRole.PJ) ids.add(m.worldId);
+    }
+    return Array.from(ids);
   }
 }

@@ -69,6 +69,7 @@ export class MongoWorldAccessRequestRepository
   async create(data: {
     worldId: string;
     userId: string;
+    characterDraft?: { name: string; note?: string };
   }): Promise<WorldAccessRequest> {
     try {
       const created = new this.model({ ...data, requestedAt: new Date() });
@@ -115,6 +116,9 @@ export class MongoWorldAccessRequestRepository
       userId: doc.userId as string,
       worldId: doc.worldId as string,
       requestedAt: doc.requestedAt as Date,
+      characterDraft: doc.characterDraft as
+        | { name: string; note?: string }
+        | undefined,
     };
   }
 }
