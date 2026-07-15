@@ -4,6 +4,8 @@ import { Model, Types } from 'mongoose';
 import { WorldSchemaClass } from '../worlds/schemas/world.schema';
 import { IkarosArticleSchemaClass } from '../ikaros-articles/schemas/ikaros-article.schema';
 import { IkarosGallerySchemaClass } from '../ikaros-gallery/schemas/ikaros-gallery.schema';
+// 22.4 vitrína — wiki stránky vitrínových světů.
+import { PageSchemaClass } from '../pages/schemas/page.schema';
 
 interface SitemapEntry {
   loc: string;
@@ -48,6 +50,23 @@ const STATIC_ROUTES: ReadonlyArray<{
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 h — crawler nesmí tlouct DB každým dotazem
 
+// 22.4 — strop wiki URL na jeden vitrínový svět (obří světy nezahltí sitemapu;
+// Google má limit 50k URL / mapa).
+const MAX_SHOWCASE_PAGES_PER_WORLD = 200;
+
+/**
+ * 22.4 — vitrínové sekce světa (musí sedět s FE routami + prerender whitelistem).
+ * `mapa` (3D vesmír, PIXI) záměrně chybí — neprerenderovatelná, pro boty prázdná.
+ */
+const SHOWCASE_SECTIONS = [
+  'novinky',
+  'stranky',
+  'bestiar',
+  'mapy',
+  'postavy',
+  'pravidla',
+];
+
 /**
  * 15B.2 — generátor `sitemap.xml`. Leak-safe: zařazuje JEN veřejné entity
  * (public/open světy, Published články/galerie) — stejné filtry jako veřejné
@@ -64,6 +83,8 @@ export class SeoService {
     private readonly articleModel: Model<IkarosArticleSchemaClass>,
     @InjectModel(IkarosGallerySchemaClass.name)
     private readonly galleryModel: Model<IkarosGallerySchemaClass>,
+    @InjectModel(PageSchemaClass.name)
+    private readonly pageModel: Model<PageSchemaClass>,
   ) {}
 
   async getSitemapXml(): Promise<string> {
@@ -97,9 +118,16 @@ export class SeoService {
     const worlds = await this.worldModel
       .find(
         { isActive: true, accessMode: { $in: ['public', 'open'] } },
-        { slug: 1, updatedAt: 1 },
+        { slug: 1, updatedAt: 1, publicShowcase: 1 },
       )
-      .lean<{ slug?: string; updatedAt?: Date }[]>()
+      .lean<
+        {
+          _id: Types.ObjectId;
+          slug?: string;
+          updatedAt?: Date;
+          publicShowcase?: boolean;
+        }[]
+      >()
       .exec();
     for (const w of worlds) {
       if (!w.slug) continue;
@@ -109,6 +137,50 @@ export class SeoService {
         changefreq: 'weekly',
         priority: '0.6',
       });
+    }
+
+    // 22.4 vitrína — světy se zapnutým veřejným nahlížením: sekce + wiki
+    // stránky. Leak-safe: JEN stránky bez accessRequirements a bez
+    // moderationHidden (AKJ/vyhrazený obsah do sitemapy nikdy).
+    const showcaseWorlds = worlds.filter(
+      (w) => w.slug && w.publicShowcase === true,
+    );
+    for (const w of showcaseWorlds) {
+      const slug = encodeURIComponent(w.slug!);
+      for (const section of SHOWCASE_SECTIONS) {
+        entries.push({
+          loc: `${base}/svet/${slug}/${section}`,
+          lastmod: toIso(w.updatedAt),
+          changefreq: 'weekly',
+          priority: '0.5',
+        });
+      }
+      const pages = await this.pageModel
+        .find(
+          {
+            worldId: String(w._id),
+            moderationHidden: { $ne: true },
+            $or: [
+              { accessRequirements: { $size: 0 } },
+              { accessRequirements: { $exists: false } },
+            ],
+          },
+          { slug: 1, updatedAt: 1 },
+        )
+        .limit(MAX_SHOWCASE_PAGES_PER_WORLD)
+        .lean<{ slug?: string; updatedAt?: Date }[]>()
+        .exec();
+      for (const p of pages) {
+        if (!p.slug) continue;
+        // `pravidla` (rezervovaný slug) už je v sekcích — nedublovat URL.
+        if (SHOWCASE_SECTIONS.includes(p.slug)) continue;
+        entries.push({
+          loc: `${base}/svet/${slug}/${encodeURIComponent(p.slug)}`,
+          lastmod: toIso(p.updatedAt),
+          changefreq: 'weekly',
+          priority: '0.4',
+        });
+      }
     }
 
     // Published články (URL = _id, FE routa /ikaros/clanky/:id).

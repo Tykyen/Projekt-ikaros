@@ -666,6 +666,25 @@ export class WorldsService implements OnApplicationBootstrap {
       });
     }
 
+    // 22.4 — zveřejnění světa internetu (výkladní skříň) je governance
+    // rozhodnutí → jen PJ/elevace (canAdminWorld), ne Korektor/PomocnýPJ.
+    // Vitrína na private světě je protimluv (private = 404 pro nečleny).
+    if (dto.publicShowcase !== undefined) {
+      if (!this.canAdminWorld(requester, world, membership ?? undefined)) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN',
+          message: 'Veřejné nahlížení smí přepínat jen Pán jeskyně.',
+        });
+      }
+      const nextAccessMode = dto.accessMode ?? world.accessMode;
+      if (dto.publicShowcase && nextAccessMode === 'private') {
+        throw new BadRequestException({
+          code: 'SHOWCASE_PRIVATE_WORLD',
+          message: 'Privátní svět nemůže mít zapnuté veřejné nahlížení.',
+        });
+      }
+    }
+
     // Krok 7d: archive + re-seed při změně system
     // 8.5-BE-2 oprava: nyní zachovává integritu tabulky verzí —
     //   1. archivuje stávající aktivní verzi (set archivedAt)
@@ -701,12 +720,21 @@ export class WorldsService implements OnApplicationBootstrap {
     const { themeBackgroundUrl: _bgIgnored, ...dtoWithoutBg } = dto;
     const baseDto: UpdateWorldDto = clearBackground ? dtoWithoutBg : dto;
 
-    const payload: UpdateWorldDto = baseDto.themeOverrides
+    let payload: UpdateWorldDto = baseDto.themeOverrides
       ? {
           ...baseDto,
           themeOverrides: sanitizeThemeOverrides(baseDto.themeOverrides),
         }
       : baseDto;
+
+    // 22.4 — přechod světa na private automaticky shodí veřejné nahlížení.
+    if (
+      dto.accessMode === 'private' &&
+      world.publicShowcase &&
+      dto.publicShowcase === undefined
+    ) {
+      payload = { ...payload, publicShowcase: false };
+    }
 
     let updated = await this.worldsRepo.update(id, payload as Partial<World>);
     if (clearBackground) {

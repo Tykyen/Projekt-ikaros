@@ -9,6 +9,8 @@ import {
   IkarosGallerySchemaClass,
   IkarosGallerySchema,
 } from '../ikaros-gallery/schemas/ikaros-gallery.schema';
+// 22.4 vitrína — wiki stránky vitrínových světů do sitemapy.
+import { PageSchemaClass, PageSchema } from '../pages/schemas/page.schema';
 import { SeoController } from './seo.controller';
 import { SeoService } from './seo.service';
 
@@ -18,6 +20,7 @@ import { SeoService } from './seo.service';
       { name: WorldSchemaClass.name, schema: WorldSchema },
       { name: IkarosArticleSchemaClass.name, schema: IkarosArticleSchema },
       { name: IkarosGallerySchemaClass.name, schema: IkarosGallerySchema },
+      { name: PageSchemaClass.name, schema: PageSchema },
     ]),
   ],
   controllers: [SeoController],

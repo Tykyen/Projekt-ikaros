@@ -32,6 +32,8 @@ import {
 } from '../worlds/interfaces/world-membership.interface';
 import type { AkjType } from '../worlds/interfaces/world-settings.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+// 22.4 — vitrína: brána anonymního čtení (anon = Čtenář, jen zapnutá vitrína).
+import { assertShowcaseViewable } from '../../common/utils/showcase';
 // B4b — „kdo vidí moderačně skrytý obsah" = generický reviewer set (spec 20B).
 import { isContentReviewer } from '../moderation/moderation.constants';
 import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
@@ -251,17 +253,23 @@ export class PagesService {
   async findBySlug(
     slug: string,
     worldId: string,
-    userId: string,
+    userId: string | undefined,
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
   ): Promise<Page> {
-    // R-09b — world-level brána před čtením stránky (nečlen privátního světa).
-    await this.assertCanViewWorld(
-      worldId,
-      userId,
-      platformRole,
-      elevatedWorldIds,
-    );
+    if (userId === undefined) {
+      // 22.4 vitrína — anonym čte obsah stránky JEN přes zapnuté veřejné
+      // nahlížení (403 i pro neexistující svět = anti-enumeration).
+      assertShowcaseViewable(await this.worldsRepo.findById(worldId));
+    } else {
+      // R-09b — world-level brána před čtením stránky (nečlen privátního světa).
+      await this.assertCanViewWorld(
+        worldId,
+        userId,
+        platformRole,
+        elevatedWorldIds,
+      );
+    }
     const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
     if (!page)
       throw new NotFoundException({
@@ -1066,7 +1074,7 @@ export class PagesService {
    */
   private passesAccess(
     reqs: AccessRequirement[],
-    userId: string,
+    userId: string | undefined,
     membership: WorldMembership | null,
     akjTypes: AkjType[],
   ): boolean {
@@ -1105,7 +1113,7 @@ export class PagesService {
 
   private async assertAccess(
     page: Page,
-    userId: string,
+    userId: string | undefined,
     worldId: string,
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
@@ -1128,10 +1136,11 @@ export class PagesService {
       worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)
     )
       return;
-    const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
-      worldId,
-    );
+    // 22.4 — anonym: lookup přeskočit. `findByUserAndWorld(undefined, …)` by
+    // mongoose strip-em undefined matchnul CIZÍ membership (leak role).
+    const membership = userId
+      ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+      : null;
     if (membership && membership.role >= WorldRole.PomocnyPJ) return;
     const needsAkjTypes = page.accessRequirements.some(
       (r) => r.type === 'AKJType',
@@ -1203,16 +1212,17 @@ export class PagesService {
    */
   private async filterAkjTabsForViewer(
     page: Page,
-    userId: string,
+    userId: string | undefined,
     worldId: string,
     platformRole?: UserRole,
     elevatedWorldIds?: string[],
   ): Promise<Page> {
     if (!page.akjTabs || page.akjTabs.length === 0) return page;
-    const membership = await this.membershipRepo.findByUserAndWorld(
-      userId,
-      worldId,
-    );
+    // 22.4 — anonym: lookup přeskočit (viz assertAccess — undefined by matchnul
+    // cizí membership).
+    const membership = userId
+      ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+      : null;
     const seesAll =
       (platformRole !== undefined &&
         worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)) ||

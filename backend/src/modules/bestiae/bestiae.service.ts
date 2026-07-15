@@ -22,6 +22,7 @@ import { SystemStatsValidatorService } from '../maps/schemas/system-entity-schem
 import type { ValidationResult } from '../maps/schemas/system-entity-schema/system-entity-schema.types';
 import { EntitySchemaVersionsService } from '../entity-schema-versions/entity-schema-versions.service';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
+import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.interface';
 import type { CreateBestieDto } from './dto/create-bestie.dto';
 import type { UpdateBestieDto } from './dto/update-bestie.dto';
 import type { CloneBestieDto } from './dto/clone-bestie.dto';
@@ -34,6 +35,8 @@ import type { Bestie } from './interfaces/bestie.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+// 22.4 — vitrína: brána anonymního čtení world bestiáře.
+import { assertShowcaseViewable } from '../../common/utils/showcase';
 import { assertUnderCreationLimit } from '../../common/limits/creation-limits';
 
 export interface BestiarResponse {
@@ -55,6 +58,9 @@ export class BestiaeService {
     private readonly statsValidator: SystemStatsValidatorService,
     @Inject('IWorldMembershipRepository')
     private readonly memberRepo: IWorldMembershipRepository,
+    // 22.4 vitrína — world lookup pro bránu anonymního čtení.
+    @Inject('IWorldsRepository')
+    private readonly worldsRepo: IWorldsRepository,
     private readonly eventEmitter: EventEmitter2,
     private readonly entitySchemas: EntitySchemaVersionsService,
   ) {}
@@ -102,9 +108,32 @@ export class BestiaeService {
 
   async list(
     systemId: string,
-    user: CurrentUser,
+    user: CurrentUser | undefined,
     worldId?: string,
   ): Promise<BestiarResponse> {
+    if (!user) {
+      // 22.4 vitrína — anonym: JEN world bestiář vitrínového světa (+ systémové
+      // podklady). Bez worldId není co vitrínově číst → 403.
+      if (!worldId) {
+        throw new ForbiddenException({
+          code: 'SHOWCASE_DISABLED',
+          message: 'Bestiář je dostupný jen přihlášeným.',
+        });
+      }
+      assertShowcaseViewable(await this.worldsRepo.findById(worldId));
+      // POZOR: userId '' (ne undefined) — mongoose by undefined v $or stripnul
+      // a user-scope větev by matchla VŠECHNY osobní bestie (leak).
+      const items = await this.repo.findVisible({
+        systemId,
+        userId: '',
+        worldId,
+      });
+      return {
+        system: items.filter((i) => i.scope === 'system'),
+        user: [],
+        world: items.filter((i) => i.scope === 'world'),
+      };
+    }
     // R-AUDIT (IDOR fix) — world-scoped bestie jen pro členy světa; jinak
     // enumerací `?worldId=` leakoval bestiář cizího/privátního světa. system/user
     // scope řeší vlastní brána v assertCanRead.
@@ -121,12 +150,13 @@ export class BestiaeService {
     };
   }
 
-  async findById(id: string, user: CurrentUser): Promise<Bestie> {
+  async findById(id: string, user: CurrentUser | undefined): Promise<Bestie> {
     const bestie = await this.repo.findById(id);
     if (!bestie) throw new NotFoundException('Bestie nenalezena');
     // B5 (spec 20B) — moderačně skrytá bestie (M2/M3): vidí ji jen platform
-    // reviewer (Admin+). Ostatním 404, aby se neprozradila existence.
-    if (bestie.moderationHidden && !this.isGlobalAdmin(user)) {
+    // reviewer (Admin+). Ostatním (i anonymovi, 22.4) 404, aby se neprozradila
+    // existence.
+    if (bestie.moderationHidden && (!user || !this.isGlobalAdmin(user))) {
       throw new NotFoundException('Bestie nenalezena');
     }
     await this.assertCanRead(bestie, user);
@@ -637,9 +667,21 @@ export class BestiaeService {
 
   private async assertCanRead(
     bestie: Bestie,
-    user: CurrentUser,
+    user: CurrentUser | undefined,
   ): Promise<void> {
     if (bestie.scope === 'system') return;
+    if (!user) {
+      // 22.4 vitrína — anonym: world-scope jen přes zapnuté veřejné nahlížení,
+      // osobní (user-scope) bestie nikdy.
+      if (bestie.scope === 'world' && bestie.worldId) {
+        assertShowcaseViewable(await this.worldsRepo.findById(bestie.worldId));
+        return;
+      }
+      throw new ForbiddenException({
+        code: 'SHOWCASE_DISABLED',
+        message: 'Tahle bestie je dostupná jen přihlášeným.',
+      });
+    }
     if (bestie.scope === 'user') {
       if (bestie.ownerUserId !== user.id && !this.isGlobalAdmin(user)) {
         throw new ForbiddenException({

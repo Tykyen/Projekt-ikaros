@@ -32,6 +32,12 @@ export class WorldSchemaClass {
   @Prop({ type: Date, default: null }) deletedAt: Date | null;
   @Prop({ type: String, default: null }) deletedBy: string | null;
   @Prop({ default: 'private' }) accessMode: string;
+  /**
+   * 22.4 — veřejná výkladní skříň: anonym smí read-only nahlížet do vybraných
+   * sekcí světa (kontrakt anon = Čtenář). Jen ne-private světy; přechod na
+   * private flag automaticky shodí (worlds.service.update).
+   */
+  @Prop({ default: false }) publicShowcase: boolean;
   @Prop({ type: [{ slug: String, name: String }], default: [] })
   offeredCharacters: { slug: string; name: string }[];
 

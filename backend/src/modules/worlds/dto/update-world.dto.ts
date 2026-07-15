@@ -47,6 +47,8 @@ export class UpdateWorldDto {
   @IsString()
   @IsIn(['public', 'open', 'private', 'closed'])
   accessMode?: string;
+  /** 22.4 — veřejné nahlížení (výkladní skříň); přepíná jen PJ, jen ne-private svět. */
+  @IsOptional() @IsBoolean() publicShowcase?: boolean;
 
   // ── Krok 5.0 — světový theme ──
   /** Id sdíleného základu světového motivu. */

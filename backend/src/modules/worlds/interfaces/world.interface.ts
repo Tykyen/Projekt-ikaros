@@ -65,6 +65,8 @@ export interface World {
   deletedAt: Date | null;
   deletedBy: string | null;
   accessMode: string;
+  /** 22.4 — veřejná výkladní skříň: anonym smí read-only nahlížet (anon = Čtenář). */
+  publicShowcase: boolean;
   offeredCharacters?: OfferedCharacter[];
   /** 9.2b — slug výchozího kalendáře z `world_calendar_configs`. Auto-seed = 'gregorian'. */
   defaultCalendarConfigSlug: string;

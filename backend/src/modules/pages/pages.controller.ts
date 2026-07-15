@@ -141,22 +141,28 @@ export class PagesController {
   }
 
   @Get(':slug')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Plný obsah stránky dle slugu' })
+  // 22.4 vitrína — OptionalJwt: anonym projde JEN přes zapnuté veřejné
+  // nahlížení světa (brána v service.findBySlug → assertShowcaseViewable).
+  // POZOR (CH-120): Optional platí JEN pro tuhle routu — sourozenci zůstávají
+  // na JwtAuthGuard.
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Plný obsah stránky dle slugu; vitrínový svět i anonymně (22.4)',
+  })
   @ApiResponse({ status: 200, description: 'OK' })
   @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
   @ApiResponse({ status: 404, description: 'Stránka nenalezena' })
   findOne(
     @Param('worldId') worldId: string,
     @Param('slug') slug: string,
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user?: RequestUser,
   ) {
     return this.pagesService.findBySlug(
       slug,
       worldId,
-      user.id,
-      user.role,
-      user.elevatedWorldIds,
+      user?.id,
+      user?.role,
+      user?.elevatedWorldIds,
     );
   }
 

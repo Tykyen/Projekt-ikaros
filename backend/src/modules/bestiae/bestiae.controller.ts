@@ -14,6 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
 import { BestiaeService } from './bestiae.service';
@@ -33,8 +34,10 @@ interface RequestUser {
   role: UserRole;
 }
 
+// 22.4 vitrína — guard už NENÍ class-level: read routy list + getOne mají
+// OptionalJwt (anonym jen přes zapnuté veřejné nahlížení, brána v service),
+// VŠECHNY ostatní routy MUSÍ mít explicitní @UseGuards(JwtAuthGuard).
 @Controller('bestiae')
-@UseGuards(JwtAuthGuard)
 export class BestiaeController {
   constructor(
     private readonly service: BestiaeService,
@@ -42,10 +45,11 @@ export class BestiaeController {
   ) {}
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   list(
     @Query('systemId') systemId: string,
     @Query('worldId') worldId: string | undefined,
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user?: RequestUser,
   ) {
     return this.service.list(systemId, user, worldId);
   }
@@ -55,6 +59,7 @@ export class BestiaeController {
   // zachytilo jako id.
 
   @Get('community')
+  @UseGuards(JwtAuthGuard)
   listCommunity(
     @Query('status') status: 'draft' | 'approved' | undefined,
     @Query('kind') kind: string | undefined,
@@ -64,11 +69,13 @@ export class BestiaeController {
   }
 
   @Get('community/:id')
+  @UseGuards(JwtAuthGuard)
   getCommunity(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.findCommunityById(id, user);
   }
 
   @Post('community')
+  @UseGuards(JwtAuthGuard)
   createCommunity(
     @Body() dto: CreateCommunityBestieDto,
     @CurrentUser() user: RequestUser,
@@ -77,6 +84,7 @@ export class BestiaeController {
   }
 
   @Patch('community/:id/lore')
+  @UseGuards(JwtAuthGuard)
   updateCommunityLore(
     @Param('id') id: string,
     @Body() dto: UpdateBestieLoreDto,
@@ -86,6 +94,7 @@ export class BestiaeController {
   }
 
   @Post('community/:id/clone')
+  @UseGuards(JwtAuthGuard)
   cloneCommunity(
     @Param('id') id: string,
     @Body() dto: CloneCommunityBestieDto,
@@ -96,6 +105,7 @@ export class BestiaeController {
 
   /** Návrh / kurátorská úprava pravidlové verze statů (spec §2a). */
   @Post('community/:id/statblock')
+  @UseGuards(JwtAuthGuard)
   proposeStatblock(
     @Param('id') id: string,
     @Body() dto: ProposeStatblockDto,
@@ -106,6 +116,7 @@ export class BestiaeController {
 
   /** Kurátor schválí jednu pravidlovou verzi. */
   @Post('community/:id/statblock/:systemId/approve')
+  @UseGuards(JwtAuthGuard)
   approveStatblock(
     @Param('id') id: string,
     @Param('systemId') systemId: string,
@@ -116,6 +127,7 @@ export class BestiaeController {
 
   /** Kurátor schválí bytost (přesun do schválené knihovny). */
   @Post('community/:id/approve')
+  @UseGuards(JwtAuthGuard)
   approveBeast(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.approveBeast(id, user);
   }
@@ -123,6 +135,7 @@ export class BestiaeController {
   // ─── Dvouúrovňová diskuse: targetType 'beast' (lore) / 'statblock' (systém) ───
 
   @Get('community/:id/comments')
+  @UseGuards(JwtAuthGuard)
   listComments(
     @Param('id') id: string,
     @Query('targetType') targetType: 'beast' | 'statblock',
@@ -132,6 +145,7 @@ export class BestiaeController {
   }
 
   @Post('community/:id/comments')
+  @UseGuards(JwtAuthGuard)
   addComment(
     @Param('id') id: string,
     @Body() dto: CreateBestieCommentDto,
@@ -141,16 +155,19 @@ export class BestiaeController {
   }
 
   @Get(':id')
-  getOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+  @UseGuards(OptionalJwtAuthGuard)
+  getOne(@Param('id') id: string, @CurrentUser() user?: RequestUser) {
     return this.service.findById(id, user);
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard)
   create(@Body() dto: CreateBestieDto, @CurrentUser() user: RequestUser) {
     return this.service.create(dto, user);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   update(
     @Param('id') id: string,
     @Body() dto: UpdateBestieDto,
@@ -160,17 +177,20 @@ export class BestiaeController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(204)
   async delete(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     await this.service.softDelete(id, user);
   }
 
   @Post(':id/restore')
+  @UseGuards(JwtAuthGuard)
   restore(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.restore(id, user);
   }
 
   @Post(':id/clone')
+  @UseGuards(JwtAuthGuard)
   clone(
     @Param('id') id: string,
     @Body() dto: CloneBestieDto,

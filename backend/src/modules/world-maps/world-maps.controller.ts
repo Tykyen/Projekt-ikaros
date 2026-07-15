@@ -24,6 +24,7 @@ import { ReorderMapsDto } from './dto/reorder-maps.dto';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
 
@@ -34,27 +35,39 @@ interface RequestUser {
   elevatedWorldIds?: string[];
 }
 
+// 22.4 vitrína — guard už NENÍ class-level: read routy (list/listFolders) mají
+// OptionalJwt (anonym jen přes zapnuté veřejné nahlížení, brána v service),
+// VŠECHNY ostatní routy MUSÍ mít explicitní @UseGuards(JwtAuthGuard).
 @ApiTags('World Maps')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('world-maps')
 export class WorldMapsController {
   constructor(private readonly service: WorldMapsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Atlas map světa (s visibility filtrem)' })
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Atlas map světa (s visibility filtrem); vitrína i anonymně (22.4)',
+  })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
   async list(
     @Query('worldId') worldId: string,
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user?: RequestUser,
   ) {
+    if (user === undefined) {
+      // 22.4 — anonym: jen vitrínový svět, pohled hráče bez id (isPublic mapy).
+      await this.service.assertShowcaseView(worldId);
+      return this.service.list(worldId, null, false);
+    }
     await this.service.assertCanViewAtlas(user, worldId);
     const isPjOrAdmin = await this.service.canManage(user, worldId);
     return this.service.list(worldId, user.id, isPjOrAdmin);
   }
 
   @Post(':worldId/maps')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Přidat mapu (PJ+)' })
   @ApiResponse({ status: 201 })
   @ApiResponse({ status: 403 })
@@ -68,6 +81,7 @@ export class WorldMapsController {
   }
 
   @Patch(':worldId/maps/:mapId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upravit mapu (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -82,6 +96,7 @@ export class WorldMapsController {
   }
 
   @Delete(':worldId/maps/:mapId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Smazat mapu (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -96,6 +111,7 @@ export class WorldMapsController {
   }
 
   @Patch(':worldId/reorder')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Změnit pořadí map (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -111,6 +127,7 @@ export class WorldMapsController {
   // ── Vlaječky (16.5) ─────────────────────────────────────────────────────────
 
   @Post(':worldId/maps/:mapId/pins')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Přidat vlaječku na mapu (PJ+)' })
   @ApiResponse({ status: 201 })
   @ApiResponse({ status: 403 })
@@ -125,6 +142,7 @@ export class WorldMapsController {
   }
 
   @Patch(':worldId/maps/:mapId/pins/:pinId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upravit vlaječku (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -140,6 +158,7 @@ export class WorldMapsController {
   }
 
   @Delete(':worldId/maps/:mapId/pins/:pinId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Smazat vlaječku (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -156,19 +175,29 @@ export class WorldMapsController {
   // ── Složky (13.4b F2) ──────────────────────────────────────────────────────
 
   @Get('folders')
-  @ApiOperation({ summary: 'Strom složek atlasu (s visibility filtrem)' })
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Strom složek atlasu (s visibility filtrem); vitrína i anonymně (22.4)',
+  })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
   async listFolders(
     @Query('worldId') worldId: string,
-    @CurrentUser() user: RequestUser,
+    @CurrentUser() user?: RequestUser,
   ) {
+    if (user === undefined) {
+      // 22.4 — anonym: jen vitrínový svět, pohled hráče bez id (viz list()).
+      await this.service.assertShowcaseView(worldId);
+      return this.service.listFolders(worldId, null, false);
+    }
     await this.service.assertCanViewAtlas(user, worldId);
     const isPjOrAdmin = await this.service.canManage(user, worldId);
     return this.service.listFolders(worldId, user.id, isPjOrAdmin);
   }
 
   @Post(':worldId/folders')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Vytvořit složku (PJ+)' })
   @ApiResponse({ status: 201 })
   @ApiResponse({ status: 403 })
@@ -182,6 +211,7 @@ export class WorldMapsController {
   }
 
   @Patch(':worldId/folders-reorder')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Změnit pořadí složek (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -195,6 +225,7 @@ export class WorldMapsController {
   }
 
   @Patch(':worldId/folders/:folderId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upravit složku (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })
@@ -209,6 +240,7 @@ export class WorldMapsController {
   }
 
   @Delete(':worldId/folders/:folderId')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Smazat složku — obsah do rodiče (PJ+)' })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 403 })

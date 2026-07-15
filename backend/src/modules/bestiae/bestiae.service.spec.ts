@@ -34,6 +34,8 @@ describe('BestiaeService', () => {
     validateForPatch: jest.fn(),
   };
   const mockMemberRepo = { findByUserAndWorld: jest.fn() };
+  // 22.4 — vitrína brána si sahá na world doc; default „svět neexistuje".
+  const mockWorldsRepo = { findById: jest.fn().mockResolvedValue(null) };
   // C-34 — service emituje 'bestiae.changed' po každé mutaci.
   const mockEventEmitter = { emit: jest.fn() };
   // 16.2g F2 — world-scoped validace čte per-world bestie schema; default = žádné
@@ -66,6 +68,8 @@ describe('BestiaeService', () => {
         { provide: BestiaeRepository, useValue: mockRepo },
         { provide: SystemStatsValidatorService, useValue: mockValidator },
         { provide: 'IWorldMembershipRepository', useValue: mockMemberRepo },
+        // 22.4 vitrína — world lookup pro anonymní bránu.
+        { provide: 'IWorldsRepository', useValue: mockWorldsRepo },
         { provide: EventEmitter2, useValue: mockEventEmitter },
         { provide: EntitySchemaVersionsService, useValue: mockEntitySchemas },
       ],

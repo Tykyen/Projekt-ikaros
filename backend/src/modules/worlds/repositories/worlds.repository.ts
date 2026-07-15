@@ -251,6 +251,7 @@ export class MongoWorldsRepository
       deletedAt: (doc.deletedAt as Date | null) ?? null,
       deletedBy: (doc.deletedBy as string | null) ?? null,
       accessMode: (doc.accessMode as string) ?? 'private',
+      publicShowcase: (doc.publicShowcase as boolean) ?? false,
       offeredCharacters:
         (doc.offeredCharacters as { slug: string; name: string }[]) ?? [],
       defaultCalendarConfigSlug:

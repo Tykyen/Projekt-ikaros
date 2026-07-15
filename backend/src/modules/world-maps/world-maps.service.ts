@@ -17,6 +17,8 @@ import type {
 import type { WorldMapFolder } from './interfaces/world-map-folder.interface';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { worldAdminBypass } from '../../common/utils/world-elevation';
+// 22.4 — vitrína: brána anonymního čtení atlasu.
+import { assertShowcaseViewable } from '../../common/utils/showcase';
 import type { RequestUser } from '../../common/interfaces/request-user.interface';
 import type { CreateMapDto } from './dto/create-map.dto';
 import type { UpdateMapDto } from './dto/update-map.dto';
@@ -92,6 +94,15 @@ export class WorldMapsService {
         code: 'WORLD_ACCESS_DENIED',
         message: 'Atlas map je jen pro členy tohoto světa.',
       });
+  }
+
+  /**
+   * 22.4 vitrína — anonymní čtení atlasu JEN přes zapnuté veřejné nahlížení
+   * světa (403 i pro neexistující svět = anti-enumeration). Anon pak jede
+   * hráčskou cestou s `userId=null` (isPublic mapy, stripForPlayer).
+   */
+  async assertShowcaseView(worldId: string): Promise<void> {
+    assertShowcaseViewable(await this.worldsRepo.findById(worldId));
   }
 
   // ── Kaskádová viditelnost ────────────────────────────────────────────────
