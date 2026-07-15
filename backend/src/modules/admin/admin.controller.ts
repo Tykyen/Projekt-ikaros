@@ -17,6 +17,7 @@ import {
 import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
 import { AdminGrowthService } from './admin-growth.service';
+import { AdminThemeUsageService } from './admin-theme-usage.service';
 import { AdminCostsService } from './admin-costs.service';
 import { AdminFriendshipsService } from './admin-friendships.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -62,6 +63,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly adminStatsService: AdminStatsService,
     private readonly adminGrowthService: AdminGrowthService,
+    private readonly adminThemeUsageService: AdminThemeUsageService,
     private readonly adminCostsService: AdminCostsService,
     private readonly adminFriendshipsService: AdminFriendshipsService,
   ) {}
@@ -92,6 +94,19 @@ export class AdminController {
     const n = Number(daysRaw);
     const days = GROWTH_ALLOWED_DAYS.includes(n) ? n : 30;
     return this.adminGrowthService.getGrowth(days);
+  }
+
+  // ─── Stats — využití motivů a skinů (20.6) ────────────────────────────────
+
+  @Get('stats/theme-usage')
+  @UseGuards(AdminGuard)
+  @ApiOperation({
+    summary: 'Využití motivů a skinů — podklad pro osekání (Admin+)',
+  })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  getStatsThemeUsage() {
+    return this.adminThemeUsageService.getThemeUsage();
   }
 
   // ─── Stats — costs / storage (19.2) ───────────────────────────────────────

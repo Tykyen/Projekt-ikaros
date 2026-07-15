@@ -4,6 +4,7 @@ import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
 import { AdminGrowthService } from './admin-growth.service';
+import { AdminThemeUsageService } from './admin-theme-usage.service';
 import { AdminCostsService } from './admin-costs.service';
 import { PagesModule } from '../pages/pages.module';
 import { WorldsModule } from '../worlds/worlds.module';
@@ -102,6 +103,7 @@ import { UsersIdentityGateway } from './users-identity.gateway';
     AdminService,
     AdminStatsService,
     AdminGrowthService,
+    AdminThemeUsageService,
     AdminCostsService,
     AdminFriendshipsService,
     AccountCleanupCron,
