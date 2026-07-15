@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { MapsService } from './maps.service';
+import { ContentLicensesService } from '../content-licenses/content-licenses.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { WorldRole } from '../worlds/interfaces/world-membership.interface';
 import { UserRole } from '../users/interfaces/user.interface';
@@ -99,6 +100,11 @@ describe('MapsService', () => {
         { provide: 'ICharactersRepository', useValue: mockCharacterRepo },
         { provide: 'IPagesRepository', useValue: mockPagesRepo },
         { provide: 'ICharacterDiaryRepository', useValue: mockDiaryRepo },
+        // 22.5 — licenční brána klonu (default: bez karty → clone povolen).
+        {
+          provide: ContentLicensesService,
+          useValue: { getLatest: jest.fn().mockResolvedValue(null) },
+        },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();
@@ -253,9 +259,10 @@ describe('MapsService', () => {
       );
     });
 
-    it('inicializuje z šablony pokud templateId je předáno', async () => {
+    it('inicializuje z VLASTNÍ šablony pokud templateId je předáno', async () => {
       const tpl = {
         id: 'tpl1',
+        ownerId: 'pj1',
         name: 'Šablona',
         imageUrl: '',
         config: { size: 40, originX: 0, originY: 0, showGrid: true },
@@ -264,19 +271,60 @@ describe('MapsService', () => {
         effects: [],
         fogEnabled: false,
         revealedHexes: [],
-        activeSoundIds: [],
+        activeSoundIds: ['s1'],
       };
       mockTemplateRepo.findById.mockResolvedValue(tpl);
       mockRepo.create.mockResolvedValue(mockScene);
-      await service.create({ templateId: 'tpl1' }, 'world1');
+      // 22.5 — requesterId = owner → vlastní šablona, žádná katalog/licence brána.
+      await service.create({ templateId: 'tpl1' }, 'world1', 'pj1');
       expect(mockRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           worldId: 'world1',
           templateId: 'tpl1',
+          activeSoundIds: ['s1'], // vlastní šablona si zvuky ponechá
           isActive: false,
           isHidden: false,
           isLocked: false,
         }),
+      );
+    });
+
+    it('22.5 — klon CIZÍ nepublikované šablony → ForbiddenException', async () => {
+      mockTemplateRepo.findById.mockResolvedValue({
+        id: 'tpl1',
+        ownerId: 'pj2',
+        published: false,
+        config: { size: 40 },
+        npcTemplates: [],
+        tokens: [],
+        effects: [],
+        revealedHexes: [],
+        activeSoundIds: [],
+      });
+      await expect(
+        service.create({ templateId: 'tpl1' }, 'world1', 'pj1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('22.5 — klon CIZÍ publikované+schválené šablony strippne zvuky', async () => {
+      mockTemplateRepo.findById.mockResolvedValue({
+        id: 'tpl1',
+        ownerId: 'pj2',
+        published: true,
+        reviewStatus: 'approved',
+        moderationHidden: false,
+        config: { size: 40, originX: 0, originY: 0, showGrid: true },
+        npcTemplates: [],
+        tokens: [],
+        effects: [],
+        fogEnabled: false,
+        revealedHexes: [],
+        activeSoundIds: ['s1', 's2'],
+      });
+      mockRepo.create.mockResolvedValue(mockScene);
+      await service.create({ templateId: 'tpl1' }, 'world1', 'pj1');
+      expect(mockRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ templateId: 'tpl1', activeSoundIds: [] }),
       );
     });
   });

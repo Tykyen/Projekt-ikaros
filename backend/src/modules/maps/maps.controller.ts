@@ -123,6 +123,7 @@ export class MapsController {
         import('./interfaces/map-scene.interface').MapScene
       >,
       worldId,
+      user.id,
     );
   }
 

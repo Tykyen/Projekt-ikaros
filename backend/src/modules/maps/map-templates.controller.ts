@@ -18,11 +18,17 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/interfaces/user.interface';
 import { MapsService } from './maps.service';
 import { CreateMapTemplateDto } from './dto/create-map-template.dto';
+import { PublishSceneTemplateDto } from './dto/publish-scene-template.dto';
+import {
+  SceneTemplateSharingService,
+  type CatalogEntry,
+} from './scene-template-sharing.service';
 import type { IMapTemplatesRepository } from './interfaces/map-templates-repository.interface';
 import type { MapTemplate } from './interfaces/map-template.interface';
 
@@ -55,7 +61,37 @@ export class MapTemplatesController {
     @Inject('IMapTemplatesRepository')
     private readonly repo: IMapTemplatesRepository,
     private readonly mapsService: MapsService,
+    // 22.5 — publikace/katalog/kurátorský tok sdílení scén.
+    private readonly sharing: SceneTemplateSharingService,
   ) {}
+
+  // ── 22.5 — veřejný katalog (login-required). MUSÍ být PŘED `@Get(':id')`,
+  //    jinak by `:id` zachytilo statické `catalog`. ──
+
+  @ApiOperation({ summary: 'Veřejný katalog publikovaných šablon scén (22.5)' })
+  @ApiResponse({ status: 200 })
+  @Get('catalog')
+  @UseGuards(JwtAuthGuard)
+  async catalog(
+    @Query('systemId') systemId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ items: CatalogEntry[]; total: number }> {
+    return this.sharing.listCatalog({
+      systemId,
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
+  }
+
+  @ApiOperation({ summary: 'Detail katalogové šablony (jen approved, 22.5)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 404 })
+  @Get('catalog/:id')
+  @UseGuards(JwtAuthGuard)
+  async catalogDetail(@Param('id') id: string): Promise<CatalogEntry> {
+    return this.sharing.getCatalogEntry(id);
+  }
 
   @ApiOperation({
     summary: 'Šablony scén — per-PJ filter (Admin+ vidí všechny)',
@@ -192,6 +228,62 @@ export class MapTemplatesController {
       });
     }
     await this.repo.delete(id);
+  }
+
+  // ── 22.5 — publikace / stažení / kurátorské schválení ──
+
+  @ApiOperation({ summary: 'Publikovat šablonu do katalogu (owner, 22.5)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 400, description: 'TEMPLATE_INCOMPLETE' })
+  @Post(':id/publish')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async publish(
+    @Param('id') id: string,
+    @Body() dto: PublishSceneTemplateDto,
+    @CurrentUser() user: RequestUser,
+  ): Promise<MapTemplate> {
+    return this.sharing.publish(id, dto, user);
+  }
+
+  @ApiOperation({ summary: 'Stáhnout šablonu z katalogu (owner, 22.5)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  @Post(':id/unpublish')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async unpublish(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<MapTemplate> {
+    return this.sharing.unpublish(id, user);
+  }
+
+  @ApiOperation({ summary: 'Schválit publikovanou šablonu (kurátor, 22.5)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'NOT_CURATOR' })
+  @Post(':id/approve')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async approve(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<MapTemplate> {
+    return this.sharing.approve(id, user);
+  }
+
+  @ApiOperation({ summary: 'Zamítnout publikovanou šablonu (kurátor, 22.5)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403, description: 'NOT_CURATOR' })
+  @Post(':id/reject')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async reject(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ): Promise<MapTemplate> {
+    return this.sharing.reject(id, user);
   }
 }
 

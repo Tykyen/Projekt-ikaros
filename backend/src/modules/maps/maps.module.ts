@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnModuleInit } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   MapSceneSchemaClass,
@@ -31,6 +31,13 @@ import { CharactersModule } from '../characters/characters.module';
 import { CharacterSubdocsModule } from '../character-subdocs/character-subdocs.module';
 import { PagesModule } from '../pages/pages.module';
 import { AuthModule } from '../auth/auth.module';
+// 22.5 — sdílení scén: licenční karta, autor (jméno), kurátorská fronta.
+import { UsersModule } from '../users/users.module';
+import { ContentLicensesModule } from '../content-licenses/content-licenses.module';
+import { PendingActionsService } from '../pending-actions/pending-actions.service';
+import { SceneTemplateSharingService } from './scene-template-sharing.service';
+import { SceneTemplateModerationListener } from './scene-template-moderation.listener';
+import { SceneTemplateReviewProvider } from './scene-template-review.provider';
 
 @Module({
   imports: [
@@ -50,6 +57,9 @@ import { AuthModule } from '../auth/auth.module';
     // 10.2-prep-1 hotfix — MapsGateway potřebuje JwtService pro WS auth middleware.
     // AuthModule exportuje JwtModule (stejný pattern jako WorldsModule, IkarosMessagesModule).
     AuthModule,
+    // 22.5 — IUsersRepository (jméno autora) + licenční karta.
+    UsersModule,
+    ContentLicensesModule,
   ],
   controllers: [
     MapsController,
@@ -82,6 +92,10 @@ import { AuthModule } from '../auth/auth.module';
     // validuje token.add/update systemStats proti per-system schématu).
     SchemaRegistryService,
     SystemStatsValidatorService,
+    // 22.5 — sdílení scén: publish/katalog/kurátorský tok + moderace + pending.
+    SceneTemplateSharingService,
+    SceneTemplateModerationListener,
+    SceneTemplateReviewProvider,
   ],
   exports: [
     'IMapsRepository',
@@ -96,4 +110,14 @@ import { AuthModule } from '../auth/auth.module';
     SystemStatsValidatorService,
   ],
 })
-export class MapsModule {}
+export class MapsModule implements OnModuleInit {
+  constructor(
+    private readonly pendingActions: PendingActionsService,
+    private readonly sceneTemplateReview: SceneTemplateReviewProvider,
+  ) {}
+
+  /** 22.5 — registrace review provideru šablon scén v globální frontě (Zpracovat). */
+  onModuleInit(): void {
+    this.pendingActions.register(this.sceneTemplateReview);
+  }
+}

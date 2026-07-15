@@ -24,6 +24,16 @@ export interface MapTemplate {
   fogEnabled: boolean;
   revealedHexes: HexCoord[];
   activeSoundIds: string[];
+  // ── 22.5 — publikace do veřejného katalogu ──
+  published?: boolean;
+  publishedAt?: Date | null;
+  authorId?: string | null;
+  publicAuthorName?: string | null;
+  reviewStatus?: 'pending' | 'approved' | 'rejected' | null;
+  moderationHidden?: boolean;
+  moderationHiddenReason?: string | null;
+  licenseId?: string | null;
+  clonedFromTemplateId?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }

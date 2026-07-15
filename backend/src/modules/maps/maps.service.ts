@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ContentLicensesService } from '../content-licenses/content-licenses.service';
 import type { IMapsRepository } from './interfaces/maps-repository.interface';
 import type { IMapTemplatesRepository } from './interfaces/map-templates-repository.interface';
 import type { IWorldMembershipRepository } from '../worlds/interfaces/world-membership-repository.interface';
@@ -42,6 +43,8 @@ export class MapsService {
     // 10.2g — read-only diary subdoc pro enrichTokens (HP postavy → HP bar).
     @Inject('ICharacterDiaryRepository')
     private readonly diaryRepo: CharacterDiaryRepository,
+    // 22.5 — licenční brána klonu z veřejného katalogu šablon.
+    private readonly licenses: ContentLicensesService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -173,7 +176,11 @@ export class MapsService {
     return this.enrichTokens(scene);
   }
 
-  async create(dto: Partial<MapScene>, worldId: string): Promise<MapScene> {
+  async create(
+    dto: Partial<MapScene>,
+    worldId: string,
+    requesterId?: string,
+  ): Promise<MapScene> {
     let data: Partial<MapScene> = {
       ...dto,
       worldId,
@@ -185,6 +192,29 @@ export class MapsService {
     if (dto.templateId) {
       const tpl = await this.templateRepo.findById(dto.templateId);
       if (tpl) {
+        // 22.5 — klon CIZÍ šablony jen z veřejného katalogu (published ∧
+        // approved ∧ ¬skryté) a jen když licence dovolí kopii (`cloneAllowed`).
+        // Vlastní šablona (owner) jde vždy, jako dosud.
+        const isOwn = !!requesterId && tpl.ownerId === requesterId;
+        if (!isOwn) {
+          const catalogVisible =
+            tpl.published === true &&
+            tpl.reviewStatus === 'approved' &&
+            tpl.moderationHidden !== true;
+          if (!catalogVisible) {
+            throw new ForbiddenException({
+              code: 'TEMPLATE_NOT_SHARED',
+              message: 'Tuhle šablonu nelze naklonovat.',
+            });
+          }
+          const license = await this.licenses.getLatest(tpl.id);
+          if (license && license.cloneAllowed === false) {
+            throw new ForbiddenException({
+              code: 'TEMPLATE_CLONE_FORBIDDEN',
+              message: 'Autor u téhle šablony nepovolil kopírování.',
+            });
+          }
+        }
         data = {
           ...data,
           config: tpl.config,
@@ -193,7 +223,9 @@ export class MapsService {
           effects: tpl.effects,
           fogEnabled: tpl.fogEnabled,
           revealedHexes: tpl.revealedHexes,
-          activeSoundIds: tpl.activeSoundIds,
+          // 22.5 — zvuky se z publikované šablony nenesou (svět-scoped); vlastní
+          // šablona si je ponechá.
+          activeSoundIds: isOwn ? tpl.activeSoundIds : [],
         };
       }
     } else if (!dto.config) {

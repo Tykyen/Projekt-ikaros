@@ -79,9 +79,21 @@ describe('MapTemplatesController', () => {
     create: jest.fn(),
     replace: jest.fn(),
     delete: jest.fn(),
+    // 22.5 — publikace/katalog/kurátorský tok (v těchto testech nevolané).
+    patch: jest.fn(),
+    findCatalog: jest.fn(),
+    countCatalog: jest.fn(),
+    findPendingReview: jest.fn(),
+    countPendingReview: jest.fn(),
   };
   const mockMapsService = {} as never;
-  const controller = new MapTemplatesController(mockRepo, mockMapsService);
+  // 22.5 — sdílecí služba (publish/katalog); v těchto testech nevolaná.
+  const mockSharing = {} as never;
+  const controller = new MapTemplatesController(
+    mockRepo,
+    mockMapsService,
+    mockSharing,
+  );
 
   beforeEach(() => jest.clearAllMocks());
 

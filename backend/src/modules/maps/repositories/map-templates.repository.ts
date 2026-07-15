@@ -79,6 +79,85 @@ export class MongoMapTemplatesRepository
     return result !== null;
   }
 
+  // ── 22.5 — publikace/katalog/kurátorský tok ──
+
+  async patch(
+    id: string,
+    fields: Partial<MapTemplate>,
+  ): Promise<MapTemplate | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const doc = await this.model
+      .findByIdAndUpdate(id, { $set: fields }, { new: true })
+      .lean()
+      .exec();
+    return doc
+      ? this.toEntity(doc as unknown as Record<string, unknown>)
+      : null;
+  }
+
+  async findCatalog(opts?: {
+    systemId?: string;
+    skip?: number;
+    limit?: number;
+  }): Promise<MapTemplate[]> {
+    const query: Record<string, unknown> = {
+      published: true,
+      reviewStatus: 'approved',
+      moderationHidden: { $ne: true },
+    };
+    if (opts?.systemId) query['config.systemId'] = opts.systemId;
+    const docs = await this.model
+      .find(query)
+      .sort({ publishedAt: -1 })
+      .skip(opts?.skip ?? 0)
+      .limit(opts?.limit ?? 60)
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async countCatalog(opts?: { systemId?: string }): Promise<number> {
+    const query: Record<string, unknown> = {
+      published: true,
+      reviewStatus: 'approved',
+      moderationHidden: { $ne: true },
+    };
+    if (opts?.systemId) query['config.systemId'] = opts.systemId;
+    return this.model.countDocuments(query).exec();
+  }
+
+  async findPendingReview(opts?: {
+    skip?: number;
+    limit?: number;
+  }): Promise<MapTemplate[]> {
+    const docs = await this.model
+      .find({
+        published: true,
+        reviewStatus: 'pending',
+        moderationHidden: { $ne: true },
+      })
+      .sort({ publishedAt: 1 })
+      .skip(opts?.skip ?? 0)
+      .limit(opts?.limit ?? 20)
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
+  async countPendingReview(): Promise<number> {
+    return this.model
+      .countDocuments({
+        published: true,
+        reviewStatus: 'pending',
+        moderationHidden: { $ne: true },
+      })
+      .exec();
+  }
+
   protected toEntity(doc: Record<string, unknown>): MapTemplate {
     return {
       id: String(doc._id),
@@ -102,6 +181,17 @@ export class MongoMapTemplatesRepository
       fogEnabled: (doc.fogEnabled as boolean) ?? false,
       revealedHexes: (doc.revealedHexes as HexCoord[]) ?? [],
       activeSoundIds: (doc.activeSoundIds as string[]) ?? [],
+      // 22.5 — publikační pole; staré šablony je nemají (default nepublikováno).
+      published: (doc.published as boolean) ?? false,
+      publishedAt: (doc.publishedAt as Date | null) ?? null,
+      authorId: (doc.authorId as string | null) ?? null,
+      publicAuthorName: (doc.publicAuthorName as string | null) ?? null,
+      reviewStatus: (doc.reviewStatus as MapTemplate['reviewStatus']) ?? null,
+      moderationHidden: (doc.moderationHidden as boolean) ?? false,
+      moderationHiddenReason:
+        (doc.moderationHiddenReason as string | null) ?? null,
+      licenseId: (doc.licenseId as string | null) ?? null,
+      clonedFromTemplateId: (doc.clonedFromTemplateId as string | null) ?? null,
       createdAt: doc.createdAt as Date | undefined,
       updatedAt: doc.updatedAt as Date | undefined,
     };

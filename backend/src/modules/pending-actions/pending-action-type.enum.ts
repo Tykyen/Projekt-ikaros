@@ -56,4 +56,7 @@ export enum PendingActionType {
   // 21.2a — komunitní jmenné sady (scope='community', status='draft') čekající
   // na schválení. Vidí kurátoři (správci diskusí/článků + Admin).
   CommunityNameSetPendingReview = 'community_name_set_pending_review',
+  // 22.5 — publikované šablony scén (published, reviewStatus='pending') čekající
+  // na schválení do veřejného katalogu. Vidí kurátoři (jako ostatní knihovny).
+  CommunitySceneTemplatePendingReview = 'community_scene_template_pending_review',
 }
