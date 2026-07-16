@@ -126,6 +126,7 @@ export class NaboryService {
       body: dto.body,
       imageUrl: dto.imageUrl,
       system: dto.system,
+      genre: dto.genre,
       mode: dto.mode as NaborMode,
       place: dto.mode === 'zivo' ? dto.place : undefined,
       seatsTotal: isPj ? dto.seatsTotal : undefined,
@@ -152,6 +153,7 @@ export class NaboryService {
     if (dto.body !== undefined) update.body = dto.body;
     if (dto.motiv !== undefined) update.motiv = dto.motiv as NaborMotiv;
     if (dto.system !== undefined) update.system = dto.system;
+    if (dto.genre !== undefined) update.genre = dto.genre;
     if (dto.mode !== undefined) update.mode = dto.mode as NaborMode;
     if (dto.place !== undefined) update.place = dto.place;
     if (dto.imageUrl !== undefined) update.imageUrl = dto.imageUrl;

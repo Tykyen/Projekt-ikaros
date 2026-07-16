@@ -7,6 +7,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { NABOR_SYSTEM_IDS, NABOR_GENRES } from '../constants/rpg';
 
 const MOTIVY = [
   'fantasy',
@@ -29,7 +30,9 @@ export class PatchNaborDto {
   @IsOptional() @IsString() @MaxLength(80) title?: string;
   @IsOptional() @IsString() @MaxLength(600) body?: string;
   @IsOptional() @IsIn(MOTIVY) motiv?: string;
-  @IsOptional() @IsString() @MaxLength(60) system?: string;
+  // 19.3b — canonical id z nabídky, NE volný text (viz constants/rpg.ts).
+  @IsOptional() @IsIn(NABOR_SYSTEM_IDS) system?: string;
+  @IsOptional() @IsIn(NABOR_GENRES) genre?: string;
   @IsOptional() @IsIn(MODES) mode?: string;
   @IsOptional() @IsString() @MaxLength(60) place?: string;
   @IsOptional() @IsString() imageUrl?: string;

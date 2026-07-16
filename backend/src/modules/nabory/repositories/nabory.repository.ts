@@ -32,6 +32,7 @@ export class MongoNaboryRepository implements INaboryRepository {
       body: (doc.body as string) ?? '',
       imageUrl: (doc.imageUrl as string) ?? undefined,
       system: (doc.system as string) ?? undefined,
+      genre: (doc.genre as string) ?? undefined,
       mode: doc.mode as NaborMode,
       place: (doc.place as string) ?? undefined,
       seatsTotal: (doc.seatsTotal as number) ?? undefined,

@@ -34,7 +34,10 @@ export interface Nabor {
   title: string;
   body: string;
   imageUrl?: string;
+  /** 19.3b — canonical id z `NABOR_SYSTEM_IDS`. */
   system?: string;
+  /** 19.3b — label z `NABOR_GENRES`; datová osa filtru (neplést s `motiv`). */
+  genre?: string;
   mode: NaborMode;
   place?: string;
   seatsTotal?: number;

@@ -68,6 +68,46 @@ describe('NaboryService', () => {
     expect(res.id).toBe('n1');
   });
 
+  // 19.3b — pole se drží ve 4 vrstvách (DTO → service → schema → toEntity);
+  // tichý drop v service by filtr nástěnky vyprázdnil bez jediné chyby.
+  it('create propustí systém i žánr do repository', async () => {
+    repo.create.mockImplementation((d) => Promise.resolve({ id: 'n1', ...d }));
+    await service.create(
+      {
+        strana: 'hledam-hrace',
+        motiv: 'fantasy',
+        title: 'T',
+        body: 'b',
+        worldId: 'w',
+        system: 'drdplus',
+        genre: 'Dark Fantasy',
+        mode: 'online',
+      },
+      'author',
+      'Author',
+    );
+    const arg = repo.create.mock.calls[0][0];
+    expect(arg.system).toBe('drdplus');
+    expect(arg.genre).toBe('Dark Fantasy');
+  });
+
+  it('patch přepíše žánr', async () => {
+    repo.findById.mockResolvedValue(makeNabor({ authorId: 'author' }));
+    repo.update.mockImplementation((id, d) =>
+      Promise.resolve(makeNabor({ id, ...d })),
+    );
+    await service.patch(
+      'n1',
+      { genre: 'Western', system: 'coc' },
+      'author',
+      UserRole.Ikarus,
+    );
+    expect(repo.update.mock.calls[0][1]).toMatchObject({
+      genre: 'Western',
+      system: 'coc',
+    });
+  });
+
   it('create „hledam-hru" nedrží worldId ani seatsTotal', async () => {
     repo.create.mockImplementation((d) => Promise.resolve({ id: 'n1', ...d }));
     await service.create(

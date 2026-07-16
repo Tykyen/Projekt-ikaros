@@ -14,7 +14,10 @@ export class NaborSchemaClass {
   @Prop({ required: true }) title: string;
   @Prop({ default: '' }) body: string;
   @Prop() imageUrl?: string;
+  // 19.3b — canonical id (`drdplus`), ne „dlouhé" world id ani volný text.
   @Prop() system?: string;
+  // 19.3b — label z nabídky žánrů (parita `world.genre`).
+  @Prop() genre?: string;
   @Prop({ required: true }) mode: string;
   @Prop() place?: string;
   @Prop() seatsTotal?: number;
