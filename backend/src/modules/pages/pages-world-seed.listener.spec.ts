@@ -1,4 +1,7 @@
-import { PagesWorldSeedListener } from './pages-world-seed.listener';
+import {
+  PagesWorldSeedListener,
+  PAGE_TEMPLATES,
+} from './pages-world-seed.listener';
 import { TipTapExtractor } from './tiptap-extractor.service';
 import type { IPagesRepository } from './interfaces/pages-repository.interface';
 import type { World } from '../worlds/interfaces/world.interface';
@@ -41,9 +44,13 @@ describe('PagesWorldSeedListener — seed Pravidel dle systému (2.3c)', () => {
   const technologie = () => saved.find((p) => p.slug === 'technologie');
   const magie = () => saved.find((p) => p.slug === 'magicky-system');
 
-  it('seeduje všech 5 šablon', async () => {
+  // Počet ani slugy NEpiš ručně — čti je z `PAGE_TEMPLATES`. Ruční `toHaveLength(5)`
+  // tenhle test tiše shodil, když 2.3g přidalo Náboženství jako 6. šablonu.
+  it('seeduje všechny šablony z PAGE_TEMPLATES (ne-matrix svět)', async () => {
     await listener.handleWorldCreated(world('dnd5e'));
-    expect(saved).toHaveLength(5);
+    expect(saved.map((p) => p.slug).sort()).toEqual(
+      PAGE_TEMPLATES.map((t) => t.slug).sort(),
+    );
   });
 
   it('Pravidla dostanou text systému + dohledatelný plainText', async () => {

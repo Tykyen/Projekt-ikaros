@@ -5,8 +5,20 @@ import type { PublicOwnerSummary } from './world.interface';
  * Migration `migrate:d053` přemapuje historické DB hodnoty:
  * -1→0 (Pending→Zadatel), 0→2 (Hrac), 1→3 (Korektor), 2→4 (PomocnyPJ), 3→5 (PJ).
  * `Ctenar = 1` je nová role bez historické instance.
+ *
+ * D-065 (2026-07-16) — `Zadatel = 0` **nikdo aktivně nepřiřazuje**: jediný
+ * producent (`requestCharacter`, POST /worlds/:id/request-character) byl
+ * smazán jako slepá kostra — cestu ke hraní řeší 15.10 var. A („Chci hrát" →
+ * access-request s `characterDraft` → rovnou `Hrac`). Roli přesto NEMAZAT,
+ * má dvě živé funkce:
+ *  1. **Sentinel „žádná role"** — FE ji na 11 místech používá jako spodní mez
+ *     (`const viewerRole = userRole ?? WorldRole.Zadatel`).
+ *  2. **Obranná hrana** — `role === Zadatel` checky (chat/emotes/sounds/
+ *     game-events/timeline/maps) drží venku historická data z `migrate:d053`
+ *     (staré `Pending` → 0). Nejsou mrtvý kód, jsou pojistka.
  */
 export enum WorldRole {
+  /** Člen bez postavy / bez role. Nikdo nepřiřazuje — viz D-065 v hlavičce. */
   Zadatel = 0,
   Ctenar = 1,
   Hrac = 2,

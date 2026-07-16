@@ -257,7 +257,10 @@ export class MongoWorldsRepository
       defaultCalendarConfigSlug:
         (doc.defaultCalendarConfigSlug as string) ?? 'gregorian',
       timelineEpoch: (doc.timelineEpoch as number) ?? 0,
-      themeId: (doc.themeId as string) ?? 'modre-nebe',
+      // D-064 — žádný fallback: `undefined` = PJ nevybral. Výchozí vzhled světa
+      // dopočítá FE (`resolveWorldTheme` → `DEFAULT_WORLD_THEME`), aby existoval
+      // jediný zdroj pravdy. Dřív tu bylo `?? 'modre-nebe'` = platformový motiv.
+      themeId: doc.themeId as string | undefined,
       themeOverrides: (doc.themeOverrides as Record<string, string>) ?? {},
       themeBackgroundUrl: doc.themeBackgroundUrl as string | undefined,
       // D-19.2 — velikost blobu pozadí motivu; staré dokumenty undefined.

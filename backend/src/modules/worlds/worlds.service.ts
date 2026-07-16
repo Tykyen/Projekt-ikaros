@@ -1945,55 +1945,6 @@ export class WorldsService implements OnApplicationBootstrap {
   }
 
   /**
-   * D-062 — Charakter request flow. Člen s rolí Čtenář (čte, ale nehraje)
-   * požádá o postavu → role se sníží na Žadatel (vzniká PJ pending action).
-   * PJ pak ručně vytvoří postavu a přiřadí ji (fáze 8.2 už hotová).
-   *
-   * Idempotent: pokud member už je Žadatel, vrací current membership beze změny.
-   * Vyšší role (Hrac+) ignorují — ti mají vlastní postavy.
-   */
-  async requestCharacter(
-    worldId: string,
-    requester: RequestUser,
-  ): Promise<WorldMembership> {
-    const world = await this.findById(worldId);
-    this.assertWorldActive(world); // FIX-17
-    const membership = await this.membershipRepo.findByUserAndWorld(
-      requester.id,
-      worldId,
-    );
-    if (!membership) {
-      throw new NotFoundException({
-        code: 'MEMBERSHIP_NOT_FOUND',
-        message: 'Nejsi členem tohoto světa.',
-      });
-    }
-    if (membership.role >= WorldRole.Hrac) {
-      throw new BadRequestException({
-        code: 'ALREADY_HAS_CHARACTER_ROLE',
-        message: 'Tvoje role už znamená přístup k postavě.',
-      });
-    }
-    if (membership.role === WorldRole.Zadatel) {
-      return membership; // idempotent
-    }
-    const updated = await this.membershipRepo.update(membership.id, {
-      role: WorldRole.Zadatel,
-    });
-    if (!updated)
-      throw new NotFoundException({
-        code: 'MEMBERSHIP_NOT_FOUND',
-        message: 'Membership nenalezeno',
-      });
-    this.eventEmitter.emit('world.character.requested', {
-      worldId,
-      userId: requester.id,
-      membershipId: updated.id,
-    });
-    return updated;
-  }
-
-  /**
    * N-18 — ověří, že membership patří světu z URL. Controllery membership
    * endpointů to volají jako pre-check; dřív se `:worldId` v cestě nevynucoval
    * (service si worldId brala z membershipu), takže URL izolace byla jen

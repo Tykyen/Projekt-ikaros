@@ -11,7 +11,13 @@ import type { World } from '../worlds/interfaces/world.interface';
 import type { Page, PageType } from './interfaces/page.interface';
 import { RULEBOOK_SEED_PAGES } from './rulebook/rulebook-seed-data';
 
-const PAGE_TEMPLATES: Array<{
+/**
+ * Šablony seedované do každého nového světa. **Zdroj pravdy pro počet i slugy** —
+ * `pages-world-seed.listener.spec` proti tomuto seznamu porovnává, co listener
+ * reálně uložil. Dřív měl test ruční `toHaveLength(5)`, takže 2.3g (Náboženství,
+ * `259332b`) ho tiše shodilo. Přidáš šablonu sem → test ji čeká sám.
+ */
+export const PAGE_TEMPLATES: Array<{
   slug: string;
   type: PageType;
   title: string;

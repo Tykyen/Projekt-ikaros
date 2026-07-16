@@ -72,8 +72,12 @@ export interface World {
   defaultCalendarConfigSlug: string;
   /** 9.2b — společný absDay epoch napříč kalendáři světa. */
   timelineEpoch: number;
-  /** Krok 5.0 — id sdíleného základu světového motivu. */
-  themeId: string;
+  /**
+   * Krok 5.0 — id sdíleného základu světového motivu.
+   * D-064 — `undefined` = PJ nevybral; výchozí vzhled dopočítá FE
+   * (`DEFAULT_WORLD_THEME`). BE úmyslně nemá vlastní default.
+   */
+  themeId?: string;
   /** Krok 5.0 — custom theme: mapa CSS token → hodnota nad `themeId`. */
   themeOverrides: Record<string, string>;
   /** Krok 5.0 — custom theme: URL vlastního pozadí světa. */

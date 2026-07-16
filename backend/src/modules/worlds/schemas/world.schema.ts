@@ -48,8 +48,18 @@ export class WorldSchemaClass {
   @Prop({ default: 0 }) timelineEpoch: number;
 
   // ── Krok 5.0 — světový theme ──
-  /** Id sdíleného základu (preset nebo 'matrix'). Volí PJ ve wizardu tvorby světa. */
-  @Prop({ default: 'modre-nebe' }) themeId: string;
+  /**
+   * Id sdíleného základu (preset nebo 'matrix'). Volí PJ ve wizardu tvorby světa.
+   *
+   * D-064 — **bez schema defaultu**. Dřív tu bylo `default: 'modre-nebe'`, což je
+   * *platformový* motiv (scope `platform`), zatímco výchozí vzhled světa je
+   * `'ikaros'` (FE `DEFAULT_WORLD_THEME`) — dva rozcházející se zdroje pravdy.
+   * Default navíc znemožňoval rozlišit „PJ nevybral" od reálné volby, takže
+   * přehled 20.6 hlásil u světů „bez volby" ≈ 0 a `'modre-nebe'` jako hodnotu
+   * mimo nabídku. Teď: `undefined` = nevybráno, fallback řeší **jen** FE
+   * (`resolveWorldTheme` → `DEFAULT_WORLD_THEME`). Wizard `themeId` posílá vždy.
+   */
+  @Prop() themeId?: string;
   /** Custom theme — mapa CSS token → hodnota; vrství se nad themeId. Editor = krok 5.3f. */
   @Prop({ type: Object, default: {} }) themeOverrides: Record<string, string>;
   /** Custom theme — URL vlastního pozadí; přebíjí pozadí presetu. */

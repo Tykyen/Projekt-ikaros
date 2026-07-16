@@ -179,20 +179,6 @@ export class WorldsController {
     return this.worldsService.update(id, dto, user);
   }
 
-  // D-062 — Charakter request flow. Member s rolí Čtenář požádá o postavu.
-  @Post(':id/request-character')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({
-    summary:
-      'Žádost o postavu (Čtenář → Žadatel; PJ pak postavu vytvoří a přiřadí)',
-  })
-  @ApiResponse({ status: 200, description: 'OK — membership s rolí Žadatel' })
-  @ApiResponse({ status: 400, description: 'Už máš roli s postavou' })
-  @ApiResponse({ status: 404, description: 'Nejsi člen světa' })
-  requestCharacter(@Param('id') id: string, @CurrentUser() user: RequestUser) {
-    return this.worldsService.requestCharacter(id, user);
-  }
-
   // D-NEW-slug-rename — atomický rename slugu s redirect historií.
   @Patch(':id/slug')
   @UseGuards(JwtAuthGuard)
