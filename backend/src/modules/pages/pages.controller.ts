@@ -21,6 +21,7 @@ import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guar
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CreatePageDto } from './dto/create-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
+import { RejectProposalDto } from './dto/reject-proposal.dto';
 import { UserRole } from '../users/interfaces/user.interface';
 
 interface RequestUser {
@@ -229,5 +230,37 @@ export class PagesController {
       user.role,
       user.elevatedWorldIds,
     );
+  }
+
+  // ── 15.11 — schvalování návrhů obsahu hráčů (PJ) ──
+  @Post(':slug/approve')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Schválit návrh obsahu hráče (PJ) → live' })
+  @ApiResponse({ status: 201, description: 'Schváleno' })
+  @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
+  @ApiResponse({ status: 404, description: 'PROPOSAL_NOT_FOUND' })
+  approveProposal(
+    @Param('worldId') worldId: string,
+    @Param('slug') slug: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.pagesService.approveProposal(worldId, slug, user);
+  }
+
+  @Post(':slug/reject')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Vrátit k přepracování (rework) / zahodit (discard) návrh (PJ)',
+  })
+  @ApiResponse({ status: 201, description: 'OK' })
+  @ApiResponse({ status: 403, description: 'Přístup zamítnut' })
+  @ApiResponse({ status: 404, description: 'PROPOSAL_NOT_FOUND' })
+  rejectProposal(
+    @Param('worldId') worldId: string,
+    @Param('slug') slug: string,
+    @Body() dto: RejectProposalDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.pagesService.rejectProposal(worldId, slug, dto.mode, user);
   }
 }

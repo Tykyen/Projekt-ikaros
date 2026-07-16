@@ -110,8 +110,10 @@ describe('WorldsService', () => {
     delete: jest.fn(),
   };
   // 15.10 fáze C — approve žádosti s postavou vytvoří živou stránku postavy.
+  // 15.11 — findPendingProposals napájí page-review v getWorldPendingActions.
   const mockPagesService = {
     create: jest.fn().mockResolvedValue({ id: 'pg1', slug: 'postava' }),
+    findPendingProposals: jest.fn().mockResolvedValue([]),
   };
   // FIX-18 — updateMemberCharacter ověřuje vlastnictví Character při self-edit.
   const mockCharactersRepo = {

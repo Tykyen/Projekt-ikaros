@@ -169,4 +169,36 @@ export class WorldsGateway implements OnGatewayConnection {
       .to(`user:${payload.invitedUserId}`)
       .emit('world:invite-received', payload);
   }
+
+  /**
+   * 15.11 — nový návrh obsahu hráče čeká na schválení. Cíl: PJ/co-PJ ve světě
+   * (invalidace fronty „ke zpracování" + badge). Leak-safe signál {worldId}.
+   */
+  @OnEvent('world.page-review.changed')
+  handlePageReviewChanged(payload: { worldId: string }) {
+    this.server
+      .to(`world:${payload.worldId}`)
+      .emit('world:page-review-changed', payload);
+  }
+
+  /**
+   * 15.11 — PJ vyřídil návrh (approved / rework / discard). Cíl: autor (toast) +
+   * svět (invalidace fronty ke zpracování).
+   */
+  @OnEvent('world.page-review.resolved')
+  handlePageReviewResolved(payload: {
+    worldId: string;
+    slug: string;
+    action: 'approved' | 'rework' | 'discard';
+    authorId?: string;
+  }) {
+    if (payload.authorId) {
+      this.server
+        .to(`user:${payload.authorId}`)
+        .emit('world:page-review-resolved', payload);
+    }
+    this.server
+      .to(`world:${payload.worldId}`)
+      .emit('world:page-review-changed', { worldId: payload.worldId });
+  }
 }

@@ -420,7 +420,7 @@ describe('PagesService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('Hrac s WorldRole.Hrac dostane Forbidden (potřebuje PomocnyPJ+)', async () => {
+    it('15.11 — Hrac navrhující NE-whitelist typ (Noviny) → Forbidden', async () => {
       mockWorldsRepo.findById.mockResolvedValue({
         id: 'world1',
         isActive: true,
@@ -432,11 +432,67 @@ describe('PagesService', () => {
       });
       await expect(
         service.create(
-          { slug: 'a', type: 'Lokace', title: 'X' },
+          { slug: 'a', type: 'Noviny', title: 'X' },
           'world1',
           hracRequester,
         ),
       ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('15.11 — Hrac navrhující whitelist typ (Lokace) → pending návrh (proposedBy=autor)', async () => {
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        isActive: true,
+        deletedAt: null,
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockPagesRepo.save.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+      });
+      await service.create(
+        { slug: 'a', type: 'Lokace', title: 'X' },
+        'world1',
+        hracRequester,
+      );
+      expect(mockPagesRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ pageStatus: 'pending', proposedBy: 'user1' }),
+      );
+    });
+
+    it('15.11 — Čtenář (role < Hráč) i na whitelist typ → Forbidden', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Ctenar,
+      });
+      await expect(
+        service.create(
+          { slug: 'a', type: 'NPC', title: 'X' },
+          'world1',
+          hracRequester,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('15.11 — moderátor (PomocnyPJ) tvoří whitelist typ rovnou approved', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      mockPagesRepo.save.mockResolvedValue(mockPage);
+      await service.create(
+        { slug: 'a', type: 'NPC', title: 'X' },
+        'world1',
+        hracRequester,
+      );
+      expect(mockPagesRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ pageStatus: 'approved' }),
+      );
     });
 
     it('PomocnyPJ může vytvořit stránku', async () => {
@@ -578,6 +634,249 @@ describe('PagesService', () => {
         'page1',
         expect.objectContaining({ slug: 'chat-2' }),
       );
+    });
+  });
+
+  describe('15.11 — návrhy obsahu: viditelnost pending + editace', () => {
+    it('pending návrh: cizí hráč dostane 404 (skryje existenci)', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+        proposedBy: 'author-x',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.findBySlug('hlavni-lokace', 'world1', 'user1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('pending návrh: autor svůj návrh vidí', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+        proposedBy: 'user1',
+      });
+      const result = await service.findBySlug(
+        'hlavni-lokace',
+        'world1',
+        'user1',
+      );
+      expect(result.id).toBe('page1');
+    });
+
+    it('pending návrh: moderátor (PomocnyPJ) vidí', async () => {
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+        proposedBy: 'author-x',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      const result = await service.findBySlug(
+        'hlavni-lokace',
+        'world1',
+        'user1',
+      );
+      expect(result.id).toBe('page1');
+    });
+
+    it('adresář: pending návrh cizí hráč nevidí, approved ano', async () => {
+      mockPagesRepo.findDirectory = jest.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          slug: 'a',
+          title: 'A',
+          type: 'NPC',
+          order: 0,
+          pageStatus: 'approved',
+        },
+        {
+          id: 'p2',
+          slug: 'b',
+          title: 'B',
+          type: 'NPC',
+          order: 1,
+          pageStatus: 'pending',
+          proposedBy: 'author-x',
+        },
+      ]);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      const result = await service.findDirectory(
+        'world1',
+        undefined,
+        'user1',
+        UserRole.Hrac,
+      );
+      expect(result.map((r) => r.slug)).toEqual(['a']);
+    });
+
+    it('adresář: moderátor vidí i pending návrh', async () => {
+      mockPagesRepo.findDirectory = jest.fn().mockResolvedValue([
+        {
+          id: 'p1',
+          slug: 'a',
+          title: 'A',
+          type: 'NPC',
+          order: 0,
+          pageStatus: 'approved',
+        },
+        {
+          id: 'p2',
+          slug: 'b',
+          title: 'B',
+          type: 'NPC',
+          order: 1,
+          pageStatus: 'pending',
+          proposedBy: 'author-x',
+        },
+      ]);
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      const result = await service.findDirectory(
+        'world1',
+        undefined,
+        'user1',
+        UserRole.Hrac,
+      );
+      expect(result.map((r) => r.slug).sort()).toEqual(['a', 'b']);
+    });
+
+    it('autor smí editovat svůj pending návrh', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'NPC',
+        pageStatus: 'pending',
+        proposedBy: 'user1',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      mockPagesRepo.update.mockResolvedValue({ ...mockPage });
+      await expect(
+        service.update('page1', 'world1', { title: 'Doladěno' }, hracRequester),
+      ).resolves.toBeDefined();
+    });
+
+    it('cizí hráč NEsmí editovat cizí pending návrh → Forbidden', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'NPC',
+        pageStatus: 'pending',
+        proposedBy: 'author-x',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.update('page1', 'world1', { title: 'X' }, hracRequester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('15.11 — schvalování návrhů (approve / reject)', () => {
+    it('approveProposal: pending → approved (moderátor)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+        proposedBy: 'author-x',
+      });
+      mockPagesRepo.update.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'approved',
+      });
+      const result = await service.approveProposal(
+        'world1',
+        'hlavni-lokace',
+        hracRequester,
+      );
+      expect(mockPagesRepo.update).toHaveBeenCalledWith('page1', {
+        pageStatus: 'approved',
+      });
+      expect(result.pageStatus).toBe('approved');
+    });
+
+    it('approveProposal: stránka není pending → 404', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'approved',
+      });
+      await expect(
+        service.approveProposal('world1', 'x', hracRequester),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('approveProposal: non-moderátor (Hrac) → Forbidden', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.approveProposal('world1', 'x', hracRequester),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('rejectProposal discard: smaže stránku', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+        proposedBy: 'author-x',
+      });
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+      });
+      mockPagesRepo.delete.mockResolvedValue(true);
+      await service.rejectProposal(
+        'world1',
+        'hlavni-lokace',
+        'discard',
+        hracRequester,
+      );
+      expect(mockPagesRepo.delete).toHaveBeenCalledWith('page1');
+    });
+
+    it('rejectProposal rework: stránku nesmaže (zůstane pending)', async () => {
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      mockPagesRepo.findBySlugAndWorld.mockResolvedValue({
+        ...mockPage,
+        pageStatus: 'pending',
+        proposedBy: 'author-x',
+      });
+      const result = await service.rejectProposal(
+        'world1',
+        'hlavni-lokace',
+        'rework',
+        hracRequester,
+      );
+      expect(mockPagesRepo.delete).not.toHaveBeenCalled();
+      expect(result.ok).toBe(true);
     });
   });
 

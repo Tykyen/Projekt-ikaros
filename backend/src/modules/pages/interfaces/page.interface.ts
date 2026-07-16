@@ -22,6 +22,20 @@ export const PAGE_TYPES = {
 export type PageType = (typeof PAGE_TYPES)[keyof typeof PAGE_TYPES];
 
 /**
+ * 15.11 — typy stránek, které smí NAVRHOVAT hráč (role Hráč+) jako `pending`
+ * (ke schválení PJ). Whitelist: NE Postava hráče (řeší 15.10 „Chci hrát"),
+ * Noviny, Obrazovka ani systémové stránky.
+ */
+export const PLAYER_PROPOSABLE_PAGE_TYPES: readonly PageType[] = [
+  PAGE_TYPES.NPC,
+  PAGE_TYPES.Lokace,
+  PAGE_TYPES.Ostatni,
+  PAGE_TYPES.Seznam,
+  PAGE_TYPES.Galerie,
+  PAGE_TYPES.Rodokmen,
+];
+
+/**
  * Read-time normalizace typu stránky pro zpětnou kompatibilitu.
  *
  * Kolize názvu „Rodokmen": v 7.x byl starý typ „Rodokmen" (velký zoom obrázek)
@@ -230,6 +244,18 @@ export interface Page {
   /** Pro type ∈ {PostavaHrace, NPC}: odkaz na Character entity, která drží
    *  5 subdokumentů (diary/calendar/finance/inventory/notes). */
   characterRef?: { characterId: string };
+  /**
+   * 15.11 — životní cyklus návrhu obsahu. `pending` = hráčem (role Hráč+)
+   * navržená stránka čekající na schválení PJ; vidí ji jen autor (`proposedBy`)
+   * + moderátor. `approved` / chybí = živá (default — legacy + PJ/staff tvorba).
+   */
+  pageStatus?: 'pending' | 'approved';
+  /**
+   * 15.11 — kdo návrh vytvořil (autor). Oddělené od `ownerUserId` (= vlastník
+   * PC), aby pending NPC/Lokace neprosákly do „Tvé postavy". Řídí viditelnost
+   * pending; po schválení zůstává jako informace „navrhl".
+   */
+  proposedBy?: string;
   /** AKJ chráněné záložky. BE je ve `findBySlug` filtruje — vrací jen ty,
    *  na které má viewer přístup (PJ/Admin vidí všechny). */
   akjTabs?: AkjTab[];

@@ -55,6 +55,17 @@ export class MongoPagesRepository
     );
   }
 
+  async findPendingByWorld(worldId: string): Promise<Page[]> {
+    const docs = await this.model
+      .find({ worldId, pageStatus: 'pending' })
+      .sort({ createdAt: -1, _id: -1 })
+      .lean()
+      .exec();
+    return docs.map((doc) =>
+      this.toEntity(doc as unknown as Record<string, unknown>),
+    );
+  }
+
   /**
    * RC-P1 fix — atomický optimistic lock. `findOneAndUpdate` s podmínkou
    * `updatedAt: expectedUpdatedAt` ve filtru: ze dvou souběžných editů stejné
@@ -109,6 +120,8 @@ export class MongoPagesRepository
       | 'imageZoom'
       | 'imageFit'
       | 'ownerUserId'
+      | 'pageStatus'
+      | 'proposedBy'
       | 'accessRequirements'
       | 'isWoodWide'
       | 'moderationHidden'
@@ -137,6 +150,9 @@ export class MongoPagesRepository
         imageZoom: 1,
         imageFit: 1,
         ownerUserId: 1,
+        // 15.11 — filtr pending návrhů v adresáři (jen autor + moderátor).
+        pageStatus: 1,
+        proposedBy: 1,
         // D-062c — AKJ ochrana pro stub karty v listings (shieldedBy se počítá
         // per-user v service.findDirectory).
         accessRequirements: 1,
@@ -167,6 +183,10 @@ export class MongoPagesRepository
       imageFit:
         (doc as { imageFit?: 'cover' | 'contain' | null }).imageFit ?? null,
       ownerUserId: (doc as { ownerUserId?: string }).ownerUserId,
+      pageStatus:
+        (doc as { pageStatus?: 'pending' | 'approved' }).pageStatus ??
+        'approved',
+      proposedBy: (doc as { proposedBy?: string }).proposedBy,
       accessRequirements:
         (doc as { accessRequirements?: Page['accessRequirements'] })
           .accessRequirements ?? [],
@@ -362,6 +382,10 @@ export class MongoPagesRepository
       order: (doc.order as number) ?? 0,
       // Krok 9.1 — pole pro PostavaHrace / NPC.
       ownerUserId: (doc.ownerUserId as string) || undefined,
+      // 15.11 — chybějící = 'approved' (legacy stránky se nesmí skrýt).
+      pageStatus:
+        (doc.pageStatus as 'pending' | 'approved' | undefined) ?? 'approved',
+      proposedBy: (doc.proposedBy as string) || undefined,
       characterRef: doc.characterRef
         ? {
             characterId: (doc.characterRef as { characterId: string })

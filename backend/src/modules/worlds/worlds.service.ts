@@ -1302,9 +1302,18 @@ export class WorldsService implements OnApplicationBootstrap {
       1,
       500,
     );
-    if (items.length === 0) return [];
+    // 15.11 — návrhy obsahu hráčů ke schválení (page-review).
+    const proposals = await this.pagesService.findPendingProposals(worldId);
+    if (items.length === 0 && proposals.length === 0) return [];
 
-    const uniqueUserIds = Array.from(new Set(items.map((r) => r.userId)));
+    const uniqueUserIds = Array.from(
+      new Set([
+        ...items.map((r) => r.userId),
+        ...proposals
+          .map((p) => p.proposedBy)
+          .filter((id): id is string => !!id),
+      ]),
+    );
     const summaries = await Promise.all(
       uniqueUserIds.map((uid) =>
         this.usersService.publicProfile(uid).catch(() => null),
@@ -1316,7 +1325,7 @@ export class WorldsService implements OnApplicationBootstrap {
         .map((u) => [u.id, u]),
     );
 
-    return items.map((r) => {
+    const accessItems: WorldPendingActionItem[] = items.map((r) => {
       const user = userMap.get(r.userId);
       return {
         type: 'access-request' as const,
@@ -1331,6 +1340,28 @@ export class WorldsService implements OnApplicationBootstrap {
         characterName: r.characterDraft?.name,
       };
     });
+
+    const pageItems: WorldPendingActionItem[] = proposals.map((p) => {
+      const user = p.proposedBy ? userMap.get(p.proposedBy) : undefined;
+      return {
+        type: 'page-review' as const,
+        id: p.slug,
+        userId: p.proposedBy ?? '',
+        displayName: user?.username ?? '?',
+        avatarUrl: user?.avatarUrl,
+        createdAt: (p.createdAt instanceof Date
+          ? p.createdAt
+          : new Date(p.createdAt)
+        ).toISOString(),
+        pageTitle: p.title,
+        pageType: p.type,
+        pageSlug: p.slug,
+      };
+    });
+
+    return [...accessItems, ...pageItems].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
   }
 
   // ───────────────────────────────────────────────────────────────────────

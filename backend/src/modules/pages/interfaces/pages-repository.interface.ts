@@ -5,6 +5,8 @@ export interface IPagesRepository {
   findById(id: string): Promise<Page | null>;
   findBySlugAndWorld(slug: string, worldId: string): Promise<Page | null>;
   findByWorld(worldId: string, type?: string): Promise<Page[]>;
+  /** 15.11 — pending návrhy obsahu světa (fronta ke schválení PJ). */
+  findPendingByWorld(worldId: string): Promise<Page[]>;
   existsBySlugAndWorld(slug: string, worldId: string): Promise<boolean>;
   /** D-SEC-GAP-2026-07-11 — anti-abuse: počet stránek světa (creation cap). */
   countByWorld(worldId: string): Promise<number>;
@@ -41,6 +43,8 @@ export interface IPagesRepository {
       | 'imageZoom'
       | 'imageFit'
       | 'ownerUserId'
+      | 'pageStatus'
+      | 'proposedBy'
       | 'accessRequirements'
       | 'isWoodWide'
       | 'moderationHidden'

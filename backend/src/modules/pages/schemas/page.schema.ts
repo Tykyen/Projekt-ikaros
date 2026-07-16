@@ -69,6 +69,11 @@ export class PageSchemaClass {
   // Krok 9.1 — pole pro PostavaHrace / NPC.
   @Prop({ index: true }) ownerUserId?: string;
   @Prop({ type: Object }) characterRef?: { characterId: string };
+  // 15.11 — návrh obsahu hráče. BEZ default → chybějící = 'approved' (legacy).
+  @Prop({ type: String, enum: ['pending', 'approved'] })
+  pageStatus?: 'pending' | 'approved';
+  // 15.11 — autor návrhu (viditelnost pending); oddělené od ownerUserId (PC).
+  @Prop({ index: true }) proposedBy?: string;
   // AKJ chráněné záložky — flexibilní subdok (name/level/order/access/
   // contentOverride). Filtrace dle přístupu řeší service vrstva ve `findBySlug`.
   @Prop({

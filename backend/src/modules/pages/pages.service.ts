@@ -18,10 +18,12 @@ import type { IWorldsRepository } from '../worlds/interfaces/worlds-repository.i
 import type { IWorldSettingsRepository } from '../worlds/interfaces/world-settings-repository.interface';
 import type {
   Page,
+  PageType,
   AkjTab,
   ShieldedRequirement,
   AccessRequirement,
 } from './interfaces/page.interface';
+import { PLAYER_PROPOSABLE_PAGE_TYPES } from './interfaces/page.interface';
 import type { CreatePageDto } from './dto/create-page.dto';
 import type { UpdatePageDto } from './dto/update-page.dto';
 import { TipTapExtractor } from './tiptap-extractor.service';
@@ -298,7 +300,13 @@ export class PagesService {
     worldId: string,
     requester: PagesRequester,
   ): Promise<Page> {
-    await this.assertCanWrite(worldId, requester);
+    // 15.11 — moderátor tvoří rovnou (approved); hráč (Hráč+) navrhující
+    // whitelist typ dostane pending (owner=autor). Jinak 403 (jako assertCanWrite).
+    const createMode = await this.resolveCreateMode(
+      worldId,
+      requester,
+      dto.type,
+    );
     // D-SEC-GAP-2026-07-11 — anti-abuse creation-flood: kumulativní strop
     // stránek per svět (Pages+Characters sjednoceny → jeden count zde; přímou
     // characters route jistí existující WORLD_CHARACTER_QUOTA v characters.service).
@@ -377,6 +385,9 @@ export class PagesService {
         accessRequirements: dto.accessRequirements ?? [],
         order: dto.order ?? 0,
         ownerUserId: dto.type === 'Postava hráče' ? dto.ownerUserId : undefined,
+        // 15.11 — pending návrh hráče (jinak 'approved'); proposedBy = autor.
+        pageStatus: createMode.pageStatus,
+        proposedBy: createMode.proposedBy,
         characterRef,
         akjTabs: sanitizeAkjTabs(dto.akjTabs) ?? [],
         ...(dto.customData && {
@@ -411,15 +422,22 @@ export class PagesService {
       }
       throw err;
     }
-    void this.searchCoordinator
-      ?.addPageToIndex(savedPage)
-      .catch((err: unknown) =>
-        logWarn(
-          this.logger,
-          `addPageToIndex selhal pro ${savedPage.slug}`,
-          err,
-        ),
-      );
+    // 15.11 — pending návrh se do search NEindexuje (jinak leak titulu/obsahu
+    // přes vyhledávání). Indexuje se až při schválení (approveProposal).
+    if (createMode.pageStatus !== 'pending') {
+      void this.searchCoordinator
+        ?.addPageToIndex(savedPage)
+        .catch((err: unknown) =>
+          logWarn(
+            this.logger,
+            `addPageToIndex selhal pro ${savedPage.slug}`,
+            err,
+          ),
+        );
+    } else {
+      // 15.11 — nový návrh → signál PJ frontě „ke zpracování" (realtime badge).
+      this.eventEmitter.emit('world.page-review.changed', { worldId });
+    }
     return savedPage;
   }
 
@@ -463,7 +481,6 @@ export class PagesService {
     dto: UpdatePageDto,
     requester: PagesRequester,
   ): Promise<Page> {
-    await this.assertCanWrite(worldId, requester);
     const page = await this.pagesRepo.findById(id);
     if (!page)
       throw new NotFoundException({
@@ -475,6 +492,8 @@ export class PagesService {
         code: 'PAGE_WORLD_MISMATCH',
         message: 'Stránka nepatří do tohoto světa',
       });
+    // 15.11 — moderátor edituje vždy; autor smí editovat SVŮJ pending návrh.
+    await this.assertCanEditPage(worldId, requester, page);
     // 7.2k — optimistic concurrency check. Pokud klient poslal `expectedUpdatedAt`
     // a stránka byla mezitím změněna (někým jiným nebo jiným tabem), vrátíme 409.
     if (dto.expectedUpdatedAt) {
@@ -713,19 +732,34 @@ export class PagesService {
     // set (globální zásah, platí i pro PJ světa).
     const isReviewer =
       platformRole !== undefined && isContentReviewer(platformRole);
-    const entries = isReviewer
+    const moderationFiltered = isReviewer
       ? allEntries
       : allEntries.filter((e) => !e.moderationHidden);
+    // 15.11 — pending návrhy hráčů: v adresáři je vidí JEN autor (proposedBy) +
+    // moderátor světa (elevovaný admin / role ≥ PomocnyPJ). findDirectory
+    // NEvolá assertAccess, proto vlastní filtr. Membership načteme jednou a
+    // reusneme i pro shieldedBy níže.
+    const viewerMembership = userId
+      ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+      : null;
+    const isModerator =
+      (platformRole !== undefined &&
+        worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)) ||
+      (viewerMembership != null &&
+        viewerMembership.role >= WorldRole.PomocnyPJ);
+    const entries = moderationFiltered.filter(
+      (e) =>
+        e.pageStatus !== 'pending' ||
+        isModerator ||
+        (userId != null && e.proposedBy === userId),
+    );
     // D-062c — per-entry shieldedBy pro stub karty v listings. Membership +
     // akjSettings načteme JEDNOU (ne N+1 per stránka), a jen když je vůbec nějaká
     // stránka chráněná. Raw accessRequirements NEvracíme na FE (privacy — UserId).
     const anyProtected = entries.some(
       (e) => (e.accessRequirements?.length ?? 0) > 0,
     );
-    const membership =
-      anyProtected && userId
-        ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
-        : null;
+    const membership = viewerMembership;
     const needsAkjTypes =
       anyProtected &&
       entries.some((e) =>
@@ -1126,6 +1160,26 @@ export class PagesService {
         message: 'Stránka nenalezena',
       });
     }
+    // 15.11 — pending návrh hráče vidí JEN autor (proposedBy) + moderátor
+    // (elevovaný admin / role ≥ PomocnyPJ). MUSÍ být PŘED early-return na prázdné
+    // accessRequirements (návrh je má prázdné → jinak by prosákl všem).
+    // 404 = neprozrazuje existenci (auth-leak-policy).
+    if (page.pageStatus === 'pending') {
+      if (userId && page.proposedBy === userId) return;
+      if (
+        platformRole !== undefined &&
+        worldAdminBypass({ role: platformRole, elevatedWorldIds }, worldId)
+      )
+        return;
+      const m = userId
+        ? await this.membershipRepo.findByUserAndWorld(userId, worldId)
+        : null;
+      if (m && m.role >= WorldRole.PomocnyPJ) return;
+      throw new NotFoundException({
+        code: 'PAGE_NOT_FOUND',
+        message: 'Stránka nenalezena',
+      });
+    }
     if (!page.accessRequirements || page.accessRequirements.length === 0)
       return;
     // AKJ skrývá obsah jen před hráči. PomocnyPJ+ (autorské role) a platform
@@ -1287,6 +1341,133 @@ export class PagesService {
         message: 'Nedostatečná oprávnění',
       });
     }
+  }
+
+  /**
+   * 15.11 — rozhodne režim tvorby stránky (+ ověří aktivní svět jako
+   * assertCanWrite):
+   *  - moderátor (elevovaný admin / role ≥ PomocnyPJ) → `approved` (dnešní tok),
+   *  - hráč (role ≥ Hráč) navrhující whitelist typ → `pending` (autor = on sám),
+   *  - jinak 403 `PAGE_FORBIDDEN`.
+   */
+  private async resolveCreateMode(
+    worldId: string,
+    requester: PagesRequester,
+    type: PageType,
+  ): Promise<{ pageStatus: 'pending' | 'approved'; proposedBy?: string }> {
+    const world = await this.worldsRepo.findById(worldId);
+    if (!world || !world.isActive || world.deletedAt)
+      throw new NotFoundException({
+        code: 'WORLD_NOT_FOUND',
+        message: 'Svět nenalezen',
+      });
+    if (worldAdminBypass(requester, worldId)) return { pageStatus: 'approved' };
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    const role = membership?.role ?? -1;
+    if (role >= WorldRole.PomocnyPJ) return { pageStatus: 'approved' };
+    // 15.11 — hráč (Hráč+) smí navrhnout whitelist typ jako pending návrh.
+    if (role >= WorldRole.Hrac && PLAYER_PROPOSABLE_PAGE_TYPES.includes(type)) {
+      return { pageStatus: 'pending', proposedBy: requester.id };
+    }
+    throw new ForbiddenException({
+      code: 'PAGE_FORBIDDEN',
+      message: 'Nedostatečná oprávnění',
+    });
+  }
+
+  /**
+   * 15.11 — brána pro editaci stránky. Moderátor (assertCanWrite ≥ PomocnyPJ)
+   * vždy; autor SVÉHO pending návrhu (whitelist typ, role ≥ Hráč) taky — může
+   * doladit, než ho PJ schválí. Self-approve nehrozí: `pageStatus`/`proposedBy`
+   * nejsou v UpdatePageDto, takže je editací nezmění.
+   */
+  private async assertCanEditPage(
+    worldId: string,
+    requester: PagesRequester,
+    page: Page,
+  ): Promise<void> {
+    if (
+      page.pageStatus === 'pending' &&
+      page.proposedBy === requester.id &&
+      PLAYER_PROPOSABLE_PAGE_TYPES.includes(page.type)
+    ) {
+      const membership = await this.membershipRepo.findByUserAndWorld(
+        requester.id,
+        worldId,
+      );
+      if (membership && membership.role >= WorldRole.Hrac) return;
+    }
+    await this.assertCanWrite(worldId, requester);
+  }
+
+  /** 15.11 — PJ (moderátor) schválí návrh → `approved` (živé + do search indexu). */
+  async approveProposal(
+    worldId: string,
+    slug: string,
+    requester: PagesRequester,
+  ): Promise<Page> {
+    await this.assertCanWrite(worldId, requester);
+    const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
+    if (!page || page.pageStatus !== 'pending')
+      throw new NotFoundException({
+        code: 'PROPOSAL_NOT_FOUND',
+        message: 'Návrh nenalezen',
+      });
+    const updated = (await this.pagesRepo.update(page.id, {
+      pageStatus: 'approved',
+    })) ?? { ...page, pageStatus: 'approved' as const };
+    // Pending se do search NEindexuje (viz create) — až po schválení.
+    void this.searchCoordinator
+      ?.addPageToIndex(updated)
+      .catch((err: unknown) =>
+        logWarn(this.logger, `addPageToIndex selhal pro ${updated.slug}`, err),
+      );
+    this.eventEmitter.emit('world.page-review.resolved', {
+      worldId,
+      slug,
+      pageId: page.id,
+      action: 'approved',
+      authorId: page.proposedBy,
+    });
+    return updated;
+  }
+
+  /**
+   * 15.11 — PJ vrátí návrh k přepracování (`rework` — zůstane pending, autor
+   * doladí) nebo zahodí (`discard` — smaže stránku). Autor dostane WS signál.
+   */
+  async rejectProposal(
+    worldId: string,
+    slug: string,
+    mode: 'rework' | 'discard',
+    requester: PagesRequester,
+  ): Promise<{ ok: true }> {
+    await this.assertCanWrite(worldId, requester);
+    const page = await this.pagesRepo.findBySlugAndWorld(slug, worldId);
+    if (!page || page.pageStatus !== 'pending')
+      throw new NotFoundException({
+        code: 'PROPOSAL_NOT_FOUND',
+        message: 'Návrh nenalezen',
+      });
+    if (mode === 'discard') {
+      await this.delete(page.id, worldId, requester);
+    }
+    this.eventEmitter.emit('world.page-review.resolved', {
+      worldId,
+      slug,
+      pageId: page.id,
+      action: mode,
+      authorId: page.proposedBy,
+    });
+    return { ok: true };
+  }
+
+  /** 15.11 — pending návrhy obsahu světa (pro PJ frontu ke zpracování). */
+  async findPendingProposals(worldId: string): Promise<Page[]> {
+    return this.pagesRepo.findPendingByWorld(worldId);
   }
 
   /**
