@@ -12,6 +12,12 @@ export const PAGE_TYPES = {
   Rodokmen: 'Rodokmen',
   Obrazovka: 'Obrazovka',
   Ostatni: 'Ostatní',
+  // 11.5 — wiki-like typy kampaňových subjektů (Pavučina). Chovají se jako
+  // `Ostatní` — čistá Page BEZ Character subdocu (nejsou v auto-Character
+  // whitelistu v pages.service). Umožňují „vyvolat"/materializovat frakce z Pavučiny.
+  Frakce: 'Frakce',
+  Organizace: 'Organizace',
+  Stat: 'Stát',
   // Krok 9.1 — sjednocení Character → Page. PostavaHrace má `ownerUserId`,
   // NPC je bez. Subdokumenty (deník/finance/…) drží Character entita,
   // odkaz přes `characterRef.characterId`.
@@ -33,6 +39,10 @@ export const PLAYER_PROPOSABLE_PAGE_TYPES: readonly PageType[] = [
   PAGE_TYPES.Seznam,
   PAGE_TYPES.Galerie,
   PAGE_TYPES.Rodokmen,
+  // 11.5 — hráč smí navrhnout i kampaňové wiki typy (pending ke schválení PJ).
+  PAGE_TYPES.Frakce,
+  PAGE_TYPES.Organizace,
+  PAGE_TYPES.Stat,
 ];
 
 /**
