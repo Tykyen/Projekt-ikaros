@@ -315,18 +315,44 @@ export class CharacterAccountsService {
       ? roundMoney(transactions.reduce((s, t) => s + t.delta, 0))
       : roundMoney(account.balance * r);
 
-    const updated = await this.accountsRepo.replaceMoneyFields(accountId, {
-      currency: newCurrency,
-      balance,
-      transactions,
-      incomeEntries,
-      expenseEntries,
-    });
-    if (!updated)
-      throw new NotFoundException({
-        code: 'ACCOUNT_NOT_FOUND',
-        message: 'Účet nenalezen',
+    // RC-E7 — zapiš JEN když se účet od `getAccount` výše nezměnil. Přepočet
+    // nahrazuje CELÉ pole transakcí spočítané ze stale snapshotu; bez téhle
+    // podmínky by souběžný vklad/nákup (atomický `$push`+`$inc`) zmizel bez
+    // stopy a `balance = Σ delta` by přestalo platit.
+    if (!account.updatedAt) {
+      // Bez `updatedAt` nejde zámek ověřit → raději nezapisuj (schema má
+      // `timestamps: true`, takže tohle je jen pojistka proti starým dokům).
+      throw new ConflictException({
+        code: 'ACCOUNT_CONFLICT',
+        message: 'Účet nelze bezpečně přepočítat. Načti ho znovu a opakuj.',
       });
+    }
+    const updated = await this.accountsRepo.replaceMoneyFields(
+      accountId,
+      {
+        currency: newCurrency,
+        balance,
+        transactions,
+        incomeEntries,
+        expenseEntries,
+      },
+      account.updatedAt,
+    );
+    if (!updated) {
+      // `null` = filtr nesedl. Buď účet mezitím zmizel, nebo (častěji) se
+      // změnil → rozlišíme dotazem, ať klient dostane správný kód.
+      const stillExists = await this.accountsRepo.findById(accountId);
+      if (!stillExists)
+        throw new NotFoundException({
+          code: 'ACCOUNT_NOT_FOUND',
+          message: 'Účet nenalezen',
+        });
+      throw new ConflictException({
+        code: 'ACCOUNT_CONFLICT',
+        message:
+          'Na účtu mezitím proběhla jiná operace. Načti ho znovu a přepočet zopakuj.',
+      });
+    }
     return updated;
   }
 

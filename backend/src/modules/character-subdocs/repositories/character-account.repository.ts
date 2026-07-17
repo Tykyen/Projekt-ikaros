@@ -163,9 +163,25 @@ export class CharacterAccountRepository {
   }
 
   /**
-   * 8.x currency-conversion — atomický přepočet měny účtu: jedním `$set`
-   * nahradí `currency` + všechna peněžní pole (balance, transactions,
-   * income/expenseEntries). Single-doc update = atomický (žádná tx potřeba).
+   * 8.x currency-conversion — přepočet měny účtu: jedním `$set` nahradí
+   * `currency` + všechna peněžní pole (balance, transactions, income/expense).
+   *
+   * **RC-E7 fix — optimistic lock (`expectedUpdatedAt`) je POVINNÝ.**
+   * Původní komentář tvrdil „single-doc update = atomický (žádná tx potřeba)",
+   * což je zavádějící: atomický je sám `$set`, jenže **hodnoty pocházejí ze
+   * stale readu**. `changeCurrency` čte účet, přepočítá VŠECHNY transakce
+   * kurzem a zapíše je zpátky celým polem — a mezi readem a writem stihne
+   * souběžný `adjust` / `debitIfSufficient` (nákup) / `transfer` udělat atomický
+   * `$push`+`$inc`. Ten by se pak **přepsal starou verzí pole**: transakce zmizí
+   * bez stopy a rozbije se invariant `balance = Σ delta` (peníze se ztratí).
+   *
+   * Filtr `{ _id, updatedAt: expectedUpdatedAt }` → ze souběhu uspěje právě
+   * jeden; druhý dostane `null` = konflikt → service hodí 409 a klient to
+   * zopakuje nad čerstvým stavem (vzor RC-P1 `pages.updateIfUnchanged`).
+   *
+   * Proč ne `withTransaction` (vzor RC-E5 `refund`): tam se **musí** commitnout
+   * dva zápisy pohromadě. Tady je zápis jediný, jen nesmí přepsat cizí práci —
+   * na to stačí podmínka ve filtru, bez závislosti na replica setu.
    */
   async replaceMoneyFields(
     accountId: string,
@@ -177,9 +193,14 @@ export class CharacterAccountRepository {
       | 'incomeEntries'
       | 'expenseEntries'
     >,
+    expectedUpdatedAt: Date,
   ): Promise<CharacterAccount | null> {
     const doc = await this.model
-      .findByIdAndUpdate(accountId, { $set: fields }, { new: true })
+      .findOneAndUpdate(
+        { _id: accountId, updatedAt: expectedUpdatedAt },
+        { $set: fields },
+        { new: true },
+      )
       .lean()
       .exec();
     return doc

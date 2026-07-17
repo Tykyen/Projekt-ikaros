@@ -71,6 +71,9 @@ describe('CharacterAccountsService', () => {
     startSession: jest.fn().mockResolvedValue(mockSession),
   };
 
+  /** Fixní `updatedAt` — testy porovnávají referenci, ne reálný čas. */
+  const ACCOUNT_UPDATED_AT = new Date('2026-07-17T10:00:00.000Z');
+
   const mockAccount = (
     overrides: Partial<CharacterAccount> = {},
   ): CharacterAccount => ({
@@ -87,6 +90,9 @@ describe('CharacterAccountsService', () => {
     expenseEntries: [],
     transactions: [],
     notes: '',
+    // RC-E7 — `changeCurrency` na něm staví optimistic lock (schema má
+    // `timestamps: true`, takže reálný účet ho vždy má).
+    updatedAt: ACCOUNT_UPDATED_AT,
     ...overrides,
   });
 
@@ -176,6 +182,42 @@ describe('CharacterAccountsService', () => {
       expect(arg.incomeEntries[0].amount).toBe(100);
       expect(arg.expenseEntries[0].amount).toBe(50);
       expect(res.currency).toBe('ST');
+      // RC-E7 — zápis MUSÍ nést optimistic lock ze snapshotu, ze kterého se
+      // přepočítávalo; jinak by přepsal cizí souběžnou transakci.
+      expect(mockAccountsRepo.replaceMoneyFields.mock.calls[0][2]).toBe(
+        ACCOUNT_UPDATED_AT,
+      );
+    });
+
+    // RC-E7 (race 01 — třída LU/TOCTOU) — `changeCurrency` čte účet, přepočítá
+    // kurzem CELÉ pole transakcí a zapíše ho zpět. Mezi readem a writem stihne
+    // souběžný `adjust`/nákup atomický `$push`+`$inc` → bez optimistic locku by
+    // ho full `$set` přepsal starou verzí: transakce zmizí bez stopy a rozbije
+    // se invariant `balance = Σ delta` (peníze se ztratí).
+    it('RC-E7 — souběžná změna účtu → 409 ACCOUNT_CONFLICT (žádný přepis)', async () => {
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(mockAccount({ currency: 'ZL', balance: 100 }))
+        // Účet po neúspěšném zápisu stále existuje → jde o konflikt, ne 404.
+        .mockResolvedValueOnce(mockAccount({ currency: 'ZL', balance: 100 }));
+      mockCurrenciesService.getItems.mockResolvedValue(RATES);
+      // Filtr `{_id, updatedAt}` nesedl (jiný zápis mezitím bumpnul updatedAt).
+      mockAccountsRepo.replaceMoneyFields.mockResolvedValue(null);
+
+      await expect(
+        service.changeCurrency('acc1', 'ST', true),
+      ).rejects.toMatchObject({ response: { code: 'ACCOUNT_CONFLICT' } });
+    });
+
+    it('RC-E7 — účet mezitím smazán → 404 (rozlišeno od konfliktu)', async () => {
+      mockAccountsRepo.findById
+        .mockResolvedValueOnce(mockAccount({ currency: 'ZL', balance: 100 }))
+        .mockResolvedValueOnce(null); // už neexistuje
+      mockCurrenciesService.getItems.mockResolvedValue(RATES);
+      mockAccountsRepo.replaceMoneyFields.mockResolvedValue(null);
+
+      await expect(
+        service.changeCurrency('acc1', 'ST', true),
+      ).rejects.toMatchObject({ response: { code: 'ACCOUNT_NOT_FOUND' } });
     });
 
     it('convert:true bez kurzu cílové měny → CURRENCY_RATE_MISSING', async () => {
