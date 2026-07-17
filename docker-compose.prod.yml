@@ -87,6 +87,13 @@ services:
       MONGODB_URI: mongodb://mongo:27017/ikaros?replicaSet=rs0
       REDIS_URL: redis://redis:6379
       SOCKET_IO_REDIS: "1"
+      # SCALE-RT (styl 26) — HTTP throttler do Redisu. Bez tohohle drží každá
+      # replika BE vlastní in-memory bucket → při N replikách je reálný limit
+      # N× volnější, než co `throttler.config` slibuje (100 req/min/IP).
+      # Dnes běží 1 replika, takže to nic nemění; zapnuto DOPŘEDU, ať scale-out
+      # limity tiše nerozvolní. Fallback je bezpečný: bez dostupného REDIS_URL
+      # throttler jen varuje a jede in-memory (start neshodí) — viz D-028.
+      THROTTLER_REDIS: "1"
       MEILI_HOST: http://meilisearch:7700
       MEILI_API_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set and at least 16 bytes}
       # FRONTEND_URL / BACKEND_BASE_URL: silně doporučené (CORS, odkazy, disk fallback),

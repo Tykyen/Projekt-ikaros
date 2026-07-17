@@ -7,6 +7,7 @@ import {
   type OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { logWarn } from '../../common/logging/log-error.util';
+import { allowWsEvent } from '../../common/ws/ws-rate-limit';
 import { OnEvent } from '@nestjs/event-emitter';
 import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
@@ -175,6 +176,8 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   /** Heartbeat z FE — udržuje uživatele „naživu" v presence (krok 4.2c §5). */
   @SubscribeMessage('chat:heartbeat')
   handleHeartbeat(@ConnectedSocket() client: Socket): void {
+    // SCALE-RT — heartbeat chodí periodicky z FE; limit je jen proti smyčce.
+    if (!allowWsEvent(client, 'chat:heartbeat', { limit: 60 })) return;
     const record = this.connectedUsers.get(client.id);
     if (record) record.lastSeen = new Date();
   }
@@ -300,6 +303,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
   // ── Presence — Hospoda (krok 4.1) ──────────────────────────────────────
   @SubscribeMessage('chat:hospoda:join')
   handleHospodaJoin(@ConnectedSocket() client: Socket): void {
+    if (!allowWsEvent(client, 'chat:hospoda:join', { limit: 30 })) return; // SCALE-RT
     // W-10 — identita z OVĚŘENÉHO JWT handshake (`client.data.userId` nastavuje
     // ChatGateway na sdíleném socketu), NIKDY z payloadu. Jinak by klient mohl
     // poslat cizí `userId`, joinnout cizí `user:{id}` room a odposlouchávat
@@ -323,6 +327,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
 
   @SubscribeMessage('chat:hospoda:leave')
   handleHospodaLeave(@ConnectedSocket() client: Socket): void {
+    if (!allowWsEvent(client, 'chat:hospoda:leave', { limit: 30 })) return; // SCALE-RT
     void this.unregisterPresence(client, 'hospoda');
   }
 
@@ -333,6 +338,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     payload: { room: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    if (!allowWsEvent(client, 'chat:room:join', { limit: 30 })) return; // SCALE-RT
     if (!isRoomKey(payload.room)) return;
     // W-10 — viz handleHospodaJoin: userId (i username) z ověřeného JWT/DB,
     // ne z payloadu.
@@ -358,6 +364,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     @MessageBody() payload: { room: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    if (!allowWsEvent(client, 'chat:room:leave', { limit: 30 })) return; // SCALE-RT
     if (!isRoomKey(payload.room)) return;
     void this.unregisterPresence(client, payload.room);
   }
@@ -371,6 +378,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     @MessageBody() payload: { room: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    if (!allowWsEvent(client, 'voice:join', { limit: 30 })) return; // SCALE-RT
     if (!isRoomKey(payload.room)) return;
     const data = client.data as {
       userId?: string;
@@ -397,6 +405,7 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     @MessageBody() payload: { room: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    if (!allowWsEvent(client, 'voice:leave', { limit: 30 })) return; // SCALE-RT
     if (!isRoomKey(payload.room)) return;
     const data = client.data as { userId?: string };
     if (!data.userId) return;
@@ -410,6 +419,10 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     @MessageBody() payload: { room: string; muted?: boolean; cam?: boolean },
     @ConnectedSocket() client: Socket,
   ): void {
+    // SCALE-RT — každý `voice:state` broadcastuje roster celé místnosti (O(N)),
+    // takže smyčka mute/unmute = O(N²) na počet účastníků hovoru. Limit je nad
+    // reálným klikáním, ale utne skript.
+    if (!allowWsEvent(client, 'voice:state', { limit: 30 })) return;
     if (!isRoomKey(payload.room)) return;
     const data = client.data as { userId?: string };
     if (!data.userId) return;
@@ -621,6 +634,10 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     },
     @ConnectedSocket() client: Socket,
   ): void {
+    // SCALE-RT (styl 26) — whisper = Mongo write; do 12. 7. byl BEZ stropu
+    // (`global-chat.gateway` jako jediná gateway rate-limit vůbec neměla).
+    // 10/10 s je nad reálným psaním člověka a hluboko pod smyčkou skriptu.
+    if (!allowWsEvent(client, 'ikaros:whisper', { limit: 10 })) return;
     const sender = this.connectedUsers.get(client.id);
     // Whisper smí mít prázdný text, má-li přílohu (4.3b) — prázdnost
     // s přílohami řeší `GlobalChatService.assertNotEmpty`.
@@ -668,6 +685,9 @@ export class GlobalChatGateway implements OnGatewayDisconnect {
     payload: { room?: string; messageId?: string; emoji?: string },
     @ConnectedSocket() client: Socket,
   ): void {
+    // SCALE-RT — reakce = Mongo write. Volnější než whisper (rychlé přepínání
+    // emoji je legitimní), pořád ale strop proti toggle smyčce.
+    if (!allowWsEvent(client, 'chat:reaction:toggle', { limit: 30 })) return;
     const sender = this.connectedUsers.get(client.id);
     if (!sender || !payload.messageId || !payload.emoji) return;
     if (typeof payload.emoji !== 'string' || payload.emoji.length > 16) return;

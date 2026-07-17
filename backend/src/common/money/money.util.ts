@@ -12,6 +12,18 @@ import { BadRequestException } from '@nestjs/common';
  * přes `gteMoney` (epsilon tolerance). Historická data se NEpřepočítávají —
  * existující drift v DB zůstává, nové operace ho nepřidávají.
  *
+ * ⚠️ VÝJIMKA — `$inc` cesta zůstává nezaokrouhlená. `character-account.repository`
+ * (`addTransaction` / nonce-guarded varianta) přičítá zůstatek atomicky přes
+ * `$inc: { balance: tx.delta }`. Zaokrouhlená je jen `delta`; **součet dělá Mongo
+ * jako BSON double a nikdo ho po sečtení nezaokrouhlí**, takže drift se v uložené
+ * `balance` reálně hromadí dál — na rozdíl od toho, co tvrdil původní text tady
+ * („nové operace ho nepřidávají"). Není to díra: krytí se testuje `gteMoney`
+ * (epsilon) a overdraft guard jede přes `$gte: requiredAbs - MONEY_EPSILON`.
+ * Srovnat by šlo jen aggregation-pipeline updatem (`$round` nad `$add`), což
+ * znamená přepsat atomický `$push`+`$inc` přes `$concatArrays` — vědomě neděláno,
+ * dokud se drift neprojeví. Plná migrace na celočíselné minor units to řeší u
+ * kořene (viz `docs/dluhy.md`, D-SEC-GAP).
+ *
  * Přesnost: 4 desetinná místa — sjednoceno s existující konvencí `round4`
  * (kurzové převody v `changeCurrency` / `campaign-purchase` / `convert`).
  * Herní měny mají kurzy typu 0.01 (Měďák→Zlaťák), takže ceny s až 4 des.

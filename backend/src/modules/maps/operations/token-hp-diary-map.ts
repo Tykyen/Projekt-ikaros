@@ -1,8 +1,16 @@
 /**
  * D-NEW-INV-DATA-SYNC — mapování token HP → per-system klíče v diary
- * `customData` postavy (PC/NPC). Zrcadlo FE `resolveCharacterHp.ts`
- * (FE čte, BE tudy zapisuje) — klíče ověřeny proti FE combat panelům
+ * `customData` postavy (PC/NPC). Klíče ověřeny proti FE combat panelům
  * (`system-panels/*CombatPanel.tsx`).
+ *
+ * ⚠️ NENÍ to zrcadlo FE `resolveCharacterHp.ts` — dřív to tu tak stálo, ale
+ * FE mezitím doplnil i `shadowrun`, `fae`/`fate` a `drdplus`, které tady
+ * chybí (viz seznam níže). Vztah je asymetrický: **FE ty systémy přečte, BE
+ * je tudy zapsat neumí.** Nevadí to, protože žádný FE caller dnes pro ně
+ * `patch.currentHp` u PC/NPC neposílá (jediný producent je `TokenSystemSheet`
+ * pro `matrix`, který namapovaný je) — doplňovat je by znamenalo napsat mrtvý
+ * kód a navíc rozhodnout herní sémantiku (viz níže). Až takový caller vznikne,
+ * doplň mapování TEHDY.
  *
  * Architektura (memory `project_token_hp_architecture`): HP PC/NPC tokenu
  * žije v deníku postavy (`CharacterDiary.customData`), token samotný má

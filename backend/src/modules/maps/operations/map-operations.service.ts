@@ -416,11 +416,22 @@ export class MapOperationsService {
           config: scene.config as unknown as Record<string, unknown>,
         };
 
+      // D-DROBNE-UNDO (2026-07-17) — `scene.image` je ZÁMĚRNĚ mimo undo stack
+      // (`inverse: null` → `findLastUndoableByUser` ji přeskočí, undo nabídne
+      // předchozí undoable op).
+      //
+      // Proč: výměna podkladu emituje `media.orphaned` na starý URL a cleanup
+      // (`upload.service.handleMediaOrphaned`) maže blob OKAMŽITĚ. Undo by tedy
+      // obnovilo URL, jejíž blob už neexistuje — a při aplikaci inverse by navíc
+      // (správně) osiřel i nový blob. Výsledek: scéna bez obrázku a oba bloby
+      // pryč. Undo, které tiše sebere obojí, je horší než undo nenabídnout.
+      //
+      // Zbylé varianty (zvážit, až to bude bolet): odložit cleanup podkladů o
+      // TTL undo okna (`pendingDeletions` + cron — infra dnes neexistuje), nebo
+      // orphan pro `scene.image` neemitovat vůbec (bloby by leakovaly navždy).
+      // PJ podklad vrátí prostým nahráním původního obrázku.
       case 'scene.image':
-        return {
-          type: 'scene.image',
-          imageUrl: scene.imageUrl,
-        };
+        return null;
 
       case 'scene.name':
         return {
@@ -976,11 +987,9 @@ export class MapOperationsService {
           { $set: { imageUrl: op.imageUrl, lastModified: now } },
         );
         // FIX-31 — úklid starého blobu pozadí scény při in-place výměně
-        // (deleteScene už fix má, UM-05). Pozn. (D-DROBNE-UNDO): undo je teď
-        // zapojené (`undoLast`) — undo `scene.image` obnoví PŮVODNÍ URL,
-        // jejíž blob už mohl být uklizen (obrázek se nezobrazí, PJ nahraje
-        // znovu). Přijatá limitace MVP; alternativa (odklad cleanupu o TTL
-        // undo okna) zvážit, až to bude reálně bolet.
+        // (deleteScene už fix má, UM-05). Cleanup je OKAMŽITÝ, proto je
+        // `scene.image` mimo undo stack (`computeInverse` → `null`, viz tam) —
+        // jinak by undo obnovilo URL bez blobu a ještě osiřelo ten nový.
         if (op.imageUrl !== scene.imageUrl && scene.imageUrl) {
           this.eventEmitter.emit('media.orphaned', { urls: [scene.imageUrl] });
         }

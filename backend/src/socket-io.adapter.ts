@@ -69,7 +69,15 @@ export class CustomIoAdapter extends IoAdapter {
   createIOServer(port: number, options?: ServerOptions): Server {
     const server = super.createIOServer(port, {
       ...options,
-      maxHttpBufferSize: 5 * 1024 * 1024,
+      // SCALE-RT (styl 26) — 5 MB byl default zděděný „pro jistotu": jeden socket
+      // mohl poslat 5MB rámec a přinutit server ho celý bufferovat v paměti
+      // (× N socketů = DoS jedním klientem). Přes WS ale **nechodí žádná binární
+      // data ani přílohy** — uploady jedou HTTP (`upload.controller` `@Post`),
+      // mapové operace taky (`POST /maps/:id/operations`, vč. fog s
+      // `@ArrayMaxSize(50000)` ~1 MB). WS nese jen drobné eventy: join/leave,
+      // typing, ping, ruler (4 čísla), sound, whisper, reaction. 1 MB je i tak
+      // řádově nad realitou — ověřeno grepem gateways 2026-07-17.
+      maxHttpBufferSize: 1024 * 1024,
       cors: {
         origin: getAllowedOrigins(),
         credentials: true,

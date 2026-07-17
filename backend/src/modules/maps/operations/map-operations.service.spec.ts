@@ -339,6 +339,32 @@ describe('MapOperationsService', () => {
       });
     });
 
+    // D-DROBNE-UNDO — `scene.image` je vědomě mimo undo stack. Cleanup blobu
+    // (`media.orphaned` → `handleMediaOrphaned`) je okamžitý, takže undo by
+    // obnovilo URL bez blobu a ještě osiřelo ten nový → scéna bez obrázku a
+    // oba bloby pryč. `inverse: null` → `findLastUndoableByUser` ji přeskočí.
+    // NEVRACET zpět na snapshot `imageUrl` bez odloženého cleanupu (TTL).
+    it('scene.image: inverse je null (mimo undo stack — blob se maže hned)', async () => {
+      const scene = makeScene({ imageUrl: 'https://cdn/old.webp' });
+      mockMapsRepo.findById.mockResolvedValue(scene);
+
+      const result = await service.apply(
+        'scene1',
+        { type: 'scene.image', imageUrl: 'https://cdn/new.webp' },
+        pj,
+      );
+
+      expect(mockMapsRepo.atomicUpdate).toHaveBeenCalledWith(
+        { _id: 'scene1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            imageUrl: 'https://cdn/new.webp',
+          }) as Record<string, unknown>,
+        }),
+      );
+      expect(result.inverse).toBeNull();
+    });
+
     // 10.2n — per-hráč override
     it('scene.playerState: upsert override (žádný předchozí → inverse clear)', async () => {
       const scene = makeScene({ playerStates: [] });

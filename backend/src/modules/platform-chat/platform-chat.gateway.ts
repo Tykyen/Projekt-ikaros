@@ -7,6 +7,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { allowWsEvent } from '../../common/ws/ws-rate-limit';
 import { PlatformChatService } from './platform-chat.service';
 import type { ChatMessage } from '../chat/interfaces/chat-message.interface';
 
@@ -27,6 +28,8 @@ export class PlatformChatGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { channelId?: string },
   ): Promise<void> {
+    // SCALE-RT (styl 26) — join ověřuje přístup v service = DB dotaz na event.
+    if (!allowWsEvent(client, 'platform-chat:join', { limit: 30 })) return;
     const userId = (client.data as { userId?: string })?.userId;
     const channelId = data?.channelId;
     if (!userId || !channelId) return;
@@ -39,6 +42,7 @@ export class PlatformChatGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { channelId?: string },
   ): void {
+    if (!allowWsEvent(client, 'platform-chat:leave', { limit: 30 })) return; // SCALE-RT
     if (data?.channelId) void client.leave(`platform-chat:${data.channelId}`);
   }
 
@@ -69,6 +73,9 @@ export class PlatformChatGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { channelId?: string; isTyping?: boolean },
   ): Promise<void> {
+    // SCALE-RT — typing chodí často (FE debouncuje), proto volnější strop než
+    // join; broadcast do kanálu ale roste s počtem správců.
+    if (!allowWsEvent(client, 'platform-chat:typing', { limit: 60 })) return;
     const userId = (client.data as { userId?: string })?.userId;
     const channelId = data?.channelId;
     if (!userId || !channelId) return;

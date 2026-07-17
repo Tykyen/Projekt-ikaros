@@ -35,7 +35,7 @@ hlídaná**; červený = díra otevřená.
 | PT-46b | HP out-of-bounds (`99999`/zápor) | 46 | TODO `it.failing` | díra D-LAUNCH-GAP; fix = server clamp |
 | PT-22 | ReDoS/Mongo injection v search | 22 | TODO pin | SEC-28 fixnuto |
 | PT-34 | anti-abuse creation-flood | 34 | TODO `it.failing` | díra — kumulativní cap chybí |
-| PT-39 | freemium bypass (`chatSkin`) | 39 | TODO `it.failing` | díra D-SEC-GAP |
+| ~~PT-39a~~ | ~~freemium bypass (`chatSkin`)~~ | 39 | ⚪ **NEPSAT** | **není díra** — prémiové motivy neexistují a nebudou (2026-07-17); viz attack-catalog. Freemium bypass zůstává relevantní u **PT-39b** (cap TOCTOU při `join`). |
 | PT-40 | erasure PII zbytek | 40 | TODO `it.failing` | díra D-SEC-GAP |
 
 Priorita psaní: nejdřív **piny opravených děr** (zelené, hlídají regresi), pak **`it.failing` neopravených**
