@@ -78,6 +78,14 @@ describe('WorldsService', () => {
     publicProfile: jest
       .fn()
       .mockResolvedValue({ id: 'user1', username: 'user1', avatarUrl: null }),
+    // PERF (styl 25) — batch cesta pro `enrichMembers` (1 dotaz místo N).
+    publicProfilesByIds: jest
+      .fn()
+      .mockResolvedValue(
+        new Map([
+          ['user1', { id: 'user1', username: 'user1', avatarUrl: null }],
+        ]),
+      ),
     // create()/assertCanJoinMoreWorlds() dohledávají supporter status uživatele
     // (19.4). Default null → fail-open (viz assertCanJoinMoreWorlds:349).
     findById: jest.fn().mockResolvedValue(null),
@@ -1570,11 +1578,11 @@ describe('WorldsService', () => {
           akj: 0,
         },
       ]);
-      mockUsersService.publicProfile.mockResolvedValue({
-        id: 'user1',
-        username: 'Aragorn',
-        avatarUrl: null,
-      });
+      mockUsersService.publicProfilesByIds.mockResolvedValue(
+        new Map([
+          ['user1', { id: 'user1', username: 'Aragorn', avatarUrl: null }],
+        ]),
+      );
       mockWorldsRepo.findById.mockResolvedValue({
         id: 'world1',
         accessMode: 'open',
@@ -1583,6 +1591,48 @@ describe('WorldsService', () => {
       const result = await service.getMembers('world1', null);
 
       expect(result[0].user?.username).toBe('Aragorn');
+    });
+
+    // PERF (styl 25) — dřív `members.map(m => publicProfile(m.userId))` = N+1;
+    // při 50 hráčích v jeskyni 50 dotazů na jeden request (SLO míří na 50).
+    // Test hlídá, že se profily tahají JEDNÍM batch dotazem, ne per člen.
+    it('PERF — tahá profily jedním dotazem (žádné N+1)', async () => {
+      const members = Array.from({ length: 50 }, (_, i) => ({
+        id: `mem${i}`,
+        worldId: 'world1',
+        userId: `u${i}`,
+        role: WorldRole.Hrac,
+        joinedAt: new Date(),
+        akj: 0,
+      }));
+      mockMembershipRepo.findByWorldId.mockResolvedValue(members);
+      mockUsersService.publicProfilesByIds.mockResolvedValue(
+        new Map(
+          members.map((m) => [
+            m.userId,
+            { id: m.userId, username: m.userId, avatarUrl: null },
+          ]),
+        ),
+      );
+      mockWorldsRepo.findById.mockResolvedValue({
+        id: 'world1',
+        accessMode: 'open',
+      });
+
+      const result = await service.getMembers('world1', null);
+
+      expect(result).toHaveLength(50);
+      // Jeden batch dotaz se VŠEMI id členů.
+      expect(mockUsersService.publicProfilesByIds).toHaveBeenCalledTimes(1);
+      expect(mockUsersService.publicProfilesByIds).toHaveBeenCalledWith(
+        members.map((m) => m.userId),
+      );
+      // `publicProfile` smí padnout nanejvýš na vlastníka světa (`getMembers` →
+      // `findByIdForRequester` → `enrichWithOwner`), NIKDY per člen — to by byl
+      // přesně ten N+1, který se tu opravoval.
+      expect(
+        mockUsersService.publicProfile.mock.calls.length,
+      ).toBeLessThanOrEqual(1);
     });
 
     it('N-7 — privátní svět + anon → 404 (žádný leak členů)', async () => {
@@ -1606,7 +1656,9 @@ describe('WorldsService', () => {
           akj: 0,
         },
       ]);
-      mockUsersService.publicProfile.mockRejectedValue(new Error('not found'));
+      // Smazaný účet prostě není v Map (batch ho tiše přeskočí) — dřív to
+      // zajišťoval `catch {}` kolem `USER_NOT_FOUND` u per-člen dotazu.
+      mockUsersService.publicProfilesByIds.mockResolvedValue(new Map());
       mockWorldsRepo.findById.mockResolvedValue({
         id: 'world1',
         accessMode: 'open',

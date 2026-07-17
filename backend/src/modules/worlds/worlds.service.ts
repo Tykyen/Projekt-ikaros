@@ -1701,28 +1701,36 @@ export class WorldsService implements OnApplicationBootstrap {
    * Krok 5.3 — ke každému membershipu připojí public summary uživatele
    * (username, avatar účtu). Smazaný účet → `user` zůstane undefined a UI
    * zobrazí fallback. Analogie `enrichWithOwner`.
+   *
+   * PERF (styl 25) — doplní `user` k členům **jedním** dotazem. Dřív tu byl
+   * `members.map(async m => usersService.publicProfile(m.userId))`, tedy N+1:
+   * při 50 hráčích v jeskyni 50 dotazů na jeden `GET /worlds/:id/members`
+   * (SLO míří právě na 50 hráčů). `publicProfilesByIds` udělá jeden `$in`.
+   *
+   * Chování zachováno: člen, jehož profil se nenajde (smazaný účet), se vrátí
+   * **bez `user`** — dřív to zajišťoval `catch {}` kolem `USER_NOT_FOUND`,
+   * teď prostě chybí v Map. Výpis členů kvůli jednomu smazanému nespadne.
    */
   private async enrichMembers(
     members: WorldMembership[],
   ): Promise<WorldMembership[]> {
-    return Promise.all(
-      members.map(async (m) => {
-        try {
-          const profile = await this.usersService.publicProfile(m.userId);
-          return {
-            ...m,
-            user: {
-              id: profile.id,
-              username: profile.username,
-              avatarUrl: profile.avatarUrl,
-              lastSeenAt: profile.lastSeenAt,
-            },
-          };
-        } catch {
-          return m;
-        }
-      }),
+    if (members.length === 0) return members;
+    const profiles = await this.usersService.publicProfilesByIds(
+      members.map((m) => m.userId),
     );
+    return members.map((m) => {
+      const profile = profiles.get(m.userId);
+      if (!profile) return m;
+      return {
+        ...m,
+        user: {
+          id: profile.id,
+          username: profile.username,
+          avatarUrl: profile.avatarUrl,
+          lastSeenAt: profile.lastSeenAt,
+        },
+      };
+    });
   }
 
   /** Interní — plný settings objekt (chat persona, znaky skupin atd.). */

@@ -115,13 +115,8 @@ export class UsersService implements OnModuleInit {
     return this.sanitize(user);
   }
 
-  async publicProfile(id: string): Promise<PublicUser> {
-    const user = await this.repo.findById(id);
-    if (!user)
-      throw new NotFoundException({
-        code: 'USER_NOT_FOUND',
-        message: 'Uživatel nenalezen',
-      });
+  /** Jediné místo, kde se `User` převádí na veřejný profil (sdílí `publicProfile` i batch). */
+  private toPublicProfile(user: User): PublicUser {
     return {
       id: user.id,
       username: user.username,
@@ -135,6 +130,33 @@ export class UsersService implements OnModuleInit {
       // 19.4 — status Podporovatel (badge).
       isSupporter: user.isSupporter ?? false,
     };
+  }
+
+  async publicProfile(id: string): Promise<PublicUser> {
+    const user = await this.repo.findById(id);
+    if (!user)
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'Uživatel nenalezen',
+      });
+    return this.toPublicProfile(user);
+  }
+
+  /**
+   * PERF (styl 25) — batch varianta `publicProfile`: **jeden** `$in` dotaz místo
+   * N samostatných. Vzniklo kvůli `worlds.service.enrichMembers`, který volal
+   * `publicProfile` v `members.map()` → při 50 hráčích v jeskyni 50 dotazů na
+   * jeden `GET /worlds/:id/members` (SLO cílí právě na 50 hráčů).
+   *
+   * Chybějící ID se **tiše přeskočí** (nejsou v Map) — na rozdíl od
+   * `publicProfile` tu nehází `USER_NOT_FOUND`: batch volající chce zbytek
+   * seznamu i tak (smazaný účet nesmí shodit výpis členů).
+   */
+  async publicProfilesByIds(ids: string[]): Promise<Map<string, PublicUser>> {
+    const distinct = Array.from(new Set(ids));
+    if (distinct.length === 0) return new Map();
+    const users = await this.repo.findByIds(distinct);
+    return new Map(users.map((u) => [u.id, this.toPublicProfile(u)]));
   }
 
   /**
