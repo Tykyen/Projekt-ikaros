@@ -76,15 +76,52 @@ function sanitizeTable(table: CreatePageDto['table']): CreatePageDto['table'] {
 // F-RUN-02 (plný audit 2026-06-20) — `customData` (typ Noviny) se renderuje
 // přes `dangerouslySetInnerHTML` (NovinyLayout). Bez sanitizace stejná stored-XSS
 // třída jako F-02 (timeline). Sanitizujeme každou HTML hodnotu.
+/**
+ * N-RUN-08-02 (plný audit, styl 36) — **stored XSS přes type-confusion.**
+ *
+ * Dřív: `typeof value === 'string' ? sanitizeRichText(value) : value` — ne-string
+ * hodnota **prošla RAW**. `customData` je sice `Record<string, string>`, jenže to
+ * je jen compile-time; DTO má pouhé `@IsObject()`, per-value validace žádná.
+ * Autor (PomocnyPJ+) tedy mohl poslat mimo UI `customData: { "Stát": ["<img
+ * src=x onerror=…>"] }` → sanitizace se přeskočila → uložilo se raw → FE
+ * `NovinyLayout:66` to nasadí do `dangerouslySetInnerHTML` jako
+ * `array.toString()` → **XSS u KAŽDÉHO diváka stránky včetně PJ/Admina**
+ * (krádež session). Stejná třída jako PT-36a (`table.title`), ale mimo
+ * sanitizovanou string-větev — proto to sink-sanitizer audit minul.
+ *
+ * Teď: **všechno se nejdřív coercne na string a pak sanitizuje** — sanitizace
+ * nesmí mít větev, kterou lze obejít volbou typu.
+ */
 function sanitizeCustomData(
   customData: CreatePageDto['customData'],
 ): CreatePageDto['customData'] {
   if (!customData) return customData;
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(customData)) {
-    out[key] = typeof value === 'string' ? sanitizeRichText(value) : value;
+    out[key] = sanitizeRichText(coerceCustomValue(value));
   }
   return out;
+}
+
+/**
+ * Bezpečný převod libovolné hodnoty na string pro sanitizaci.
+ *
+ * `String(value)` samo o sobě NESTAČÍ: objekt s podvrženým prototypem
+ * (`{ toString: undefined }`, `Object.create(null)`) hodí
+ * `TypeError: Cannot convert object to primitive value` → request spadne na 500.
+ * Útočník by tak sice XSS neprotlačil, ale shodil by ukládání stránky. Proto
+ * `try/catch` → nekonvertovatelná hodnota se **zahodí** (`''`), nikdy neprojde.
+ *
+ * `null`/`undefined` → `''` záměrně (ne `'null'`, což by se zobrazilo jako text).
+ */
+function coerceCustomValue(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return String(value);
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -492,8 +529,13 @@ export class PagesService {
         code: 'PAGE_WORLD_MISMATCH',
         message: 'Stránka nepatří do tohoto světa',
       });
-    // 15.11 — moderátor edituje vždy; autor smí editovat SVŮJ pending návrh.
-    await this.assertCanEditPage(worldId, requester, page);
+    // 15.11 — moderátor edituje vždy; autor smí editovat SVŮJ pending návrh;
+    // vlastník PC svou approved postavu. `ownerScoped` = ne-moderátor.
+    const { ownerScoped } = await this.assertCanEditPage(
+      worldId,
+      requester,
+      page,
+    );
     // 7.2k — optimistic concurrency check. Pokud klient poslal `expectedUpdatedAt`
     // a stránka byla mezitím změněna (někým jiným nebo jiným tabem), vrátíme 409.
     if (dto.expectedUpdatedAt) {
@@ -522,6 +564,18 @@ export class PagesService {
     }));
     // 7.2k — expectedUpdatedAt je jen pro concurrency check, ne pro persist.
     const { expectedUpdatedAt: _ignored, ...persistDto } = dto;
+    // Ne-moderátor (vlastník PC / autor návrhu) smí měnit jen obsah, ne citlivá
+    // pole — jinak by hráč mohl přes editaci vlastní postavy eskalovat přístup
+    // (accessRequirements), přepsat AKJ PJ záložky (akjTabs), předat vlastnictví
+    // (ownerUserId), obejít gating přepnutím typu (type) nebo přebrat cizí URL
+    // (slug). Hodnoty zůstanou z uložené stránky (do patch nejdou).
+    if (ownerScoped) {
+      delete persistDto.accessRequirements;
+      delete persistDto.akjTabs;
+      delete persistDto.ownerUserId;
+      delete persistDto.type;
+      delete persistDto.slug;
+    }
     // FIX-21 — `slug` je (přes PartialType) validní PATCH pole (editor umožňuje
     // ruční rename slugu). Dřív šel zápisem rovnou do `patch` bez normalizace
     // NEBO re-check kolize (jen syrový Mongo unique-index E11000 při shodě
@@ -1388,7 +1442,10 @@ export class PagesService {
     worldId: string,
     requester: PagesRequester,
     page: Page,
-  ): Promise<void> {
+  ): Promise<{ ownerScoped: boolean }> {
+    // `ownerScoped` = ne-moderátorská editace (autor návrhu / vlastník PC).
+    // Update takovému editorovi osekne citlivá pole (přístup / vlastnictví /
+    // typ) — smí měnit jen obsah, ne eskalovat práva.
     if (
       page.pageStatus === 'pending' &&
       page.proposedBy === requester.id &&
@@ -1398,9 +1455,27 @@ export class PagesService {
         requester.id,
         worldId,
       );
-      if (membership && membership.role >= WorldRole.Hrac) return;
+      if (membership && membership.role >= WorldRole.Hrac)
+        return { ownerScoped: true };
+    }
+    // Vlastník své postavy hráče smí editovat vlastní stránku (Bio), i když je
+    // approved a sám není moderátor. FE mu tlačítko „Upravit Bio" ukazuje
+    // (PostavaLayout: canEdit = moderátor || isOwner) — bez téhle větve dostal
+    // 403 a FE hlásil generické „Uložení selhalo".
+    if (
+      page.type === 'Postava hráče' &&
+      page.ownerUserId &&
+      page.ownerUserId === requester.id
+    ) {
+      const membership = await this.membershipRepo.findByUserAndWorld(
+        requester.id,
+        worldId,
+      );
+      if (membership && membership.role >= WorldRole.Hrac)
+        return { ownerScoped: true };
     }
     await this.assertCanWrite(worldId, requester);
+    return { ownerScoped: false };
   }
 
   /** 15.11 — PJ (moderátor) schválí návrh → `approved` (živé + do search indexu). */

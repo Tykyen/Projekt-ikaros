@@ -783,6 +783,112 @@ describe('PagesService', () => {
         service.update('page1', 'world1', { title: 'X' }, hracRequester),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    // Vlastník své approved postavy hráče smí editovat Bio (fix: FE mu tlačítko
+    // „Upravit Bio" ukazuje, BE dřív 403 → „Uložení selhalo").
+    it('vlastník approved PC (role Hráč) smí editovat vlastní stránku', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'Postava hráče',
+        pageStatus: 'approved',
+        ownerUserId: 'user1',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      mockPagesRepo.update.mockResolvedValue({ ...mockPage });
+      await expect(
+        service.update('page1', 'world1', { title: 'Nové bio' }, hracRequester),
+      ).resolves.toBeDefined();
+    });
+
+    // Vlastník (ne-moderátor) NESMÍ přes editaci eskalovat práva — citlivá pole
+    // se osekají a do patch se nedostanou.
+    it('vlastník PC: citlivá pole (accessRequirements/akjTabs/ownerUserId/type/slug) se osekají', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'Postava hráče',
+        pageStatus: 'approved',
+        ownerUserId: 'user1',
+        // characterRef přítomen → update nespouští tvorbu Character entity.
+        characterRef: { characterId: 'c1' },
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      let patchArg: Record<string, unknown> | undefined;
+      mockPagesRepo.update.mockImplementation(
+        (_id: string, p: Record<string, unknown>) => {
+          patchArg = p;
+          return Promise.resolve({ ...mockPage });
+        },
+      );
+      await service.update(
+        'page1',
+        'world1',
+        {
+          title: 'Nové bio',
+          accessRequirements: [{ type: 'Role', value: '0' }],
+          akjTabs: [{ id: 'x', name: 'Hack', order: 0, access: [] }],
+          ownerUserId: 'nekdo-jiny',
+          type: 'NPC',
+          slug: 'ukradeny-slug',
+        } as never,
+        hracRequester,
+      );
+      expect(patchArg).toBeDefined();
+      expect(patchArg?.accessRequirements).toBeUndefined();
+      expect(patchArg?.akjTabs).toBeUndefined();
+      expect(patchArg?.ownerUserId).not.toBe('nekdo-jiny');
+      expect(patchArg?.slug).toBeUndefined();
+    });
+
+    // Moderátor citlivá pole měnit smí (kontrast k vlastníkovi).
+    it('moderátor (PomocnyPJ) citlivá pole měnit smí', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'Ostatní',
+        pageStatus: 'approved',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+      });
+      let patchArg: Record<string, unknown> | undefined;
+      mockPagesRepo.update.mockImplementation(
+        (_id: string, p: Record<string, unknown>) => {
+          patchArg = p;
+          return Promise.resolve({ ...mockPage });
+        },
+      );
+      await service.update(
+        'page1',
+        'world1',
+        { accessRequirements: [{ type: 'Role', value: '2' }] } as never,
+        hracRequester,
+      );
+      expect(patchArg?.accessRequirements).toEqual([
+        { type: 'Role', value: '2' },
+      ]);
+    });
+
+    it('cizí hráč NEsmí editovat cizí approved PC → Forbidden', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'Postava hráče',
+        pageStatus: 'approved',
+        ownerUserId: 'nekdo-jiny',
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      await expect(
+        service.update('page1', 'world1', { title: 'X' }, hracRequester),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('15.11 — schvalování návrhů (approve / reject)', () => {
@@ -1439,6 +1545,49 @@ describe('PagesService', () => {
       const tabs = savedArg?.akjTabs as Array<Record<string, unknown>>;
       expect(tabs[0]).not.toHaveProperty('locked');
       expect(tabs[0].id).toBe('t1');
+    });
+
+    // N-RUN-08-02 (plný audit, styl 36) — stored XSS přes TYPE-CONFUSION.
+    // `customData` je `Record<string,string>` jen v TS; DTO má pouhé
+    // `@IsObject()`. Dřív se sanitizovala jen string-větev (`typeof === 'string'
+    // ? sanitize : value`), takže pole/objekt prošly RAW až do FE
+    // `NovinyLayout` → `dangerouslySetInnerHTML` = XSS u každého diváka.
+    // Sanitizace nesmí mít větev, kterou lze obejít volbou typu.
+    it('N-RUN-08-02 — ne-string `customData` NEobejde sanitizaci (XSS)', async () => {
+      mockPagesRepo.existsBySlugAndWorld.mockResolvedValue(false);
+      let savedArg: Record<string, unknown> | undefined;
+      mockPagesRepo.save.mockImplementation((p: Record<string, unknown>) => {
+        savedArg = p;
+        return Promise.resolve({ ...mockPage, ...p });
+      });
+
+      await service.create(
+        {
+          slug: 'noviny',
+          type: 'Ostatní',
+          title: 'Noviny',
+          customData: {
+            // pole → `typeof !== 'string'` → dřív se uložilo raw
+            Stat: ['<img src=x onerror=alert(1)>'],
+            // objekt → totéž
+            Mesto: { toString: undefined, evil: '<script>alert(1)</script>' },
+            // string větev musí fungovat dál
+            Vladce: '<b>Aragorn</b><script>alert(1)</script>',
+          },
+        } as never,
+        'world1',
+        adminRequester,
+      );
+
+      const cd = savedArg?.customData as Record<string, string>;
+      // Žádná hodnota nesmí nést spustitelný payload.
+      for (const value of Object.values(cd)) {
+        expect(typeof value).toBe('string');
+        expect(value).not.toContain('<script>');
+        expect(value).not.toContain('onerror');
+      }
+      // Neškodné HTML ve string větvi zůstává (sanitizace ≠ mazání všeho).
+      expect(cd.Vladce).toContain('Aragorn');
     });
   });
 
