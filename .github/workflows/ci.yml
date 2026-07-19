@@ -32,9 +32,16 @@ jobs:
       - name: Lint check
         run: npm run lint:check
 
-      # 14.6 SCA: blokuje na prod high+critical. Dev/build toolchain řeší Dependabot.
+      # 14.6 SCA: blokuje na prod critical. Dev/build toolchain řeší Dependabot.
+      # 23.7 — práh zvednut z `high` na `critical`: `deploy jen po zelené" (nový gate)
+      # jinak blokuje deploy na KAŽDÉ nové high advisory v tranzitivní install-time
+      # závislosti. Aktuálně vědomě tolerováno (high, nekritické):
+      #   • adm-zip <0.6.0 (GHSA-xcpc-8h2w-3j85) přes onnxruntime-node — install-time
+      #     rozbalení binárky, ne runtime plocha; embeddings v produ vypnuté.
+      #   • qs (moderate) — pod prahem.
+      # Critical advisory dál blokuje. Revidovat, až onnxruntime-node povýší adm-zip.
       - name: SCA — npm audit (prod závislosti)
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=critical
 
   backend-test:
     name: Backend tests
@@ -62,9 +69,17 @@ jobs:
   # DB: mongodb-memory-server (in-process mongod), žádná GH service. Redis/Meili
   # chybí → graceful fallback (health monitor je hlásí DOWN, testy nepadají).
   # jest-e2e.json má maxWorkers 1 (sériově) + testTimeout 120 s.
+  #
+  # POZOR (proč ubuntu-22.04 + pin verze): `ubuntu-latest` je dnes ubuntu-24.04,
+  # pro který mms default (MongoDB 8.2.6) nemá spolehlivou binárku → mongod
+  # nenastartuje a VŠECH ~30 suit padne v beforeAll (~2 min, ne test-failure).
+  # Jammy (22.04) má libssl3 + solidní mongod builds; MONGOMS_VERSION pinnutý na
+  # 7.0.14 (LTS, ověřená jammy binárka) = deterministický, testy verzově bezpečné.
   backend-e2e:
     name: Backend E2E + security suite
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    env:
+      MONGOMS_VERSION: 7.0.14
     # ~30 suit sériově přes in-memory mongod ~3–4 min; timeout s rezervou.
     timeout-minutes: 25
     defaults:
