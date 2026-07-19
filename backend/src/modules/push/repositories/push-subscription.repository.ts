@@ -28,6 +28,22 @@ export class MongoPushSubscriptionRepository implements IPushSubscriptionReposit
     );
   }
 
+  /**
+   * PERF-BE — batch lookup pro `notifyUsers`: 1 dotaz `$in` místo N×
+   * `findByUserId` (N+1 per příjemce). Prázdný vstup → prázdný výstup (žádný
+   * dotaz). Deduplikaci userIds řeší volající.
+   */
+  async findByUserIds(userIds: string[]): Promise<PushSubscription[]> {
+    if (userIds.length === 0) return [];
+    const docs = await this.model
+      .find({ userId: { $in: userIds } })
+      .lean()
+      .exec();
+    return docs.map((d) =>
+      this.toEntity(d as unknown as Record<string, unknown>),
+    );
+  }
+
   async findAll(): Promise<PushSubscription[]> {
     const docs = await this.model.find().lean().exec();
     if (docs.length > SCALE_WARNING_THRESHOLD) {

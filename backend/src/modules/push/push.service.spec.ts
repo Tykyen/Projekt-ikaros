@@ -31,6 +31,7 @@ describe('PushService', () => {
   beforeEach(async () => {
     repo = {
       findByUserId: jest.fn(),
+      findByUserIds: jest.fn().mockResolvedValue([]),
       findAll: jest.fn(),
       upsertByEndpoint: jest.fn(),
       deleteByEndpoint: jest.fn(),
@@ -84,13 +85,17 @@ describe('PushService', () => {
     expect(webpush.sendNotification).not.toHaveBeenCalled();
   });
 
-  it('notifyUsers — odešle push každému userId', async () => {
-    repo.findByUserId.mockResolvedValue([makeSub()]);
+  it('notifyUsers — 1 batch dotaz na subscriptions (PERF-BE, ne N× findByUserId)', async () => {
+    repo.findByUserIds.mockResolvedValue([makeSub(), makeSub()]);
     await service.notifyUsers(['user1', 'user2'], {
       title: 'Test',
       body: 'Ahoj',
     });
-    expect(repo.findByUserId).toHaveBeenCalledTimes(2);
+    // Jeden batch lookup napříč příjemci, ne per-user (N+1).
+    expect(repo.findByUserIds).toHaveBeenCalledTimes(1);
+    expect(repo.findByUserIds).toHaveBeenCalledWith(['user1', 'user2']);
+    expect(repo.findByUserId).not.toHaveBeenCalled();
+    expect(webpush.sendNotification).toHaveBeenCalledTimes(2);
   });
 
   it('notifyAll — odešle push všem subscriptions', async () => {
@@ -309,7 +314,7 @@ describe('PushService', () => {
   // ── 15.9 — filtr dle notificationPreferences ──────────────────────────
   describe('filtr preferencí (kategorie)', () => {
     it('notifyUsers s kategorií — zahodí příjemce, který má kategorii vypnutou', async () => {
-      repo.findByUserId.mockResolvedValue([makeSub()]);
+      repo.findByUserIds.mockResolvedValue([makeSub()]);
       usersRepo.findByIds.mockResolvedValue([
         { id: 'user1', notificationPreferences: { worldChat: true } },
         { id: 'user2', notificationPreferences: { worldChat: false } },
@@ -319,13 +324,12 @@ describe('PushService', () => {
         { title: 'T', body: 'B' },
         'worldChat',
       );
-      // jen user1 projde → findByUserId volán 1×
-      expect(repo.findByUserId).toHaveBeenCalledTimes(1);
-      expect(repo.findByUserId).toHaveBeenCalledWith('user1');
+      // jen user1 projde → batch lookup jen na něj
+      expect(repo.findByUserIds).toHaveBeenCalledWith(['user1']);
     });
 
     it('notifyUsers s kategorií — undefined preference → default (worldChat ZAP)', async () => {
-      repo.findByUserId.mockResolvedValue([makeSub()]);
+      repo.findByUserIds.mockResolvedValue([makeSub()]);
       usersRepo.findByIds.mockResolvedValue([
         { id: 'user1', notificationPreferences: undefined },
       ]);
@@ -334,11 +338,11 @@ describe('PushService', () => {
         { title: 'T', body: 'B' },
         'worldChat',
       );
-      expect(repo.findByUserId).toHaveBeenCalledTimes(1);
+      expect(repo.findByUserIds).toHaveBeenCalledWith(['user1']);
     });
 
     it('notifyUsers s kategorií — Hospoda je opt-in (default VYP) → nic neodejde', async () => {
-      repo.findByUserId.mockResolvedValue([makeSub()]);
+      repo.findByUserIds.mockResolvedValue([makeSub()]);
       usersRepo.findByIds.mockResolvedValue([
         { id: 'user1', notificationPreferences: undefined },
       ]);
@@ -347,11 +351,12 @@ describe('PushService', () => {
         { title: 'T', body: 'B' },
         'hospoda',
       );
-      expect(repo.findByUserId).not.toHaveBeenCalled();
+      // nikdo neprojde → early return, žádný subscription lookup
+      expect(repo.findByUserIds).not.toHaveBeenCalled();
     });
 
     it('notifyUsers s kategorií — pushEnabled:false vypne vše', async () => {
-      repo.findByUserId.mockResolvedValue([makeSub()]);
+      repo.findByUserIds.mockResolvedValue([makeSub()]);
       usersRepo.findByIds.mockResolvedValue([
         {
           id: 'user1',
@@ -363,7 +368,7 @@ describe('PushService', () => {
         { title: 'T', body: 'B' },
         'worldChat',
       );
-      expect(repo.findByUserId).not.toHaveBeenCalled();
+      expect(repo.findByUserIds).not.toHaveBeenCalled();
     });
 
     it('notifyAll s kategorií — profiltruje subscriptions dle preferencí', async () => {
@@ -397,10 +402,10 @@ describe('PushService', () => {
     });
 
     it('bez kategorie — zpětná kompatibilita, žádný filtr (findByIds se nevolá)', async () => {
-      repo.findByUserId.mockResolvedValue([makeSub()]);
+      repo.findByUserIds.mockResolvedValue([makeSub()]);
       await service.notifyUsers(['user1'], { title: 'T', body: 'B' });
       expect(usersRepo.findByIds).not.toHaveBeenCalled();
-      expect(repo.findByUserId).toHaveBeenCalledTimes(1);
+      expect(repo.findByUserIds).toHaveBeenCalledWith(['user1']);
     });
   });
 

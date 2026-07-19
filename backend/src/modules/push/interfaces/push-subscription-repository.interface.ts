@@ -2,6 +2,8 @@ import type { PushSubscription } from './push-subscription.interface';
 
 export interface IPushSubscriptionRepository {
   findByUserId(userId: string): Promise<PushSubscription[]>;
+  /** PERF-BE — batch varianta pro `notifyUsers` (1 dotaz místo N× findByUserId). */
+  findByUserIds(userIds: string[]): Promise<PushSubscription[]>;
   findAll(): Promise<PushSubscription[]>;
   upsertByEndpoint(
     data: Omit<PushSubscription, 'id' | 'createdAt'>,

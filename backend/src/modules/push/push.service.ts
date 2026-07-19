@@ -174,9 +174,13 @@ export class PushService implements OnModuleInit {
   ): Promise<void> {
     const allowed = category
       ? await this.filterByCategory(userIds, category)
-      : userIds;
-    // profiltrováno → notify bez kategorie (žádný druhý lookup per příjemce)
-    await Promise.all(allowed.map((id) => this.notify(id, payload)));
+      : Array.from(new Set(userIds));
+    if (allowed.length === 0) return;
+    // PERF-BE — 1 batch dotaz na subscriptions místo N× `findByUserId` per
+    // příjemce (N+1). `sendToSubscriptions` bere plochý seznam napříč uživateli
+    // a řeší selhání per-subscription (404/410 cleanup), takže merge je bezpečný.
+    const subs = await this.repo.findByUserIds(allowed);
+    await this.sendToSubscriptions(subs, payload);
   }
 
   /**
