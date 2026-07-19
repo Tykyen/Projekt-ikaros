@@ -110,6 +110,17 @@ describe('Race: ekonomika (e2e)', () => {
       envOverrides: { TURNSTILE_SECRET: '' },
     });
     app = testApp.app;
+    // Persistentní listen serveru. supertest jinak per-request server OTEVŘE a po
+    // requestu ZAVŘE; pod souběhem (Promise.all 10–20 requestů) se listen/close
+    // závodí a jeden request deterministicky dostane `read ECONNRESET` (na pomalém
+    // CI runneru vždy, na localu ne). Když server drží listen, supertest ho jen
+    // reusne (app.getHttpServer().address() je set) → žádný open/close race.
+    await new Promise<void>((resolve, reject) => {
+      const s = app.getHttpServer() as import('net').Server;
+      if (s.listening) return resolve();
+      s.once('error', reject);
+      s.listen(0, () => resolve());
+    });
     seed = await buildCanonicalWorld(app, testApp.connection);
     accountsService = app.get(CharacterAccountsService);
     accountsRepo = app.get(CharacterAccountRepository);
