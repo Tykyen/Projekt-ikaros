@@ -123,14 +123,33 @@ describe('Race: ekonomika (e2e)', () => {
 
   // ── ✅ Baseline: atomický $inc drží (harness nesmí dávat falešně červenou) ──
   it('✅ baseline: 10 souběžných adjust(+1) → balance == 10 (atomický $inc)', async () => {
-    const acc = await makeAccount(seed.characterSlug, 'zl', 0);
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => adjust(acc, 1, 'inc')),
-    );
-    expect(results.every((r) => r.status === 201 || r.status === 200)).toBe(
-      true,
-    );
-    expect((await getAccount(acc)).balance).toBe(10);
+    // Jeden pokus na ČISTÉM účtu: 10 souběžných adjust přes Promise.all (striktní
+    // — všech 10 musí uspět a součet == 10, což dokazuje atomicitu $inc).
+    const attempt = async () => {
+      const acc = await makeAccount(seed.characterSlug, 'zl', 0);
+      const results = await Promise.all(
+        Array.from({ length: 10 }, () => adjust(acc, 1, 'inc')),
+      );
+      expect(results.every((r) => r.status === 201 || r.status === 200)).toBe(
+        true,
+      );
+      expect((await getAccount(acc)).balance).toBe(10);
+    };
+    // supertest pod 10× souběhem na pomalejším CI runneru občas hodí transient
+    // `ECONNRESET`/`socket hang up` (transport, NE race). Retry na NOVÉM účtu →
+    // žádný double-count, invariant atomicity zůstává striktní. Deterministické
+    // race testy níž (Barrier/Gate) tímhle netrpí — jen tenhle probabilistický.
+    for (let i = 0; ; i++) {
+      try {
+        await attempt();
+        return;
+      } catch (e) {
+        const msg = String((e as { message?: string })?.message ?? e);
+        if (i < 3 && /ECONNRESET|socket hang up|ECONNREFUSED|EPIPE/.test(msg))
+          continue;
+        throw e;
+      }
+    }
   }, 60_000);
 
   // ── ✅ Conservation: transfer pod souběhem zachová celkové peníze ──────────
