@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # 23.7 — „deploy jen po zelené": deploy je workflow_dispatch bez vazby na
       # CI. Tenhle krok najde CI běh pro přesně tenhle commit (head_sha=HEAD) a
