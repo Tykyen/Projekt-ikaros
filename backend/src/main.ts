@@ -4,6 +4,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
+import { raw } from 'express';
 import { resolve } from 'path';
 import type { ServerResponse } from 'http';
 import { AppModule } from './app.module';
@@ -94,6 +95,10 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
+  // 23.4 — Sentry tunnel: SDK posílá envelope jako text/plain (NDJSON), který
+  // json/urlencoded parsery nečtou → raw Buffer JEN pro tuto routu. Musí být
+  // registrován PŘED ostatními parsery (kdo si body vezme první, vyhrál).
+  app.use('/api/monitoring/tunnel', raw({ type: '*/*', limit: '1mb' }));
   // Body limit zvednut z expressího defaultu (100 kB) — bohaté / migrované
   // stránky a postavy (roky obsahu + subdokumenty v jednom PATCH) jinak
   // při uložení vrací 413 Content Too Large.

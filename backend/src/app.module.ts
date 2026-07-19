@@ -7,6 +7,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { createThrottlerOptions } from './common/throttler/throttler.config';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
+import { SentryTunnelController } from './common/monitoring/sentry-tunnel.controller';
 import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AlertModule } from './common/alerting/alert.module';
@@ -168,7 +169,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     WorldWeatherModule,
     GatewaysModule,
   ],
-  controllers: [AppController],
+  // SentryTunnelController — 23.4 relay FE errorů přes vlastní doménu (adblock).
+  controllers: [AppController, SentryTunnelController],
   providers: [
     MatrixWorldSeed,
     { provide: APP_GUARD, useClass: ThrottlerGuard },

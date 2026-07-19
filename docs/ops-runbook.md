@@ -157,6 +157,14 @@ klíče `authorization/cookie/password/token/secret/api[-_]key` z `request`/`ext
 `contexts` (axios chyby jinak nesou JWT, hesla z login body, API klíče outbound
 služeb). `tracesSampleRate: 0` = jen chyby, žádný performance tracing.
 
+**Tunnel (adblock):** FE neposílá eventy přímo na `*.ingest.de.sentry.io` (adblockery
+to blokují — živě ověřeno `ERR_BLOCKED_BY_ADBLOCKER`), ale na vlastní
+`POST /api/monitoring/tunnel`; BE (`SentryTunnelController`) envelope přepošle.
+Relay jen na host shodný s BE `SENTRY_DSN` (stejná org) → žádný open proxy;
+výpadek ingestu = 200 `{relayed:false}` + warn log, žádný 5xx. Tzn. FE eventy
+tečou PŘES backend — když BE leží, FE chyby z té doby v Sentry nebudou (kryje
+je externí uptime monitoring §9).
+
 **Kvóta:** free tier 5k eventů/měs. Při vyčerpání Sentry eventy zahazuje (nic
 neúčtuje) — burst jedné rozbité stránky umí kvótu sníst; `ignoreErrors` filtruje
 známý šum (ResizeObserver). Při chronickém přetékání: rate limit per-key v Sentry
@@ -164,7 +172,8 @@ známý šum (ResizeObserver). Při chronickém přetékání: rate limit per-ke
 
 **Ověření po deployi:** FE — na živém webu v konzoli
 `setTimeout(() => { throw new Error('sentry-test-fe') })` → event v `ikaros-fe`;
-v Network tabu envelope request na ingest host (ne CSP block). BE —
+v Network tabu `POST /api/monitoring/tunnel` se statusem 200 (funguje i se
+zapnutým adblockem — to je smysl tunelu). BE —
 `docker compose -f docker-compose.prod.yml exec backend printenv SENTRY_DSN`
 neprázdný. V testovacím eventu zkontrolovat, že `extra`/`request` neobsahuje
 Authorization/heslo (scrubber žije).
