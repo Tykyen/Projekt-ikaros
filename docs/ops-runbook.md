@@ -118,3 +118,58 @@ Deploy dělá prune+rebuild `latest` → není k čemu se vrátit. Návrh (zatí
 vyžaduje úpravu deploy.yml + otestování na reálném deployi): tagovat image `ikaros-be:<git sha>`,
 `latest` jen alias; rollback workflow = `docker tag <předchozí sha> latest && compose up -d`.
 Neimplementuji naslepo — změna deploy pipeline se nedá otestovat bez ostrého běhu.
+
+## 9) Externí uptime monitoring (23.2)
+
+**Stav (2026-07-19): běží.** HetrixTools free (účet `tyky.projekt.ikaros@gmail.com`) —
+externí dead-man switch: ohlásí i smrt celého serveru/proxy, kterou vnitřní monitoring
+(sám mrtvý) neohlásí. 2 monitory à 1 min ze 4 EU lokací (Amsterdam/London/Frankfurt/
+Warsaw), status flip až při shodě 50 %+1 lokací (= 3 ze 4, žádné plané poplachy):
+- **Ikaros API health** → `https://www.projekt-ikaros.com/api/health` + keyword check
+  `"status":"ok"` (case sensitive) — alert když keyword v odpovědi CHYBÍ. Kryje tím
+  i `degraded` stav, který vrací HTTP 200 (plain HTTP monitor by ho neviděl).
+- **Ikaros FE** → `https://www.projekt-ikaros.com/` (bez keywordu, čeká 200).
+Notifikace: Contact List „Default Contact" → e-mail + Discord webhook „Uptime"
+(tentýž kanál jako ops alerty; URL webhooku = secret, žije jen v HetrixTools
+a v Discord nastavení serveru). Test notifikace doručena 2026-07-19.
+**Proč ne UptimeRobot:** free tier má Discord/webhooky za paywallem (ceník vs.
+stránka integrace si protiřečí) a ToS od 10/2024 zakazuje free plán pro komerční
+projekty — s freemium Podporovatelem šedá zóna.
+**Změna URL/domény = ruční úprava monitorů v HetrixTools** (nezapomenout při
+případném stěhování domény).
+
+## 10) Error tracking — Sentry (23.4)
+
+**Co to dělá:** pády, které testeři nenahlásí (mlčky odejdou), vidíme v dashboardu.
+FE: `@sentry/react` (render chyby přes GlobalErrorBoundary + `unhandledrejection`
++ `window.error`). BE: `@sentry/node` (5xx přes exception filtr + `unhandledRejection`
++ `uncaughtException` s flush před pádem). Oboje gated na DSN — prázdný = úplný no-op.
+
+**Konfigurace:** Sentry SaaS free tier (5k eventů/měs.), **EU region** (de.sentry.io),
+2 projekty: `ikaros-fe` (React) + `ikaros-be` (Node) → 2 DSN.
+- FE repo GitHub **var** `VITE_SENTRY_DSN` (veřejný, zapéká se do bundlu; deploy z něj
+  navíc odvozuje `SENTRY_HOST` pro nginx CSP `connect-src` — bez toho by prohlížeč
+  eventy tiše blokoval).
+- BE repo GitHub **secret** `SENTRY_DSN` (→ compose env → `main.ts` init).
+
+**Ochrana dat (LH-13):** obě strany mají `beforeSend` scrubber — rekurzivně maže
+klíče `authorization/cookie/password/token/secret/api[-_]key` z `request`/`extra`/
+`contexts` (axios chyby jinak nesou JWT, hesla z login body, API klíče outbound
+služeb). `tracesSampleRate: 0` = jen chyby, žádný performance tracing.
+
+**Kvóta:** free tier 5k eventů/měs. Při vyčerpání Sentry eventy zahazuje (nic
+neúčtuje) — burst jedné rozbité stránky umí kvótu sníst; `ignoreErrors` filtruje
+známý šum (ResizeObserver). Při chronickém přetékání: rate limit per-key v Sentry
+(Settings → Client Keys → Rate Limits).
+
+**Ověření po deployi:** FE — na živém webu v konzoli
+`setTimeout(() => { throw new Error('sentry-test-fe') })` → event v `ikaros-fe`;
+v Network tabu envelope request na ingest host (ne CSP block). BE —
+`docker compose -f docker-compose.prod.yml exec backend printenv SENTRY_DSN`
+neprázdný. V testovacím eventu zkontrolovat, že `extra`/`request` neobsahuje
+Authorization/heslo (scrubber žije).
+
+**Alert flow:** Sentry umí e-mail notifikace na nový issue (default zapnuto);
+Discord integraci free tier přímo nemá — stačí e-mail + pravidelný pohled do
+dashboardu, ops Discord kryje 5xx alerty z vnitřního monitoringu (dvě nezávislé
+cesty k témuž incidentu).

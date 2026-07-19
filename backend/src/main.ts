@@ -14,6 +14,26 @@ import { validationExceptionFactory } from './common/pipes/validation-exception.
 import { CustomIoAdapter } from './socket-io.adapter';
 import { getAllowedOrigins, getPrimaryOrigin } from './common/config/origins';
 
+// 23.4 — beforeSend scrubber: zachycené chyby můžou nést citlivá data (outbound
+// axios chyby mají config.headers s API klíči, request kontext Authorization/
+// cookie) — Sentry serializuje enumerable pole erroru do eventu, takže bez
+// scrubberu by klíče/tokeny egresovaly do agregátoru.
+const SENSITIVE_KEY_RE =
+  /authorization|cookie|password|token|secret|api[-_]?key/i;
+const SCRUB_MAX_DEPTH = 8;
+
+function scrubValue(value: unknown, depth = 0): unknown {
+  if (depth > SCRUB_MAX_DEPTH || value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) return value.map((v) => scrubValue(v, depth + 1));
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    out[k] = SENSITIVE_KEY_RE.test(k) ? '[scrubbed]' : scrubValue(v, depth + 1);
+  }
+  return out;
+}
+
 async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
 
@@ -25,6 +45,18 @@ async function bootstrap() {
       dsn: process.env.SENTRY_DSN,
       environment: isProd ? 'production' : 'development',
       tracesSampleRate: 0,
+      beforeSend(event) {
+        if (event.request) {
+          event.request = scrubValue(event.request) as typeof event.request;
+        }
+        if (event.extra) {
+          event.extra = scrubValue(event.extra) as typeof event.extra;
+        }
+        if (event.contexts) {
+          event.contexts = scrubValue(event.contexts) as typeof event.contexts;
+        }
+        return event;
+      },
     });
   }
 
