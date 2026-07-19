@@ -256,6 +256,13 @@ export class AkjTabDto {
   @IsBoolean()
   ownerHidden?: boolean;
 
+  // Vlastník postavy smí inline editovat contentOverride této záložky. Default
+  // false = jen PJ. Autorizační flag — BE ho při owner/PomocnyPJ merge čte
+  // z DB, NE z tohoto DTO (viz pages.service resolveAkjTabsPatch).
+  @IsOptional()
+  @IsBoolean()
+  ownerEditable?: boolean;
+
   @IsOptional()
   @ValidateNested()
   @Type(() => AkjTabContentOverrideDto)

@@ -405,6 +405,7 @@ export class MongoPagesRepository
             }),
           ),
           ownerHidden: tab.ownerHidden as boolean | undefined,
+          ownerEditable: tab.ownerEditable as boolean | undefined,
           contentOverride: co
             ? {
                 imageUrl: co.imageUrl as string | undefined,

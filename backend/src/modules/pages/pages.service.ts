@@ -117,16 +117,39 @@ function sanitizeCustomData(
 function coerceCustomValue(value: unknown): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'string') return value;
-  try {
+  if (
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    typeof value === 'bigint'
+  )
     return String(value);
+  // Objekt / pole / symbol — `String(obj)` dá buď '[object Object]' (ztráta
+  // dat), nebo TypeError (podvržený prototyp). JSON zachová obsah; cyklický /
+  // nekonvertovatelný vstup (JSON hodí nebo vrátí undefined) → zahodit ('').
+  try {
+    return JSON.stringify(value) ?? '';
   } catch {
     return '';
   }
 }
 
 /**
+ * AKJ obrázek override — vlastník postavy je méně důvěryhodný než PJ (může
+ * záložku editovat inline, spec-akj-owner-editable-content). Povol jen http(s)
+ * a relativní URL; `data:` / `javascript:` / `blob:` zahoď (undefined = dědí
+ * obrázek základní stránky). Prázdný string ponech (vědomé smazání → dědění).
+ */
+function sanitizeAkjImageUrl(url: string | undefined): string | undefined {
+  if (url === undefined) return undefined;
+  const trimmed = url.trim();
+  if (trimmed === '') return '';
+  return /^(https?:\/\/|\/)/i.test(trimmed) ? trimmed : undefined;
+}
+
+/**
  * AKJ záložky — sanitizuje HTML uvnitř `contentOverride` (content, table,
  * sections, infoBlocks value) stejným allowlistem jako základní obsah stránky.
+ * `contentOverride.imageUrl` projde URL guardem (viz sanitizeAkjImageUrl).
  */
 function sanitizeAkjTabs(
   tabs: CreatePageDto['akjTabs'],
@@ -144,6 +167,9 @@ function sanitizeAkjTabs(
       ...tab,
       contentOverride: {
         ...co,
+        ...(co.imageUrl !== undefined && {
+          imageUrl: sanitizeAkjImageUrl(co.imageUrl),
+        }),
         ...(co.content !== undefined && {
           content: sanitizeRichText(co.content),
         }),
@@ -566,12 +592,13 @@ export class PagesService {
     const { expectedUpdatedAt: _ignored, ...persistDto } = dto;
     // Ne-moderátor (vlastník PC / autor návrhu) smí měnit jen obsah, ne citlivá
     // pole — jinak by hráč mohl přes editaci vlastní postavy eskalovat přístup
-    // (accessRequirements), přepsat AKJ PJ záložky (akjTabs), předat vlastnictví
-    // (ownerUserId), obejít gating přepnutím typu (type) nebo přebrat cizí URL
-    // (slug). Hodnoty zůstanou z uložené stránky (do patch nejdou).
+    // (accessRequirements), předat vlastnictví (ownerUserId), obejít gating
+    // přepnutím typu (type) nebo přebrat cizí URL (slug). Hodnoty zůstanou
+    // z uložené stránky (do patch nejdou). `akjTabs` se NEmaže — řeší je
+    // selektivní merge níže (resolveAkjTabsPatch): vlastník smí editovat obsah
+    // POVOLENÝCH záložek, ne přístupová pravidla.
     if (ownerScoped) {
       delete persistDto.accessRequirements;
-      delete persistDto.akjTabs;
       delete persistDto.ownerUserId;
       delete persistDto.type;
       delete persistDto.slug;
@@ -627,6 +654,20 @@ export class PagesService {
       await this.charactersService.syncKind(
         page.characterRef.characterId,
         expectedKind,
+      );
+    }
+    // AKJ záložky — editor bez plného čtení (vlastník-hráč / PomocnyPJ) dostal
+    // v GET osekané `akjTabs`; nesmí je full-replace (smazal by skryté/PJ-only
+    // záložky). resolveAkjTabsPatch → merge dle id nad DB (jen contentOverride
+    // povolených záložek). PJ / elevated (seesAll) → full-replace beze změny.
+    // Řeší i D-067. Viz spec-akj-owner-editable-content §4-5.
+    if (persistDto.akjTabs !== undefined) {
+      persistDto.akjTabs = await this.resolveAkjTabsPatch(
+        page,
+        worldId,
+        requester,
+        ownerScoped,
+        persistDto.akjTabs,
       );
     }
     const patch: Partial<Page> = {
@@ -1306,6 +1347,79 @@ export class PagesService {
       code: 'WORLD_ACCESS_DENIED',
       message: 'Tahle část světa je jen pro jeho členy.',
     });
+  }
+
+  /**
+   * Selektivní merge `akjTabs` pro editora s NEúplným čtením (vlastník-hráč /
+   * PomocnyPJ — kdokoli bez `seesAll`). Base = uložené záložky z DB; z příchozích
+   * se přebírá POUZE `contentOverride`, a jen u záložek, kde `mayEditContent`
+   * vrací true. Ostatní pole (id/name/order/access/ownerHidden/ownerEditable)
+   * i needitovatelné/neviditelné/nespárované záložky zůstávají z DB — editor tak
+   * nemůže eskalovat přístup, přejmenovat, přeuspořádat, přidat/smazat ani
+   * strhnout obsah záložek, které nevidí. Viz spec-akj-owner-editable-content §4.
+   */
+  private mergeAkjTabContentOnly(
+    dbTabs: AkjTab[] | undefined,
+    incoming: AkjTab[],
+    mayEditContent: (dbTab: AkjTab) => boolean,
+  ): AkjTab[] {
+    const byId = new Map(incoming.map((t) => [t.id, t]));
+    return (dbTabs ?? []).map((dbTab) => {
+      if (!mayEditContent(dbTab)) return dbTab;
+      const inc = byId.get(dbTab.id);
+      if (!inc) return dbTab; // editor záložku neposlal → beze změny
+      return { ...dbTab, contentOverride: inc.contentOverride };
+    });
+  }
+
+  /**
+   * Rozhodne finální `akjTabs` pro `update()` podle úplnosti čtení editora.
+   * `seesAll` (PJ / elevated admin) → full-replace z DTO (má kompletní data,
+   * dnešní chování). Jinak (PomocnyPJ / vlastník-hráč) → content-only merge
+   * nad DB (mergeAkjTabContentOnly):
+   *  - vlastník PC (ownerScoped): jen záložky s `ownerEditable && !ownerHidden`,
+   *  - PomocnyPJ: jen záložky, které PLNĚ vidí (`passesAccess`, ne locked/skryté).
+   * Sjednocuje owner-editable i fix D-067 (PomocnyPJ full-replace data-loss).
+   * Viz spec-akj-owner-editable-content §4-5.
+   */
+  private async resolveAkjTabsPatch(
+    page: Page,
+    worldId: string,
+    requester: PagesRequester,
+    ownerScoped: boolean,
+    incoming: AkjTab[],
+  ): Promise<AkjTab[]> {
+    const membership = await this.membershipRepo.findByUserAndWorld(
+      requester.id,
+      worldId,
+    );
+    const seesAll =
+      worldAdminBypass(requester, worldId) ||
+      (!!membership && membership.role >= WorldRole.PJ);
+    // PJ / elevated admin → kompletní data → full-replace (dnešní chování).
+    if (!ownerScoped && seesAll) return incoming;
+
+    const db = page.akjTabs ?? [];
+    if (ownerScoped) {
+      // Vlastník PC — jen záložky, které mu PJ zpřístupnil k editaci a které vidí.
+      const isOwner = !!page.ownerUserId && page.ownerUserId === requester.id;
+      return this.mergeAkjTabContentOnly(
+        db,
+        incoming,
+        (t) => isOwner && t.ownerEditable === true && !t.ownerHidden,
+      );
+    }
+    // PomocnyPJ (write právo, ale ne seesAll) — jen záložky, které plně vidí
+    // (stejný predikát jako read gate filterAkjTabsForViewer).
+    const needsAkjTypes = db.some((t) =>
+      t.access.some((r) => r.type === 'AKJType'),
+    );
+    const akjTypes = needsAkjTypes
+      ? ((await this.settingsRepo.findByWorldId(worldId))?.akjTypes ?? [])
+      : [];
+    return this.mergeAkjTabContentOnly(db, incoming, (t) =>
+      this.passesAccess(t.access, requester.id, membership, akjTypes),
+    );
   }
 
   /**

@@ -840,7 +840,10 @@ describe('PagesService', () => {
       );
       expect(patchArg).toBeDefined();
       expect(patchArg?.accessRequirements).toBeUndefined();
-      expect(patchArg?.akjTabs).toBeUndefined();
+      // akjTabs se u ownerScoped už NEmaže (řeší merge), ale cizí záložka „x"
+      // se nepřidá — merge nad prázdným DB akjTabs → prázdné pole. Escalation
+      // (přidání záložky) neprošla. Viz spec-akj-owner-editable-content §4.
+      expect(patchArg?.akjTabs).toEqual([]);
       expect(patchArg?.ownerUserId).not.toBe('nekdo-jiny');
       expect(patchArg?.slug).toBeUndefined();
     });
@@ -888,6 +891,321 @@ describe('PagesService', () => {
       await expect(
         service.update('page1', 'world1', { title: 'X' }, hracRequester),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  // spec-akj-owner-editable-content — vlastník PC smí editovat OBSAH
+  // (contentOverride) svých AKJ záložek s `ownerEditable`, nikdy přístupová
+  // pravidla; PomocnyPJ smí editovat obsah záložek, které plně vidí (fix D-067).
+  describe('AKJ owner-editable + PomocnyPJ merge (spec-akj-owner-editable-content / D-067)', () => {
+    const ownerPage = (akjTabs: unknown[]) => ({
+      ...mockPage,
+      type: 'Postava hráče',
+      pageStatus: 'approved',
+      ownerUserId: 'user1',
+      characterRef: { characterId: 'c1' },
+      akjTabs,
+    });
+    const capturePatch = () => {
+      let patchArg: Record<string, unknown> | undefined;
+      mockPagesRepo.update.mockImplementation(
+        (_id: string, p: Record<string, unknown>) => {
+          patchArg = p;
+          return Promise.resolve({ ...mockPage });
+        },
+      );
+      return () => patchArg;
+    };
+
+    it('vlastník uloží contentOverride ownerEditable záložky; skryté zůstanou', async () => {
+      mockPagesRepo.findById.mockResolvedValue(
+        ownerPage([
+          {
+            id: 't1',
+            name: 'Soukromé',
+            order: 0,
+            access: [],
+            ownerHidden: false,
+            ownerEditable: true,
+            contentOverride: { content: '<p>staré</p>' },
+          },
+          {
+            id: 't2',
+            name: 'PJ info',
+            order: 1,
+            access: [{ type: 'Role', value: String(WorldRole.PomocnyPJ) }],
+            ownerHidden: true,
+          },
+        ]),
+      );
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [
+            {
+              id: 't1',
+              name: 'Soukromé',
+              order: 0,
+              access: [],
+              contentOverride: { content: '<p>nové</p>' },
+            },
+          ],
+        },
+        hracRequester,
+      );
+      const tabs = getPatch()?.akjTabs as Array<Record<string, any>>;
+      expect(tabs).toHaveLength(2);
+      expect(tabs[0].contentOverride.content).toContain('nové');
+      // Skrytá PJ záložka zůstala nedotčená (vlastník ji ani neposlal).
+      expect(tabs[1].id).toBe('t2');
+      expect(tabs[1].ownerHidden).toBe(true);
+    });
+
+    it('vlastník NEeskaluje: access/ownerHidden/ownerEditable/name se čtou z DB', async () => {
+      mockPagesRepo.findById.mockResolvedValue(
+        ownerPage([
+          {
+            id: 't1',
+            name: 'Soukromé',
+            order: 0,
+            access: [],
+            ownerHidden: false,
+            ownerEditable: true,
+            contentOverride: { content: '<p>staré</p>' },
+          },
+        ]),
+      );
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [
+            {
+              id: 't1',
+              name: 'HACKED',
+              order: 0,
+              access: [{ type: 'AKJ', value: '99' }],
+              ownerHidden: true,
+              ownerEditable: true,
+              contentOverride: { content: '<p>x</p>' },
+            },
+          ],
+        } as never,
+        hracRequester,
+      );
+      const tab = (getPatch()?.akjTabs as Array<Record<string, any>>)[0];
+      expect(tab.name).toBe('Soukromé'); // z DB, ne 'HACKED'
+      expect(tab.access).toEqual([]); // z DB, ne AKJ 99
+      expect(tab.ownerHidden).toBe(false); // z DB
+      expect(tab.contentOverride.content).toContain('x'); // obsah převzat
+    });
+
+    it('vlastník NEedituje záložku s ownerEditable:false', async () => {
+      mockPagesRepo.findById.mockResolvedValue(
+        ownerPage([
+          {
+            id: 't1',
+            name: 'Zamčeno pro psaní',
+            order: 0,
+            access: [],
+            ownerHidden: false,
+            ownerEditable: false,
+            contentOverride: { content: '<p>staré</p>' },
+          },
+        ]),
+      );
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [{ id: 't1', contentOverride: { content: '<p>nové</p>' } }],
+        } as never,
+        hracRequester,
+      );
+      const tab = (getPatch()?.akjTabs as Array<Record<string, any>>)[0];
+      expect(tab.contentOverride.content).toContain('staré'); // beze změny
+    });
+
+    it('vlastník NEpřidá záložku s neznámým id', async () => {
+      mockPagesRepo.findById.mockResolvedValue(
+        ownerPage([
+          {
+            id: 't1',
+            name: 'Soukromé',
+            order: 0,
+            access: [],
+            ownerEditable: true,
+            contentOverride: { content: '<p>staré</p>' },
+          },
+        ]),
+      );
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [
+            { id: 'neznamy', contentOverride: { content: '<p>hack</p>' } },
+          ],
+        } as never,
+        hracRequester,
+      );
+      const tabs = getPatch()?.akjTabs as Array<Record<string, any>>;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].id).toBe('t1');
+      expect(tabs[0].contentOverride.content).toContain('staré');
+    });
+
+    it('imageUrl guard: javascript: se zahodí, https projde', async () => {
+      mockPagesRepo.findById.mockResolvedValue(
+        ownerPage([
+          {
+            id: 't1',
+            name: 'Soukromé',
+            order: 0,
+            access: [],
+            ownerEditable: true,
+            contentOverride: {},
+          },
+          {
+            id: 't2',
+            name: 'Soukromé 2',
+            order: 1,
+            access: [],
+            ownerEditable: true,
+            contentOverride: {},
+          },
+        ]),
+      );
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.Hrac,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [
+            {
+              id: 't1',
+              contentOverride: { imageUrl: 'javascript:alert(1)' },
+            },
+            {
+              id: 't2',
+              contentOverride: { imageUrl: 'https://cdn.example/x.png' },
+            },
+          ],
+        } as never,
+        hracRequester,
+      );
+      const tabs = getPatch()?.akjTabs as Array<Record<string, any>>;
+      expect(tabs[0].contentOverride.imageUrl).toBeUndefined();
+      expect(tabs[1].contentOverride.imageUrl).toBe(
+        'https://cdn.example/x.png',
+      );
+    });
+
+    it('D-067: PomocnyPJ edituje jen viditelné, PJ-only a nadúrovňové zůstanou', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'Ostatní',
+        pageStatus: 'approved',
+        akjTabs: [
+          {
+            id: 'v1',
+            name: 'Viditelná',
+            order: 0,
+            access: [{ type: 'AKJ', value: '3' }],
+            contentOverride: { content: '<p>staré</p>' },
+          },
+          {
+            id: 'pj',
+            name: 'Jen PJ',
+            order: 1,
+            access: [{ type: 'Role', value: String(WorldRole.PJ) }],
+          },
+          {
+            id: 'hi',
+            name: 'Vysoký clearance',
+            order: 2,
+            access: [{ type: 'AKJ', value: '99' }],
+          },
+        ],
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PomocnyPJ,
+        akj: 5,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [
+            { id: 'v1', contentOverride: { content: '<p>nové</p>' } },
+            {
+              id: 'hi',
+              contentOverride: { content: '<p>hacked</p>' },
+            },
+          ],
+        } as never,
+        hracRequester,
+      );
+      const tabs = getPatch()?.akjTabs as Array<Record<string, any>>;
+      expect(tabs).toHaveLength(3);
+      expect(
+        tabs.find((t) => t.id === 'v1')?.contentOverride.content,
+      ).toContain('nové'); // viděl → smí editovat
+      expect(tabs.find((t) => t.id === 'pj')).toBeDefined(); // PJ-only zůstala
+      // Nadúrovňová clearance: PomocnyPJ ji nevidí → obsah se nepřepíše.
+      expect(tabs.find((t) => t.id === 'hi')?.contentOverride).toBeUndefined();
+    });
+
+    it('PJ (seesAll) full-replace akjTabs beze změny', async () => {
+      mockPagesRepo.findById.mockResolvedValue({
+        ...mockPage,
+        type: 'Ostatní',
+        pageStatus: 'approved',
+        akjTabs: [{ id: 'old', name: 'Stará', order: 0, access: [] }],
+      });
+      mockMembershipRepo.findByUserAndWorld.mockResolvedValue({
+        ...mockMembership,
+        role: WorldRole.PJ,
+      });
+      const getPatch = capturePatch();
+      await service.update(
+        'page1',
+        'world1',
+        {
+          akjTabs: [{ id: 'new', name: 'Nová', order: 0, access: [] }],
+        },
+        hracRequester,
+      );
+      const tabs = getPatch()?.akjTabs as Array<Record<string, any>>;
+      expect(tabs).toHaveLength(1);
+      expect(tabs[0].id).toBe('new'); // full-replace, ne merge
     });
   });
 
