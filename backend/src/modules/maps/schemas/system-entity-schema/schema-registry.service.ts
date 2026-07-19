@@ -11,6 +11,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
+import { resolveSystemId } from '../../../../common/rpg/system-id';
 import type {
   SystemEntitySchema,
   SystemEntityType,
@@ -60,7 +61,12 @@ export class SchemaRegistryService implements OnModuleInit {
     systemId: string,
     entityType: SystemEntityType,
   ): SystemEntitySchema | null {
-    return this.map.get(`${systemId}:${entityType}`) ?? null;
+    // DUN-1 — `world.system` může držet alias formu (`drd-plus`, `call-of-cthulhu`,
+    // `dnd`), schémata jsou pod canonical klíči (`drdplus`, `coc`, `dnd5e`). Bez
+    // normalizace vrací null → validace `systemStats` se pro alias-systémy tiše
+    // přeskočí. `resolveSystemId` sladí lookup s FE engine resolucí.
+    const canonical = resolveSystemId(systemId);
+    return this.map.get(`${canonical}:${entityType}`) ?? null;
   }
 
   list(systemId: string): SystemEntitySchema[] {
