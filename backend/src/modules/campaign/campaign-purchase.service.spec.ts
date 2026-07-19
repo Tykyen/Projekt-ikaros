@@ -48,6 +48,9 @@ describe('CampaignPurchaseService', () => {
     updateInventory: jest.fn(),
     // RC-E4 — purchase path nově atomicky appenduje přes appendInventoryItem.
     appendInventoryItem: jest.fn(),
+    // RC-E8 — refund/kompenzace nově atomicky odebírá přes removeInventoryItem
+    // ($pull), ne read-modify-write getInventory→updateInventory.
+    removeInventoryItem: jest.fn(),
   };
   const mockCurrencies = { convert: jest.fn() };
   const mockCharacters = {
@@ -136,6 +139,7 @@ describe('CampaignPurchaseService', () => {
       sectionId: 'sec-auto',
       itemId: 'it-new',
     });
+    mockSubdocs.removeInventoryItem.mockResolvedValue(true);
     mockPurchaseRepo.create.mockImplementation((d: Record<string, unknown>) =>
       Promise.resolve({ id: 'p1', ...d }),
     );
@@ -459,7 +463,7 @@ describe('CampaignPurchaseService', () => {
         expect.objectContaining({ amount: 100 }),
         expect.anything(),
       );
-      expect(mockSubdocs.updateInventory).toHaveBeenCalled();
+      expect(mockSubdocs.removeInventoryItem).toHaveBeenCalled();
     });
   });
 
@@ -502,7 +506,7 @@ describe('CampaignPurchaseService', () => {
         expect.stringContaining('Storno'),
         'u1',
       );
-      expect(mockSubdocs.updateInventory).toHaveBeenCalled();
+      expect(mockSubdocs.removeInventoryItem).toHaveBeenCalled();
       expect(res.newBalance).toBe(300);
     });
 
@@ -526,7 +530,9 @@ describe('CampaignPurchaseService', () => {
         ...account,
         balance: 300,
       });
-      mockSubdocs.getInventory.mockRejectedValue(new Error('gone'));
+      // RC-E8 — odebrání jde přes atomický removeInventoryItem; jeho selhání
+      // (položka už není / výbava zmizela) je best-effort, refund pokračuje.
+      mockSubdocs.removeInventoryItem.mockRejectedValue(new Error('gone'));
       const res = await service.refund('w1', 'p1', ru('pj1'));
       expect(res.newBalance).toBe(300);
       expect(mockPurchaseRepo.markRefundedIfActive).toHaveBeenCalled();

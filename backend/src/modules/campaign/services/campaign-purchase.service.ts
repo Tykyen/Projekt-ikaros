@@ -712,22 +712,15 @@ export class CampaignPurchaseService {
     sectionId: string,
     itemId: string,
   ): Promise<void> {
-    const inv = await this.subdocsService.getInventory(
+    // RC-E8 — atomický `$pull` konkrétní položky místo read-modify-write celého
+    // pole sekcí (`getInventory` → JS `filter` → `updateInventory({ sections })`),
+    // který při souběžném odebrání + jiné mutaci výbavy tiše ztrácel zápis.
+    // Symetrie k RC-E4 append (`appendInventoryItem`). Refund je best-effort —
+    // `false` (položka už není / výbava neexistuje) není chyba, jen se nic neodebere.
+    await this.subdocsService.removeInventoryItem(
       character.id,
-      character.isNpc,
-      character.kind,
-    );
-    const sections = inv.sections.map((sec) =>
-      sec.id === sectionId
-        ? { ...sec, items: sec.items.filter((it) => it.id !== itemId) }
-        : sec,
-    );
-    // FIX-12 — updateInventory nyní vyžaduje isNpc/kind (stejná brána jako getInventory).
-    await this.subdocsService.updateInventory(
-      character.id,
-      { sections },
-      character.isNpc,
-      character.kind,
+      sectionId,
+      itemId,
     );
   }
 }

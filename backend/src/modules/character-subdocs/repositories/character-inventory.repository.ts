@@ -154,6 +154,48 @@ export class CharacterInventoryRepository {
     return null;
   }
 
+  /**
+   * RC-E8 fix — atomické odebrání položky z výbavy BEZ full-array `$set`.
+   * Předchozí cesta (`getInventory` → JS `filter` → `update({ sections })`)
+   * byla read-modify-write: souběžné odebrání + jiná mutace výbavy přečetly
+   * stejné sekce a druhý `$set` přepsal první → ztráta zápisu (přesně jako
+   * RC-E4 u přidání). `$pull` na `items` cílové sekce přes `arrayFilters` je
+   * atomický na single dokumentu a sáhne jen na jednu položku — přesná
+   * symetrie k `appendItemToSection` (stejná cesta `sections.$[sec].items`,
+   * jen operátor `$pull` místo `$push`).
+   *
+   * Vrací `true`, když se položka odebrala; `false`, když sekce/položka/výbava
+   * neexistovala (caller = refund je best-effort a chybu jen loguje).
+   */
+  async removeItemFromSection(
+    characterId: string,
+    sectionId: string,
+    itemId: string,
+    // RC-E5 — volitelná session pro `withTransaction` scope refundu.
+    session?: ClientSession,
+  ): Promise<boolean> {
+    // Native driver — `sections` je Mixed sub-schema, Mongoose `castArrayFilters`
+    // neumí cast `sections.$[sec].id` ("Could not find path in schema"). Stejný
+    // důvod jako u `appendItemToSection`.
+    const coll = this.model.collection as unknown as {
+      updateOne: (
+        filter: Record<string, unknown>,
+        update: Record<string, unknown>,
+        options: Record<string, unknown>,
+      ) => Promise<{ modifiedCount?: number }>;
+    };
+    const options: Record<string, unknown> = {
+      arrayFilters: [{ 'sec.id': sectionId }],
+    };
+    if (session) options.session = session;
+    const res = await coll.updateOne(
+      { characterId },
+      { $pull: { 'sections.$[sec].items': { id: itemId } } },
+      options,
+    );
+    return (res.modifiedCount ?? 0) > 0;
+  }
+
   async deleteByCharacterId(characterId: string): Promise<void> {
     await this.model.deleteMany({ characterId }).exec();
   }

@@ -672,6 +672,28 @@ export class CharacterSubdocsService {
   }
 
   /**
+   * RC-E8 fix — atomické odebrání položky z výbavy (refund/kompenzace nákupu).
+   * Delegace na repo `removeItemFromSection` (`$pull`, ne full-array `$set`).
+   * Souběžné odebrání + jiná mutace výbavy se neztratí (symetrie k
+   * `appendInventoryItem`). Vrací `false`, když položka/sekce/výbava neexistuje
+   * — caller (refund) je best-effort. Bez isNpc/kind brány: `$pull` na
+   * neexistující dokument je no-op (NPC/Lokace výbavu nemají), nic nevytváří.
+   */
+  async removeInventoryItem(
+    characterId: string,
+    sectionId: string,
+    itemId: string,
+    session?: ClientSession,
+  ): Promise<boolean> {
+    return this.inventoryRepo.removeItemFromSection(
+      characterId,
+      sectionId,
+      itemId,
+      session,
+    );
+  }
+
+  /**
    * 2026-05-24 — lazy-create pro Poznámky (analogicky k Finance/Inventory).
    * Notes je dostupné pro všechny postavy včetně Lokací (sloupek dohod s PJ).
    * Legacy postavy (před kaskádou) se uzdraví prvním GET.
