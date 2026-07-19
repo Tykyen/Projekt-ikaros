@@ -178,7 +178,10 @@ zapnutým adblockem — to je smysl tunelu). BE —
 neprázdný. V testovacím eventu zkontrolovat, že `extra`/`request` neobsahuje
 Authorization/heslo (scrubber žije).
 
-**Alert flow:** Sentry umí e-mail notifikace na nový issue (default zapnuto);
-Discord integraci free tier přímo nemá — stačí e-mail + pravidelný pohled do
-dashboardu, ops Discord kryje 5xx alerty z vnitřního monitoringu (dvě nezávislé
-cesty k témuž incidentu).
+**Alert flow:** e-mail na nový issue (default z vytvoření projektů) + nativní
+**Discord integrace** (Settings → Integrations → Discord → Add Installation →
+authorizovat bota na serveru; pak v Alerts u pravidla akce „Send a Discord
+notification" — kanál zadat **Channel ID**, ne jménem; Developer Mode →
+Copy Channel ID). Nastavit u obou projektů, cíl = ops kanál (tentýž jako
+Uptime/BE alerty). Vnitřní monitoring hlásí 5xx nezávisle → dvě cesty k témuž
+incidentu.
