@@ -171,14 +171,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const existing = this.typingTimeouts.get(key);
     if (existing) clearTimeout(existing);
 
-    client.to(`chat:${payload.channelId}`).emit('chat:typing', {
+    client.to(`chat:${payload.channelId}`).volatile.emit('chat:typing', {
       channelId: payload.channelId,
       characterName: payload.characterName,
       isTyping: true,
     });
 
     const timeout = setTimeout(() => {
-      client.to(`chat:${payload.channelId}`).emit('chat:typing', {
+      client.to(`chat:${payload.channelId}`).volatile.emit('chat:typing', {
         channelId: payload.channelId,
         characterName: payload.characterName,
         isTyping: false,
@@ -201,7 +201,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       clearTimeout(existing);
       this.typingTimeouts.delete(key);
     }
-    client.to(`chat:${payload.channelId}`).emit('chat:typing', {
+    client.to(`chat:${payload.channelId}`).volatile.emit('chat:typing', {
       channelId: payload.channelId,
       characterName: payload.characterName,
       isTyping: false,

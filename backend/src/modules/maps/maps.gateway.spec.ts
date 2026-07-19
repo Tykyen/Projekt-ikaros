@@ -36,7 +36,9 @@ describe('MapsGateway — map:join / map:ping access gate', () => {
       rooms: new Set(rooms),
       emit,
       join,
-      to: jest.fn(() => ({ emit: toEmit })),
+      // ephemeral eventy (ping/ruler) jdou přes `.volatile.emit` (drop pro
+      // pomalé klienty) — mock routuje `.emit` i `.volatile.emit` na tentýž spy.
+      to: jest.fn(() => ({ emit: toEmit, volatile: { emit: toEmit } })),
       _toEmit: toEmit,
     };
   }

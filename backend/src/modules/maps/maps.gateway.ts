@@ -229,7 +229,7 @@ export class MapsGateway implements OnGatewayConnection {
     if (!client.rooms.has(payload.sceneId)) return;
     client
       .to(payload.sceneId)
-      .emit('map:pinged', payload.x, payload.y, payload.userName);
+      .volatile.emit('map:pinged', payload.x, payload.y, payload.userName);
   }
 
   /**
@@ -255,7 +255,7 @@ export class MapsGateway implements OnGatewayConnection {
     if (!this.requireAuth(client)) return;
     if (!client.rooms.has(payload.sceneId)) return;
     const data = client.data as AuthedSocketData;
-    client.to(payload.sceneId).emit('map:rulered', {
+    client.to(payload.sceneId).volatile.emit('map:rulered', {
       userId: data.user!.id,
       userName: payload.userName,
       line: payload.line,
