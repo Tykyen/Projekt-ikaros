@@ -6,6 +6,10 @@ import { UserRole } from '../users/interfaces/user.interface';
  * 15.10 — scope fix: pending fronta žádostí o vstup se scopuje na světy, které
  * user VLASTNÍ NEBO kde je co-PJ (role ≥ PJ). Dřív jen `findByOwnerId`, takže
  * co-PJ měl právo schválit, ale žádost ve frontě vůbec neviděl.
+ *
+ * R-20 fix: platform Admin/Superadmin NEMÁ globální scope — world-governance
+ * (žádost o vstup) je věc PJe, ne platformy. Dřív `undefined` = všechny AR
+ * napříč platformou; rozešlo se se schvalovací bránou (403 bez elevace).
  */
 describe('WorldAccessRequestProvider — scope (15.10)', () => {
   const worldsRepo = { findByOwnerId: jest.fn(), findByIds: jest.fn() };
@@ -51,9 +55,28 @@ describe('WorldAccessRequestProvider — scope (15.10)', () => {
     expect([...arg].sort()).toEqual(['w1', 'w2']);
   });
 
-  it('Admin → global scope (undefined), bez lookupu membershipů', async () => {
+  it('Admin BEZ globálního bypassu — scope jako každý (owner + co-PJ)', async () => {
+    // R-20: platform role sama o sobě frontu žádostí o vstup nedává.
+    worldsRepo.findByOwnerId.mockResolvedValue([]);
+    membershipRepo.findByUserId.mockResolvedValue([
+      { worldId: 'w9', role: WorldRole.PJ },
+    ]);
+
     await provider.countForUser('admin', UserRole.Admin);
-    expect(accessRequestRepo.countAcrossWorlds).toHaveBeenCalledWith(undefined);
-    expect(membershipRepo.findByUserId).not.toHaveBeenCalled();
+
+    // NE undefined (to by byl global scope) — scope se počítá z ownership/co-PJ.
+    expect(accessRequestRepo.countAcrossWorlds).toHaveBeenCalledWith(['w9']);
+    expect(membershipRepo.findByUserId).toHaveBeenCalledWith('admin');
+  });
+
+  it('Admin bez vlastního světa ani co-PJ role → prázdný scope (0 AR)', async () => {
+    worldsRepo.findByOwnerId.mockResolvedValue([]);
+    membershipRepo.findByUserId.mockResolvedValue([
+      { worldId: 'wX', role: WorldRole.Ctenar }, // hráč → mimo
+    ]);
+
+    await provider.countForUser('admin', UserRole.Superadmin);
+
+    expect(accessRequestRepo.countAcrossWorlds).toHaveBeenCalledWith([]);
   });
 });

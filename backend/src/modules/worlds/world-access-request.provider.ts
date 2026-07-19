@@ -12,12 +12,15 @@ import { UsersService } from '../users/users.service';
 /**
  * Spec 2.4 — provider pro pending akce typu `world_access_request`.
  *
- * Scope:
- * - Admin/Superadmin → vidí všechny pending AR napříč všemi světy.
+ * Scope (R-20 — world-governance, ne platformová moderace):
  * - Vlastník světa NEBO co-PJ (člen role ≥ PJ) → vidí pending AR v těchto
- *   světech. (Sjednoceno s `assertCanModerateAccessRequests` — dřív jen
- *   `findByOwnerId`, takže co-PJ měl právo schválit, ale frontu neviděl.)
- * - Ostatní → prázdná queue (canHandle vždy true, list/count vrátí 0).
+ *   světech. Sjednoceno se schvalovací bránou `assertCanModerateAccessRequests`.
+ * - Ostatní VČETNĚ platform Admin/Superadmin → prázdná queue.
+ *   Žádost o vstup je věc PJe daného světa, ne platformy. Admin/Superadmin
+ *   jen z titulu globální role frontu NEVIDÍ (dřív `undefined` = global scope
+ *   napříč VŠEMI světy — porušovalo R-20 a rozešlo se s bránou, která platform
+ *   roli bez elevace na approve/reject dává 403). Když admin opravdu musí
+ *   zasáhnout, jde přes elevaci `worldAdminBypass` v konkrétním světě.
  *
  * Resolve flow (approve/reject) řeší `WorldsService.approveAccessRequest` /
  * `rejectAccessRequest`, ne provider. Po approve se AR smaže a vytvoří
@@ -43,18 +46,18 @@ export class WorldAccessRequestProvider implements IPendingActionProvider<WorldA
     return true;
   }
 
-  async countForUser(userId: string, role: UserRole): Promise<number> {
-    const scope = await this.scopeForUser(userId, role);
+  async countForUser(userId: string, _role: UserRole): Promise<number> {
+    const scope = await this.scopeForUser(userId);
     return this.accessRequestRepo.countAcrossWorlds(scope);
   }
 
   async listForUser(
     userId: string,
-    role: UserRole,
+    _role: UserRole,
     page: number,
     limit: number,
   ): Promise<{ items: WorldAccessRequestListItem[]; total: number }> {
-    const scope = await this.scopeForUser(userId, role);
+    const scope = await this.scopeForUser(userId);
     const { items: requests, total } =
       await this.accessRequestRepo.findPaginatedAcrossWorlds(
         scope,
@@ -104,17 +107,12 @@ export class WorldAccessRequestProvider implements IPendingActionProvider<WorldA
   }
 
   /**
-   * Admin/Superadmin → undefined (global scope, vidí všechny AR).
-   * Jinak → IDs světů kde je user vlastník NEBO co-PJ (member role ≥ PJ);
-   * může být prázdné = 0 AR.
+   * IDs světů kde je user vlastník NEBO co-PJ (member role ≥ PJ); může být
+   * prázdné pole = 0 AR. Platí i pro Admin/Superadmin — žádný globální bypass
+   * (viz JSDoc třídy, R-20). Repo interpretuje `[]` jako „žádný svět" (0),
+   * `undefined` (sem už nikdy) by bylo „napříč všemi".
    */
-  private async scopeForUser(
-    userId: string,
-    role: UserRole,
-  ): Promise<string[] | undefined> {
-    if (role === UserRole.Superadmin || role === UserRole.Admin) {
-      return undefined;
-    }
+  private async scopeForUser(userId: string): Promise<string[]> {
     const [ownedWorlds, memberships] = await Promise.all([
       this.worldsRepo.findByOwnerId(userId),
       this.membershipRepo.findByUserId(userId),
