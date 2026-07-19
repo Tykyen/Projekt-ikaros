@@ -141,6 +141,11 @@ services:
       EMBEDDING_GRANITE278_TOKENIZER_URL: ${EMBEDDING_GRANITE278_TOKENIZER_URL:-https://www.patrikzplzne.cz/data/matrix_embedding_models/onnx_granite_278/sentencepiece.bpe.model}
     volumes:
       - uploads-data:/app/uploads
+    # 23.6 — POZOR: NEbindovat na 127.0.0.1! Server je za NAT poskytovatele
+    # (jen privátní IP); TLS ukončuje edge proxy na JINÉM stroji a sem chodí
+    # po interní síti → loopback bind by odřízl produkci. Port není veřejný
+    # (NAT ho nepouští, ověřeno 2026-07-19); interní síť zavřená přes iptables
+    # DOCKER-USER (runbook §1, systemd docker-user-hardening).
     ports:
       - "${BACKEND_PORT:-3001}:3000"
     # D-LAUNCH-GAP (2026-07-11) — hardening backend kontejneru:

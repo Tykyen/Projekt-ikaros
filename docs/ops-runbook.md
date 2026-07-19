@@ -9,17 +9,32 @@
 
 ## 1) Backend port jen pro proxy (styl 5)
 
-**Stav:** `docker-compose.prod.yml` publikuje backend `"${BACKEND_PORT:-3001}:3000"` →
-poslouchá na 0.0.0.0, tedy obchází reverse-proxy TLS (kdo zná IP:3001, mluví s BE http).
-**Ověř nejdřív:** kde běží reverse proxy (Caddy) — pokud na TÉMŽE hostu a proxuje na
-`localhost:3001`, je bezpečné omezit bind na loopback.
-```bash
-ss -tlnp | grep 3001          # na co je port navázán
-curl -s http://SERVER_IP:3001/api/health   # z jiného stroje — pokud odpoví, je otevřený do světa
-```
-**Zásah (volba A — compose):** v `docker-compose.prod.yml` změnit mapping na
-`"127.0.0.1:${BACKEND_PORT:-3001}:3000"` a nasadit. **Volba B — firewall:** viz sekce 5.
-**Rollback:** vrátit mapping.
+**Stav (23.6, 2026-07-19): UZAVŘENO ZJIŠTĚNÍM — loopback bind je na této
+infrastruktuře ZAKÁZANÝ; původní předpoklad sekce byl mylný.**
+**Skutečná topologie (ověřeno server-check workflow + testy zvenku):**
+- Stroj má JEN privátní IP (10.10.10.111 + docker bridge); veřejnou 5.39.203.33
+  drží NAT/edge proxy POSKYTOVATELE (leafhost) na jiném stroji. Žádný Caddy na
+  hostu neexistuje (`/etc/caddy` není, žádná proxy služba/kontejner).
+- TLS ukončuje edge poskytovatele a na tento stroj přeposílá po interní síti
+  → bind na 127.0.0.1 by odřízl produkci (NIKDY nedělat).
+- Porty 3001/8080/27017 NAT do internetu NEPOUŠTÍ (timeout), 8081 refused —
+  ověřeno zvenku 2026-07-19. Původní hrozba „kdo zná IP:3001, obchází TLS"
+  tedy veřejně neexistuje.
+**Zbytkové riziko VYŘEŠENO (23.6, 2026-07-19) přes `server-hardening.yml`
+(FE repo, workflow_dispatch, režimy diagnose/apply s auto-rollbackem):**
+- `matrix-mongodb` (stará .NET DB, `/opt/matrix`) → publish `127.0.0.1:27017`
+  (záloha compose: `*.bak-23-6`; interní komunikace jede přes docker síť
+  `matrix_matrix-network`, publish nikdo nepotřeboval).
+- iptables `DOCKER-USER`: RETURN pro edge proxy **10.10.10.104** + host
+  10.10.10.111 + ESTABLISHED/RELATED, **DROP zbytek 10.10.10.0/24**, RETURN
+  ostatní (veřejný traffic jde vždy přes edge, přímo nic nechodí). Persistence:
+  `/opt/ikaros-hardening/docker-user.sh` + systemd `docker-user-hardening.service`.
+- **Symptom „web najednou nejede po ničem"** = poskytovatel změnil IP edge
+  proxy → na serveru: `systemctl disable --now docker-user-hardening &&
+  iptables -F DOCKER-USER && iptables -A DOCKER-USER -j RETURN`, pak zjistit
+  novou IP z `docker logs projekt-ikaros-fe` a upravit skript.
+- POZOR: ufw docker-proxy porty stejně OBCHÁZEJÍ (proto DOCKER-USER, ne ufw).
+Mongo/Redis auth ikaros stacku (§2–3) zůstává na kartě 30.5.
 
 ## 2) MongoDB auth (styl 5) — POZOR: replica set vyžaduje keyFile
 
@@ -67,6 +82,14 @@ ALE jen pokud `MAIL_FROM` = tentýž gmail. Pokud `MAIL_FROM` je vlastní domén
 
 ## 5) Host firewall + ulimit
 
+**Stav (23.6, 2026-07-19): ověřeno — ufw `Status: inactive`. Rozhodnutí: NEZAPÍNAT teď.**
+Důvody: ① všechny exponované porty jsou docker-proxy → OBCHÁZEJÍ ufw (chránil by
+jen sshd), ② stroj je za NAT poskytovatele — z internetu jsou porty stejně
+filtrované (§1), ③ riziko odříznutí SSH bez konzole poskytovatele. Interní síť
+řešit přes DOCKER-USER chain (karta 30.5, viz §1).
+
+Původní postup (NEAKTUÁLNÍ pro tuto topologii, necháno pro případ stěhování na
+VPS s veřejnou IP):
 ```bash
 ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp
 ufw enable            # POZOR: nejdřív ověř, že SSH port je povolený (jinak se odřízneš)
@@ -107,10 +130,12 @@ z podstaty) a Meili (reindex při startu BE).
 
 ## 7) TLS certifikáty
 
-Reverse proxy (Caddy) obnovuje Let's Encrypt certy automaticky. Ověř:
+**Oprava (23.6, 2026-07-19):** na hostu ŽÁDNÝ Caddy neběží — TLS ukončuje a
+certifikáty obnovuje edge proxy POSKYTOVATELE (leafhost), mimo naši správu
+(viz §1 topologie). Ověření expirace zvenku funguje pořád:
 `curl -vI https://<doména> 2>&1 | grep expire` — pokud < 30 dní a neobnovuje se,
-zkontroluj Caddy logy. Do IaC: Caddyfile verzovat v repu (dnes žije jen na serveru —
-při reinstalu serveru se ztratí; zkopíruj ho do `docs/ops/Caddyfile.example`).
+řešit s podporou poskytovatele. Routing domény/portů (`/api` → 3001, zbytek →
+8081) se konfiguruje v panelu poskytovatele — při změně domény/portů měnit TAM.
 
 ## 8) Deploy rollback (styl 31 — zbývá)
 
