@@ -65,6 +65,19 @@ export async function createTestApp(
   // Prázdný TURNSTILE_SECRET → captcha DEV bypass (token projde bez Cloudflare callu).
   // Deterministické napříč prostředími (ConfigModule dotenv s override:false ho nepřepíše).
   process.env.TURNSTILE_SECRET = '';
+  // 23.7 — web-push VAPID: PushService.onModuleInit volá webpush.setVapidDetails,
+  // které bez subjectu hodí („No subject set...") a shodí app.init() → VŠECHNY e2e
+  // suity padnou v beforeAll. Lokálně to kryje backend/.env, ale CI .env NEMÁ →
+  // e2e nikdy neběželo mimo .env. Test defaults (platný dummy pár) tady = testy
+  // nezávislé na .env, stejně jako JWT/TURNSTILE výše. Produkce má reálné z deploye.
+  process.env.VAPID_SUBJECT =
+    process.env.VAPID_SUBJECT ?? 'mailto:test@ikaros.test';
+  process.env.VAPID_PUBLIC_KEY =
+    process.env.VAPID_PUBLIC_KEY ??
+    'BNrvXQY9lqFaUBrAJwmM4KcjZHKzl0BmBGgSJfvYlqnip3F4PNUbWvywqQ1CtRysON9Yg9chtlf1fbBPikd5rPg';
+  process.env.VAPID_PRIVATE_KEY =
+    process.env.VAPID_PRIVATE_KEY ??
+    '7JoYql3FJ7eC4M3_IH5Vo0ay605AGkjjdvp2te_HiqI';
   for (const [k, v] of Object.entries(opts.envOverrides ?? {})) {
     process.env[k] = v;
   }
