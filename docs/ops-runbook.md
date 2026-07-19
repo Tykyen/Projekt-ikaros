@@ -92,7 +92,8 @@ ho GitHub VYPNE — při delší pauze vývoje zkontrolovat, že běží.
 1. den v měsíci + ručně: stáhne nejnovější daily z B2, ověří stáří < 48 h (hlídá,
 že denní cron reálně běží), obnoví do čistého `mongo:7` (= verze prod) v runneru,
 ověří počty kolekcí/dokumentů (users/worlds neprázdné). Výsledek + časy → Discord.
-Naměřené časy: *doplnit po prvním drillu* (download ~? s · restore ~? s).
+Naměřené časy (drill 2026-07-19, 110 kolekcí / 43 127 dokumentů): download ~10 s ·
+restore ~7 s — ostrá obnova DB je tedy záležitost ~1 minuty i s ručními kroky.
 
 **Ostrá obnova produkce (disaster recovery):**
 1. Stáhni nejnovější zálohu z B2 (z libovolného stroje; klíče v B2 UI účtu):
