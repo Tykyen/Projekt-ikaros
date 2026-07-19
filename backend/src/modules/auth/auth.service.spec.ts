@@ -729,6 +729,67 @@ describe('AuthService', () => {
     });
   });
 
+  // 23.5 — souběžný refresh (multi-tab / PWA / retry) nesmí zabít rodinu.
+  describe('refresh — grace okno pro souběžný refresh (23.5)', () => {
+    const storedActive = () => ({
+      jti: 'old-jti',
+      userId: '1',
+      familyId: 'fam-1',
+      expiresAt: new Date(Date.now() + 1000000),
+      revoked: false,
+      createdAt: new Date(),
+    });
+
+    beforeEach(() => {
+      mockUsersRepo.findById.mockResolvedValue(mockUser);
+      mockJwt.verify.mockReturnValue({
+        sub: '1',
+        jti: 'old-jti',
+        familyId: 'fam-1',
+        type: 'refresh',
+      });
+    });
+
+    it('reuse v grace okně vrátí TÝŽ pár a rodinu nezruší', async () => {
+      mockRefreshRepo.findByJti.mockResolvedValueOnce(storedActive());
+      const first = await service.refresh('valid-token');
+
+      // Druhý souběžný refresh: jti mezitím v DB revoked první rotací.
+      mockRefreshRepo.findByJti.mockResolvedValueOnce({
+        ...storedActive(),
+        revoked: true,
+      });
+      const second = await service.refresh('valid-token');
+
+      expect(second).toEqual(first);
+      expect(mockRefreshRepo.revokeFamily).not.toHaveBeenCalled();
+      // Rotace proběhla jen jednou — druhé volání obsloužila cache.
+      expect(mockRefreshRepo.revokeByJti).toHaveBeenCalledTimes(1);
+    });
+
+    it('reuse PO grace okně = reuse detection (revoke rodiny + 401)', async () => {
+      mockRefreshRepo.findByJti.mockResolvedValueOnce(storedActive());
+      await service.refresh('valid-token');
+
+      const realNow = Date.now();
+      const nowSpy = jest
+        .spyOn(Date, 'now')
+        .mockReturnValue(realNow + 61 * 1000);
+      try {
+        mockRefreshRepo.findByJti.mockResolvedValueOnce({
+          ...storedActive(),
+          revoked: true,
+        });
+        await expect(service.refresh('valid-token')).rejects.toThrow(
+          UnauthorizedException,
+        );
+        expect(mockRefreshRepo.revokeFamily).toHaveBeenCalledWith('fam-1');
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+  });
+
   describe('logout', () => {
     it('revokuje familyId pro validní token', async () => {
       mockJwt.verify.mockReturnValue({

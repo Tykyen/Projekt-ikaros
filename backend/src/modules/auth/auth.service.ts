@@ -67,6 +67,11 @@ const DELETION_HOLD_DAYS = 30; // 1.3c — sjednotné s UsersService
 const TOTP_CHALLENGE_TTL_MS = 5 * 60 * 1000; // 14.1 — challenge mezi heslem a 2FA kódem
 const MAX_TOTP_FAILURES = 5; // PT-35a — práh per-účet lockoutu 2FA
 const TOTP_LOCK_MS = 15 * 60 * 1000; // PT-35a — délka zámku po překročení prahu
+// 23.5 — grace okno pro souběžný refresh (multi-tab, PWA vs. prohlížeč, síťový
+// retry): reuse čerstvě zrotovaného tokenu vrátí týž nástupnický pár místo
+// reuse-detection → revoke rodiny. Krádež reuse-ovaná PO okně padá do detekce
+// jako dřív — detekce se zpozdí max o tuto hodnotu (standardní „reuse interval").
+const REFRESH_REUSE_GRACE_MS = 60 * 1000;
 
 @Injectable()
 export class AuthService {
@@ -81,6 +86,14 @@ export class AuthService {
   // D-AUDIT — kdy byl naposledy odeslán reset mail na daný e-mail (lowercase).
   // Plní se JEN pro existující účty → velikost omezena počtem reálných uživatelů.
   private readonly lastResetMailAt = new Map<string, number>();
+
+  // 23.5 — nástupnické páry pod STARÝM jti po dobu grace okna. In-memory:
+  // single-instance OK; při 2+ replikách BE přesunout do Redisu (vzor
+  // THROTTLER_REDIS). Restart BE uvnitř okna = staré chování (akceptováno).
+  private readonly refreshGrace = new Map<
+    string,
+    { pair: { accessToken: string; refreshToken: string }; expiresAt: number }
+  >();
 
   static readonly PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hodina
   static readonly EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24 hodin
@@ -484,6 +497,15 @@ export class AuthService {
     }
 
     if (stored.revoked) {
+      // 23.5 — grace okno: souběžný refresh (druhý tab / PWA / retry) se
+      // stejným, právě zrotovaným tokenem dostane TÝŽ nástupnický pár.
+      // Bez tohohle druhý z paralelních refreshů spustil reuse-detection a
+      // odhlásil aktivního uživatele (sliding session nepřežila 1. expiraci).
+      const cached = this.refreshGrace.get(stored.jti);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.pair;
+      }
+
       // Reuse detection — token byl už použit, ale přišel znovu = krádež nebo
       // klientský retry po síťovém timeoutu. V obou případech je bezpečnější
       // celou rodinu zneplatnit a donutit nového login.
@@ -520,10 +542,27 @@ export class AuthService {
       });
     }
 
-    // Race condition: dva paralelní refresh se stejným tokenem — první projde,
-    // druhý narazí na revoked=true a spustí reuse detection. Akceptujeme.
+    // Race dvou paralelních refreshů se stejným tokenem: první projde sem,
+    // druhý spadne do revoked-větve výš a dostane týž pár z grace cache.
     await this.refreshRepo.revokeByJti(stored.jti);
-    return this.generateTokenPair(user, stored.familyId);
+    const pair = await this.generateTokenPair(user, stored.familyId);
+    this.rememberGracePair(stored.jti, pair);
+    return pair;
+  }
+
+  /** 23.5 — ulož nástupnický pár pod starým jti + lazy úklid prošlých záznamů. */
+  private rememberGracePair(
+    oldJti: string,
+    pair: { accessToken: string; refreshToken: string },
+  ): void {
+    const now = Date.now();
+    for (const [jti, entry] of this.refreshGrace) {
+      if (entry.expiresAt <= now) this.refreshGrace.delete(jti);
+    }
+    this.refreshGrace.set(oldJti, {
+      pair,
+      expiresAt: now + REFRESH_REUSE_GRACE_MS,
+    });
   }
 
   async logout(refreshToken: string): Promise<void> {
