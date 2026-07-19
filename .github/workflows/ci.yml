@@ -99,4 +99,16 @@ jobs:
         run: npm ci
 
       - name: Run e2e (test:e2e)
-        run: npm run test:e2e
+        run: |
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee e2e-output.log
+
+      # 23.7 diagnostika — CI log je bez admin práv nečitelný; klíčové řádky
+      # selhání vypíšeme jako `::error::` anotace (ty jdou číst přes public API).
+      # Odstranit, až bude e2e v CI stabilně zelené.
+      - name: Surface e2e failure (annotations)
+        if: failure()
+        working-directory: backend
+        run: |
+          echo "::group::e2e tail (150)"; tail -150 e2e-output.log || true; echo "::endgroup::"
+          grep -inE "mongod|MongoMemory|Instance|libcrypto|libssl|download|ENOENT|failed to start|StdoutInstanceError|getUri|onnxruntime|\.node|Cannot find|Nest can't resolve|Error:|EADDR|timed out" e2e-output.log 2>/dev/null | head -25 | while IFS= read -r line; do echo "::error::${line:0:300}"; done || true
