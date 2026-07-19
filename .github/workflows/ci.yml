@@ -110,5 +110,9 @@ jobs:
         if: failure()
         working-directory: backend
         run: |
-          echo "::group::e2e tail (150)"; tail -150 e2e-output.log || true; echo "::endgroup::"
-          grep -inE "mongod|MongoMemory|Instance|libcrypto|libssl|download|ENOENT|failed to start|StdoutInstanceError|getUri|onnxruntime|\.node|Cannot find|Nest can't resolve|Error:|EADDR|timed out" e2e-output.log 2>/dev/null | head -25 | while IFS= read -r line; do echo "::error::${line:0:300}"; done || true
+          echo "::group::e2e tail (200)"; tail -200 e2e-output.log || true; echo "::endgroup::"
+          CLEAN=$(sed 's/\x1b\[[0-9;]*m//g' e2e-output.log)
+          # summary (kolik failnulo) + názvy FAIL suit (které) → rozliší prostředí vs konkrétní test
+          { printf '%s\n' "$CLEAN" | grep -aE "^(Tests|Test Suites):";
+            printf '%s\n' "$CLEAN" | grep -aE "^FAIL " | head -8; } \
+            | while IFS= read -r line; do echo "::error::${line:0:300}"; done || true
