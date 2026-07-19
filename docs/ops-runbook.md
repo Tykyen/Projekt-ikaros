@@ -77,17 +77,32 @@ host default zkontroluj `ulimit -n` (pokud < 65536: `/etc/security/limits.conf`)
 
 ## 6) DB zálohy
 
-**Stav:** nula záloh. Workflow `db-backup.yml` (FE repo, ručně spouštěný) dělá
-`mongodump --archive --gzip` do `/opt/backups/mongo/` s retencí a diskovou pojistkou.
-**Rozhodnutí, které zbývá (uživatel):**
-- **Cíl mimo server** — lokální záloha nepřežije smrt disku. Doporučení: rclone na
-  levný object storage (Backblaze B2 / Cloudflare R2, ~zdarma pro GB objemy) jako
-  2. krok workflow, nebo aspoň `scp` na druhý stroj.
-- **Automatizace** — až bude cíl mimo server, přidat do workflow `schedule:` cron
-  (např. denně 04:00) — dnes je jen `workflow_dispatch` (ruční), aby zálohy na
-  tomtéž disku nezaplnily server (viz disk incidenty 2026-07).
-**Obnova:** `docker exec -i projekt-ikaros-mongo mongorestore --archive --gzip --drop < záloha.archive.gz`
-(nejdřív na testovací instanci!). Zálohu OTESTUJ obnovou aspoň jednou.
+**Stav (23.1, 2026-07-19): automatizováno.** Workflow `db-backup.yml` (FE repo) běží
+denně (cron 02:00 UTC = ~04:00 léto): `mongodump --archive --gzip` →
+`/opt/backups/mongo/` (lokální retence 5 — rychlý přístup, NENÍ záloha, tentýž disk)
+→ rclone upload do Backblaze B2 `mongo/daily/` (retence 8 dní) + v neděli
+server-side kopie do `mongo/weekly/` (retence 29 dní) = **7 denních + 4 týdenní
+off-site**. B2 přístup: GitHub secrets `B2_KEY_ID`/`B2_APP_KEY` + var `B2_BUCKET`
+(FE repo); na serveru žádný secret (rclone env-var config přes SSH stdin).
+Selhání → Discord (secret `DISCORD_ALERT_WEBHOOK` = tentýž URL jako BE ops alerty).
+**POZOR:** GitHub cron mívá zpoždění desítek minut; po 60 dnech bez aktivity repa
+ho GitHub VYPNE — při delší pauze vývoje zkontrolovat, že běží.
+
+**Test obnovy (restore drill):** workflow `db-restore-drill.yml` (FE repo),
+1. den v měsíci + ručně: stáhne nejnovější daily z B2, ověří stáří < 48 h (hlídá,
+že denní cron reálně běží), obnoví do čistého `mongo:7` (= verze prod) v runneru,
+ověří počty kolekcí/dokumentů (users/worlds neprázdné). Výsledek + časy → Discord.
+Naměřené časy: *doplnit po prvním drillu* (download ~? s · restore ~? s).
+
+**Ostrá obnova produkce (disaster recovery):**
+1. Stáhni nejnovější zálohu z B2 (z libovolného stroje; klíče v B2 UI účtu):
+   `rclone copyto b2:<bucket>/mongo/daily/<nejnovější> ikaros.archive.gz`
+   — nebo použij lokální `/opt/backups/mongo/` (jen pokud disk serveru žije).
+2. Na serveru: `docker exec -i projekt-ikaros-mongo mongorestore --archive --gzip --drop < ikaros.archive.gz`
+3. `docker restart projekt-ikaros-be` + smoke test (login, načtení světa, chat).
+
+**Vědomě nekryto:** `uploads-data` volume (média primárně na Cloudinary = off-site
+z podstaty) a Meili (reindex při startu BE).
 
 ## 7) TLS certifikáty
 
