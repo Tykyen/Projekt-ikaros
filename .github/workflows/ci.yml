@@ -99,19 +99,4 @@ jobs:
         run: npm ci
 
       - name: Run e2e (test:e2e)
-        run: |
-          set -o pipefail
-          npm run test:e2e 2>&1 | tee e2e-output.log
-
-      # 23.7 diagnostika (dočasná) — CI log je bez admin práv nečitelný; klíčové
-      # řádky selhání vypíšeme jako `::error::` anotace (čitelné přes public API).
-      # Odstranit, až bude e2e v CI stabilně zelené.
-      - name: Surface e2e failure (annotations)
-        if: failure()
-        working-directory: backend
-        run: |
-          CLEAN=$(sed 's/\x1b\[[0-9;]*m//g' e2e-output.log)
-          printf '%s\n' "$CLEAN" | grep -aE "^(Tests|Test Suites):" | while IFS= read -r l; do echo "::error::${l:0:300}"; done || true
-          # názvy padlých testů (● řádky) + první ● blok (root chyba)
-          printf '%s\n' "$CLEAN" | grep -aE "^\s*●" | head -6 | while IFS= read -r l; do echo "::error::TEST> ${l:0:280}"; done || true
-          printf '%s\n' "$CLEAN" | awk '/●/{seen=1} seen{print; if(++n>=12) exit}' | while IFS= read -r l; do echo "::error::ROOT> ${l:0:280}"; done || true
+        run: npm run test:e2e
