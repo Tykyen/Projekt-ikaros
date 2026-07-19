@@ -95,6 +95,11 @@ describe('CharactersService', () => {
     service = module.get(CharactersService);
   });
 
+  // R-02 (role audit) — admin/staff bypass v ekonomice jde přes `isWorldStaff`
+  // (world-scoped elevace, ne globální Admin). Tenhle blok je cílená pojistka
+  // R-02 (anti-regression-map guard): hlídá, že bypass dostane jen skutečný
+  // world-staff (elevovaný Admin pro daný svět / PomocnyPJ+), ne řadový hráč
+  // ani de-elevovaný Admin.
   describe('isWorldStaff (world elevation bypass)', () => {
     it('ELEVOVANÝ platform Admin bez membershipu → true (bypass)', async () => {
       mockMembershipRepo.findByUserAndWorld.mockResolvedValue(null);
