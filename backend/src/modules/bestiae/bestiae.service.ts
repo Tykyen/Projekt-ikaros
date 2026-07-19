@@ -736,6 +736,22 @@ export class BestiaeService {
         });
       return;
     }
+    // 16.2b-2 — community: autor smí měnit/smazat JEN svůj návrh (draft),
+    // kurátor/admin cokoli. Bez téhle větve `assertCanWrite` u community
+    // propadala bez výjimky → generický `DELETE /bestiae/:id` pouštěl KOHOKOLI
+    // smazat i schválené community bestie (IDOR). Sjednoceno s ostatními 7
+    // katalogy (plants/potions/spells/riddles/items/price-lists/name-sets).
+    if (bestie.scope === 'community') {
+      const isAuthorDraft =
+        bestie.authorId === user.id && bestie.status === 'draft';
+      if (!isAuthorDraft && !this.isCurator(user)) {
+        throw new ForbiddenException({
+          code: 'BESTIE_NOT_AUTHOR',
+          message: 'Bestii může měnit jen autor (návrh) nebo správce.',
+        });
+      }
+      return;
+    }
     if (bestie.scope === 'world') {
       await this.assertCanManageWorld(bestie.worldId!, user);
     }
