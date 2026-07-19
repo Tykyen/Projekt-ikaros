@@ -191,12 +191,26 @@ describe('Seed scenario smoke (e2e)', () => {
   describe('oprávnění (AC negativní)', () => {
     const srv = () => testApp.app.getHttpServer();
 
-    it('08 hráč nesmí vytvořit stránku (403)', async () => {
-      const res = await request(srv())
+    // 15.11 — hráč nesmí vytvořit ŽIVÝ (approved) obsah ani povyšovat governance:
+    // whitelist typ smí jen NAVRHNOUT (pending ke schválení PJ), typ mimo whitelist
+    // je 403. Dřív test čekal 403 i na 'Ostatní' — to platilo PŘED 15.11 (návrhy
+    // hráčů). Teď ověřujeme obě větve: pending u whitelistu, 403 u ne-whitelistu.
+    it('08 hráč smí jen navrhnout whitelist typ (pending), ne vytvořit živý obsah', async () => {
+      // whitelist typ ('Ostatní') → 201, ale pending návrh (NE approved/živé).
+      const proposal = await request(srv())
         .post(`/api/worlds/${seed.worldId}/pages`)
         .set(authHeader(seed.hrac.accessToken))
-        .send({ slug: 'hack', type: 'Ostatní', title: 'Hack' });
-      expect([401, 403, 404]).toContain(res.status);
+        .send({ slug: 'navrh-hrace', type: 'Ostatní', title: 'Návrh hráče' });
+      expect(proposal.status).toBe(201);
+      const pageDoc = await col('pages').findOne({ slug: 'navrh-hrace' });
+      expect(pageDoc?.pageStatus).toBe('pending');
+
+      // typ MIMO whitelist ('Postava hráče' má vlastní tok „Chci hrát" 15.10) → 403.
+      const forbidden = await request(srv())
+        .post(`/api/worlds/${seed.worldId}/pages`)
+        .set(authHeader(seed.hrac.accessToken))
+        .send({ slug: 'hack', type: 'Postava hráče', title: 'Hack' });
+      expect([401, 403, 404]).toContain(forbidden.status);
     });
 
     it('08 hráč nesmí smazat svět (403)', async () => {

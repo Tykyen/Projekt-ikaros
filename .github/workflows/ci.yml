@@ -57,3 +57,31 @@ jobs:
 
       - name: Run jest
         run: npm test
+
+  # 23.7 — e2e + security attack suite do CI (dosud neběžela nikde).
+  # DB: mongodb-memory-server (in-process mongod), žádná GH service. Redis/Meili
+  # chybí → graceful fallback (health monitor je hlásí DOWN, testy nepadají).
+  # jest-e2e.json má maxWorkers 1 (sériově) + testTimeout 120 s.
+  backend-e2e:
+    name: Backend E2E + security suite
+    runs-on: ubuntu-latest
+    # ~30 suit sériově přes in-memory mongod ~3–4 min; timeout s rezervou.
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run e2e (test:e2e)
+        run: npm run test:e2e

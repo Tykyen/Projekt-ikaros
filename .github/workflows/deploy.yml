@@ -19,10 +19,34 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
+    permissions:
+      contents: read
+      actions: read # 23.7 — gate čte stav CI běhů přes gh api
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      # 23.7 — „deploy jen po zelené": deploy je workflow_dispatch bez vazby na
+      # CI. Tenhle krok najde CI běh pro přesně tenhle commit (head_sha=HEAD) a
+      # pustí dál JEN když je completed+success. Jinak deploy padne dřív, než se
+      # sáhne na server. Po pushi na main nech CI doběhnout, teprve pak deploy.
+      - name: Require green CI for HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "HEAD = $SHA"
+          RUN=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$SHA&per_page=1" \
+            --jq '.workflow_runs[0] | "\(.status) \(.conclusion) \(.html_url)"' 2>/dev/null || echo "none none none")
+          STATUS=$(printf '%s' "$RUN" | awk '{print $1}')
+          CONCLUSION=$(printf '%s' "$RUN" | awk '{print $2}')
+          URL=$(printf '%s' "$RUN" | awk '{print $3}')
+          echo "CI: status=$STATUS conclusion=$CONCLUSION $URL"
+          if [ "$STATUS" != "completed" ] || [ "$CONCLUSION" != "success" ]; then
+            echo "::error::Deploy zablokován — CI pro HEAD ($SHA) není zelené (status=$STATUS, conclusion=$CONCLUSION). Počkej na zelenou CI a spusť deploy znovu."
+            exit 1
+          fi
 
       - name: Setup SSH key
         uses: webfactory/ssh-agent@v0.10.0
@@ -130,6 +154,23 @@ jobs:
               exit 1
             fi
           EOF
+
+      # 23.7 — release evidence: co a kdy se nasadilo (sha + čas + kdo) do run
+      # summary. Spolu s novinka-changelogem (25.4) tvoří stopu releasu.
+      - name: Release evidence
+        if: success()
+        run: |
+          {
+            echo "### 🚀 Release evidence (BE)"
+            echo ""
+            echo "| Pole | Hodnota |"
+            echo "|---|---|"
+            echo "| commit | \`$(git rev-parse HEAD)\` |"
+            echo "| ref | ${{ github.ref_name }} |"
+            echo "| environment | ${{ github.event.inputs.environment }} |"
+            echo "| deployed_at (UTC) | $(date -u +%Y-%m-%dT%H:%M:%SZ) |"
+            echo "| actor | ${{ github.actor }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Cleanup old Docker images
         if: always()

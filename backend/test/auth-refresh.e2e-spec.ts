@@ -47,7 +47,7 @@ describe('Auth refresh flow (e2e)', () => {
   }
 
   describe('POST /api/auth/refresh', () => {
-    it('vrátí nový pár a invaliduje starý refresh token (rotation)', async () => {
+    it('vrátí nový pár a rotuje starý refresh token', async () => {
       const session = await freshSession();
 
       const res1 = await request(testApp.app.getHttpServer())
@@ -61,36 +61,61 @@ describe('Auth refresh flow (e2e)', () => {
       expect(body1.accessToken).toBeDefined();
       expect(body1.refreshToken).toBeDefined();
       expect(body1.refreshToken).not.toBe(session.refreshToken);
-
-      // Druhé použití původního tokenu = reuse detection → 401
-      const res2 = await request(testApp.app.getHttpServer())
-        .post('/api/auth/refresh')
-        .send({ refreshToken: session.refreshToken });
-      expect(res2.status).toBe(401);
     });
 
-    it('reuse detection revokuje celou rodinu', async () => {
+    // 23.5 grace okno: reuse čerstvě zrotovaného tokenu VE window (default 60 s)
+    // je souběžný refresh (druhý tab / PWA / retry) → dostane TÝŽ nástupnický pár,
+    // NE reuse-detection. Bez tohohle sliding session nepřežila 1. expiraci.
+    it('grace okno: souběžný reuse vrátí týž nástupnický pár (23.5)', async () => {
       const session = await freshSession();
 
-      // První refresh — projde
       const res1 = await request(testApp.app.getHttpServer())
         .post('/api/auth/refresh')
         .send({ refreshToken: session.refreshToken });
-      const newTokens = res1.body as {
-        refreshToken: string;
-      };
+      expect(res1.status).toBe(200);
+      const body1 = res1.body as { refreshToken: string };
 
-      // Reuse starého tokenu → revoke family
-      await request(testApp.app.getHttpServer())
+      const res2 = await request(testApp.app.getHttpServer())
         .post('/api/auth/refresh')
-        .send({ refreshToken: session.refreshToken })
-        .expect(401);
+        .send({ refreshToken: session.refreshToken });
+      expect(res2.status).toBe(200);
+      // Idempotence: TÝŽ pár jako první rotace, ne nový token ani 401.
+      expect((res2.body as { refreshToken: string }).refreshToken).toBe(
+        body1.refreshToken,
+      );
+    });
 
-      // Ani nový (rotated) token už nesmí fungovat — rodina je revoked
-      const res3 = await request(testApp.app.getHttpServer())
-        .post('/api/auth/refresh')
-        .send({ refreshToken: newTokens.refreshToken });
-      expect(res3.status).toBe(401);
+    // Reuse PO grace okně = krádež/retry mimo okno → revoke celé rodiny (401).
+    // Okno vypnuto přes env (REFRESH_REUSE_GRACE_MS=0) → reuse padá do detekce
+    // hned, deterministicky bez čekání 60 s.
+    it('reuse po grace okně revokuje celou rodinu', async () => {
+      const prevGrace = process.env.REFRESH_REUSE_GRACE_MS;
+      process.env.REFRESH_REUSE_GRACE_MS = '0';
+      try {
+        const session = await freshSession();
+
+        // První refresh — projde (rotace)
+        const res1 = await request(testApp.app.getHttpServer())
+          .post('/api/auth/refresh')
+          .send({ refreshToken: session.refreshToken });
+        expect(res1.status).toBe(200);
+        const newTokens = res1.body as { refreshToken: string };
+
+        // Reuse starého tokenu bez grace → reuse detection → revoke family
+        await request(testApp.app.getHttpServer())
+          .post('/api/auth/refresh')
+          .send({ refreshToken: session.refreshToken })
+          .expect(401);
+
+        // Ani nový (rotated) token už nesmí fungovat — rodina je revoked
+        const res3 = await request(testApp.app.getHttpServer())
+          .post('/api/auth/refresh')
+          .send({ refreshToken: newTokens.refreshToken });
+        expect(res3.status).toBe(401);
+      } finally {
+        if (prevGrace === undefined) delete process.env.REFRESH_REUSE_GRACE_MS;
+        else process.env.REFRESH_REUSE_GRACE_MS = prevGrace;
+      }
     });
 
     it('logout znemožní následný refresh (per-session)', async () => {
