@@ -11,6 +11,7 @@ import {
   type NameSetCategory,
   type NameSetDemography,
 } from '../interfaces/name-set.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type NameSetDocument = HydratedDocument<NameSetSchemaClass>;
 
@@ -20,6 +21,11 @@ export class NameSetSchemaClass {
   scope!: 'community';
 
   @Prop({ required: true }) name!: string;
+  /**
+   * D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně.
+   * Bez single indexu — sort vede `category`, klíč nese compound níž.
+   */
+  @Prop() nameSort?: string;
 
   @Prop({
     type: String,
@@ -71,5 +77,7 @@ export class NameSetSchemaClass {
 }
 
 export const NameSetSchema = SchemaFactory.createForClass(NameSetSchemaClass);
-// List dvou knihoven + filtr kategorie, abecedně.
-NameSetSchema.index({ status: 1, category: 1, name: 1 });
+sortKeyPlugin(NameSetSchema, 'name', 'nameSort');
+// D-NAMESORT — list řadí `{ category, nameSort }`; index kryje sort i pro
+// status-less dotaz (status = residual filtr, malá selektivita).
+NameSetSchema.index({ category: 1, nameSort: 1 });

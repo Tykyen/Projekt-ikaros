@@ -8,6 +8,7 @@ import {
   RIDDLE_DIFFICULTIES,
   type RiddleDifficulty,
 } from '../interfaces/riddle.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type RiddleDocument = HydratedDocument<RiddleSchemaClass>;
 
@@ -18,6 +19,8 @@ export class RiddleSchemaClass {
 
   /** Zadání hádanky (identita, spec R4). */
   @Prop({ required: true }) question!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `question`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) questionSort?: string;
   /** Odpověď — FE skrývá za spoiler. */
   @Prop({ required: true }) answer!: string;
   /** Postupné nápovědy (0–5, limit vynucuje DTO). */
@@ -67,5 +70,6 @@ export class RiddleSchemaClass {
 }
 
 export const RiddleSchema = SchemaFactory.createForClass(RiddleSchemaClass);
+sortKeyPlugin(RiddleSchema, 'question', 'questionSort');
 // List dvou knihoven + filtr úrovně.
 RiddleSchema.index({ status: 1, difficulty: 1 });

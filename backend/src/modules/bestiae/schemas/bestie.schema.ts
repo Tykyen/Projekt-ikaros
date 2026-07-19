@@ -15,6 +15,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { BestieStatblockEntry } from '../interfaces/bestie.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type BestieDocument = HydratedDocument<BestieSchemaClass>;
 
@@ -34,6 +35,8 @@ export class BestieSchemaClass {
   @Prop({ index: true, sparse: true }) worldId?: string;
 
   @Prop({ required: true }) name!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) nameSort?: string;
   @Prop() imageUrl?: string;
   /** D-19.2 — velikost blobu `imageUrl` v bytech (kvóty UM-10); staré docs nemají. */
   @Prop() imageBytes?: number;
@@ -90,6 +93,7 @@ export class BestieSchemaClass {
 }
 
 export const BestieSchema = SchemaFactory.createForClass(BestieSchemaClass);
+sortKeyPlugin(BestieSchema, 'name', 'nameSort');
 BestieSchema.index({ scope: 1, systemId: 1 });
 BestieSchema.index({ scope: 1, ownerUserId: 1, systemId: 1 });
 BestieSchema.index({ scope: 1, worldId: 1, systemId: 1 });

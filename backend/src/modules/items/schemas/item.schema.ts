@@ -8,6 +8,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { ItemStatblockEntry } from '../interfaces/item.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type ItemDocument = HydratedDocument<ItemSchemaClass>;
 
@@ -20,6 +21,8 @@ export class ItemSchemaClass {
   @Prop({ required: true, index: true }) systemId!: string;
 
   @Prop({ required: true }) name!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) nameSort?: string;
   /** Alternativní/lidová jména (volný text). */
   @Prop() aliases?: string;
 
@@ -66,6 +69,7 @@ export class ItemSchemaClass {
 }
 
 export const ItemSchema = SchemaFactory.createForClass(ItemSchemaClass);
+sortKeyPlugin(ItemSchema, 'name', 'nameSort');
 // List dvou knihoven + filtr druhu / primárního systému.
 ItemSchema.index({ status: 1, kind: 1 });
 ItemSchema.index({ status: 1, systemId: 1 });

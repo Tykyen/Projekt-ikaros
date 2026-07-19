@@ -7,6 +7,7 @@
  */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type PriceListDocument = HydratedDocument<PriceListSchemaClass>;
 
@@ -51,6 +52,8 @@ export class PriceListSchemaClass {
   scope!: 'community';
 
   @Prop({ required: true }) name!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) nameSort?: string;
   @Prop({ default: '' }) description!: string;
 
   @Prop() imageUrl?: string;
@@ -97,5 +100,7 @@ export class PriceListSchemaClass {
 
 export const PriceListSchema =
   SchemaFactory.createForClass(PriceListSchemaClass);
-// List dvou knihoven (schválené / návrhy) abecedně.
-PriceListSchema.index({ status: 1, name: 1 });
+sortKeyPlugin(PriceListSchema, 'name', 'nameSort');
+// D-NAMESORT — abecední list běží nad indexem `{ nameSort: 1 }` (z @Prop).
+// Původní `{ status, name }` compound nahrazen (status = 2-valued, malá
+// selektivita; sort-index na fold klíči pokryje i status-less list).

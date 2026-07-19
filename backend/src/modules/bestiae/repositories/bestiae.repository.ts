@@ -76,7 +76,8 @@ export class BestiaeRepository {
         moderationHidden: { $ne: true },
         $or: orConditions,
       })
-      .sort({ name: 1 })
+      // D-NAMESORT — řadicí klíč (fold z `name`) místo binárního `name`.
+      .sort({ nameSort: 1 })
       .exec();
     return docs.map((d) => this.toEntity(d)!).filter(Boolean);
   }
@@ -94,7 +95,8 @@ export class BestiaeRepository {
     limit?: number;
   }): Promise<Bestie[]> {
     const q = this.communityQuery(filter);
-    let query = this.model.find(q).sort({ name: 1, _id: 1 });
+    // D-NAMESORT — řadicí klíč (fold z `name`) místo binárního `name`.
+    let query = this.model.find(q).sort({ nameSort: 1, _id: 1 });
     if (filter.skip) query = query.skip(filter.skip);
     if (filter.limit) query = query.limit(filter.limit);
     const docs = await query.exec();

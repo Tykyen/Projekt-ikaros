@@ -81,7 +81,8 @@ export class PotionsRepository {
   async findMany(filter: PotionListFilter): Promise<Potion[]> {
     let query = this.model
       .find(this.buildQuery(filter))
-      .sort({ name: 1, _id: 1 });
+      // D-NAMESORT — řadicí klíč (fold z `name`) místo binárního `name`.
+      .sort({ nameSort: 1, _id: 1 });
     if (filter.skip) query = query.skip(filter.skip);
     if (filter.limit) query = query.limit(filter.limit);
     const docs = await query.exec();

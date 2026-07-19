@@ -8,6 +8,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { SpellStatblockEntry } from '../interfaces/spell.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type SpellDocument = HydratedDocument<SpellSchemaClass>;
 
@@ -21,6 +22,8 @@ export class SpellSchemaClass {
   @Prop({ required: true, index: true }) systemId!: string;
 
   @Prop({ required: true }) name!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) nameSort?: string;
   /** Alternativní/lidová jména (volný text). */
   @Prop() aliases?: string;
 
@@ -66,5 +69,6 @@ export class SpellSchemaClass {
 }
 
 export const SpellSchema = SchemaFactory.createForClass(SpellSchemaClass);
+sortKeyPlugin(SpellSchema, 'name', 'nameSort');
 // List dvou knihoven (schválené / návrhy) + filtr primárního systému.
 SpellSchema.index({ status: 1, systemId: 1 });

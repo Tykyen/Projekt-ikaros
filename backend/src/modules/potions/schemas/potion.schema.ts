@@ -11,6 +11,7 @@ import {
   PotionIngredient,
   PotionStatblockEntry,
 } from '../interfaces/potion.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type PotionDocument = HydratedDocument<PotionSchemaClass>;
 
@@ -23,6 +24,8 @@ export class PotionSchemaClass {
   @Prop({ required: true, index: true }) systemId!: string;
 
   @Prop({ required: true }) name!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) nameSort?: string;
   /** Alternativní/lidová jména (volný text). */
   @Prop() aliases?: string;
 
@@ -78,6 +81,7 @@ export class PotionSchemaClass {
 }
 
 export const PotionSchema = SchemaFactory.createForClass(PotionSchemaClass);
+sortKeyPlugin(PotionSchema, 'name', 'nameSort');
 // List dvou knihoven + filtr druhu / primárního systému.
 PotionSchema.index({ status: 1, kind: 1 });
 PotionSchema.index({ status: 1, systemId: 1 });

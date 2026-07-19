@@ -76,7 +76,9 @@ export class NameSetsRepository {
   async findMany(filter: NameSetListFilter): Promise<NameSet[]> {
     let query = this.model
       .find(this.buildQuery(filter))
-      .sort({ category: 1, name: 1, _id: 1 });
+      // D-NAMESORT — v rámci kategorie řadí fold klíč (fold z `name`) místo
+      // binárního `name`. Stabilní tiebreak _id.
+      .sort({ category: 1, nameSort: 1, _id: 1 });
     if (filter.skip) query = query.skip(filter.skip);
     if (filter.limit) query = query.limit(filter.limit);
     const docs = await query.exec();

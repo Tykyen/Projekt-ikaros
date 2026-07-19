@@ -11,6 +11,7 @@ import {
   PLANT_RARITIES,
   type PlantRarity,
 } from '../interfaces/plant.interface';
+import { sortKeyPlugin } from '../../../common/utils/name-sort';
 
 export type PlantDocument = HydratedDocument<PlantSchemaClass>;
 
@@ -21,6 +22,8 @@ export class PlantSchemaClass {
   scope!: 'community';
 
   @Prop({ required: true }) name!: string;
+  /** D-NAMESORT — řadicí klíč (fold z `name`); derivuje plugin, needituj ručně. */
+  @Prop({ index: true }) nameSort?: string;
   /** Lidová/regionální jména (volný text). */
   @Prop() aliases?: string;
 
@@ -76,5 +79,6 @@ export class PlantSchemaClass {
 }
 
 export const PlantSchema = SchemaFactory.createForClass(PlantSchemaClass);
+sortKeyPlugin(PlantSchema, 'name', 'nameSort');
 // List dvou knihoven (schválené / návrhy) + filtr vzácnosti.
 PlantSchema.index({ status: 1, rarity: 1 });

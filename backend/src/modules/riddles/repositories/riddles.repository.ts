@@ -71,8 +71,9 @@ export class RiddlesRepository {
   async findMany(filter: RiddleListFilter): Promise<Riddle[]> {
     let query = this.model
       .find(this.buildQuery(filter))
-      // Hádanky nemají name → řadí se dle zadání (stabilní tiebreak _id).
-      .sort({ question: 1, _id: 1 });
+      // Hádanky nemají name → řadí dle zadání. D-NAMESORT: fold klíč z
+      // `question` (jinak by „Č…" řadilo za ASCII). Stabilní tiebreak _id.
+      .sort({ questionSort: 1, _id: 1 });
     if (filter.skip) query = query.skip(filter.skip);
     if (filter.limit) query = query.limit(filter.limit);
     const docs = await query.exec();
