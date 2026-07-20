@@ -8,6 +8,10 @@ import { raw } from 'express';
 import { resolve } from 'path';
 import type { ServerResponse } from 'http';
 import { AppModule } from './app.module';
+import {
+  CSP_REPORT_PATH,
+  cspReportBodyParser,
+} from './common/csp-report/csp-report.body-parser';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { AlertService } from './common/alerting/alert.service';
 import { BruteForceMonitor } from './common/alerting/brute-force.monitor';
@@ -99,6 +103,10 @@ async function bootstrap() {
   // json/urlencoded parsery nečtou → raw Buffer JEN pro tuto routu. Musí být
   // registrován PŘED ostatními parsery (kdo si body vezme první, vyhrál).
   app.use('/api/monitoring/tunnel', raw({ type: '*/*', limit: '1mb' }));
+  // 24.2 — CSP reporty chodí pod vlastními content-types, které expressí json
+  // parser (čte jen `application/json`) ignoruje → body by dorazilo prázdné.
+  // Konfigurace je sdílená s e2e testem (viz csp-report.body-parser.ts).
+  app.use(CSP_REPORT_PATH, cspReportBodyParser());
   // Body limit zvednut z expressího defaultu (100 kB) — bohaté / migrované
   // stránky a postavy (roky obsahu + subdokumenty v jednom PATCH) jinak
   // při uložení vrací 413 Content Too Large.

@@ -105,6 +105,10 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set}
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-60}
+      # 15.8 / 24.2 — TTL guest tokenu anonymní Putyky. Hodnota dosud žila jen
+      # jako skrytý default v `auth.service.ts`, takže nešla změnit bez zásahu
+      # do kódu. Prázdná GitHub var → default 14d = žádná změna chování.
+      ANON_SESSION_TTL: ${ANON_SESSION_TTL:-14d}
       # PC-RUN-01 (plný audit 2026-06-20) — šifrovací klíč pro 2FA TOTP secrety
       # (14.1). 2FA je opt-in → bez klíče je setup runtime fail-closed (503),
       # NE boot-fatal (proto `:-`, ne `:?`). Nastav přes GitHub secret TOTP_ENC_KEY.
@@ -130,6 +134,12 @@ services:
       # Error tracking (GlitchTip/Sentry). Prázdné = vypnuto. RSS_ALERT_MB = práh paměti.
       SENTRY_DSN: ${SENTRY_DSN:-}
       RSS_ALERT_MB: ${RSS_ALERT_MB:-1536}
+      # 24.1 — identita běžícího buildu pro `/api/health` (`version.sha`/`builtAt`).
+      # Plní `deploy.yml` do `.env`; lokálně prázdné → health hlásí `unknown`/null.
+      # Záměrně env (ne build ARG): ARG by měnil vrstvu image při každém sha a
+      # invalidoval docker cache → delší build za nulový přínos.
+      IMAGE_SHA: ${IMAGE_SHA:-}
+      BUILT_AT: ${BUILT_AT:-}
       DELETION_HOLD_DAYS: ${DELETION_HOLD_DAYS:-30}
       EMBEDDING_GRANITE107_ENABLED: ${EMBEDDING_GRANITE107_ENABLED:-true}
       EMBEDDING_GRANITE278_ENABLED: ${EMBEDDING_GRANITE278_ENABLED:-true}

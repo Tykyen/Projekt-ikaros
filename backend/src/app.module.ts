@@ -12,6 +12,7 @@ import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AlertModule } from './common/alerting/alert.module';
 import { HealthModule } from './common/health/health.module';
+import { CspReportModule } from './common/csp-report/csp-report.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { GatewaysModule } from './gateways/gateways.module';
@@ -98,6 +99,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     // Monitoring (3. noha) — globální alert kanál (Discord webhook) + health-cron.
     AlertModule,
     HealthModule,
+    // 24.2 — sběr porušení CSP z FE nginxu; bez něj běžel enforce naslepo.
+    CspReportModule,
     // SP1: foundational @Global() moduly před AuthModule.
     SecurityTokensModule,
     // @Global — guard plní `elevatedWorldIds`; musí být před AuthModule (JwtAuthGuard).

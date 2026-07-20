@@ -28,6 +28,20 @@ je potřeba jednorázově přenést, aby nevyřízené legacy reporty zůstaly v
 
 ## Spuštění
 
+### ⚠️ V PRODUKCI tímhle skriptem NE (24.2 / D-074)
+
+`npm run migrate:discussion-reports` **v produkčním kontejneru nefunguje** a nikdy
+nefungoval: BE image nese jen `dist/` + prod `node_modules`, složka `scripts/` se
+do něj nekopíruje vůbec a `ts-node` je devDependency, kterou smaže
+`npm prune --omit=dev`. Padne tedy na obojím.
+
+**Produkční cesta = workflow `Migrace nahlášených příspěvků`** (FE repo,
+`.github/workflows/migrate-discussion-reports.yml`) → `docker cp` čistého JS
+skriptu do kontejneru + `docker exec node`. Default dry-run, zápis zaškrtnutím
+`apply`. Runtime skript: `scripts/seed-migrace/migrate-discussion-reports.js` (FE repo).
+
+### Lokálně / dev (kde `ts-node` existuje)
+
 ```bash
 # dry-run — jen spočítá, nezapisuje
 MONGODB_URI=mongodb://... npm run migrate:discussion-reports -- --dry-run
@@ -35,6 +49,13 @@ MONGODB_URI=mongodb://... npm run migrate:discussion-reports -- --dry-run
 # ostrá migrace
 MONGODB_URI=mongodb://... npm run migrate:discussion-reports
 ```
+
+> Pozor na obrácený default: tahle TS varianta zapisuje, pokud `--dry-run`
+> NEuvedeš. Produkční JS skript je naopak bezpečný — bez `APPLY=1` jen počítá.
+
+`mapper.ts` (+ `mapper.spec.ts`) zůstává testovanou referencí mapovací logiky;
+JS skript nese její kopii, protože v kontejneru není TS. Migrace je jednorázová,
+takže se nemají jak rozejít.
 
 ## Vlastnosti
 

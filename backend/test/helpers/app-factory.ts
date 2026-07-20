@@ -49,6 +49,13 @@ export interface CreateTestAppOptions {
    * kaskádních/transakčních cest (seed-scenario FA/RC). Pomalejší start.
    */
   replSet?: boolean;
+  /**
+   * 24.2 — hook volaný PŘED `app.init()`, kde jde doregistrovat middleware
+   * (typicky body parser pro netypický content-type). Harness záměrně neběží
+   * přes `main.ts`, takže tamní `app.use(...)` tu nikdy nevzniknou; bez tohohle
+   * bodu by test musel mít vlastní kopii konfigurace a přestal by hlídat drift.
+   */
+  configure?: (app: INestApplication) => void;
 }
 
 export async function createTestApp(
@@ -127,6 +134,9 @@ export async function createTestApp(
 
   const app = moduleFixture.createNestApplication();
   app.setGlobalPrefix('api');
+  // Middleware musí být registrované PŘED init() — po něm je router už sestavený
+  // a parser by se do cesty requestu nedostal.
+  opts.configure?.(app);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalFilters(new HttpExceptionFilter());
   await app.init();

@@ -73,6 +73,13 @@ jobs:
             --exclude '.env' \
             ./ ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }}:${{ env.DEPLOY_PATH }}/
 
+      # 24.1 — razítko deploye pro `/api/health`. Musí být SAMOSTATNÝ krok: heredoc
+      # níž je quoted (<< 'EOF'), takže `$(date)` by se v něm neexpandovalo — a
+      # odquotovat ho nelze, sypaly by se secrets obsahující `$`. `${{ }}` naopak
+      # dosazuje Actions ještě před shellem, proto přes GITHUB_ENV.
+      - name: Stamp build metadata
+        run: echo "BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       - name: Create .env file on server
         run: |
           ssh ${{ vars.SSH_USER }}@${{ vars.SERVER_HOST }} -p ${{ vars.SERVER_PORT }} "cat > '${{ env.DEPLOY_PATH }}/.env'" << 'EOF'
@@ -83,6 +90,7 @@ jobs:
           JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
           JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
           JWT_REFRESH_TTL_DAYS=${{ vars.JWT_REFRESH_TTL_DAYS }}
+          ANON_SESSION_TTL=${{ vars.ANON_SESSION_TTL }}
           TOTP_ENC_KEY=${{ secrets.TOTP_ENC_KEY }}
           CLOUDINARY_URL=${{ secrets.CLOUDINARY_URL }}
           CLOUDINARY_CLOUD_NAME=${{ vars.CLOUDINARY_CLOUD_NAME }}
@@ -103,6 +111,8 @@ jobs:
           DISCORD_EVENTS_WEBHOOK=${{ secrets.DISCORD_EVENTS_WEBHOOK }}
           SENTRY_DSN=${{ secrets.SENTRY_DSN }}
           RSS_ALERT_MB=${{ vars.RSS_ALERT_MB }}
+          IMAGE_SHA=${{ github.sha }}
+          BUILT_AT=${{ env.BUILT_AT }}
           EOF
 
       - name: Validate deployment environment
