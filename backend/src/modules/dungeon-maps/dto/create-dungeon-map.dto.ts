@@ -9,6 +9,16 @@ import {
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
+import {
+  MAP_KINDS,
+  GRID_TYPES,
+  DUNGEON_THEMES,
+} from '../interfaces/dungeon-map.interface';
+import type {
+  MapKind,
+  GridType,
+  DungeonTheme,
+} from '../interfaces/dungeon-map.interface';
 
 // FIX-10 — class-validator dekorátory doplněny (vzor maps/dto/create-map.dto.ts).
 // `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })` bez metadat
@@ -19,14 +29,15 @@ export class CreateDungeonMapDto {
   @IsOptional() @IsString() worldId?: string;
   @IsOptional() @IsString() @MaxLength(120) name?: string;
   // 21.3e+g — druh mapy (jen při create; update ho nemá = žádná konverze).
+  // D-077 — výčty ze sdílených konstant, ať nemůžou rozejít s toEntity/schematem.
   @IsOptional()
-  @IsIn(['dungeon', 'city', 'wilderness'])
-  mapKind?: 'dungeon' | 'city' | 'wilderness';
-  @IsOptional() @IsIn(['square', 'hex']) gridType?: 'square' | 'hex';
+  @IsIn(MAP_KINDS)
+  mapKind?: MapKind;
+  @IsOptional() @IsIn(GRID_TYPES) gridType?: GridType;
   @IsOptional() @IsNumber() @Min(10) @Max(100) gridWidth?: number;
   @IsOptional() @IsNumber() @Min(10) @Max(100) gridHeight?: number;
   @IsOptional() @IsNumber() @Min(8) @Max(100) cellSize?: number;
-  @IsOptional() @IsIn(['dyson', 'modern']) theme?: 'dyson' | 'modern';
+  @IsOptional() @IsIn(DUNGEON_THEMES) theme?: DungeonTheme;
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(100)

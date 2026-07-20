@@ -9,6 +9,14 @@ import {
   MaxLength,
   ArrayMaxSize,
 } from 'class-validator';
+import {
+  GRID_TYPES,
+  DUNGEON_THEMES,
+} from '../interfaces/dungeon-map.interface';
+import type {
+  GridType,
+  DungeonTheme,
+} from '../interfaces/dungeon-map.interface';
 
 // FIX-10 — class-validator dekorátory doplněny (vzor maps/dto/create-map.dto.ts).
 // `ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })` bez metadat
@@ -16,11 +24,13 @@ import {
 // 21.3a — limity shodné s CreateDungeonMapDto; ownerId server-enforced (mimo DTO).
 export class UpdateDungeonMapDto {
   @IsOptional() @IsString() @MaxLength(120) name?: string;
-  @IsOptional() @IsIn(['square', 'hex']) gridType?: 'square' | 'hex';
+  // D-077 — výčty ze sdílených konstant (mapKind tu záměrně NENÍ: druh mapy
+  // se po založení nekonvertuje).
+  @IsOptional() @IsIn(GRID_TYPES) gridType?: GridType;
   @IsOptional() @IsNumber() @Min(10) @Max(100) gridWidth?: number;
   @IsOptional() @IsNumber() @Min(10) @Max(100) gridHeight?: number;
   @IsOptional() @IsNumber() @Min(8) @Max(100) cellSize?: number;
-  @IsOptional() @IsIn(['dyson', 'modern']) theme?: 'dyson' | 'modern';
+  @IsOptional() @IsIn(DUNGEON_THEMES) theme?: DungeonTheme;
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(100)

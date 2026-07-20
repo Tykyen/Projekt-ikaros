@@ -8,6 +8,12 @@ import type {
   DungeonCell,
   DungeonDecoration,
 } from '../interfaces/dungeon-map.interface';
+import {
+  MAP_KINDS,
+  GRID_TYPES,
+  DUNGEON_THEMES,
+  pickEnum,
+} from '../interfaces/dungeon-map.interface';
 import type { IDungeonMapsRepository } from '../interfaces/dungeon-maps-repository.interface';
 
 @Injectable()
@@ -94,12 +100,19 @@ export class MongoDungeonMapsRepository
       worldId: (doc.worldId as string | undefined) ?? null,
       ownerId: doc.ownerId as string | undefined,
       name: (doc.name as string) ?? '',
-      mapKind: (doc.mapKind as string) === 'city' ? 'city' : 'dungeon',
-      gridType: (doc.gridType as string) === 'hex' ? 'hex' : 'square',
+      // D-077 — whitelist, NE ternár: binární `=== 'city' ? … : 'dungeon'`
+      // shodil `'wilderness'` do else větve a `replace()` (overwrite) tu
+      // zkolabovanou hodnotu zapsal zpět → krajina se tiše měnila na podzemí.
+      // Legacy dokument bez pole → fallback (viz komentář u MAP_KINDS).
+      mapKind:
+        doc.mapKind === undefined
+          ? undefined
+          : pickEnum(MAP_KINDS, doc.mapKind, 'dungeon'),
+      gridType: pickEnum(GRID_TYPES, doc.gridType, 'square'),
       gridWidth: (doc.gridWidth as number) ?? 20,
       gridHeight: (doc.gridHeight as number) ?? 20,
       cellSize: (doc.cellSize as number) ?? 40,
-      theme: (doc.theme as string) === 'modern' ? 'modern' : 'dyson',
+      theme: pickEnum(DUNGEON_THEMES, doc.theme, 'dyson'),
       cells: (doc.cells as DungeonCell[][]) ?? [],
       decorations: (doc.decorations as DungeonDecoration[]) ?? [],
       notes: (doc.notes as DungeonMap['notes']) ?? [],
