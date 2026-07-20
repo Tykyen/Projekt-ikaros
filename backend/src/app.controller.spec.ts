@@ -95,6 +95,45 @@ describe('AppController · /health readiness', () => {
     expect(res.checks.memory.ok).toBe(true);
   });
 
+  // 24.1 — `version` je jediný způsob, jak zvenku poznat, který commit BE běží.
+  describe('version (24.1)', () => {
+    it('IMAGE_SHA/BUILT_AT nastavené → zkrácený sha (7) + čas deploye', async () => {
+      const res = await makeController({
+        config: makeConfig({
+          IMAGE_SHA: '8b2e3b6fbc90fa4ccb916f3f67e518205e21848c',
+          BUILT_AT: '2026-07-20T06:00:00Z',
+        }),
+      }).health();
+      expect(res.version).toEqual({
+        sha: '8b2e3b6',
+        builtAt: '2026-07-20T06:00:00Z',
+      });
+    });
+
+    it('chybějící i PRÁZDNÁ var → unknown/null (prázdná GitHub var je "")', async () => {
+      const missing = await makeController({}).health();
+      expect(missing.version).toEqual({ sha: 'unknown', builtAt: null });
+
+      const empty = await makeController({
+        config: makeConfig({ IMAGE_SHA: '', BUILT_AT: '' }),
+      }).health();
+      expect(empty.version).toEqual({ sha: 'unknown', builtAt: null });
+    });
+
+    it('produkce version NEstripuje (smysl je neautentizovaný curl)', async () => {
+      const prev = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      try {
+        const res = await makeController({
+          config: makeConfig({ IMAGE_SHA: 'abcdef1234567890' }),
+        }).health();
+        expect(res.version.sha).toBe('abcdef1');
+      } finally {
+        process.env.NODE_ENV = prev;
+      }
+    });
+  });
+
   it('produkce (PC-08) stripuje detaily — jen ok/pushModule', async () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';

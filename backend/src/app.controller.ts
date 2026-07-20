@@ -12,8 +12,18 @@ import {
   checkRedis,
 } from './common/health/health-checks';
 
+/**
+ * 24.1 — identita běžícího buildu. `sha` je zkrácený commit (7 znaků) z posledního
+ * deploye, `builtAt` čas toho deploye. Obojí plní `deploy.yml` do `.env` na serveru.
+ */
+interface VersionInfo {
+  sha: string;
+  builtAt: string | null;
+}
+
 interface HealthReport {
   status: 'ok' | 'degraded';
+  version: VersionInfo;
   uptimeSec: number;
   timestamp: string;
   checks: Record<string, CheckResult>;
@@ -134,8 +144,22 @@ export class AppController {
       ]),
     );
 
+    // 24.1 — jediná cesta, jak zvenku změřit REALITU (co běží), ne záměr (co
+    // Actions nasadit chtěl); FE se dá grepnout v bundlu, BE dosud nešel nijak.
+    // `uptimeSec` sám nestačí: dává čas posledního RESTARTU, takže restart z jiné
+    // příčiny (OOM — RSS baseline je ~2,4 GB) vypadá jako čerstvý deploy. Dvojice
+    // sha+builtAt to rozliší — builtAt se mění JEN deployem, uptime i restartem.
+    // PC-08: sha se vrací i v produkci (celý smysl je neautentizovaný `curl`) —
+    // zkrácený na 7 znaků; u privátního repa neodemyká nic. `||` ne `??` — prázdná
+    // GitHub var je '' a to musí spadnout na fallback stejně jako undefined.
+    const version: VersionInfo = {
+      sha: (this.config.get<string>('IMAGE_SHA') || 'unknown').slice(0, 7),
+      builtAt: this.config.get<string>('BUILT_AT') || null,
+    };
+
     return {
       status: allOk ? 'ok' : 'degraded',
+      version,
       uptimeSec: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
       checks: expose ? full : stripped,

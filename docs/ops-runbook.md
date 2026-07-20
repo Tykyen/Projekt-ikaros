@@ -210,3 +210,50 @@ notification" — kanál zadat **Channel ID**, ne jménem; Developer Mode →
 Copy Channel ID). Nastavit u obou projektů, cíl = ops kanál (tentýž jako
 Uptime/BE alerty). Vnitřní monitoring hlásí 5xx nezávisle → dvě cesty k témuž
 incidentu.
+
+## 11) Která verze právě běží? (24.1)
+
+Před každým laděním „oprava nezabrala" **nejdřív ověř, že fix vůbec běží**. Záměr
+(zelený deploy run v Actions) a realita (co je v kontejneru / bundlu) jsou dvě různé
+věci — stale bundle 2026-07-14 byl přesně jejich rozpor.
+
+**BE — jeden příkaz:**
+
+```bash
+curl -s https://www.projekt-ikaros.com/api/health | head -c 200
+# → {"status":"ok","version":{"sha":"8b2e3b6","builtAt":"2026-07-19T21:55:03Z"},"uptimeSec":29641,...}
+```
+
+`version.sha` = zkrácený commit posledního **deploye**, `builtAt` čas toho deploye.
+Porovnej se `git rev-parse --short HEAD`. Plní `deploy.yml` (krok „Stamp build
+metadata" → `.env` → compose). `unknown` = image je starší než 24.1, nebo `.env`
+proměnnou nedostal.
+
+> **`uptimeSec` NENÍ důkaz nasazení.** Dává čas posledního *restartu*, takže restart
+> z jiné příčiny (OOM — RSS baseline ~2,4 GB) vypadá jako čerstvý deploy. Když
+> `uptimeSec` odpovídá kratší době než `builtAt`, kontejner se restartoval **bez**
+> deploye → hledej příčinu (OOM, crash loop), ne nový kód.
+
+**FE — grep markeru v bundlu** (FE verzi z health nezjistíš):
+
+```bash
+# 1) z posledního commitu dotýkajícího se src/ vyber UŽIVATELSKÝ text (přežije minifikaci)
+git log -1 --pretty=%h -- src/
+# 2) najdi lazy chunk, ve kterém má být
+curl -s https://www.projekt-ikaros.com/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js'
+curl -s https://www.projekt-ikaros.com/assets/index-XXXX.js | grep -oE '"assets/<Stránka>-[A-Za-z0-9_-]+\.js'
+# 3) grepni marker
+curl -s https://www.projekt-ikaros.com/assets/<Stránka>-YYYY.js | grep -c '<hledaný text>'
+```
+
+`Last-Modified` na `index.html` dokazuje jen, že se *něco* buildilo — ne co v tom je.
+
+**Kdy sha ≠ očekávání:** čas commitu ≠ čas pushe. Run spuštěný „hned po commitu"
+mohl jet bez něj; ověř `git log -g refs/remotes/origin/main` (`update by push`).
+Deploy gate 23.7 tohle **nezachytí** — kontroluje jen zelenou CI pro checkoutnutý
+sha, takže nasazení staršího commitu projde zeleně. „Re-run jobs" na starém runu
+buildí PŮVODNÍ sha; nový kód = tlačítko „Run workflow".
+
+**Poznámka k PC-08:** `version` se vrací i v produkci, kde se ostatní detaily
+strippují. Vědomé: autentizovaný endpoint by zabil celý use-case (`curl` bez tokenu),
+`sha` je zkrácený na 7 znaků a u privátního repa neodemyká nic.

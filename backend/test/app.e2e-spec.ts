@@ -23,6 +23,10 @@ describe('AppController (e2e)', () => {
     // klíčové ale je, že struktura odpovídá kontraktu a mongo.ok=true.
     expect(res.body).toMatchObject({
       status: expect.stringMatching(/^(ok|degraded)$/),
+      // 24.1 — `version` musí být v odpovědi VŽDY. Bez něj nejde zvenku zjistit,
+      // co za BE běží. Hodnota `builtAt` se neasertuje (bez env je null, v deployi
+      // časové razítko) — kontrakt je PŘÍTOMNOST klíče, ne konkrétní hodnota.
+      version: expect.objectContaining({ sha: expect.any(String) }),
       uptimeSec: expect.any(Number),
       timestamp: expect.any(String),
       checks: {
@@ -36,5 +40,6 @@ describe('AppController (e2e)', () => {
         }),
       },
     });
+    expect(res.body.version).toHaveProperty('builtAt');
   });
 });
