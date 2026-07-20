@@ -31,8 +31,12 @@ Thumbs.db
 # Claude local settings
 .claude/settings.local.json
 
-# Git worktrees
+# Git worktrees — pracovní kopie, do repa nepatří.
+# `.claude/worktrees/` zakládá Claude Code (izolované agentí worktrees); bez tohoto
+# pravidla je `git add .` zachytí jako gitlink (mode 160000) a repo si nese odkaz
+# na commit smazané větve. Odstraněno 2026-07-20 v R3 24.5.
 .worktrees/
+.claude/worktrees/
 
 # Parity check output
 backend/scripts/parity-check/output/*.json

@@ -45,7 +45,9 @@ export class WorldMapsService {
 
   /**
    * Smí daný uživatel spravovat mapy světa? Platform Admin/Superadmin jen
-   * s aktivní elevací pro tento svět (worldAdminBypass) NEBO world PJ.
+   * s aktivní elevací pro tento svět (worldAdminBypass) NEBO člen světa
+   * s rolí >= PomocnyPJ (D-NEW-INV-MAPS — sjednoceno s taktickou mapou /
+   * zvuky / deníkem PJ; dřív byl práh jen PJ).
    */
   async canManage(
     requester: Pick<RequestUser, 'id' | 'role' | 'elevatedWorldIds'>,
