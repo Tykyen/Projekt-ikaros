@@ -33,7 +33,8 @@
     "seed:plants": "ts-node scripts/seed-plants/index.ts",
     "smoke:be": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" ../scripts/backend-smoke-test.ts",
     "smoke:be:full": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" ../scripts/backend-smoke-with-mongo.ts",
-    "prepare": "cd .. && husky backend/.husky"
+    "prepare": "cd .. && husky backend/.husky",
+    "vypravec:funnel": "node scripts/vypravec-funnel.mjs"
   },
   "dependencies": {
     "@nest-lab/throttler-storage-redis": "^1.2.0",

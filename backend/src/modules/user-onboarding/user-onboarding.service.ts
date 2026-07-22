@@ -6,6 +6,10 @@ import {
   UserOnboardingDocument,
   UserOnboardingSchemaClass,
 } from './schemas/user-onboarding.schema';
+import {
+  VypravecTelemetryDocument,
+  VypravecTelemetrySchemaClass,
+} from './schemas/vypravec-telemetry.schema';
 import { UserSchemaClass } from '../users/schemas/user.schema';
 import { PatchOnboardingDto, SAFE_KEY_RE } from './dto/patch-onboarding.dto';
 
@@ -62,6 +66,8 @@ export class UserOnboardingService {
     private readonly model: Model<UserOnboardingDocument>,
     @InjectModel(UserSchemaClass.name)
     private readonly users: Model<UserSchemaClass>,
+    @InjectModel(VypravecTelemetrySchemaClass.name)
+    private readonly telemetry: Model<VypravecTelemetryDocument>,
   ) {}
 
   private releaseDate(): Date {
@@ -187,11 +193,17 @@ export class UserOnboardingService {
     return this.toEntity(doc);
   }
 
-  /** Self-delete cleanup (project_self_deletion_architecture). */
+  /**
+   * Self-delete cleanup (project_self_deletion_architecture).
+   * D11: maže i telemetrii — jinak by osobní identifikátor přežil účet (GDPR).
+   */
   @OnEvent('user.deletion.requested')
   async onUserDeleted(payload: { userId: string }): Promise<void> {
     await this.model.deleteOne({ userId: payload.userId });
-    this.logger.log(`user-onboarding smazán pro ${payload.userId}`);
+    await this.telemetry.deleteMany({ userId: payload.userId });
+    this.logger.log(
+      `user-onboarding + telemetrie smazány pro ${payload.userId}`,
+    );
   }
 
   /** Whitelist ven (be_field_check) + dekódování escapovaných klíčů. */

@@ -7,6 +7,10 @@ import {
   UserOnboardingSchemaClass,
 } from './schemas/user-onboarding.schema';
 import { UserSchema, UserSchemaClass } from '../users/schemas/user.schema';
+import {
+  VypravecTelemetrySchema,
+  VypravecTelemetrySchemaClass,
+} from './schemas/vypravec-telemetry.schema';
 import { UserOnboardingService } from './user-onboarding.service';
 import { BadRequestException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
@@ -36,6 +40,10 @@ describe('UserOnboardingService (mms)', () => {
             schema: UserOnboardingSchema,
           },
           { name: UserSchemaClass.name, schema: UserSchema },
+          {
+            name: VypravecTelemetrySchemaClass.name,
+            schema: VypravecTelemetrySchema,
+          },
         ]),
       ],
       providers: [UserOnboardingService],
@@ -161,9 +169,14 @@ describe('UserOnboardingService (mms)', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('user.deletion.requested → stav pryč', async () => {
+  it('user.deletion.requested → stav i telemetrie pryč (GDPR)', async () => {
+    const telemetry = moduleRef.get<Model<VypravecTelemetrySchemaClass>>(
+      getModelToken(VypravecTelemetrySchemaClass.name),
+    );
+    await telemetry.create({ userId: UID, event: 'step_done' });
     await service.onUserDeleted({ userId: UID });
     const { state } = await service.get(UID);
     expect(state).toBeNull();
+    expect(await telemetry.countDocuments({ userId: UID })).toBe(0);
   });
 });
