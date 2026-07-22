@@ -73,6 +73,7 @@ import { WorldElevationsModule } from './modules/world-elevations/world-elevatio
 import { MailerModule } from './modules/mailer/mailer.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { UserOnboardingModule } from './modules/user-onboarding/user-onboarding.module';
 import { CommunityNotifyModule } from './modules/community-notify/community-notify.module';
 import { PlatformChatModule } from './modules/platform-chat/platform-chat.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
@@ -155,6 +156,7 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     StatsModule,
     SeoModule,
     AnalyticsModule,
+    UserOnboardingModule,
     // Discord komunitní oznámení (nový svět / nová postava).
     CommunityNotifyModule,
     PlatformChatModule,
