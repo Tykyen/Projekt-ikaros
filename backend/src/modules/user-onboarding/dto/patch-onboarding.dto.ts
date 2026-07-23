@@ -66,10 +66,14 @@ export class PatchOnboardingDto {
   @IsBoolean()
   backfilled?: boolean;
 
-  /** set-union přírůstek — routy, které uživatel poprvé viděl. */
+  /**
+   * set-union přírůstek — routy, které uživatel poprvé viděl. Cap 500:
+   * backfill legacy účtu posílá VŠECHNY routy registru (dnes ~102) v jedné
+   * deltě; 200 byla tichá časovaná bomba růstu (FE audit 2026-07-23, nález 2).
+   */
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(200)
+  @ArrayMaxSize(500)
   @IsString({ each: true })
   @MaxLength(200, { each: true })
   seenRoutesAdd?: string[];
@@ -77,7 +81,7 @@ export class PatchOnboardingDto {
   /** set-union přírůstek — zavřené bubliny/tipy (nikdy se neopakují). */
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(200)
+  @ArrayMaxSize(500)
   @IsString({ each: true })
   @MaxLength(200, { each: true })
   dismissedAdd?: string[];
