@@ -65,6 +65,7 @@ for (const s of stavy) {
     ['hrac-start', 'hracCesta'],
     ['wb-start', 'wbCesta'],
     ['tm-vycvik', 'tmCesta'],
+    ['hrac-ve-svete', 'hracVeSveteCesta'],
   ]) {
     const p = progresCesty(s, baseId);
     if (!p) continue;
@@ -72,7 +73,12 @@ for (const s of stavy) {
     cisla[pocitadlo].start += 1;
     const kk = Object.keys(p.steps ?? {});
     cisla[pocitadlo].kroky += kk.length;
-    const celkem = { 'hrac-start': 2, 'wb-start': 4, 'tm-vycvik': 5 }[baseId];
+    const celkem = {
+      'hrac-start': 2,
+      'wb-start': 4,
+      'tm-vycvik': 5,
+      'hrac-ve-svete': 3,
+    }[baseId];
     if (kk.length >= celkem) cisla[pocitadlo].hotovo += 1;
   }
   const j = progresCesty(s, 'pj-start');
