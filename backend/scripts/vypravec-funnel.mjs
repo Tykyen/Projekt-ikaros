@@ -41,9 +41,41 @@ const cisla = {
   d7: 0,
 };
 
+// Revize 07/23: generace klíčů (D-079) — progres cesty žije pod
+// 'pj-start' NEBO 'pj-start~n'; bereme nejvyšší generaci.
+function progresCesty(s, baseId) {
+  let nej = null;
+  let nejN = -1;
+  for (const [k, v] of Object.entries(s.journeys ?? {})) {
+    const [zaklad, gen] = k.split('~');
+    if (zaklad !== baseId) continue;
+    const n = gen ? Number(gen) || 0 : 0;
+    if (n > nejN) {
+      nejN = n;
+      nej = v;
+    }
+  }
+  return nej;
+}
+
 for (const s of stavy) {
   cisla.persona[s.persona ?? 'zadna'] += 1;
-  const j = s.journeys?.['pj-start'];
+  // Trychtýře ostatních cest (hrac/wb/tm) — dřív skript měřil jen PJ.
+  for (const [baseId, pocitadlo] of [
+    ['hrac-start', 'hracCesta'],
+    ['wb-start', 'wbCesta'],
+    ['tm-vycvik', 'tmCesta'],
+  ]) {
+    const p = progresCesty(s, baseId);
+    if (!p) continue;
+    cisla[pocitadlo] = cisla[pocitadlo] ?? { start: 0, kroky: 0, hotovo: 0 };
+    cisla[pocitadlo].start += 1;
+    const kk = Object.keys(p.steps ?? {});
+    cisla[pocitadlo].kroky += kk.length;
+    const celkem = { 'hrac-start': 2, 'wb-start': 4, 'tm-vycvik': 5 }[baseId];
+    if (kk.length >= celkem) cisla[pocitadlo].hotovo += 1;
+  }
+  const j = progresCesty(s, 'pj-start');
   if (j) {
     cisla.cestaStart += 1;
     const kroky = Object.keys(j.steps ?? {});
