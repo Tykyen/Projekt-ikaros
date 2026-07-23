@@ -13,6 +13,8 @@ import { UserSchema } from '../users/schemas/user.schema';
 import { UserOnboardingController } from './user-onboarding.controller';
 import { VypravecTelemetryController } from './vypravec-telemetry.controller';
 import { UserOnboardingService } from './user-onboarding.service';
+import { UserOnboardingGateway } from './user-onboarding.gateway';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * Spec 26.3 (D6) — persistence Vypravěče; spec 26.6 (D11) — telemetrie.
@@ -28,8 +30,9 @@ import { UserOnboardingService } from './user-onboarding.service';
       },
       { name: UserSchemaClass.name, schema: UserSchema },
     ]),
+    AuthModule, // JwtService pro UserOnboardingGateway user-room join
   ],
   controllers: [UserOnboardingController, VypravecTelemetryController],
-  providers: [UserOnboardingService],
+  providers: [UserOnboardingService, UserOnboardingGateway],
 })
 export class UserOnboardingModule {}

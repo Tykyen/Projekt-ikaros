@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, UpdateQuery } from 'mongoose';
 import {
@@ -68,6 +69,7 @@ export class UserOnboardingService {
     private readonly users: Model<UserSchemaClass>,
     @InjectModel(VypravecTelemetrySchemaClass.name)
     private readonly telemetry: Model<VypravecTelemetryDocument>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private releaseDate(): Date {
@@ -190,6 +192,8 @@ export class UserOnboardingService {
     const doc = await this.model.findOne({ userId }).lean();
     // Doc po upsertu existuje vždy; pojistka kvůli typu.
     if (!doc) throw new BadRequestException('Stav se nepodařilo uložit');
+    // v2 — cross-device sync: signál bez dat, druhé zařízení si refetchne GET.
+    this.eventEmitter.emit('onboarding.updated', { userId });
     return this.toEntity(doc);
   }
 

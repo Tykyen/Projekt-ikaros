@@ -1,3 +1,4 @@
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MongooseModule } from '@nestjs/mongoose';
 import mongoose from 'mongoose';
@@ -46,7 +47,7 @@ describe('UserOnboardingService (mms)', () => {
           },
         ]),
       ],
-      providers: [UserOnboardingService],
+      providers: [UserOnboardingService, EventEmitter2],
     }).compile();
     service = moduleRef.get(UserOnboardingService);
     users = moduleRef.get(getModelToken(UserSchemaClass.name));

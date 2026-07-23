@@ -641,7 +641,7 @@ export class GameEventsService {
     await this.pushService.notifyUsers(
       userIds,
       {
-        title: `Nový event ve světě ${worldName}`,
+        title: `${worldName}: chystá se event`, // hlas Joe (S4)
         body: event.title,
       },
       'worldEvent',

@@ -120,7 +120,7 @@ export class IkarosMessagesService {
         .notify(
           msg.recipientId,
           {
-            title: 'Nová zpráva v Poště',
+            title: 'V Poště na tebe čeká zpráva', // hlas Ishidy (S4)
             body: `${msg.senderName}: ${msg.subject}`.slice(0, 120),
             url: '/ikaros/posta',
             tag: `posta-${msg.conversationId ?? msg.id}`,

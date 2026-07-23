@@ -572,7 +572,7 @@ export class IkarosDiscussionsService {
         ?.notify(
           discussion.creatorId,
           {
-            title: 'Nový příspěvek ve tvé diskusi',
+            title: 'Tvá diskuse ožila', // hlas Ishidy (S4)
             body: `${authorName} přispěl do „${discussion.title}“`.slice(
               0,
               120,
