@@ -160,6 +160,22 @@ describe('UserOnboardingService (mms)', () => {
     expect((await service.get(youngId.toString())).legacy).toBe(false);
   });
 
+  it('přijme generační klíč cesty `pj-start~1` (D-079 restart)', async () => {
+    const out = await service.patch(UID, {
+      journeys: {
+        'pj-start~1': {
+          startedAt: '2026-07-23T10:00:00Z',
+          steps: { 'pj.zaloz-svet': '2026-07-23T10:05:00Z' },
+        },
+      },
+    });
+    expect(out.journeys['pj-start~1'].steps['pj.zaloz-svet']).toBe(
+      '2026-07-23T10:05:00.000Z',
+    );
+    const { state } = await service.get(UID);
+    expect(state?.journeys['pj-start~1']).toBeDefined();
+  });
+
   it('odmítne klíč s `$` i s `:` (injection / kolize escapování)', async () => {
     await expect(
       service.patch(UID, { milestones: { $where: '2026-07-21T10:00:00Z' } }),

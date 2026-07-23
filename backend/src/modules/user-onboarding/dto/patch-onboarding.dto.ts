@@ -14,11 +14,13 @@ import {
 
 /**
  * Spec 26.3 — klíče map (journeyId/stepId/milestone id) smí nést tečky
- * (`pj.create-world`), ale NE `$` (operator injection) ani `:` (rezervováno
- * pro escapování teček na service hranici). Hodnoty klíčů validuje service
- * `assertSafeKeys` — class-validator na dynamické klíče nedosáhne.
+ * (`pj.create-world`) a vlnku (`pj-start~1` — D-079 generace progresu po
+ * restartu zrušené cesty), ale NE `$` (operator injection) ani `:`
+ * (rezervováno pro escapování teček na service hranici). Hodnoty klíčů
+ * validuje service `assertSafeKeys` — class-validator na dynamické klíče
+ * nedosáhne.
  */
-export const SAFE_KEY_RE = /^[a-z0-9_.-]{1,100}$/i;
+export const SAFE_KEY_RE = /^[a-z0-9_.~-]{1,100}$/i;
 
 export class JourneyPatchDto {
   /** $min — první start vyhrává (re-POST idempotentní). */
