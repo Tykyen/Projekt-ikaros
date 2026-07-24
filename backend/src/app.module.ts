@@ -77,6 +77,7 @@ import { UserOnboardingModule } from './modules/user-onboarding/user-onboarding.
 import { CommunityNotifyModule } from './modules/community-notify/community-notify.module';
 import { PlatformChatModule } from './modules/platform-chat/platform-chat.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { BugReportsModule } from './modules/bug-reports/bug-reports.module';
 // 20D — upload consent audit (D3) + licenční karta podklad (D4).
 import { UploadConsentsModule } from './modules/upload-consents/upload-consents.module';
 import { ContentLicensesModule } from './modules/content-licenses/content-licenses.module';
@@ -161,6 +162,8 @@ import { MatrixWorldSeed } from './database/seed/matrix-world.seed';
     CommunityNotifyModule,
     PlatformChatModule,
     ModerationModule,
+    // 25.1 — in-app hlášení chyb (kanál Vypravěč).
+    BugReportsModule,
     UploadConsentsModule,
     ContentLicensesModule,
     AdminModule,
